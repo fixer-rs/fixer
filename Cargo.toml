@@ -1,0 +1,14 @@
+[package]
+authors = ["Karuna Murti <karuna.murti@gmail.com>"]
+description = "A full featured messaging engine for the FIX protocol implemented in Rust"
+edition = "2021"
+homepage = "https://github.com/karuna/fixer.git"
+license = "Apache-2.0"
+name = "fixer"
+readme = "README.md"
+repository = "https://github.com/karuna/fixer.git"
+version = "0.1.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
