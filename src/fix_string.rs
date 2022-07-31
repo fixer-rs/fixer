@@ -10,7 +10,7 @@ impl FixStringTrait for FIXString {
     fn read(&mut self, bytes: &[u8]) -> Result<(), ()> {
         let fix_string = std::str::from_utf8(bytes).map_err(|_| ())?;
         self.clear();
-        self.push_str(&fix_string);
+        self.push_str(fix_string);
         Ok(())
     }
 

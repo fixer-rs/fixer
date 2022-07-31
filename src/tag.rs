@@ -3,9 +3,9 @@ pub type Tag = i32;
 
 pub trait TagTrait {
     //is_trailer returns true if tag belongs in the message trailer
-    fn is_trailer(self) -> bool;
+    fn is_trailer(&self) -> bool;
     //is_header returns true if tag belongs in the message header
-    fn is_header(self) -> bool;
+    fn is_header(&self) -> bool;
 }
 
 const TAG_BEGIN_STRING: Tag = 8;
@@ -64,16 +64,14 @@ const TAG_SIGNATURE_LENGTH: Tag = 93;
 const TAG_SIGNATURE: Tag = 89;
 const TAG_CHECK_SUM: Tag = 10;
 
-impl TagTrait for &Tag {
-    fn is_trailer(self) -> bool {
-        match *self {
-            TAG_SIGNATURE_LENGTH | TAG_SIGNATURE | TAG_CHECK_SUM => true,
-            _ => false,
-        }
+impl TagTrait for Tag {
+    fn is_trailer(&self) -> bool {
+        matches!(*self, TAG_SIGNATURE_LENGTH | TAG_SIGNATURE | TAG_CHECK_SUM)
     }
 
-    fn is_header(self) -> bool {
-        match *self {
+    fn is_header(&self) -> bool {
+        matches!(
+            *self,
             TAG_BEGIN_STRING |
             TAG_BODY_LENGTH |
             TAG_MSG_TYPE |
@@ -107,18 +105,7 @@ impl TagTrait for &Tag {
             TAG_SECURE_DATA |
             TAG_HOP_COMP_ID |
             TAG_HOP_SENDING_TIME |
-            TAG_HOP_REF_ID  => true,
-            _ => false
-        }
-    }
-}
-
-impl TagTrait for Tag {
-    fn is_trailer(self) -> bool {
-        (&self).is_trailer()
-    }
-
-    fn is_header(self) -> bool {
-        (&self).is_header()
+            TAG_HOP_REF_ID
+        )
     }
 }

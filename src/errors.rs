@@ -263,11 +263,11 @@ pub fn required_tag_missing(tag: Tag) -> impl MessageRejectErrorTrait {
 
 // incorrect_num_in_group_count_for_repeating_group returns a validation error when the num in group value for a group does not match actual size.
 pub fn incorrect_num_in_group_count_for_repeating_group(tag: Tag) -> impl MessageRejectErrorTrait {
-    return new_message_reject_error(
+    new_message_reject_error(
         String::from("Incorrect NumInGroup count for repeating group"),
         REJECT_REASON_INCORRECT_NUM_IN_GROUP_COUNT_FOR_REPEATING_GROUP,
         Some(tag),
-    );
+    )
 }
 
 // tag_specified_out_of_required_order returns validation error when the group order does not match the spec.
