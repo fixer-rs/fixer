@@ -315,6 +315,7 @@ fn sending_time_accuracy_problem() -> impl MessageRejectErrorTrait {
     )
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
 
