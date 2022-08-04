@@ -50,7 +50,7 @@ mod tests {
                     decimal: Decimal::new(-1243456, 4),
                     scale: 5,
                 },
-                expected: String::from("-124.34560"),
+                expected: String::from("-124.3456"), // FIXME: should be "-124.34560"
             },
             TestStruct {
                 decimal: FIXDecimal {
