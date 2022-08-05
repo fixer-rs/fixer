@@ -4,13 +4,13 @@ use std::string::ToString;
 // TagValue is a low-level FIX field abstraction
 #[derive(Default)]
 pub struct TagValue {
-    tag: Tag,
-    value: Vec<u8>,
-    bytes: Vec<u8>,
+    pub tag: Tag,
+    pub value: Vec<u8>,
+    pub bytes: Vec<u8>,
 }
 
 impl TagValue {
-    fn init(&mut self, tag: Tag, value: Vec<u8>) {
+    pub fn init(&mut self, tag: Tag, value: Vec<u8>) {
         let value_clone = value.clone();
         let value_array = String::from_utf8(value).unwrap();
 
@@ -24,7 +24,7 @@ impl TagValue {
         self.value = value_clone;
     }
 
-    fn parse(&mut self, raw_field_bytes: Vec<u8>) -> Result<(), String> {
+    pub fn parse(&mut self, raw_field_bytes: Vec<u8>) -> Result<(), String> {
         let field_string = String::from_utf8(raw_field_bytes)
             .map_err(|err| format!("TagValue::parse: {:?}", err.to_string()))?;
         let sep_index_option = field_string.find('=');
@@ -54,7 +54,7 @@ impl TagValue {
         Ok(())
     }
 
-    fn total(&self) -> isize {
+    pub fn total(&self) -> isize {
         let mut total: isize = 0;
         for b in self.bytes.iter() {
             total += *b as isize;
@@ -62,7 +62,7 @@ impl TagValue {
         total
     }
 
-    fn length(&self) -> isize {
+    pub fn length(&self) -> isize {
         self.bytes.len() as isize
     }
 }
