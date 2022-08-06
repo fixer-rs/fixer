@@ -1,5 +1,5 @@
 //Tag is a typed int representing a FIX tag
-pub type Tag = i32;
+pub type Tag = isize;
 
 pub trait TagTrait {
     //is_trailer returns true if tag belongs in the message trailer

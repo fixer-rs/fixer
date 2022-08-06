@@ -119,14 +119,14 @@ pub fn new_message_reject_error(
     err: String,
     reject_reason: isize,
     ref_tag_id: Option<Tag>,
-) -> impl MessageRejectErrorTrait {
-    MessageRejectError {
+) -> Box<dyn MessageRejectErrorTrait> {
+    Box::new(MessageRejectError {
         text: err,
         reject_reason,
         ref_tag_id,
         business_reject_ref_id: String::new(),
         is_business_reject: false,
-    }
+    })
 }
 
 // new_business_message_reject_error returns a MessageRejectError with the given error mesage, reject reason, and optional ref_tag_id.
@@ -135,14 +135,14 @@ pub fn new_business_message_reject_error(
     err: String,
     reject_reason: isize,
     ref_tag_id: Option<Tag>,
-) -> impl MessageRejectErrorTrait {
-    MessageRejectError {
+) -> Box<dyn MessageRejectErrorTrait> {
+    Box::new(MessageRejectError {
         text: err,
         reject_reason,
         ref_tag_id,
         business_reject_ref_id: String::new(),
         is_business_reject: true,
-    }
+    })
 }
 
 // new_business_message_reject_error_with_ref_id returns a MessageRejectError with the given error mesage, reject reason, ref_id, and optional ref_tag_id.
@@ -152,18 +152,18 @@ pub fn new_business_message_reject_error_with_ref_id(
     reject_reason: isize,
     business_reject_ref_id: String,
     ref_tag_id: Option<Tag>,
-) -> impl MessageRejectErrorTrait {
-    MessageRejectError {
+) -> Box<dyn MessageRejectErrorTrait> {
+    Box::new(MessageRejectError {
         text: err,
         reject_reason,
         ref_tag_id,
         business_reject_ref_id,
         is_business_reject: true,
-    }
+    })
 }
 
 // incorrect_data_format_for_value returns an error indicating a field that cannot be parsed as the type required.
-pub fn incorrect_data_format_for_value(tag: Tag) -> impl MessageRejectErrorTrait {
+pub fn incorrect_data_format_for_value(tag: Tag) -> Box<dyn MessageRejectErrorTrait> {
     new_message_reject_error(
         String::from("Incorrect data format for value"),
         REJECT_REASON_INCORRECT_DATA_FORMAT_FOR_VALUE,
@@ -175,7 +175,7 @@ pub fn incorrect_data_format_for_value(tag: Tag) -> impl MessageRejectErrorTrait
 fn repeating_group_fields_out_of_order(
     tag: Tag,
     mut reason: String,
-) -> impl MessageRejectErrorTrait {
+) -> Box<dyn MessageRejectErrorTrait> {
     if !reason.is_empty() {
         reason = format!("Repeating group fields out of order ({})", reason)
     } else {
@@ -189,7 +189,7 @@ fn repeating_group_fields_out_of_order(
 }
 
 // value_is_incorrect returns an error indicating a field with value that is not valid.
-pub fn value_is_incorrect(tag: Tag) -> impl MessageRejectErrorTrait {
+pub fn value_is_incorrect(tag: Tag) -> Box<dyn MessageRejectErrorTrait> {
     new_message_reject_error(
         String::from("Value is incorrect (out of range) for this tag"),
         REJECT_REASON_VALUE_IS_INCORRECT,
@@ -198,7 +198,7 @@ pub fn value_is_incorrect(tag: Tag) -> impl MessageRejectErrorTrait {
 }
 
 // conditionally_required_field_missing indicates that the requested field could not be found in the FIX message.
-pub fn conditionally_required_field_missing(tag: Tag) -> impl MessageRejectErrorTrait {
+pub fn conditionally_required_field_missing(tag: Tag) -> Box<dyn MessageRejectErrorTrait> {
     new_business_message_reject_error(
         format!("Conditionally Required Field Missing ({})", tag),
         REJECT_REASON_CONDITIONALLY_REQUIRED_FIELD_MISSING,
@@ -208,7 +208,7 @@ pub fn conditionally_required_field_missing(tag: Tag) -> impl MessageRejectError
 
 // value_is_incorrect_no_tag returns an error indicating a field with value that is not valid.
 // FIXME: to be compliant with legacy tests, for certain value issues, do not include ref_tag? (11c_NewSeqNoLess)
-fn value_is_incorrect_no_tag() -> impl MessageRejectErrorTrait {
+fn value_is_incorrect_no_tag() -> Box<dyn MessageRejectErrorTrait> {
     new_message_reject_error(
         String::from("Value is incorrect (out of range) for this tag"),
         REJECT_REASON_VALUE_IS_INCORRECT,
@@ -217,7 +217,7 @@ fn value_is_incorrect_no_tag() -> impl MessageRejectErrorTrait {
 }
 
 // invalid_message_type returns an error to indicate an invalid message type
-pub fn invalid_message_type() -> impl MessageRejectErrorTrait {
+pub fn invalid_message_type() -> Box<dyn MessageRejectErrorTrait> {
     new_message_reject_error(
         String::from("Invalid MsgType"),
         REJECT_REASON_INVALID_MSG_TYPE,
@@ -226,7 +226,7 @@ pub fn invalid_message_type() -> impl MessageRejectErrorTrait {
 }
 
 // unsupported_message_type returns an error to indicate an unhandled message.
-pub fn unsupported_message_type() -> impl MessageRejectErrorTrait {
+pub fn unsupported_message_type() -> Box<dyn MessageRejectErrorTrait> {
     new_business_message_reject_error(
         String::from("Unsupported Message Type"),
         REJECT_REASON_UNSUPPORTED_MESSAGE_TYPE,
@@ -235,7 +235,7 @@ pub fn unsupported_message_type() -> impl MessageRejectErrorTrait {
 }
 
 // tag_not_defined_for_this_message_type returns an error for an invalid tag appearing in a message.
-pub fn tag_not_defined_for_this_message_type(tag: Tag) -> impl MessageRejectErrorTrait {
+pub fn tag_not_defined_for_this_message_type(tag: Tag) -> Box<dyn MessageRejectErrorTrait> {
     new_message_reject_error(
         String::from("Tag not defined for this message type"),
         REJECT_REASON_TAG_NOT_DEFINED_FOR_THIS_MESSAGE_TYPE,
@@ -244,7 +244,7 @@ pub fn tag_not_defined_for_this_message_type(tag: Tag) -> impl MessageRejectErro
 }
 
 // tag_appears_more_than_once return an error for multiple tags in a message not detected as a repeating group.
-fn tag_appears_more_than_once(tag: Tag) -> impl MessageRejectErrorTrait {
+fn tag_appears_more_than_once(tag: Tag) -> Box<dyn MessageRejectErrorTrait> {
     new_message_reject_error(
         String::from("Tag appears more than once"),
         REJECT_REASON_TAG_APPEARS_MORE_THAN_ONCE,
@@ -253,7 +253,7 @@ fn tag_appears_more_than_once(tag: Tag) -> impl MessageRejectErrorTrait {
 }
 
 // required_tag_missing returns a validation error when a required field cannot be found in a message.
-pub fn required_tag_missing(tag: Tag) -> impl MessageRejectErrorTrait {
+pub fn required_tag_missing(tag: Tag) -> Box<dyn MessageRejectErrorTrait> {
     new_message_reject_error(
         String::from("Required tag missing"),
         REJECT_REASON_REQUIRED_TAG_MISSING,
@@ -262,7 +262,9 @@ pub fn required_tag_missing(tag: Tag) -> impl MessageRejectErrorTrait {
 }
 
 // incorrect_num_in_group_count_for_repeating_group returns a validation error when the num in group value for a group does not match actual size.
-pub fn incorrect_num_in_group_count_for_repeating_group(tag: Tag) -> impl MessageRejectErrorTrait {
+pub fn incorrect_num_in_group_count_for_repeating_group(
+    tag: Tag,
+) -> Box<dyn MessageRejectErrorTrait> {
     new_message_reject_error(
         String::from("Incorrect NumInGroup count for repeating group"),
         REJECT_REASON_INCORRECT_NUM_IN_GROUP_COUNT_FOR_REPEATING_GROUP,
@@ -271,7 +273,7 @@ pub fn incorrect_num_in_group_count_for_repeating_group(tag: Tag) -> impl Messag
 }
 
 // tag_specified_out_of_required_order returns validation error when the group order does not match the spec.
-fn tag_specified_out_of_required_order(tag: Tag) -> impl MessageRejectErrorTrait {
+fn tag_specified_out_of_required_order(tag: Tag) -> Box<dyn MessageRejectErrorTrait> {
     new_message_reject_error(
         String::from("Tag specified out of required order"),
         REJECT_REASON_TAG_SPECIFIED_OUT_OF_REQUIRED_ORDER,
@@ -280,7 +282,7 @@ fn tag_specified_out_of_required_order(tag: Tag) -> impl MessageRejectErrorTrait
 }
 
 // tag_specified_without_a_value returns a validation error for when a field has no value.
-pub fn tag_specified_without_a_value(tag: Tag) -> impl MessageRejectErrorTrait {
+pub fn tag_specified_without_a_value(tag: Tag) -> Box<dyn MessageRejectErrorTrait> {
     new_message_reject_error(
         String::from("Tag specified without a value"),
         REJECT_REASON_TAG_SPECIFIED_WITHOUT_A_VALUE,
@@ -289,7 +291,7 @@ pub fn tag_specified_without_a_value(tag: Tag) -> impl MessageRejectErrorTrait {
 }
 
 // invalid_tag_number returns a validation error for messages with invalid tags.
-pub fn invalid_tag_number(tag: Tag) -> impl MessageRejectErrorTrait {
+pub fn invalid_tag_number(tag: Tag) -> Box<dyn MessageRejectErrorTrait> {
     new_message_reject_error(
         String::from("Invalid tag number"),
         REJECT_REASON_INVALID_TAG_NUMBER,
@@ -298,7 +300,7 @@ pub fn invalid_tag_number(tag: Tag) -> impl MessageRejectErrorTrait {
 }
 
 // comp_id_problem creates a reject for msg where msg has invalid comp id values.
-fn comp_id_problem() -> impl MessageRejectErrorTrait {
+fn comp_id_problem() -> Box<dyn MessageRejectErrorTrait> {
     new_message_reject_error(
         String::from("CompID problem"),
         REJECT_REASON_COMP_ID_PROBLEM,
@@ -307,7 +309,7 @@ fn comp_id_problem() -> impl MessageRejectErrorTrait {
 }
 
 // sending_time_accuracy_problem creates a reject for a msg with stale or invalid sending time.
-fn sending_time_accuracy_problem() -> impl MessageRejectErrorTrait {
+fn sending_time_accuracy_problem() -> Box<dyn MessageRejectErrorTrait> {
     new_message_reject_error(
         String::from("SendingTime accuracy problem"),
         REJECT_REASON_SENDING_TIME_ACCURACY_PROBLEM,
