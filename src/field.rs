@@ -4,18 +4,18 @@ use std::error::Error;
 // FieldValueWriter is an interface for writing field values
 pub trait FieldValueWriter {
     // write writes out the contents of the FieldValue to a []byte
-    fn write(&self) -> Vec<u8>;
+    fn write(&self) -> String;
 }
 
 // FieldValueReader is an interface for reading field values
 pub trait FieldValueReader {
     // read reads the contents of the []byte into FieldValue.
     // returns an error if there are issues in the data processing
-    fn read(&mut self, bytes: &[u8]) -> Result<(), ()>;
+    fn read(&mut self, bytes: &str) -> Result<(), ()>;
 }
 
 // The FieldValue interface is used to write/extract typed field values to/from raw bytes
-pub trait FieldValue: FieldValueWriter + FieldGroupReader {}
+pub trait FieldValue: FieldValueWriter + FieldValueReader {}
 
 // FieldWriter is an interface for a writing a field
 pub trait FieldWriter: FieldValueWriter {

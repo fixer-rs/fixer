@@ -1,59 +1,69 @@
-//FIXString is a FIX String Value, implements FieldValue
+use crate::field::{FieldValue, FieldValueReader, FieldValueWriter};
+
+// FIXString is a FIX String Value, implements FieldValue
 type FIXString = String;
 
-pub trait FixStringTrait {
-    fn read(&mut self, bytes: &[u8]) -> Result<(), ()>;
-    fn write(&self) -> Vec<u8>;
+pub trait FIXStringTrait {
+    fn string(&self) -> String;
 }
 
-impl FixStringTrait for FIXString {
-    fn read(&mut self, bytes: &[u8]) -> Result<(), ()> {
-        let fix_string = std::str::from_utf8(bytes).map_err(|_| ())?;
+impl FIXStringTrait for FIXString {
+    fn string(&self) -> String {
+        self.to_string()
+    }
+}
+
+impl FieldValueReader for FIXString {
+    fn read(&mut self, bytes: &str) -> Result<(), ()> {
         self.clear();
-        self.push_str(fix_string);
+        self.push_str(bytes);
         Ok(())
     }
+}
 
-    fn write(&self) -> Vec<u8> {
-        self.as_bytes().to_vec()
+impl FieldValueWriter for FIXString {
+    fn write(&self) -> String {
+        self.to_string()
     }
 }
+
+impl FieldValue for FIXString {}
 
 #[cfg(test)]
 mod tests {
-    use super::{FIXString, FixStringTrait};
+    use super::*;
 
     #[test]
-    fn test_fixstring_write() {
+    fn test_fix_string_write() {
         struct TestStruct {
             field: FIXString,
-            val: Vec<u8>,
+            val: String,
         }
         let tests = vec![TestStruct {
             field: FIXString::from("CWB"),
-            val: "CWB".as_bytes().to_vec(),
+            val: String::from("CWB"),
         }];
         for test in tests.iter() {
             let b = test.field.write();
-            assert_eq!(b, test.val, "got {:?}; want {:?}", b, test.val);
+            assert_eq!(b, test.val, "got {}; want {}", b, test.val);
         }
     }
 
     #[test]
-    fn test_fixstring_read() {
-        struct TestStruct {
-            bytes: Vec<u8>,
+    fn test_fix_string_read() {
+        struct TestStruct<'a> {
+            bytes: &'a str,
             value: String,
             expected_error: bool,
         }
         let tests = vec![TestStruct {
-            bytes: "blah".as_bytes().to_vec(),
+            bytes: "blah",
             value: String::from("blah"),
             expected_error: false,
         }];
         for test in tests.iter() {
             let mut field = FIXString::new();
-            let err = field.read(&test.bytes);
+            let err = field.read(test.bytes);
             if test.expected_error {
                 assert_eq!(Err(()), err, "Expected error for {:?}", test.bytes);
             } else {

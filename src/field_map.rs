@@ -74,9 +74,9 @@ impl FieldMap {
     }
 
     // get parses out a field in this FieldMap. Returned reject may indicate the field is not present, or the field value is invalid.
-    pub fn get(&self, parser: Box<dyn Field>) -> Result<(), Box<dyn MessageRejectErrorTrait>> {
-        self.get_field(parser.tag(), parser)
-    }
+    // pub fn get(&self, parser: Box<dyn Field>) -> Result<(), Box<dyn MessageRejectErrorTrait>> {
+    //     self.get_field(parser.tag(), parser)
+    // }
 
     // //Has returns true if the Tag is present in this FieldMap
     // fn (m FieldMap) Has(tag Tag) bool {
@@ -88,23 +88,23 @@ impl FieldMap {
     // }
 
     // get_field parses of a field with Tag tag. Returned reject may indicate the field is not present, or the field value is invalid.
-    fn get_field(
-        &self,
-        tag: Tag,
-        mut parser: Box<dyn FieldValueReader>,
-    ) -> Result<(), Box<dyn MessageRejectErrorTrait>> {
-        // 	m.rwLock.RLock()
-        // 	defer m.rwLock.RUnlock()
+    // fn get_field(
+    //     &self,
+    //     tag: Tag,
+    //     mut parser: Box<dyn FieldValueReader>,
+    // ) -> Result<(), Box<dyn MessageRejectErrorTrait>> {
+    //     // 	m.rwLock.RLock()
+    //     // 	defer m.rwLock.RUnlock()
 
-        let f = self
-            .tag_lookup
-            .get(&tag)
-            .ok_or(conditionally_required_field_missing(tag))?;
+    //     let f = self
+    //         .tag_lookup
+    //         .get(&tag)
+    //         .ok_or(conditionally_required_field_missing(tag))?;
 
-        parser
-            .read(&f[0].value)
-            .map_err(|_| incorrect_data_format_for_value(tag))
-    }
+    //     parser
+    //         .read(&f[0].value)
+    //         .map_err(|_| incorrect_data_format_for_value(tag))
+    // }
 
     // //GetBytes is a zero-copy get_field wrapper for []bytes fields
     // fn (m FieldMap) GetBytes(tag Tag) ([]byte, MessageRejectError) {

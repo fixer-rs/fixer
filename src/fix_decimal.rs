@@ -1,3 +1,4 @@
+use crate::field::{FieldValue, FieldValueReader, FieldValueWriter};
 use rust_decimal::Decimal;
 
 // FIXDecimal is a FIX Float Value that implements an arbitrary precision fixed-point decimal.  Implements FieldValue
@@ -6,27 +7,24 @@ pub struct FIXDecimal {
     pub scale: i32,
 }
 
-pub trait FixDecimalTrait {
-    fn read(&mut self, bytes: &[u8]) -> Result<(), ()>;
-    fn write(&self) -> Vec<u8>;
-}
-
-impl FixDecimalTrait for FIXDecimal {
-    fn read(&mut self, bytes: &[u8]) -> Result<(), ()> {
-        let fix_str = std::str::from_utf8(bytes).map_err(|_| ())?;
-        let fix_decimal = Decimal::from_str_exact(fix_str).map_err(|_| ())?;
+impl FieldValueReader for FIXDecimal {
+    fn read(&mut self, bytes: &str) -> Result<(), ()> {
+        let fix_decimal = Decimal::from_str_exact(bytes).map_err(|_| ())?;
         self.decimal = fix_decimal;
         Ok(())
     }
+}
 
-    fn write(&self) -> Vec<u8> {
+impl FieldValueWriter for FIXDecimal {
+    fn write(&self) -> String {
         self.decimal
             .round_dp(self.scale.try_into().unwrap())
             .to_string()
-            .as_bytes()
-            .to_vec()
     }
 }
+
+impl FieldValue for FIXDecimal {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -63,7 +61,7 @@ mod tests {
 
         for test in tests.iter() {
             let b = test.decimal.write();
-            assert_eq!(test.expected, String::from_utf8(b).unwrap());
+            assert_eq!(test.expected, b);
         }
     }
 
