@@ -14,9 +14,9 @@ impl FIXStringTrait for FIXString {
 }
 
 impl FieldValueReader for FIXString {
-    fn read(&mut self, bytes: &str) -> Result<(), ()> {
+    fn read(&mut self, input: &str) -> Result<(), ()> {
         self.clear();
-        self.push_str(bytes);
+        self.push_str(input);
         Ok(())
     }
 }

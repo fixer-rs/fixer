@@ -15,3 +15,10 @@ version = "0.1.0"
 lazy_static = "1.4.0"
 rust_decimal = "1.25.0"
 simple-error = "0.2"
+
+[dev-dependencies]
+criterion = "0.3"
+
+[[bench]]
+harness = false
+name = "fixer_benchmark"

@@ -8,8 +8,8 @@ pub struct FIXDecimal {
 }
 
 impl FieldValueReader for FIXDecimal {
-    fn read(&mut self, bytes: &str) -> Result<(), ()> {
-        let fix_decimal = Decimal::from_str_exact(bytes).map_err(|_| ())?;
+    fn read(&mut self, input: &str) -> Result<(), ()> {
+        let fix_decimal = Decimal::from_str_exact(input).map_err(|_| ())?;
         self.decimal = fix_decimal;
         Ok(())
     }

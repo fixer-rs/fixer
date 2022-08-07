@@ -6,6 +6,7 @@ pub type FIXBoolean = bool;
 pub trait FixBooleanTrait {
     fn bool(&self) -> bool;
 }
+
 impl FixBooleanTrait for FIXBoolean {
     fn bool(&self) -> bool {
         *self
@@ -13,12 +14,12 @@ impl FixBooleanTrait for FIXBoolean {
 }
 
 impl FieldValueReader for FIXBoolean {
-    fn read(&mut self, bytes: &str) -> Result<(), ()> {
-        if bytes == "Y" {
+    fn read(&mut self, input: &str) -> Result<(), ()> {
+        if input == "Y" {
             *self = true;
             return Ok(());
         }
-        if bytes == "N" {
+        if input == "N" {
             *self = false;
             return Ok(());
         }

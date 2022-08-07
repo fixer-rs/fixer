@@ -9,6 +9,7 @@ pub mod field_map;
 pub mod fix_boolean;
 pub mod fix_bytes;
 pub mod fix_decimal;
+pub mod fix_float;
 pub mod fix_int;
 pub mod fix_string;
 pub mod log;

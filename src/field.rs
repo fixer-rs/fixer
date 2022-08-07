@@ -11,7 +11,7 @@ pub trait FieldValueWriter {
 pub trait FieldValueReader {
     // read reads the contents of the []byte into FieldValue.
     // returns an error if there are issues in the data processing
-    fn read(&mut self, bytes: &str) -> Result<(), ()>;
+    fn read(&mut self, input: &str) -> Result<(), ()>;
 }
 
 // The FieldValue interface is used to write/extract typed field values to/from raw bytes
@@ -32,14 +32,14 @@ pub trait FieldGroupWriter {
 }
 
 // FieldGroupReader is an interface for reading a FieldGroup
-pub trait FieldGroupReader {
+pub trait FieldGroupReader<T: Error> {
     fn tag(&self) -> Tag;
-    fn read(tag_value: Vec<TagValue>) -> Result<Vec<TagValue>, Box<dyn Error>>;
+    fn read(tag_value: Vec<TagValue>) -> Result<Vec<TagValue>, T>;
 }
 
 // FieldGroup is the interface implemented by all typed Groups in a Message
-pub trait FieldGroup {
+pub trait FieldGroup<T: Error> {
     fn tag(&self) -> Tag;
     fn write(&self) -> Vec<TagValue>;
-    fn read(tag_value: Vec<TagValue>) -> Result<Vec<TagValue>, Box<dyn Error>>;
+    fn read(tag_value: Vec<TagValue>) -> Result<Vec<TagValue>, T>;
 }
