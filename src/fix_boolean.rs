@@ -23,7 +23,7 @@ impl FieldValueReader for FIXBoolean {
             *self = false;
             return Ok(());
         }
-        return Err(());
+        Err(())
     }
 }
 

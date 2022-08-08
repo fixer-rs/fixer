@@ -9,7 +9,7 @@ use std::collections::HashMap;
 type LocalField = Vec<TagValue>;
 
 fn field_tag(f: LocalField) -> Tag {
-    return f[0].tag;
+    f[0].tag
 }
 
 fn init_field(mut f: LocalField, tag: Tag, value: Vec<u8>) {
@@ -18,7 +18,7 @@ fn init_field(mut f: LocalField, tag: Tag, value: Vec<u8>) {
 
 fn write_field(f: &LocalField, mut buffer: String) {
     for tv in f.iter() {
-        buffer.push_str(&std::str::from_utf8(&(tv.bytes)).unwrap());
+        buffer.push_str(std::str::from_utf8(&(tv.bytes)).unwrap());
     }
 }
 
@@ -39,7 +39,7 @@ impl TagSort {
     }
 
     pub fn less(&self, i: isize, j: isize) -> bool {
-        return (self.compare)(self.tags[i as usize], self.tags[j as usize]);
+        (self.compare)(self.tags[i as usize], self.tags[j as usize])
     }
 }
 
@@ -51,7 +51,7 @@ pub struct FieldMap {
 
 // ascending tags
 fn normal_field_order(i: Tag, j: Tag) -> bool {
-    return i < j;
+    i < j
 }
 
 impl FieldMap {

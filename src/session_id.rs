@@ -11,7 +11,7 @@ pub struct SessionID {
 }
 
 fn append_optional(buffer: &mut String, delim: &str, v: &str) {
-    if v.len() == 0 {
+    if v.is_empty() {
         return;
     }
 
@@ -22,6 +22,6 @@ fn append_optional(buffer: &mut String, delim: &str, v: &str) {
 impl SessionID {
     // is_fixt returns true if the SessionID has a FIXT BeginString
     pub fn is_fixt(&self) -> bool {
-        return self.begin_string == crate::BEGIN_STRING_FIXT11;
+        self.begin_string == crate::BEGIN_STRING_FIXT11
     }
 }

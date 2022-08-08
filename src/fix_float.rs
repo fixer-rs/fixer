@@ -15,17 +15,17 @@ impl FIXFloatTrait for FIXFloat {
 
 impl FieldValueReader for FIXFloat {
     fn read(&mut self, input: &str) -> Result<(), ()> {
-        let f = input.parse::<f64>().map_err(|_| ())?;
+        let f = fast_float::parse(input).map_err(|_| ())?;
 
         for chr in input.chars() {
-            if chr != '.' && chr != '-' && !('0' <= chr && chr <= '9') {
+            if chr != '.' && chr != '-' && !('0'..='9').contains(&chr) {
                 return Err(());
             }
         }
 
         *self = f;
 
-        return Ok(());
+        Ok(())
     }
 }
 
