@@ -11,8 +11,7 @@ pub struct TagValue {
 
 impl TagValue {
     pub fn init(&mut self, tag: Tag, value: Vec<u8>) {
-        let value_clone = value.clone();
-        let value_array = String::from_utf8(value).unwrap();
+        let value_array = String::from_utf8_lossy(&value);
 
         let mut self_value = format!("{}", tag);
         self_value.push('=');
@@ -21,12 +20,11 @@ impl TagValue {
 
         self.bytes = self_value.into_bytes();
         self.tag = tag;
-        self.value = value_clone;
+        self.value = value;
     }
 
     pub fn parse(&mut self, raw_field_bytes: Vec<u8>) -> Result<(), String> {
-        let field_string = String::from_utf8(raw_field_bytes)
-            .map_err(|err| format!("TagValue::parse: {:?}", err.to_string()))?;
+        let field_string = String::from_utf8_lossy(&raw_field_bytes);
         let sep_index_option = field_string.find('=');
         if sep_index_option.is_none() {
             return Err(format!("TagValue::parse: No '=' in '{:?}'", field_string));
@@ -70,7 +68,7 @@ impl TagValue {
 impl ToString for TagValue {
     fn to_string(&self) -> String {
         let bytes = self.bytes.clone();
-        String::from_utf8(bytes).unwrap()
+        String::from_utf8_lossy(&bytes).to_string()
     }
 }
 
