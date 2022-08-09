@@ -5,6 +5,7 @@ use crate::field::{Field, FieldValueReader};
 use crate::tag::Tag;
 use crate::tag_value::TagValue;
 use std::collections::HashMap;
+use std::sync::RwLock;
 
 type LocalField = Vec<TagValue>;
 
@@ -43,10 +44,14 @@ impl TagSort {
     }
 }
 
-// FieldMap is a collection of fix fields that make up a fix message.
-pub struct FieldMap {
+pub struct FieldMapContent {
     tag_lookup: HashMap<Tag, LocalField>,
     tag_sort: TagSort,
+}
+
+// FieldMap is a collection of fix fields that make up a fix message.
+pub struct FieldMap {
+    rw_lock: RwLock<FieldMapContent>,
 }
 
 // ascending tags
@@ -64,13 +69,16 @@ impl FieldMap {
             tags: Vec::new(),
             compare: ordering,
         };
-        self.tag_lookup = HashMap::new();
-        self.tag_sort = tag_sort;
+        let field_map_content = FieldMapContent {
+            tag_lookup: HashMap::new(),
+            tag_sort,
+        };
+        self.rw_lock = RwLock::new(field_map_content);
     }
 
     // tags returns all of the Field Tags in this FieldMap
     pub fn tags(&self) -> Vec<Tag> {
-        self.tag_sort.tags.clone()
+        self.rw_lock.read().unwrap().tag_sort.tags.to_vec()
     }
 
     // get parses out a field in this FieldMap. Returned reject may indicate the field is not present, or the field value is invalid.
@@ -78,14 +86,16 @@ impl FieldMap {
     //     self.get_field(parser.tag(), parser)
     // }
 
-    // //Has returns true if the Tag is present in this FieldMap
-    // fn (m FieldMap) Has(tag Tag) bool {
-    // 	m.rwLock.RLock()
-    // 	defer m.rwLock.RUnlock()
+    // has returns true if the Tag is present in this FieldMap
+    fn has(&self, m: FieldMap) -> bool {
+        // self.
+        true
+        // 	m.rwLock.RLock()
+        // 	defer m.rwLock.RUnlock()
 
-    // 	_, ok := m.tagLookup[tag]
-    // 	return ok
-    // }
+        // 	_, ok := m.tagLookup[tag]
+        // 	return ok
+    }
 
     // get_field parses of a field with Tag tag. Returned reject may indicate the field is not present, or the field value is invalid.
     // fn get_field(
