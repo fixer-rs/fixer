@@ -23,6 +23,7 @@ const REJECT_REASON_TAG_APPEARS_MORE_THAN_ONCE: isize = 13;
 const REJECT_REASON_TAG_SPECIFIED_OUT_OF_REQUIRED_ORDER: isize = 14;
 const REJECT_REASON_REPEATING_GROUP_FIELDS_OUT_OF_ORDER: isize = 15;
 const REJECT_REASON_INCORRECT_NUM_IN_GROUP_COUNT_FOR_REPEATING_GROUP: isize = 16;
+const REJECT_REASON_OTHER: isize = 99;
 
 // MessageRejectError is a type of error that can correlate to a message reject.
 pub trait MessageRejectErrorTrait: Error {
@@ -172,7 +173,7 @@ pub fn incorrect_data_format_for_value(tag: Tag) -> Box<dyn MessageRejectErrorTr
 }
 
 // repeating_group_fields_out_of_order returns an error indicating a problem parsing repeating groups fields
-fn repeating_group_fields_out_of_order(
+pub fn repeating_group_fields_out_of_order(
     tag: Tag,
     mut reason: String,
 ) -> Box<dyn MessageRejectErrorTrait> {
@@ -208,7 +209,7 @@ pub fn conditionally_required_field_missing(tag: Tag) -> Box<dyn MessageRejectEr
 
 // value_is_incorrect_no_tag returns an error indicating a field with value that is not valid.
 // FIXME: to be compliant with legacy tests, for certain value issues, do not include ref_tag? (11c_NewSeqNoLess)
-fn value_is_incorrect_no_tag() -> Box<dyn MessageRejectErrorTrait> {
+pub fn value_is_incorrect_no_tag() -> Box<dyn MessageRejectErrorTrait> {
     new_message_reject_error(
         String::from("Value is incorrect (out of range) for this tag"),
         REJECT_REASON_VALUE_IS_INCORRECT,
@@ -244,7 +245,7 @@ pub fn tag_not_defined_for_this_message_type(tag: Tag) -> Box<dyn MessageRejectE
 }
 
 // tag_appears_more_than_once return an error for multiple tags in a message not detected as a repeating group.
-fn tag_appears_more_than_once(tag: Tag) -> Box<dyn MessageRejectErrorTrait> {
+pub fn tag_appears_more_than_once(tag: Tag) -> Box<dyn MessageRejectErrorTrait> {
     new_message_reject_error(
         String::from("Tag appears more than once"),
         REJECT_REASON_TAG_APPEARS_MORE_THAN_ONCE,
@@ -273,7 +274,7 @@ pub fn incorrect_num_in_group_count_for_repeating_group(
 }
 
 // tag_specified_out_of_required_order returns validation error when the group order does not match the spec.
-fn tag_specified_out_of_required_order(tag: Tag) -> Box<dyn MessageRejectErrorTrait> {
+pub fn tag_specified_out_of_required_order(tag: Tag) -> Box<dyn MessageRejectErrorTrait> {
     new_message_reject_error(
         String::from("Tag specified out of required order"),
         REJECT_REASON_TAG_SPECIFIED_OUT_OF_REQUIRED_ORDER,
@@ -300,7 +301,7 @@ pub fn invalid_tag_number(tag: Tag) -> Box<dyn MessageRejectErrorTrait> {
 }
 
 // comp_id_problem creates a reject for msg where msg has invalid comp id values.
-fn comp_id_problem() -> Box<dyn MessageRejectErrorTrait> {
+pub fn comp_id_problem() -> Box<dyn MessageRejectErrorTrait> {
     new_message_reject_error(
         String::from("CompID problem"),
         REJECT_REASON_COMP_ID_PROBLEM,
@@ -309,12 +310,16 @@ fn comp_id_problem() -> Box<dyn MessageRejectErrorTrait> {
 }
 
 // sending_time_accuracy_problem creates a reject for a msg with stale or invalid sending time.
-fn sending_time_accuracy_problem() -> Box<dyn MessageRejectErrorTrait> {
+pub fn sending_time_accuracy_problem() -> Box<dyn MessageRejectErrorTrait> {
     new_message_reject_error(
         String::from("SendingTime accuracy problem"),
         REJECT_REASON_SENDING_TIME_ACCURACY_PROBLEM,
         None,
     )
+}
+
+pub fn other_error() -> Box<dyn MessageRejectErrorTrait> {
+    new_message_reject_error(String::from("Other error"), REJECT_REASON_OTHER, None)
 }
 
 #[cfg(test)]

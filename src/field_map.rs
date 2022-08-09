@@ -1,11 +1,17 @@
 use crate::errors::{
-    conditionally_required_field_missing, incorrect_data_format_for_value, MessageRejectErrorTrait,
+    conditionally_required_field_missing, incorrect_data_format_for_value, other_error,
+    MessageRejectErrorTrait,
 };
 use crate::field::{Field, FieldValueReader};
+use crate::fix_boolean::{FIXBoolean, FixBooleanTrait};
+use crate::fix_int::{FIXInt, FIXIntTrait};
+use crate::fix_utc_timestamp::FIXUTCTimestamp;
 use crate::tag::Tag;
 use crate::tag_value::TagValue;
+use chrono::naive::NaiveDateTime;
 use std::collections::HashMap;
 use std::sync::RwLock;
+use std::vec;
 
 type LocalField = Vec<TagValue>;
 
@@ -78,98 +84,89 @@ impl FieldMap {
 
     // tags returns all of the Field Tags in this FieldMap
     pub fn tags(&self) -> Vec<Tag> {
-        self.rw_lock.read().unwrap().tag_sort.tags.to_vec()
+        let rlock_result = self.rw_lock.read();
+        if rlock_result.is_err() {
+            return vec![];
+        }
+        rlock_result.unwrap().tag_sort.tags.to_vec()
     }
 
     // get parses out a field in this FieldMap. Returned reject may indicate the field is not present, or the field value is invalid.
-    // pub fn get(&self, parser: Box<dyn Field>) -> Result<(), Box<dyn MessageRejectErrorTrait>> {
-    //     self.get_field(parser.tag(), parser)
-    // }
+    pub fn get<P: Field + FieldValueReader>(
+        &self,
+        parser: P,
+    ) -> Result<(), Box<dyn MessageRejectErrorTrait>> {
+        self.get_field(parser.tag(), parser)
+    }
 
     // has returns true if the Tag is present in this FieldMap
-    fn has(&self, m: FieldMap) -> bool {
-        // self.
-        true
-        // 	m.rwLock.RLock()
-        // 	defer m.rwLock.RUnlock()
-
-        // 	_, ok := m.tagLookup[tag]
-        // 	return ok
+    pub fn has(&self, tag: Tag) -> bool {
+        let rlock_result = self.rw_lock.read();
+        if rlock_result.is_err() {
+            return false;
+        }
+        rlock_result.unwrap().tag_lookup.get(&tag).is_some()
     }
 
     // get_field parses of a field with Tag tag. Returned reject may indicate the field is not present, or the field value is invalid.
-    // fn get_field(
-    //     &self,
-    //     tag: Tag,
-    //     mut parser: Box<dyn FieldValueReader>,
-    // ) -> Result<(), Box<dyn MessageRejectErrorTrait>> {
-    //     // 	m.rwLock.RLock()
-    //     // 	defer m.rwLock.RUnlock()
+    pub fn get_field<P: FieldValueReader>(
+        &self,
+        tag: Tag,
+        mut parser: P,
+    ) -> Result<(), Box<dyn MessageRejectErrorTrait>> {
+        let rlock = self.rw_lock.read().map_err(|_| other_error())?;
+        let f = rlock
+            .tag_lookup
+            .get(&tag)
+            .ok_or(conditionally_required_field_missing(tag))?;
 
-    //     let f = self
-    //         .tag_lookup
-    //         .get(&tag)
-    //         .ok_or(conditionally_required_field_missing(tag))?;
+        parser
+            .read(&String::from_utf8_lossy(&f[0].value))
+            .map_err(|_| incorrect_data_format_for_value(tag))?;
 
-    //     parser
-    //         .read(&f[0].value)
-    //         .map_err(|_| incorrect_data_format_for_value(tag))
-    // }
+        Ok(())
+    }
 
-    // //GetBytes is a zero-copy get_field wrapper for []bytes fields
-    // fn (m FieldMap) GetBytes(tag Tag) ([]byte, MessageRejectError) {
-    // 	m.rwLock.RLock()
-    // 	defer m.rwLock.RUnlock()
+    // get_bytes is a zero-copy get_field wrapper for []bytes fields
+    pub fn get_bytes(&self, tag: Tag) -> Result<String, Box<dyn MessageRejectErrorTrait>> {
+        let rlock = self.rw_lock.read().map_err(|_| other_error())?;
+        let f = rlock
+            .tag_lookup
+            .get(&tag)
+            .ok_or(conditionally_required_field_missing(tag))?;
+        Ok(String::from_utf8_lossy(&f[0].value).to_string())
+    }
 
-    // 	f, ok := m.tagLookup[tag]
-    // 	if !ok {
-    // 		return nil, ConditionallyRequiredFieldMissing(tag)
-    // 	}
+    // get_bool is a get_field wrapper for bool fields
+    pub fn get_bool(&self, tag: Tag) -> Result<bool, Box<dyn MessageRejectErrorTrait>> {
+        let val = FIXBoolean::default();
+        let _ = self.get_field(tag, val)?;
+        Ok(val.bool())
+    }
 
-    // 	return f[0].value, nil
-    // }
+    // get_int is a get_field wrapper for int fields
+    pub fn get_int(&self, tag: Tag) -> Result<isize, Box<dyn MessageRejectErrorTrait>> {
+        let mut val = FIXInt::default();
+        let bytes = self.get_bytes(tag)?;
 
-    // //GetBool is a get_field wrapper for bool fields
-    // fn (m FieldMap) GetBool(tag Tag) (bool, MessageRejectError) {
-    // 	var val FIXBoolean
-    // 	if err := m.get_field(tag, &val); err != nil {
-    // 		return false, err
-    // 	}
-    // 	return bool(val), nil
-    // }
+        let _ = val
+            .read(&bytes)
+            .map_err(|_| incorrect_data_format_for_value(tag));
 
-    // //GetInt is a get_field wrapper for int fields
-    // fn (m FieldMap) GetInt(tag Tag) (int, MessageRejectError) {
-    // 	bytes, err := m.GetBytes(tag)
-    // 	if err != nil {
-    // 		return 0, err
-    // 	}
+        Ok(val.int())
+    }
 
-    // 	var val FIXInt
-    // 	if val.Read(bytes) != nil {
-    // 		err = IncorrectDataFormatForValue(tag)
-    // 	}
+    // get_time is a get_field wrapper for utc timestamp fields
+    pub fn get_time(&self, tag: Tag) -> Result<NaiveDateTime, Box<dyn MessageRejectErrorTrait>> {
+        let mut val = FIXUTCTimestamp::default();
+        let bytes = self.get_bytes(tag)?;
 
-    // 	return int(val), err
-    // }
+        let _ = val
+            .read(&bytes)
+            .map_err(|_| incorrect_data_format_for_value(tag));
 
-    // //GetTime is a get_field wrapper for utc timestamp fields
-    // fn (m FieldMap) GetTime(tag Tag) (t time.Time, err MessageRejectError) {
-    // 	m.rwLock.RLock()
-    // 	defer m.rwLock.RUnlock()
-
-    // 	bytes, err := m.GetBytes(tag)
-    // 	if err != nil {
-    // 		return
-    // 	}
-
-    // 	var val FIXUTCTimestamp
-    // 	if val.Read(bytes) != nil {
-    // 		err = IncorrectDataFormatForValue(tag)
-    // 	}
-
-    // 	return val.Time, err
-    // }
+        Ok(val.time)
+    }
 
     // //GetString is a get_field wrapper for string fields
     // fn (m FieldMap) GetString(tag Tag) (string, MessageRejectError) {
@@ -445,18 +442,18 @@ impl FieldMap {
 // 	assert.Nil(t, err)
 // 	assert.Equal(t, "hello", s)
 
-// 	i, err := fMap.GetInt(2)
+// 	i, err := fMap.get_int(2)
 // 	assert.Nil(t, err)
 // 	assert.Equal(t, 256, i)
 
-// 	_, err = fMap.GetInt(1)
+// 	_, err = fMap.get_int(1)
 // 	assert.NotNil(t, err, "Type mismatch should occur error")
 
 // 	s, err = fMap.GetString(2)
 // 	assert.Nil(t, err)
 // 	assert.Equal(t, "256", s)
 
-// 	b, err := fMap.GetBytes(1)
+// 	b, err := fMap.get_bytes(1)
 // 	assert.Nil(t, err)
 // 	assert.True(t, bytes.Equal([]byte("hello"), b))
 // }
@@ -466,7 +463,7 @@ impl FieldMap {
 // 	fMap.init()
 
 // 	fMap.SetBool(1, true)
-// 	v, err := fMap.GetBool(1)
+// 	v, err := fMap.get_bool(1)
 // 	assert.Nil(t, err)
 // 	assert.True(t, v)
 
@@ -475,7 +472,7 @@ impl FieldMap {
 // 	assert.Equal(t, "Y", s)
 
 // 	fMap.SetBool(2, false)
-// 	v, err = fMap.GetBool(2)
+// 	v, err = fMap.get_bool(2)
 // 	assert.Nil(t, err)
 // 	assert.False(t, v)
 
