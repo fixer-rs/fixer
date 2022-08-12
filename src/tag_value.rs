@@ -2,7 +2,7 @@ use crate::tag::Tag;
 use std::string::ToString;
 
 // TagValue is a low-level FIX field abstraction
-#[derive(Default)]
+#[derive(Default, Clone, Debug)]
 pub struct TagValue {
     pub tag: Tag,
     pub value: Vec<u8>,
@@ -10,17 +10,17 @@ pub struct TagValue {
 }
 
 impl TagValue {
-    pub fn init(&mut self, tag: Tag, value: Vec<u8>) {
-        let value_array = String::from_utf8_lossy(&value);
-
+    pub fn init<'a>(tag: Tag, value: &'a str) -> Self {
         let mut self_value = format!("{}", tag);
         self_value.push('=');
-        self_value.push_str(&value_array);
+        self_value.push_str(value);
         self_value.push('');
 
-        self.bytes = self_value.into_bytes();
-        self.tag = tag;
-        self.value = value;
+        TagValue {
+            bytes: self_value.into_bytes(),
+            tag: tag,
+            value: value.as_bytes().to_vec(),
+        }
     }
 
     pub fn parse(&mut self, raw_field_bytes: Vec<u8>) -> Result<(), String> {
@@ -40,7 +40,7 @@ impl TagValue {
             .parse::<isize>()
             .map_err(|err| format!("TagValue::parse: {:?}", err.to_string()))?;
 
-        self.tag = parsed_tag as Tag;
+        self.tag = parsed_tag;
         let n = field_string.chars().count();
         self.value = field_string
             .get(sep_index + 1..n - 1)
@@ -78,9 +78,7 @@ mod tests {
 
     #[test]
     fn test_tag_value_init() {
-        let mut tv = TagValue::default();
-
-        tv.init(8 as Tag, "blahblah".as_bytes().to_vec());
+        let tv = TagValue::init(8, "blahblah");
         let expected_data = "8=blahblah".as_bytes().to_vec();
 
         assert_eq!(
@@ -103,7 +101,7 @@ mod tests {
         let mut tv = TagValue::default();
         let result = tv.parse(string_field.as_bytes().to_vec());
         assert!(result.is_ok());
-        assert_eq!(8 as Tag, tv.tag);
+        assert_eq!(8, tv.tag);
         assert_eq!(tv.bytes, string_field.as_bytes().to_vec());
         assert_eq!(tv.value, "FIX.4.0".as_bytes().to_vec());
     }

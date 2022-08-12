@@ -31,26 +31,26 @@ mod tests {
 
     #[test]
     fn test_fix_decimal_write() {
-        struct TestStruct {
+        struct TestCase {
             decimal: FIXDecimal,
             expected: String,
         }
         let tests = vec![
-            TestStruct {
+            TestCase {
                 decimal: FIXDecimal {
                     decimal: Decimal::new(-1243456, 4),
                     scale: 4,
                 },
                 expected: String::from("-124.3456"),
             },
-            TestStruct {
+            TestCase {
                 decimal: FIXDecimal {
                     decimal: Decimal::new(-1243456, 4),
                     scale: 5,
                 },
                 expected: String::from("-124.3456"), // FIXME: should be "-124.34560"
             },
-            TestStruct {
+            TestCase {
                 decimal: FIXDecimal {
                     decimal: Decimal::new(-1243456, 4),
                     scale: 0,
@@ -67,38 +67,38 @@ mod tests {
 
     #[test]
     fn test_fix_decimal_read() {
-        struct TestStruct {
+        struct TestCase {
             bytes: String,
             expected: Decimal,
             expect_error: bool,
         }
         let tests = vec![
-            TestStruct {
+            TestCase {
                 bytes: String::from("15"),
                 expected: Decimal::new(15, 0),
                 expect_error: false,
             },
-            TestStruct {
+            TestCase {
                 bytes: String::from("15.000"),
                 expected: Decimal::new(15, 0),
                 expect_error: false,
             },
-            TestStruct {
+            TestCase {
                 bytes: String::from("15.001"),
                 expected: Decimal::new(15001, 3),
                 expect_error: false,
             },
-            TestStruct {
+            TestCase {
                 bytes: String::from("-15.001"),
                 expected: Decimal::new(-15001, 3),
                 expect_error: false,
             },
-            TestStruct {
+            TestCase {
                 bytes: String::from("blah"),
                 expected: Decimal::default(),
                 expect_error: true,
             },
-            TestStruct {
+            TestCase {
                 bytes: String::from("+200.00"),
                 expected: Decimal::new(200, 0),
                 expect_error: false,

@@ -32,14 +32,14 @@ pub trait FieldGroupWriter {
 }
 
 // FieldGroupReader is an interface for reading a FieldGroup
-pub trait FieldGroupReader<T: Error> {
+pub trait FieldGroupReader {
     fn tag(&self) -> Tag;
-    fn read(tag_value: Vec<TagValue>) -> Result<Vec<TagValue>, T>;
+    fn read(&self, tag_value: &Vec<TagValue>) -> Result<Vec<TagValue>, Box<dyn Error>>;
 }
 
 // FieldGroup is the interface implemented by all typed Groups in a Message
-pub trait FieldGroup<T: Error> {
+pub trait FieldGroup {
     fn tag(&self) -> Tag;
     fn write(&self) -> Vec<TagValue>;
-    fn read(tag_value: Vec<TagValue>) -> Result<Vec<TagValue>, T>;
+    fn read(&self, tag_value: &Vec<TagValue>) -> Result<Vec<TagValue>, Box<dyn Error>>;
 }

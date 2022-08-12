@@ -76,25 +76,25 @@ mod tests {
     fn test_fixutc_timestamp_write() {
         let ts = NaiveDate::from_ymd(2016, 2, 8).and_hms_nano(22, 7, 16, 954_123_123);
 
-        struct TestStruct {
+        struct TestCase {
             precision: TimestampPrecision,
             val: String,
         }
 
         let tests = vec![
-            TestStruct {
+            TestCase {
                 precision: TimestampPrecision::Millis,
                 val: "20160208-22:07:16.954".to_string(),
             },
-            TestStruct {
+            TestCase {
                 precision: TimestampPrecision::Seconds,
                 val: "20160208-22:07:16".to_string(),
             },
-            TestStruct {
+            TestCase {
                 precision: TimestampPrecision::Micros,
                 val: "20160208-22:07:16.954123".to_string(),
             },
-            TestStruct {
+            TestCase {
                 precision: TimestampPrecision::Nanos,
                 val: "20160208-22:07:16.954123123".to_string(),
             },
@@ -111,29 +111,29 @@ mod tests {
 
     #[test]
     fn test_fixutc_timestamp_read() {
-        struct TestStruct<'a> {
+        struct TestCase<'a> {
             time_str: &'a str,
             expected_time: NaiveDateTime,
             expected_precision: TimestampPrecision,
         }
 
         let tests = vec![
-            TestStruct {
+            TestCase {
                 time_str: "20160208-22:07:16.310",
                 expected_time: NaiveDate::from_ymd(2016, 2, 8).and_hms_nano(22, 7, 16, 310_000_000),
                 expected_precision: TimestampPrecision::Millis,
             },
-            TestStruct {
+            TestCase {
                 time_str: "20160208-22:07:16",
                 expected_time: NaiveDate::from_ymd(2016, 2, 8).and_hms_nano(22, 7, 16, 0),
                 expected_precision: TimestampPrecision::Seconds,
             },
-            TestStruct {
+            TestCase {
                 time_str: "20160208-22:07:16.123455",
                 expected_time: NaiveDate::from_ymd(2016, 2, 8).and_hms_nano(22, 7, 16, 123_455_000),
                 expected_precision: TimestampPrecision::Micros,
             },
-            TestStruct {
+            TestCase {
                 time_str: "20160208-22:07:16.954123123",
                 expected_time: NaiveDate::from_ymd(2016, 2, 8).and_hms_nano(22, 7, 16, 954_123_123),
                 expected_precision: TimestampPrecision::Nanos,

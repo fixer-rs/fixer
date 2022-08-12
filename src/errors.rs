@@ -74,6 +74,8 @@ impl MessageRejectErrorTrait for RejectLogon {
     }
 }
 
+// impl From<MessageRejectErrorTrait>
+
 #[derive(Debug)]
 pub struct MessageRejectError {
     pub reject_reason: isize,
@@ -81,6 +83,12 @@ pub struct MessageRejectError {
     pub business_reject_ref_id: String,
     pub ref_tag_id: Option<Tag>,
     pub is_business_reject: bool,
+}
+
+impl MessageRejectError {
+    pub fn as_trait(self) -> Box<dyn MessageRejectErrorTrait> {
+        Box::new(self)
+    }
 }
 
 impl Display for MessageRejectError {

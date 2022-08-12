@@ -37,7 +37,7 @@ mod tests {
 
     #[test]
     fn test_fix_int_write() {
-        let field = 5 as FIXInt;
+        let field = 5;
         assert_eq!(String::from("5"), field.write());
     }
 
@@ -54,7 +54,7 @@ mod tests {
 
     #[test]
     fn test_fix_int_int() {
-        let field = 4 as FIXInt;
+        let field = 4;
         assert_eq!(4, field.int());
     }
 }

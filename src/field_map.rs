@@ -1,36 +1,51 @@
 use crate::errors::{
     conditionally_required_field_missing, incorrect_data_format_for_value, other_error,
-    MessageRejectErrorTrait,
+    MessageRejectError, MessageRejectErrorTrait,
 };
-use crate::field::{Field, FieldValueReader};
+use crate::field::{
+    Field, FieldGroupReader, FieldGroupWriter, FieldValueReader, FieldValueWriter, FieldWriter,
+};
 use crate::fix_boolean::{FIXBoolean, FixBooleanTrait};
 use crate::fix_int::{FIXInt, FIXIntTrait};
+use crate::fix_string::FIXString;
 use crate::fix_utc_timestamp::FIXUTCTimestamp;
-use crate::tag::Tag;
+use crate::tag::{Tag, TAG_BEGIN_STRING, TAG_BODY_LENGTH, TAG_CHECK_SUM};
 use crate::tag_value::TagValue;
 use chrono::naive::NaiveDateTime;
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::sync::RwLock;
 use std::vec;
+struct LocalField(Vec<TagValue>);
 
-type LocalField = Vec<TagValue>;
+impl LocalField {
+    fn new() -> Self {
+        LocalField(vec![])
+    }
 
-fn field_tag(f: LocalField) -> Tag {
-    f[0].tag
-}
+    fn field_tag(&self) -> &Tag {
+        &(self.0)[0].tag
+    }
 
-fn init_field(mut f: LocalField, tag: Tag, value: Vec<u8>) {
-    f[0].init(tag, value)
-}
+    fn init_field<'a>(&mut self, tag: Tag, value: &'a str) {
+        let tv = TagValue::init(tag, value);
+        self.0.clear();
+        self.0.push(tv)
+    }
 
-fn write_field(f: &LocalField, mut buffer: String) {
-    for tv in f.iter() {
-        buffer.push_str(std::str::from_utf8(&(tv.bytes)).unwrap());
+    fn write_field(&mut self, buffer: &mut String) {
+        for tv in self.0.iter() {
+            buffer.push_str(&String::from_utf8_lossy(&tv.bytes));
+        }
+    }
+
+    fn first(&self) -> &TagValue {
+        &self.0[0]
     }
 }
 
 // TagOrder true if tag i should occur before tag j
-type TagOrder = fn(i: Tag, j: Tag) -> bool;
+type TagOrder = fn(i: &Tag, j: &Tag) -> Ordering;
 
 struct TagSort {
     tags: Vec<Tag>,
@@ -45,8 +60,8 @@ impl TagSort {
         self.tags.swap(i as usize, j as usize);
     }
 
-    pub fn less(&self, i: isize, j: isize) -> bool {
-        (self.compare)(self.tags[i as usize], self.tags[j as usize])
+    pub fn less(&self, i: isize, j: isize) -> Ordering {
+        (self.compare)(&self.tags[i as usize], &self.tags[j as usize])
     }
 }
 
@@ -60,17 +75,23 @@ pub struct FieldMap {
     rw_lock: RwLock<FieldMapContent>,
 }
 
+impl Default for FieldMap {
+    fn default() -> Self {
+        Self::init_with_ordering(normal_field_order)
+    }
+}
+
 // ascending tags
-fn normal_field_order(i: Tag, j: Tag) -> bool {
-    i < j
+fn normal_field_order(i: &Tag, j: &Tag) -> Ordering {
+    i.cmp(j)
 }
 
 impl FieldMap {
-    fn init(&mut self) {
-        self.init_with_ordering(normal_field_order)
+    fn init() -> FieldMap {
+        Self::init_with_ordering(normal_field_order)
     }
 
-    fn init_with_ordering(&mut self, ordering: TagOrder) {
+    fn init_with_ordering(ordering: TagOrder) -> FieldMap {
         let tag_sort = TagSort {
             tags: Vec::new(),
             compare: ordering,
@@ -79,7 +100,9 @@ impl FieldMap {
             tag_lookup: HashMap::new(),
             tag_sort,
         };
-        self.rw_lock = RwLock::new(field_map_content);
+        FieldMap {
+            rw_lock: RwLock::new(field_map_content),
+        }
     }
 
     // tags returns all of the Field Tags in this FieldMap
@@ -94,7 +117,7 @@ impl FieldMap {
     // get parses out a field in this FieldMap. Returned reject may indicate the field is not present, or the field value is invalid.
     pub fn get<P: Field + FieldValueReader>(
         &self,
-        parser: P,
+        parser: &mut P,
     ) -> Result<(), Box<dyn MessageRejectErrorTrait>> {
         self.get_field(parser.tag(), parser)
     }
@@ -105,14 +128,14 @@ impl FieldMap {
         if rlock_result.is_err() {
             return false;
         }
-        rlock_result.unwrap().tag_lookup.get(&tag).is_some()
+        rlock_result.unwrap().tag_lookup.contains_key(&tag)
     }
 
     // get_field parses of a field with Tag tag. Returned reject may indicate the field is not present, or the field value is invalid.
     pub fn get_field<P: FieldValueReader>(
         &self,
         tag: Tag,
-        mut parser: P,
+        parser: &mut P,
     ) -> Result<(), Box<dyn MessageRejectErrorTrait>> {
         let rlock = self.rw_lock.read().map_err(|_| other_error())?;
         let f = rlock
@@ -121,7 +144,7 @@ impl FieldMap {
             .ok_or(conditionally_required_field_missing(tag))?;
 
         parser
-            .read(&String::from_utf8_lossy(&f[0].value))
+            .read(&String::from_utf8_lossy(&f.first().value))
             .map_err(|_| incorrect_data_format_for_value(tag))?;
 
         Ok(())
@@ -134,13 +157,13 @@ impl FieldMap {
             .tag_lookup
             .get(&tag)
             .ok_or(conditionally_required_field_missing(tag))?;
-        Ok(String::from_utf8_lossy(&f[0].value).to_string())
+        Ok(String::from_utf8_lossy(&f.first().value).to_string())
     }
 
     // get_bool is a get_field wrapper for bool fields
     pub fn get_bool(&self, tag: Tag) -> Result<bool, Box<dyn MessageRejectErrorTrait>> {
-        let val = FIXBoolean::default();
-        let _ = self.get_field(tag, val)?;
+        let mut val = FIXBoolean::default();
+        let _ = self.get_field(tag, &mut val)?;
         Ok(val.bool())
     }
 
@@ -151,7 +174,7 @@ impl FieldMap {
 
         let _ = val
             .read(&bytes)
-            .map_err(|_| incorrect_data_format_for_value(tag));
+            .map_err(|_| incorrect_data_format_for_value(tag))?;
 
         Ok(val.int())
     }
@@ -163,370 +186,389 @@ impl FieldMap {
 
         let _ = val
             .read(&bytes)
-            .map_err(|_| incorrect_data_format_for_value(tag));
+            .map_err(|_| incorrect_data_format_for_value(tag))?;
 
         Ok(val.time)
     }
 
-    // //GetString is a get_field wrapper for string fields
-    // fn (m FieldMap) GetString(tag Tag) (string, MessageRejectError) {
-    // 	var val FIXString
-    // 	if err := m.get_field(tag, &val); err != nil {
-    // 		return "", err
-    // 	}
-    // 	return string(val), nil
-    // }
+    // get_string is a get_field wrapper for string fields
+    pub fn get_string(&self, tag: Tag) -> Result<String, Box<dyn MessageRejectErrorTrait>> {
+        let mut val = FIXString::default();
+        let _ = self.get_field(tag, &mut val)?;
+        Ok(val)
+    }
 
-    // //GetGroup is a Get fntion specific to Group Fields.
-    // fn (m FieldMap) GetGroup(parser FieldGroupReader) MessageRejectError {
-    // 	m.rwLock.RLock()
-    // 	defer m.rwLock.RUnlock()
+    // get_group is a Get fntion specific to Group Fields.
+    pub fn get_group<P: FieldGroupReader>(
+        &self,
+        parser: P,
+    ) -> Result<(), Box<dyn MessageRejectErrorTrait>> {
+        let rlock = self.rw_lock.read().map_err(|_| other_error())?;
 
-    // 	f, ok := m.tagLookup[parser.Tag()]
-    // 	if !ok {
-    // 		return ConditionallyRequiredFieldMissing(parser.Tag())
-    // 	}
+        let tag = &parser.tag();
+        let f = rlock
+            .tag_lookup
+            .get(tag)
+            .ok_or(conditionally_required_field_missing(*tag))?;
 
-    // 	if _, err := parser.Read(f); err != nil {
-    // 		if msgRejErr, ok := err.(MessageRejectError); ok {
-    // 			return msgRejErr
-    // 		}
-    // 		return IncorrectDataFormatForValue(parser.Tag())
-    // 	}
+        let _ = parser.read(&f.0).map_err(|err| {
+            if (*err).is::<MessageRejectError>() {
+                return err.downcast::<MessageRejectError>().unwrap().as_trait();
+            }
+            incorrect_data_format_for_value(*tag)
+        })?;
 
-    // 	return nil
-    // }
+        Ok(())
+    }
 
-    // //SetField sets the field with Tag tag
-    // fn (m *FieldMap) SetField(tag Tag, field FieldValueWriter) *FieldMap {
-    // 	return m.SetBytes(tag, field.Write())
-    // }
+    // set_field sets the field with Tag tag
+    pub fn set_field<F: FieldValueWriter>(&mut self, tag: Tag, field: F) -> &FieldMap {
+        self.set_bytes(tag, &field.write())
+    }
 
-    // //SetBytes sets bytes
-    // fn (m *FieldMap) SetBytes(tag Tag, value []byte) *FieldMap {
-    // 	f := m.getOrCreate(tag)
-    // 	init_field(f, tag, value)
-    // 	return m
-    // }
+    // set_bytes sets bytes
+    pub fn set_bytes<'a>(&mut self, tag: Tag, value: &'a str) -> &FieldMap {
+        let mut wlock = self.rw_lock.write().unwrap();
 
-    // //SetBool is a SetField wrapper for bool fields
-    // fn (m *FieldMap) SetBool(tag Tag, value bool) *FieldMap {
-    // 	return m.SetField(tag, FIXBoolean(value))
-    // }
+        if !wlock.tag_lookup.contains_key(&tag) {
+            wlock.tag_lookup.insert(tag, LocalField::new());
+            wlock.tag_sort.tags.push(tag);
+        }
 
-    // //SetInt is a SetField wrapper for int fields
-    // fn (m *FieldMap) SetInt(tag Tag, value int) *FieldMap {
-    // 	v := FIXInt(value)
-    // 	return m.SetBytes(tag, v.Write())
-    // }
+        let mut f = wlock.tag_lookup.get_mut(&tag).unwrap();
+        f.init_field(tag, value);
+        self
+    }
 
-    // //SetString is a SetField wrapper for string fields
-    // fn (m *FieldMap) SetString(tag Tag, value string) *FieldMap {
-    // 	return m.SetBytes(tag, []byte(value))
-    // }
+    // set_bool is a set_field wrapper for bool fields
+    pub fn set_bool(&mut self, tag: Tag, value: bool) -> &FieldMap {
+        self.set_field(tag, value)
+    }
 
-    // //Clear purges all fields from field map
-    // fn (m *FieldMap) Clear() {
-    // 	m.rwLock.Lock()
-    // 	defer m.rwLock.Unlock()
+    // set_int is a set_field wrapper for int fields
+    pub fn set_int(&mut self, tag: Tag, value: isize) -> &FieldMap {
+        self.set_bytes(tag, &(value as FIXInt).write())
+    }
 
-    // 	m.tags = m.tags[0:0]
-    // 	for k := range m.tagLookup {
-    // 		delete(m.tagLookup, k)
-    // 	}
-    // }
+    // set_string is a set_field wrapper for string fields
+    pub fn set_string<'a>(&mut self, tag: Tag, value: &'a str) -> &FieldMap {
+        self.set_bytes(tag, value)
+    }
 
-    // //CopyInto overwrites the given FieldMap with this one
-    // fn (m *FieldMap) CopyInto(to *FieldMap) {
-    // 	m.rwLock.RLock()
-    // 	defer m.rwLock.RUnlock()
+    // clear purges all fields from field map
+    pub fn clear(&mut self) {
+        let mut wlock = self.rw_lock.write().unwrap();
+        wlock.tag_sort.tags.clear();
+        wlock.tag_lookup.clear();
+    }
 
-    // 	to.tagLookup = make(map[Tag]field)
-    // 	for tag, f := range m.tagLookup {
-    // 		clone := make(field, 1)
-    // 		clone[0] = f[0]
-    // 		to.tagLookup[tag] = clone
-    // 	}
-    // 	to.tags = make([]Tag, len(m.tags))
-    // 	copy(to.tags, m.tags)
-    // 	to.compare = m.compare
-    // }
+    // copy_into overwrites the given FieldMap with this one
+    pub fn copy_into(&mut self, to: &mut FieldMap) {
+        let m_rlock = self.rw_lock.read().unwrap();
+        let mut to_wlock = to.rw_lock.write().unwrap();
 
-    // fn (m *FieldMap) add(f field) {
-    // 	m.rwLock.Lock()
-    // 	defer m.rwLock.Unlock()
+        to_wlock.tag_lookup = HashMap::new();
 
-    // 	t := field_tag(f)
-    // 	if _, ok := m.tagLookup[t]; !ok {
-    // 		m.tags = append(m.tags, t)
-    // 	}
+        for (k, v) in m_rlock.tag_lookup.iter() {
+            to_wlock
+                .tag_lookup
+                .insert(*k, LocalField(vec![v.first().clone()]));
+        }
 
-    // 	m.tagLookup[t] = f
-    // }
+        to_wlock.tag_sort.tags = m_rlock.tag_sort.tags.clone();
+        to_wlock.tag_sort.compare = m_rlock.tag_sort.compare;
+    }
 
-    // fn (m *FieldMap) getOrCreate(tag Tag) field {
-    // 	m.rwLock.Lock()
-    // 	defer m.rwLock.Unlock()
+    fn add(&mut self, f: LocalField) {
+        let mut wlock = self.rw_lock.write().unwrap();
 
-    // 	if f, ok := m.tagLookup[tag]; ok {
-    // 		f = f[:1]
-    // 		return f
-    // 	}
+        let t = f.field_tag();
+        if !wlock.tag_lookup.contains_key(t) {
+            wlock.tag_sort.tags.push(*t);
+        }
 
-    // 	f := make(field, 1)
-    // 	m.tagLookup[tag] = f
-    // 	m.tags = append(m.tags, tag)
-    // 	return f
-    // }
+        wlock.tag_lookup.insert(*t, f);
+    }
 
-    // //Set is a setter for fields
-    // fn (m *FieldMap) Set(field FieldWriter) *FieldMap {
-    // 	f := m.getOrCreate(field.Tag())
-    // 	init_field(f, field.Tag(), field.Write())
-    // 	return m
-    // }
+    // set is a setter for fields
+    pub fn set<F: FieldWriter>(&mut self, field: F) -> &FieldMap {
+        let mut wlock = self.rw_lock.write().unwrap();
 
-    // //SetGroup is a setter specific to group fields
-    // fn (m *FieldMap) SetGroup(field FieldGroupWriter) *FieldMap {
-    // 	m.rwLock.Lock()
-    // 	defer m.rwLock.Unlock()
+        let tag = &field.tag();
 
-    // 	_, ok := m.tagLookup[field.Tag()]
-    // 	if !ok {
-    // 		m.tags = append(m.tags, field.Tag())
-    // 	}
-    // 	m.tagLookup[field.Tag()] = field.Write()
-    // 	return m
-    // }
+        if !wlock.tag_lookup.contains_key(tag) {
+            wlock.tag_lookup.insert(*tag, LocalField::new());
+            wlock.tag_sort.tags.push(*tag);
+        }
 
-    // fn (m *FieldMap) sortedTags() []Tag {
-    // 	sort.Sort(m)
-    // 	return m.tags
-    // }
+        let f = wlock.tag_lookup.get_mut(tag).unwrap();
 
-    // fn (m FieldMap) write(buffer *bytes.Buffer) {
-    // 	m.rwLock.Lock()
-    // 	defer m.rwLock.Unlock()
+        f.init_field(*tag, &field.write());
+        self
+    }
 
-    // 	for _, tag := range m.sortedTags() {
-    // 		if f, ok := m.tagLookup[tag]; ok {
-    // 			write_field(f, buffer)
-    // 		}
-    // 	}
-    // }
+    // set_group is a setter specific to group fields
+    pub fn set_group<F: FieldGroupWriter>(&mut self, field: F) -> &FieldMap {
+        let mut wlock = self.rw_lock.write().unwrap();
 
-    // fn (m FieldMap) total() int {
-    // 	m.rwLock.RLock()
-    // 	defer m.rwLock.RUnlock()
+        if !wlock.tag_lookup.contains_key(&field.tag()) {
+            wlock.tag_sort.tags.push(field.tag());
+        }
+        wlock
+            .tag_lookup
+            .insert(field.tag(), LocalField(field.write()));
+        self
+    }
 
-    // 	total := 0
-    // 	for _, fields := range m.tagLookup {
-    // 		for _, tv := range fields {
-    // 			switch tv.tag {
-    // 			case tagCheckSum: //tag does not contribute to total
-    // 			default:
-    // 				total += tv.total()
-    // 			}
-    // 		}
-    // 	}
+    // TODO: maybe self sort this on insert?
+    fn sorted_tags(&self) -> Vec<Tag> {
+        let rlock = self.rw_lock.read().unwrap();
+        let mut sorted_tags = self.tags();
+        sorted_tags.sort_by(rlock.tag_sort.compare);
+        sorted_tags
+    }
 
-    // 	return total
-    // }
+    fn write(&mut self, buffer: &mut String) {
+        let mut wlock = self.rw_lock.write().unwrap();
 
-    // fn (m FieldMap) length() int {
-    // 	m.rwLock.RLock()
-    // 	defer m.rwLock.RUnlock()
+        for tag in self.sorted_tags().iter() {
+            if wlock.tag_lookup.contains_key(&tag) {
+                let field = wlock.tag_lookup.get_mut(&tag).unwrap();
+                field.write_field(buffer);
+            }
+        }
+    }
 
-    // 	length := 0
-    // 	for _, fields := range m.tagLookup {
-    // 		for _, tv := range fields {
-    // 			switch tv.tag {
-    // 			case tagBeginString, tagBodyLength, tagCheckSum: //tags do not contribute to length
-    // 			default:
-    // 				length += tv.length()
-    // 			}
-    // 		}
-    // 	}
+    fn total(&self) -> isize {
+        let rlock = self.rw_lock.read().unwrap();
+        let mut total = 0;
 
-    // 	return length
-    // }
+        for fields in rlock.tag_lookup.values() {
+            fields
+                .0
+                .iter()
+                .filter(|tv| tv.tag != TAG_CHECK_SUM)
+                .for_each(|tv| total += tv.total());
+        }
+        total
+    }
+
+    fn length(&self) -> isize {
+        let rlock = self.rw_lock.read().unwrap();
+        let mut length = 0;
+
+        for fields in rlock.tag_lookup.values() {
+            fields
+                .0
+                .iter()
+                .filter(|tv| {
+                    tv.tag != TAG_BEGIN_STRING
+                        && tv.tag != TAG_BODY_LENGTH
+                        && tv.tag != TAG_CHECK_SUM
+                })
+                .for_each(|tv| length += tv.length());
+        }
+
+        length
+    }
 }
 
-// ----- test
-//
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::message::header_field_ordering;
 
-// import (
-// 	"bytes"
-// 	"testing"
+    #[test]
+    fn test_field_map_clear() {
+        let mut f_map = FieldMap::default();
 
-// 	"github.com/stretchr/testify/assert"
-// )
+        f_map.set_field(1, String::from("hello"));
+        f_map.set_field(2, String::from("world"));
 
-// fn TestFieldMap_Clear(t *testing.T) {
-// 	var fMap FieldMap
-// 	fMap.init()
+        f_map.clear();
 
-// 	fMap.SetField(1, FIXString("hello"))
-// 	fMap.SetField(2, FIXString("world"))
+        assert!(
+            !f_map.has(1) && !f_map.has(2),
+            "All fields should be cleared"
+        );
+    }
 
-// 	fMap.Clear()
+    #[test]
+    fn test_field_map_set_and_get() {
+        let mut f_map = FieldMap::default();
 
-// 	if fMap.Has(1) || fMap.Has(2) {
-// 		t.Error("All fields should be cleared")
-// 	}
-// }
+        f_map.set_field(1, String::from("hello"));
+        f_map.set_field(2, String::from("world"));
 
-// fn TestFieldMap_SetAndGet(t *testing.T) {
-// 	var fMap FieldMap
-// 	fMap.init()
+        struct TestCase<'a> {
+            tag: Tag,
+            expect_err: bool,
+            expect_value: &'a str,
+        }
 
-// 	fMap.SetField(1, FIXString("hello"))
-// 	fMap.SetField(2, FIXString("world"))
+        let tests = vec![
+            TestCase {
+                tag: 1,
+                expect_err: false,
+                expect_value: "hello",
+            },
+            TestCase {
+                tag: 2,
+                expect_err: false,
+                expect_value: "world",
+            },
+            TestCase {
+                tag: 44,
+                expect_err: true,
+                expect_value: "",
+            },
+        ];
 
-// 	var testCases = []struct {
-// 		tag         Tag
-// 		expectErr   bool
-// 		expectValue string
-// 	}{
-// 		{tag: 1, expectValue: "hello"},
-// 		{tag: 2, expectValue: "world"},
-// 		{tag: 44, expectErr: true},
-// 	}
+        for test in tests.iter() {
+            let mut test_field = FIXString::default();
+            let err = f_map.get_field(test.tag, &mut test_field);
 
-// 	for _, tc := range testCases {
-// 		var testField FIXString
-// 		err := fMap.get_field(tc.tag, &testField)
+            if test.expect_err {
+                assert!(err.is_err(), "Expected Error");
+                continue;
+            }
 
-// 		if tc.expectErr {
-// 			assert.NotNil(t, err, "Expected Error")
-// 			continue
-// 		}
+            assert!(err.is_ok(), "Unexpected error");
+            assert_eq!(test.expect_value, test_field);
+        }
+    }
 
-// 		assert.Nil(t, err, "Unexpected error")
-// 		assert.Equal(t, tc.expectValue, string(testField))
-// 	}
-// }
+    #[test]
+    fn test_field_map_length() {
+        let mut f_map = FieldMap::default();
 
-// fn TestFieldMap_Length(t *testing.T) {
-// 	var fMap FieldMap
-// 	fMap.init()
-// 	fMap.SetField(1, FIXString("hello"))
-// 	fMap.SetField(2, FIXString("world"))
-// 	fMap.SetField(8, FIXString("FIX.4.4"))
-// 	fMap.SetField(9, FIXInt(100))
-// 	fMap.SetField(10, FIXString("100"))
-// 	assert.Equal(t, 16, fMap.length(), "Length should include all fields but beginString, bodyLength, and checkSum")
-// }
+        f_map.set_field(1, String::from("hello"));
+        f_map.set_field(2, String::from("world"));
 
-// fn TestFieldMap_Total(t *testing.T) {
+        f_map.set_field(8, String::from("FIX.4.4"));
+        f_map.set_field(9, 100);
+        f_map.set_field(10, String::from("100"));
+        assert_eq!(
+            16,
+            f_map.length(),
+            "Length should include all fields but BEGIN_STRING, BODY_LENGTH, and CHECK_SUM"
+        );
+    }
 
-// 	var fMap FieldMap
-// 	fMap.init()
-// 	fMap.SetField(1, FIXString("hello"))
-// 	fMap.SetField(2, FIXString("world"))
-// 	fMap.SetField(8, FIXString("FIX.4.4"))
-// 	fMap.SetField(Tag(9), FIXInt(100))
-// 	fMap.SetField(10, FIXString("100"))
+    #[test]
+    fn test_field_map_total() {
+        let mut f_map = FieldMap::init();
 
-// 	assert.Equal(t, 2116, fMap.total(), "Total should includes all fields but checkSum")
-// }
+        f_map.set_field(1, String::from("hello"));
+        f_map.set_field(2, String::from("world"));
+        f_map.set_field(8, String::from("FIX.4.4"));
+        f_map.set_field(9 as Tag, 100);
+        f_map.set_field(10, String::from("100"));
 
-// fn TestFieldMap_TypedSetAndGet(t *testing.T) {
-// 	var fMap FieldMap
-// 	fMap.init()
+        assert_eq!(
+            2116,
+            f_map.total(),
+            "Total should includes all fields but CHECK_SUM"
+        );
+    }
 
-// 	fMap.SetString(1, "hello")
-// 	fMap.SetInt(2, 256)
+    #[test]
+    fn test_field_map_typed_set_and_get() {
+        let mut f_map = FieldMap::init();
 
-// 	s, err := fMap.GetString(1)
-// 	assert.Nil(t, err)
-// 	assert.Equal(t, "hello", s)
+        f_map.set_string(1, "hello");
+        f_map.set_int(2, 256);
 
-// 	i, err := fMap.get_int(2)
-// 	assert.Nil(t, err)
-// 	assert.Equal(t, 256, i)
+        let s = f_map.get_string(1);
+        assert!(s.is_ok());
+        assert_eq!("hello", s.unwrap());
 
-// 	_, err = fMap.get_int(1)
-// 	assert.NotNil(t, err, "Type mismatch should occur error")
+        let i = f_map.get_int(2);
+        assert!(i.is_ok());
+        assert_eq!(256, i.unwrap());
 
-// 	s, err = fMap.GetString(2)
-// 	assert.Nil(t, err)
-// 	assert.Equal(t, "256", s)
+        let err = f_map.get_int(1);
+        assert!(err.is_err(), "Type mismatch should occur error");
 
-// 	b, err := fMap.get_bytes(1)
-// 	assert.Nil(t, err)
-// 	assert.True(t, bytes.Equal([]byte("hello"), b))
-// }
+        let s = f_map.get_string(2);
+        assert!(s.is_ok());
+        assert_eq!("256", s.unwrap());
 
-// fn TestFieldMap_BoolTypedSetAndGet(t *testing.T) {
-// 	var fMap FieldMap
-// 	fMap.init()
+        let b = f_map.get_bytes(1);
+        assert!(b.is_ok());
+        assert_eq!("hello", b.unwrap());
+    }
 
-// 	fMap.SetBool(1, true)
-// 	v, err := fMap.get_bool(1)
-// 	assert.Nil(t, err)
-// 	assert.True(t, v)
+    #[test]
+    fn test_field_map_bool_typed_set_and_get() {
+        let mut f_map = FieldMap::init();
 
-// 	s, err := fMap.GetString(1)
-// 	assert.Nil(t, err)
-// 	assert.Equal(t, "Y", s)
+        f_map.set_bool(1, true);
+        let v = f_map.get_bool(1);
+        assert!(v.is_ok());
+        assert!(v.unwrap());
 
-// 	fMap.SetBool(2, false)
-// 	v, err = fMap.get_bool(2)
-// 	assert.Nil(t, err)
-// 	assert.False(t, v)
+        let s = f_map.get_string(1);
+        assert!(s.is_ok());
+        assert_eq!("Y", s.unwrap());
 
-// 	s, err = fMap.GetString(2)
-// 	assert.Nil(t, err)
-// 	assert.Equal(t, "N", s)
-// }
+        f_map.set_bool(2, false);
+        let v = f_map.get_bool(2);
+        assert!(v.is_ok());
+        assert!(!v.unwrap());
 
-// fn TestFieldMap_CopyInto(t *testing.T) {
-// 	var fMapA FieldMap
-// 	fMapA.init_with_ordering(headerFieldOrdering)
-// 	fMapA.SetString(9, "length")
-// 	fMapA.SetString(8, "begin")
-// 	fMapA.SetString(35, "msgtype")
-// 	fMapA.SetString(1, "a")
-// 	assert.Equal(t, []Tag{8, 9, 35, 1}, fMapA.sortedTags())
+        let s = f_map.get_string(2);
+        assert!(s.is_ok());
+        assert_eq!("N", s.unwrap());
+    }
 
-// 	var fMapB FieldMap
-// 	fMapB.init()
-// 	fMapB.SetString(1, "A")
-// 	fMapB.SetString(3, "C")
-// 	fMapB.SetString(4, "D")
-// 	assert.Equal(t, fMapB.sortedTags(), []Tag{1, 3, 4})
+    #[test]
+    fn test_field_map_copy_into() {
+        let mut f_map_a = FieldMap::init_with_ordering(header_field_ordering);
 
-// 	fMapA.CopyInto(&fMapB)
+        f_map_a.set_string(9, "length");
+        f_map_a.set_string(8, "begin");
+        f_map_a.set_string(35, "msgtype");
+        f_map_a.set_string(1, "a");
+        assert_eq!(vec![8, 9, 35, 1], f_map_a.sorted_tags());
 
-// 	assert.Equal(t, []Tag{8, 9, 35, 1}, fMapB.sortedTags())
+        let mut f_map_b = FieldMap::init();
 
-// 	// new fields
-// 	s, err := fMapB.GetString(35)
-// 	assert.Nil(t, err)
-// 	assert.Equal(t, "msgtype", s)
+        f_map_b.set_string(1, "A");
+        f_map_b.set_string(3, "C");
+        f_map_b.set_string(4, "D");
+        assert_eq!(f_map_b.sorted_tags(), vec![1, 3, 4]);
 
-// 	// existing fields overwritten
-// 	s, err = fMapB.GetString(1)
-// 	assert.Nil(t, err)
-// 	assert.Equal(t, "a", s)
+        f_map_a.copy_into(&mut f_map_b);
+        assert_eq!(vec![8, 9, 35, 1], f_map_b.sorted_tags());
 
-// 	// old fields cleared
-// 	_, err = fMapB.GetString(3)
-// 	assert.NotNil(t, err)
+        // new fields
+        let s = f_map_b.get_string(35);
+        assert!(s.is_ok());
+        assert_eq!("msgtype", s.unwrap());
 
-// 	// check that ordering is overwritten
-// 	fMapB.SetString(2, "B")
-// 	assert.Equal(t, []Tag{8, 9, 35, 1, 2}, fMapB.sortedTags())
+        // existing fields overwritten
+        let s = f_map_b.get_string(1);
+        assert!(s.is_ok());
+        assert_eq!("a", s.unwrap());
 
-// 	// updating the existing map doesn't affect the new
-// 	fMapA.init()
-// 	fMapA.SetString(1, "AA")
-// 	s, err = fMapB.GetString(1)
-// 	assert.Nil(t, err)
-// 	assert.Equal(t, "a", s)
-// 	fMapA.Clear()
-// 	s, err = fMapB.GetString(1)
-// 	assert.Nil(t, err)
-// 	assert.Equal(t, "a", s)
-// }
+        // old fields cleared
+        let err = f_map_b.get_string(3);
+        assert!(err.is_err());
+
+        // check that ordering is overwritten
+        f_map_b.set_string(2, "B");
+        assert_eq!(vec![8, 9, 35, 1, 2], f_map_b.sorted_tags());
+
+        // updating the existing map doesn't affect the new
+        let mut f_map_a = FieldMap::init();
+        f_map_a.set_string(1, "AA");
+        let s = f_map_b.get_string(1);
+        assert!(s.is_ok());
+        assert_eq!("a", s.unwrap());
+        f_map_a.clear();
+        let s = f_map_b.get_string(1);
+        assert!(s.is_ok());
+        assert_eq!("a", s.unwrap());
+    }
+}

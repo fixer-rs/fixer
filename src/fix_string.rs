@@ -1,7 +1,7 @@
 use crate::field::{FieldValue, FieldValueReader, FieldValueWriter};
 
 // FIXString is a FIX String Value, implements FieldValue
-type FIXString = String;
+pub type FIXString = String;
 
 pub trait FIXStringTrait {
     fn string(&self) -> String;
@@ -35,11 +35,11 @@ mod tests {
 
     #[test]
     fn test_fix_string_write() {
-        struct TestStruct {
+        struct TestCase {
             field: FIXString,
             val: String,
         }
-        let tests = vec![TestStruct {
+        let tests = vec![TestCase {
             field: FIXString::from("CWB"),
             val: String::from("CWB"),
         }];
@@ -51,12 +51,12 @@ mod tests {
 
     #[test]
     fn test_fix_string_read() {
-        struct TestStruct<'a> {
+        struct TestCase<'a> {
             bytes: &'a str,
             value: String,
             expected_error: bool,
         }
-        let tests = vec![TestStruct {
+        let tests = vec![TestCase {
             bytes: "blah",
             value: String::from("blah"),
             expected_error: false,

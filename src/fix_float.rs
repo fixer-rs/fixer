@@ -44,12 +44,12 @@ mod tests {
 
     #[test]
     fn test_float_write() {
-        struct TestStruct<'a> {
+        struct TestCase<'a> {
             field: FIXFloat,
             val: &'a str,
         }
-        let tests = vec![TestStruct {
-            field: 5 as FIXFloat,
+        let tests = vec![TestCase {
+            field: 5.0,
             val: "5",
         }];
         for test in tests.iter() {
@@ -60,48 +60,48 @@ mod tests {
 
     #[test]
     fn test_float_read() {
-        struct TestStruct<'a> {
+        struct TestCase<'a> {
             bytes: &'a str,
             value: f64,
             expect_error: bool,
         }
         let tests = vec![
-            TestStruct {
+            TestCase {
                 bytes: "15",
                 value: 15.0,
                 expect_error: false,
             },
-            TestStruct {
+            TestCase {
                 bytes: "99.9",
                 value: 99.9,
                 expect_error: false,
             },
-            TestStruct {
+            TestCase {
                 bytes: "0.00",
                 value: 0.0,
                 expect_error: false,
             },
-            TestStruct {
+            TestCase {
                 bytes: ("-99.9"),
                 value: -99.9,
                 expect_error: false,
             },
-            TestStruct {
+            TestCase {
                 bytes: ("-99.9.9"),
                 value: 0.0,
                 expect_error: true,
             },
-            TestStruct {
+            TestCase {
                 bytes: ("blah"),
                 value: 0.0,
                 expect_error: true,
             },
-            TestStruct {
+            TestCase {
                 bytes: ("1.a1"),
                 value: 0.0,
                 expect_error: true,
             },
-            TestStruct {
+            TestCase {
                 bytes: ("+200.00"),
                 value: 0.0,
                 expect_error: true,

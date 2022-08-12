@@ -44,17 +44,17 @@ mod tests {
 
     #[test]
     fn test_boolean_write() {
-        struct TestStruct {
+        struct TestCase {
             val: FIXBoolean,
             expected: String,
         }
         let tests = vec![
-            TestStruct {
-                val: true as FIXBoolean,
+            TestCase {
+                val: true,
                 expected: String::from("Y"),
             },
-            TestStruct {
-                val: false as FIXBoolean,
+            TestCase {
+                val: false,
                 expected: String::from("N"),
             },
         ];
@@ -66,23 +66,23 @@ mod tests {
 
     #[test]
     fn test_fix_boolean_read() {
-        struct TestStruct<'a> {
+        struct TestCase<'a> {
             bytes: &'a str,
             expected: bool,
             expect_error: bool,
         }
         let tests = vec![
-            TestStruct {
+            TestCase {
                 bytes: "Y",
                 expected: true,
                 expect_error: false,
             },
-            TestStruct {
+            TestCase {
                 bytes: "N",
                 expected: false,
                 expect_error: false,
             },
-            TestStruct {
+            TestCase {
                 bytes: "blah",
                 expected: false,
                 expect_error: true,
