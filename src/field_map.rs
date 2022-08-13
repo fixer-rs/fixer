@@ -13,6 +13,7 @@ use crate::tag::{Tag, TAG_BEGIN_STRING, TAG_BODY_LENGTH, TAG_CHECK_SUM};
 use crate::tag_value::TagValue;
 use chrono::naive::NaiveDateTime;
 use std::cmp::Ordering;
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::sync::RwLock;
 use std::vec;
@@ -27,7 +28,7 @@ impl LocalField {
         &(self.0)[0].tag
     }
 
-    fn init_field<'a>(&mut self, tag: Tag, value: &'a str) {
+    fn init_field(&mut self, tag: Tag, value: &'_ str) {
         let tv = TagValue::init(tag, value);
         self.0.clear();
         self.0.push(tv)
@@ -141,7 +142,7 @@ impl FieldMap {
         let f = rlock
             .tag_lookup
             .get(&tag)
-            .ok_or(conditionally_required_field_missing(tag))?;
+            .ok_or_else(|| conditionally_required_field_missing(tag))?;
 
         parser
             .read(&String::from_utf8_lossy(&f.first().value))
@@ -156,14 +157,14 @@ impl FieldMap {
         let f = rlock
             .tag_lookup
             .get(&tag)
-            .ok_or(conditionally_required_field_missing(tag))?;
+            .ok_or_else(|| conditionally_required_field_missing(tag))?;
         Ok(String::from_utf8_lossy(&f.first().value).to_string())
     }
 
     // get_bool is a get_field wrapper for bool fields
     pub fn get_bool(&self, tag: Tag) -> Result<bool, Box<dyn MessageRejectErrorTrait>> {
         let mut val = FIXBoolean::default();
-        let _ = self.get_field(tag, &mut val)?;
+        self.get_field(tag, &mut val)?;
         Ok(val.bool())
     }
 
@@ -172,8 +173,7 @@ impl FieldMap {
         let mut val = FIXInt::default();
         let bytes = self.get_bytes(tag)?;
 
-        let _ = val
-            .read(&bytes)
+        val.read(&bytes)
             .map_err(|_| incorrect_data_format_for_value(tag))?;
 
         Ok(val.int())
@@ -184,8 +184,7 @@ impl FieldMap {
         let mut val = FIXUTCTimestamp::default();
         let bytes = self.get_bytes(tag)?;
 
-        let _ = val
-            .read(&bytes)
+        val.read(&bytes)
             .map_err(|_| incorrect_data_format_for_value(tag))?;
 
         Ok(val.time)
@@ -194,7 +193,7 @@ impl FieldMap {
     // get_string is a get_field wrapper for string fields
     pub fn get_string(&self, tag: Tag) -> Result<String, Box<dyn MessageRejectErrorTrait>> {
         let mut val = FIXString::default();
-        let _ = self.get_field(tag, &mut val)?;
+        self.get_field(tag, &mut val)?;
         Ok(val)
     }
 
@@ -209,9 +208,9 @@ impl FieldMap {
         let f = rlock
             .tag_lookup
             .get(tag)
-            .ok_or(conditionally_required_field_missing(*tag))?;
+            .ok_or_else(|| conditionally_required_field_missing(*tag))?;
 
-        let _ = parser.read(&f.0).map_err(|err| {
+        parser.read(&f.0).map_err(|err| {
             if (*err).is::<MessageRejectError>() {
                 return err.downcast::<MessageRejectError>().unwrap().as_trait();
             }
@@ -230,12 +229,12 @@ impl FieldMap {
     pub fn set_bytes<'a>(&mut self, tag: Tag, value: &'a str) -> &FieldMap {
         let mut wlock = self.rw_lock.write().unwrap();
 
-        if !wlock.tag_lookup.contains_key(&tag) {
-            wlock.tag_lookup.insert(tag, LocalField::new());
+        if let Entry::Vacant(e) = wlock.tag_lookup.entry(tag) {
+            e.insert(LocalField::new());
             wlock.tag_sort.tags.push(tag);
         }
 
-        let mut f = wlock.tag_lookup.get_mut(&tag).unwrap();
+        let f = wlock.tag_lookup.get_mut(&tag).unwrap();
         f.init_field(tag, value);
         self
     }
@@ -332,8 +331,8 @@ impl FieldMap {
         let mut wlock = self.rw_lock.write().unwrap();
 
         for tag in self.sorted_tags().iter() {
-            if wlock.tag_lookup.contains_key(&tag) {
-                let field = wlock.tag_lookup.get_mut(&tag).unwrap();
+            if wlock.tag_lookup.contains_key(tag) {
+                let field = wlock.tag_lookup.get_mut(tag).unwrap();
                 field.write_field(buffer);
             }
         }

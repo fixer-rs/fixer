@@ -10,7 +10,7 @@ pub struct TagValue {
 }
 
 impl TagValue {
-    pub fn init<'a>(tag: Tag, value: &'a str) -> Self {
+    pub fn init(tag: Tag, value: &str) -> Self {
         let mut self_value = format!("{}", tag);
         self_value.push('=');
         self_value.push_str(value);
@@ -18,7 +18,7 @@ impl TagValue {
 
         TagValue {
             bytes: self_value.into_bytes(),
-            tag: tag,
+            tag,
             value: value.as_bytes().to_vec(),
         }
     }

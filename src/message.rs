@@ -26,5 +26,5 @@ pub fn header_field_ordering(i: &Tag, j: &Tag) -> Ordering {
         return Ordering::Less;
     }
 
-    return Ordering::Greater;
+    Ordering::Greater
 }

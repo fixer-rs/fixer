@@ -1,7 +1,7 @@
 use crate::field::{FieldValue, FieldValueReader, FieldValueWriter};
 use chrono::naive::NaiveDateTime;
 
-#[derive(Default, Clone, Copy, Debug, PartialEq)]
+#[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TimestampPrecision {
     #[default]
     Millis,
