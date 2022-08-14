@@ -13,8 +13,12 @@ version = "0.1.0"
 
 [dependencies]
 chrono = "0.4.20"
+delegate = "0.7.0"
+dyn-clone = "1.0.9"
 fast-float = "0.2.0"
+intertrait = "0.2"
 lazy_static = "1.4.0"
+linkme = "0.2"
 rust_decimal = "1.25.0"
 simple-error = "0.2"
 

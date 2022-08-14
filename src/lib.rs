@@ -3,6 +3,7 @@ extern crate lazy_static;
 #[macro_use]
 extern crate simple_error;
 
+pub mod datadictionary;
 pub mod errors;
 pub mod field;
 pub mod field_map;
