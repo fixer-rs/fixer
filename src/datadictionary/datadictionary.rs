@@ -5,6 +5,7 @@ use intertrait::*;
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
+    io,
 };
 
 #[derive(Default)]
@@ -388,8 +389,8 @@ pub struct MessageDef {
     pub tags: TagSet,
 }
 
-// RequiredParts returns those parts that are required for this Message
 impl MessageDef {
+    // required_parts returns those parts that are required for this Message
     pub fn required_parts(&self) -> &Vec<Box<dyn MessagePart>> {
         &self.required_parts
     }
@@ -452,7 +453,7 @@ impl MessageDef {
     }
 }
 
-// //Parse loads and build a datadictionary instance from an xml file.
+// parse loads and build a datadictionary instance from an xml file.
 // func Parse(path string) (*DataDictionary, error) {
 // 	var xmlFile *os.File
 // 	var err error
@@ -465,19 +466,20 @@ impl MessageDef {
 // 	return ParseSrc(xmlFile)
 // }
 
-// //ParseSrc loads and build a datadictionary instance from an xml source.
-// func ParseSrc(xmlSrc io.Reader) (*DataDictionary, error) {
-// 	doc := new(XMLDoc)
-// 	decoder := xml.NewDecoder(xmlSrc)
-// 	if err := decoder.Decode(doc); err != nil {
-// 		return nil, errors.Wrapf(err, "problem parsing XML file")
-// 	}
+// parse_src loads and build a datadictionary instance from an xml source.
+pub fn parse_src(xml_src: Box<dyn io::Read>) -> Result<DataDictionary, ()> {
+    // 	doc := new(XMLDoc)
+    // 	decoder := xml.NewDecoder(xmlSrc)
+    // 	if err := decoder.Decode(doc); err != nil {
+    // 		return nil, errors.Wrapf(err, "problem parsing XML file")
+    // 	}
 
-// 	b := new(builder)
-// 	dict, err := b.build(doc)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+    // 	b := new(builder)
+    // 	dict, err := b.build(doc)
+    // 	if err != nil {
+    // 		return nil, err
+    // 	}
 
-// 	return dict, nil
-// }
+    // 	return dict, nil
+    Err(())
+}
