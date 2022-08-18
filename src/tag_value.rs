@@ -11,7 +11,7 @@ pub struct TagValue {
 
 impl TagValue {
     pub fn init(tag: Tag, value: &str) -> Self {
-        let mut self_value = format!("{}", tag);
+        let mut self_value = itoa::Buffer::new().format(tag).to_string();
         self_value.push('=');
         self_value.push_str(value);
         self_value.push('');

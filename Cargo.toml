@@ -12,20 +12,22 @@ version = "0.1.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+anyhow = "1.0.62"
 chrono = "0.4.20"
 delegate = "0.7.0"
-dyn-clone = "1.0.9"
 fast-float = "0.2.0"
-intertrait = "0.2"
+itoa = "1.0"
 lazy_static = "1.4.0"
-linkme = "0.2"
+maplit = "1.0"
 quick-xml = {version = "0.23", features = ["serialize"]}
-rust_decimal = "1.25.0"
+rust_decimal = "1.25"
 serde = {version = "1.0", features = ["derive"]}
-serde_derive = "1.0.143"
+serde_derive = "1.0"
 simple-error = "0.2"
+tokio = {version = "1.20", features = ["io-util", "fs", "rt", "macros"]}
 
 [dev-dependencies]
+async_once = "0.2.6"
 criterion = "0.3"
 
 [[bench]]

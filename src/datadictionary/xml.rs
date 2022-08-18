@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 // XMLDoc is the unmarshalled root of a FIX Dictionary.
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Default)]
 pub struct XMLDoc {
     pub r#type: String,
     pub major: String,
@@ -10,13 +10,25 @@ pub struct XMLDoc {
     pub service_pack: isize,
     pub header: Option<XMLComponent>,
     pub trailer: Option<XMLComponent>,
+    pub messages: Option<XMLMessages>,
+    pub components: Option<XMLComponents>,
+    pub fields: Option<XMLFields>,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Default)]
+pub struct XMLMessages {
+    #[serde(rename = "message")]
     pub messages: Option<Vec<XMLComponent>>,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Default)]
+pub struct XMLComponents {
+    #[serde(rename = "component")]
     pub components: Option<Vec<XMLComponent>>,
-    pub fields: Option<Vec<XMLField>>,
 }
 
 // XMLComponent can represent header, trailer, messages/message, or components/component xml elements.
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Default)]
 pub struct XMLComponent {
     pub name: Option<String>,
     #[serde(rename = "msgcat")]
@@ -24,27 +36,11 @@ pub struct XMLComponent {
     #[serde(rename = "msgtype")]
     pub msg_type: Option<String>,
     #[serde(rename = "$value")]
-    pub fields: Option<Vec<XMLComponentMemberEnum>>,
+    pub members: Option<Vec<XMLComponentEnum>>,
 }
 
-// XMLField represents the fields/field xml element.
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
-pub struct XMLField {
-    pub number: Option<isize>,
-    pub name: Option<String>,
-    pub r#type: Option<String>,
-    pub value: Option<Vec<XMLValue>>,
-}
-
-// XMLValue represents the fields/field/value xml element.
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
-pub struct XMLValue {
-    pub r#enum: String,
-    pub description: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
-pub enum XMLComponentMemberEnum {
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+pub enum XMLComponentEnum {
     #[serde(rename = "field")]
     Field(XMLComponentMember),
     #[serde(rename = "component")]
@@ -52,44 +48,44 @@ pub enum XMLComponentMemberEnum {
     #[serde(rename = "group")]
     Group(XMLComponentMember),
     #[serde(rename = "message")]
-    Message(XMLComponent),
+    Message(XMLComponentMember),
 }
 
-impl Default for XMLComponentMemberEnum {
+impl Default for XMLComponentEnum {
     fn default() -> Self {
         let member = XMLComponentMember::default();
-        XMLComponentMemberEnum::Field(member)
+        XMLComponentEnum::Field(member)
     }
 }
 
-// XMLComponentMember represents child elements of header, trailer, messages/message, and components/component elements
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Default)]
-pub struct XMLComponentMember {
-    pub name: String,
-    pub required: String,
-    #[serde(rename = "$value")]
-    pub fields: Option<Vec<XMLComponentMemberEnum>>,
-}
-
-impl XMLComponentMemberEnum {
+impl XMLComponentEnum {
     pub fn field_name(&self) -> &'static str {
         match self {
-            XMLComponentMemberEnum::Component(_) => "component",
-            XMLComponentMemberEnum::Group(_) => "group",
-            XMLComponentMemberEnum::Field(_) => "field",
-            _ => "message",
+            XMLComponentEnum::Component(_) => "component",
+            XMLComponentEnum::Group(_) => "group",
+            XMLComponentEnum::Field(_) => "field",
+            XMLComponentEnum::Message(_) => "message",
+        }
+    }
+
+    pub fn name(&'_ self) -> &'_ str {
+        match self {
+            XMLComponentEnum::Component(member)
+            | XMLComponentEnum::Group(member)
+            | XMLComponentEnum::Field(member)
+            | XMLComponentEnum::Message(member) => &member.name,
         }
     }
 
     pub fn is_component(&self) -> bool {
-        if let XMLComponentMemberEnum::Component(_) = self {
+        if let XMLComponentEnum::Component(_) = self {
             return true;
         }
         false
     }
 
     pub fn is_group(&self) -> bool {
-        if let XMLComponentMemberEnum::Group(_) = self {
+        if let XMLComponentEnum::Group(_) = self {
             return true;
         }
         false
@@ -97,12 +93,50 @@ impl XMLComponentMemberEnum {
 
     pub fn is_required(&self) -> bool {
         match self {
-            XMLComponentMemberEnum::Message(_) => false,
-            XMLComponentMemberEnum::Component(inner)
-            | XMLComponentMemberEnum::Field(inner)
-            | XMLComponentMemberEnum::Group(inner) => inner.required == "Y",
+            XMLComponentEnum::Component(inner)
+            | XMLComponentEnum::Field(inner)
+            | XMLComponentEnum::Group(inner)
+            | XMLComponentEnum::Message(inner) => {
+                if inner.required.is_some() {
+                    inner.required.as_ref().unwrap() == "Y"
+                } else {
+                    false
+                }
+            }
         }
     }
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Default)]
+pub struct XMLFields {
+    #[serde(rename = "field")]
+    pub fields: Option<Vec<XMLField>>,
+}
+
+// XMLField represents the fields/field xml element.
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Default)]
+pub struct XMLField {
+    pub number: Option<isize>,
+    pub name: Option<String>,
+    pub r#type: Option<String>,
+    #[serde(rename = "value")]
+    pub values: Option<Vec<XMLValue>>,
+}
+
+// XMLValue represents the fields/field/value xml element.
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Default)]
+pub struct XMLValue {
+    pub r#enum: String,
+    pub description: String,
+}
+
+// XMLComponentMember represents child elements of header, trailer, messages/message, and components/component elements
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Default)]
+pub struct XMLComponentMember {
+    pub name: String,
+    pub required: Option<String>,
+    #[serde(rename = "$value")]
+    pub fields: Option<Vec<XMLComponentEnum>>,
 }
 
 #[cfg(test)]
@@ -118,9 +152,9 @@ mod tests {
     <header>
         <field name='BeginString' required='Y' />
         <group name='NoHops' required='N'>
-        <field name='HopCompID' required='N' />
-        <field name='HopSendingTime' required='N' />
-        <field name='HopRefID' required='N' />
+            <field name='HopCompID' required='N' />
+            <field name='HopSendingTime' required='N' />
+            <field name='HopRefID' required='N' />
         </group>
     </header>
     <messages>
@@ -181,8 +215,6 @@ mod tests {
     "#;
             let xml_doc: Result<XMLDoc, DeError> = from_str(xml);
             xml_doc.unwrap()
-
-            // XMLDoc { type: "FIX", major: "4", minor: "3", service_pack: 0, header: Some(XMLComponent { name: None, msg_cat: None, msg_type: None, field: Some([Field(XMLComponentMember { name: "BeginString", required: "Y", fields: None }), Group(XMLComponentMember { name: "NoHops", required: "N", fields: None })]) }), trailer: Some(XMLComponent { name: None, msg_cat: None, msg_type: None, field: Some([Field(XMLComponentMember { name: "SignatureLength", required: "N", fields: None }), Field(XMLComponentMember { name: "Signature", required: "N", fields: None }), Field(XMLComponentMember { name: "CheckSum", required: "Y", fields: None })]) }), messages: Some([XMLComponent { name: None, msg_cat: None, msg_type: None, field: Some([Message(XMLComponent { name: Some("Heartbeat"), msg_cat: Some("admin"), msg_type: Some("0"), field: Some([Field(XMLComponentMember { name: "TestReqID", required: "N", fields: None })]) }), Message(XMLComponent { name: Some("IOI"), msg_cat: Some("app"), msg_type: Some("6"), field: Some([Field(XMLComponentMember { name: "IOIid", required: "Y", fields: None }), Field(XMLComponentMember { name: "IOITransType", required: "Y", fields: None }), Field(XMLComponentMember { name: "IOIRefID", required: "N", fields: None }), Component(XMLComponent { name: Some("Instrument"), msg_cat: None, msg_type: None, field: None }), Group(XMLComponentMember { name: "NoRoutingIDs", required: "N", fields: None })]) }), Message(XMLComponent { name: Some("NewOrderSingle"), msg_cat: Some("app"), msg_type: Some("D"), field: Some([Field(XMLComponentMember { name: "ClOrdID", required: "Y", fields: None }), Field(XMLComponentMember { name: "SecondaryClOrdID", required: "N", fields: None }), Field(XMLComponentMember { name: "ClOrdLinkID", required: "N", fields: None }), Component(XMLComponent { name: Some("Parties"), msg_cat: None, msg_type: None, field: None }), Field(XMLComponentMember { name: "TradeOriginationDate", required: "N", fields: None }), Field(XMLComponentMember { name: "Account", required: "N", fields: None }), Field(XMLComponentMember { name: "AccountType", required: "N", fields: None }), Field(XMLComponentMember { name: "DayBookingInst", required: "N", fields: None }), Field(XMLComponentMember { name: "BookingUnit", required: "N", fields: None }), Field(XMLComponentMember { name: "PreallocMethod", required: "N", fields: None }), Group(XMLComponentMember { name: "NoAllocs", required: "N", fields: None }), Field(XMLComponentMember { name: "SettlmntTyp", required: "N", fields: None }), Field(XMLComponentMember { name: "FutSettDate", required: "N", fields: None }), Field(XMLComponentMember { name: "CashMargin", required: "N", fields: None }), Field(XMLComponentMember { name: "ClearingFeeIndicator", required: "N", fields: None }), Field(XMLComponentMember { name: "HandlInst", required: "Y", fields: None }), Field(XMLComponentMember { name: "ExecInst", required: "N", fields: None }), Field(XMLComponentMember { name: "MinQty", required: "N", fields: None }), Field(XMLComponentMember { name: "MaxFloor", required: "N", fields: None }), Field(XMLComponentMember { name: "ExDestination", required: "N", fields: None }), Group(XMLComponentMember { name: "NoTradingSessions", required: "N", fields: None })]) })]) }]), components: None, fields: None }
         };
     }
 
@@ -250,7 +282,7 @@ mod tests {
         assert!(doc.header.is_some(), "Header is nil");
 
         struct TestCase {
-            value: XMLComponentMemberEnum,
+            value: XMLComponentEnum,
             xml_name_local: &'static str,
             name: &'static str,
             required: bool,
@@ -258,9 +290,9 @@ mod tests {
         let tests = vec![
             TestCase {
                 value: {
-                    let doc_clone = &doc.clone();
+                    let doc_clone = CACHED_XML_DOC.clone();
                     let header = doc_clone.header.as_ref().unwrap();
-                    let value = header.fields.as_ref().unwrap()[0].clone();
+                    let value = header.members.as_ref().unwrap()[0].clone();
                     value
                 },
                 xml_name_local: "field",
@@ -269,9 +301,9 @@ mod tests {
             },
             TestCase {
                 value: {
-                    let doc_clone = &doc.clone();
+                    let doc_clone = CACHED_XML_DOC.clone();
                     let header = doc_clone.header.as_ref().unwrap();
-                    let value = header.fields.as_ref().unwrap()[1].clone();
+                    let value = header.members.as_ref().unwrap()[1].clone();
                     value
                 },
                 xml_name_local: "group",
@@ -280,12 +312,12 @@ mod tests {
             },
             TestCase {
                 value: {
-                    let doc_clone = &doc.clone();
+                    let doc_clone = CACHED_XML_DOC.clone();
                     let header = doc_clone.header.as_ref().unwrap();
-                    let value = header.fields.as_ref().unwrap()[1].clone();
+                    let value = header.members.as_ref().unwrap()[1].clone();
                     let default = XMLComponentMember::default();
                     let member = match value {
-                        XMLComponentMemberEnum::Group(ref inner) => inner,
+                        XMLComponentEnum::Group(ref inner) => inner,
                         _ => &default,
                     };
                     member.fields.as_ref().unwrap()[0].clone()
@@ -296,9 +328,9 @@ mod tests {
             },
             TestCase {
                 value: {
-                    let doc_clone = &doc.clone();
+                    let doc_clone = CACHED_XML_DOC.clone();
                     let trailer = doc_clone.trailer.as_ref().unwrap();
-                    let value = trailer.fields.as_ref().unwrap()[0].clone();
+                    let value = trailer.members.as_ref().unwrap()[0].clone();
                     value
                 },
                 xml_name_local: "field",
@@ -307,15 +339,11 @@ mod tests {
             },
             TestCase {
                 value: {
-                    let doc_clone = &doc.clone();
-                    let message = &doc_clone.messages.as_ref().unwrap()[0];
-                    let value = message.fields.as_ref().unwrap()[0].clone();
-                    let default = XMLComponent::default();
-                    let member = match value {
-                        XMLComponentMemberEnum::Message(ref inner) => inner,
-                        _ => &default,
-                    };
-                    member.fields.as_ref().unwrap()[0].clone()
+                    let doc_clone = CACHED_XML_DOC.clone();
+                    let messages = &doc_clone.messages.as_ref().unwrap();
+                    let message = &messages.messages.as_ref().unwrap()[0];
+                    let inner_message = &message.members.as_ref().unwrap()[0];
+                    inner_message.clone()
                 },
                 xml_name_local: "field",
                 name: "TestReqID",
@@ -323,15 +351,11 @@ mod tests {
             },
             TestCase {
                 value: {
-                    let doc_clone = &doc.clone();
-                    let message = &doc_clone.messages.as_ref().unwrap()[0];
-                    let value = message.fields.as_ref().unwrap()[1].clone();
-                    let default = XMLComponent::default();
-                    let member = match value {
-                        XMLComponentMemberEnum::Message(ref inner) => inner,
-                        _ => &default,
-                    };
-                    member.fields.as_ref().unwrap()[3].clone()
+                    let doc_clone = CACHED_XML_DOC.clone();
+                    let messages = &doc_clone.messages.as_ref().unwrap();
+                    let message = &messages.messages.as_ref().unwrap()[1];
+                    let inner_message = &message.members.as_ref().unwrap()[3];
+                    inner_message.clone()
                 },
                 xml_name_local: "component",
                 name: "Instrument",
@@ -339,15 +363,11 @@ mod tests {
             },
             TestCase {
                 value: {
-                    let doc_clone = &doc.clone();
-                    let message = &doc_clone.messages.as_ref().unwrap()[0];
-                    let value = message.fields.as_ref().unwrap()[1].clone();
-                    let default = XMLComponent::default();
-                    let member = match value {
-                        XMLComponentMemberEnum::Message(ref inner) => inner,
-                        _ => &default,
-                    };
-                    member.fields.as_ref().unwrap()[4].clone()
+                    let doc_clone = CACHED_XML_DOC.clone();
+                    let messages = &doc_clone.messages.as_ref().unwrap();
+                    let message = &messages.messages.as_ref().unwrap()[1];
+                    let inner_message = &message.members.as_ref().unwrap()[4];
+                    inner_message.clone()
                 },
                 xml_name_local: "group",
                 name: "NoRoutingIDs",
@@ -355,21 +375,16 @@ mod tests {
             },
             TestCase {
                 value: {
-                    let doc_clone = &doc.clone();
-                    let message = &doc_clone.messages.as_ref().unwrap()[0];
-                    let value = message.fields.as_ref().unwrap()[1].clone();
-                    let default = XMLComponent::default();
-                    let member = match value {
-                        XMLComponentMemberEnum::Message(ref inner) => inner,
+                    let doc_clone = CACHED_XML_DOC.clone();
+                    let messages = &doc_clone.messages.as_ref().unwrap();
+                    let message = &messages.messages.as_ref().unwrap()[1];
+                    let inner_message = &message.members.as_ref().unwrap()[4];
+                    let default = XMLComponentMember::default();
+                    let member = match inner_message {
+                        XMLComponentEnum::Group(ref inner) => inner,
                         _ => &default,
                     };
-                    let value2 = member.fields.as_ref().unwrap()[4].clone();
-                    let default2 = XMLComponentMember::default();
-                    let member2 = match value2 {
-                        XMLComponentMemberEnum::Group(ref inner) => inner,
-                        _ => &default2,
-                    };
-                    member2.fields.as_ref().unwrap()[0].clone()
+                    member.fields.as_ref().unwrap()[0].clone()
                 },
                 xml_name_local: "field",
                 name: "RoutingType",
@@ -377,21 +392,16 @@ mod tests {
             },
             TestCase {
                 value: {
-                    let doc_clone = &doc.clone();
-                    let message = &doc_clone.messages.as_ref().unwrap()[0];
-                    let value = message.fields.as_ref().unwrap()[1].clone();
-                    let default = XMLComponent::default();
-                    let member = match value {
-                        XMLComponentMemberEnum::Message(ref inner) => inner,
+                    let doc_clone = CACHED_XML_DOC.clone();
+                    let messages = &doc_clone.messages.as_ref().unwrap();
+                    let message = &messages.messages.as_ref().unwrap()[1];
+                    let inner_message = &message.members.as_ref().unwrap()[4];
+                    let default = XMLComponentMember::default();
+                    let member = match inner_message {
+                        XMLComponentEnum::Group(ref inner) => inner,
                         _ => &default,
                     };
-                    let value2 = member.fields.as_ref().unwrap()[4].clone();
-                    let default2 = XMLComponentMember::default();
-                    let member2 = match value2 {
-                        XMLComponentMemberEnum::Group(ref inner) => inner,
-                        _ => &default2,
-                    };
-                    member2.fields.as_ref().unwrap()[1].clone()
+                    member.fields.as_ref().unwrap()[1].clone()
                 },
                 xml_name_local: "field",
                 name: "RoutingID",
@@ -400,12 +410,10 @@ mod tests {
         ];
         for test in tests.iter() {
             match &test.value {
-                XMLComponentMemberEnum::Message(_) => {
-                    assert!(false, "not correct type")
-                }
-                XMLComponentMemberEnum::Component(inner)
-                | XMLComponentMemberEnum::Field(inner)
-                | XMLComponentMemberEnum::Group(inner) => {
+                XMLComponentEnum::Component(inner)
+                | XMLComponentEnum::Field(inner)
+                | XMLComponentEnum::Group(inner)
+                | XMLComponentEnum::Message(inner) => {
                     assert_eq!(test.value.field_name(), test.xml_name_local);
                     assert_eq!(
                         &inner.name, &test.name,
@@ -431,14 +439,9 @@ mod tests {
         let tests = vec![TestCase {
             value: {
                 let doc_clone = &doc.clone();
-                let message = &doc_clone.messages.as_ref().unwrap()[0];
-                let value = message.fields.as_ref().unwrap()[0].clone();
-                let default = XMLComponent::default();
-                let member = match value {
-                    XMLComponentMemberEnum::Message(inner) => inner,
-                    _ => default,
-                };
-                member
+                let messages = &doc_clone.messages.as_ref().unwrap();
+                let message = &messages.messages.as_ref().unwrap()[0];
+                message.clone()
             },
             name: "Heartbeat",
             msg_cat: "admin",

@@ -25,7 +25,7 @@ impl FieldValueReader for FIXInt {
 
 impl FieldValueWriter for FIXInt {
     fn write(&self) -> String {
-        format!("{}", *self)
+        itoa::Buffer::new().format(*self).to_string()
     }
 }
 

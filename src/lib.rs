@@ -2,6 +2,10 @@
 extern crate lazy_static;
 #[macro_use]
 extern crate simple_error;
+#[macro_use]
+extern crate maplit;
+#[macro_use]
+extern crate anyhow;
 
 pub mod datadictionary;
 pub mod errors;

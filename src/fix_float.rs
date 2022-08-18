@@ -31,7 +31,7 @@ impl FieldValueReader for FIXFloat {
 
 impl FieldValueWriter for FIXFloat {
     fn write(&self) -> String {
-        format!("{}", *self)
+        format!("{}", self)
     }
 }
 
