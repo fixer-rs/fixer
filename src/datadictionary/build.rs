@@ -184,8 +184,8 @@ impl Builder {
         }
 
         Ok(MessageDef::new(
-            xml_message.name.unwrap_or(String::new()),
-            xml_message.msg_type.unwrap_or(String::new()),
+            xml_message.name.unwrap_or_default(),
+            xml_message.msg_type.unwrap_or_default(),
             parts,
         ))
     }
@@ -260,22 +260,20 @@ impl Builder {
 fn build_field_type(xml_field: &XMLField) -> FieldType {
     let mut field = FieldType::new(
         xml_field.name.as_ref().unwrap().clone(),
-        xml_field.number.as_ref().unwrap().clone(),
+        *xml_field.number.as_ref().unwrap(),
         xml_field.r#type.as_ref().unwrap().clone(),
     );
 
-    if xml_field.values.is_some() {
-        if !xml_field.values.as_ref().unwrap().is_empty() {
-            field.enums = hashmap! {};
-            for e in xml_field.values.as_ref().unwrap().iter() {
-                field.enums.insert(
-                    e.r#enum.to_string(),
-                    Enum {
-                        value: e.r#enum.to_string(),
-                        description: e.description.to_string(),
-                    },
-                );
-            }
+    if xml_field.values.is_some() && !xml_field.values.as_ref().unwrap().is_empty() {
+        field.enums = hashmap! {};
+        for e in xml_field.values.as_ref().unwrap().iter() {
+            field.enums.insert(
+                e.r#enum.to_string(),
+                Enum {
+                    value: e.r#enum.to_string(),
+                    description: e.description.to_string(),
+                },
+            );
         }
     }
 

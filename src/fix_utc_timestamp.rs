@@ -24,7 +24,7 @@ pub struct FIXUTCTimestamp {
 
 impl FieldValueReader for FIXUTCTimestamp {
     fn read(&mut self, input: &str) -> Result<(), ()> {
-        match input.len() {
+        match input.chars().count() {
             17 => {
                 self.precision = TimestampPrecision::Seconds;
                 self.time = NaiveDateTime::parse_from_str(input, UTC_TIMESTAMP_SECONDS_FORMAT)

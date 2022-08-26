@@ -17,11 +17,12 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::sync::RwLock;
 use std::vec;
-struct LocalField(Vec<TagValue>);
+
+pub struct LocalField(Vec<TagValue>);
 
 impl LocalField {
-    fn new() -> Self {
-        LocalField(vec![])
+    pub fn new(tag_value_vec: Vec<TagValue>) -> Self {
+        LocalField(tag_value_vec)
     }
 
     fn field_tag(&self) -> &Tag {
@@ -36,7 +37,7 @@ impl LocalField {
 
     fn write_field(&mut self, buffer: &mut String) {
         for tv in self.0.iter() {
-            buffer.push_str(&String::from_utf8_lossy(&tv.bytes));
+            buffer.push_str(&tv.bytes);
         }
     }
 
@@ -88,11 +89,11 @@ fn normal_field_order(i: &Tag, j: &Tag) -> Ordering {
 }
 
 impl FieldMap {
-    fn init() -> FieldMap {
+    pub fn init() -> FieldMap {
         Self::init_with_ordering(normal_field_order)
     }
 
-    fn init_with_ordering(ordering: TagOrder) -> FieldMap {
+    pub fn init_with_ordering(ordering: TagOrder) -> FieldMap {
         let tag_sort = TagSort {
             tags: Vec::new(),
             compare: ordering,
@@ -145,7 +146,7 @@ impl FieldMap {
             .ok_or_else(|| conditionally_required_field_missing(tag))?;
 
         parser
-            .read(&String::from_utf8_lossy(&f.first().value))
+            .read(&f.first().value)
             .map_err(|_| incorrect_data_format_for_value(tag))?;
 
         Ok(())
@@ -158,7 +159,7 @@ impl FieldMap {
             .tag_lookup
             .get(&tag)
             .ok_or_else(|| conditionally_required_field_missing(tag))?;
-        Ok(String::from_utf8_lossy(&f.first().value).to_string())
+        Ok(f.first().value.to_string())
     }
 
     // get_bool is a get_field wrapper for bool fields
@@ -230,7 +231,7 @@ impl FieldMap {
         let mut wlock = self.rw_lock.write().unwrap();
 
         if let Entry::Vacant(e) = wlock.tag_lookup.entry(tag) {
-            e.insert(LocalField::new());
+            e.insert(LocalField::new(vec![]));
             wlock.tag_sort.tags.push(tag);
         }
 
@@ -278,7 +279,7 @@ impl FieldMap {
         to_wlock.tag_sort.compare = m_rlock.tag_sort.compare;
     }
 
-    fn add(&mut self, f: LocalField) {
+    pub fn add(&mut self, f: LocalField) {
         let mut wlock = self.rw_lock.write().unwrap();
 
         let t = f.field_tag();
@@ -296,7 +297,7 @@ impl FieldMap {
         let tag = &field.tag();
 
         if !wlock.tag_lookup.contains_key(tag) {
-            wlock.tag_lookup.insert(*tag, LocalField::new());
+            wlock.tag_lookup.insert(*tag, LocalField::new(vec![]));
             wlock.tag_sort.tags.push(*tag);
         }
 
@@ -327,7 +328,7 @@ impl FieldMap {
         sorted_tags
     }
 
-    fn write(&mut self, buffer: &mut String) {
+    pub fn write(&mut self, buffer: &mut String) {
         let mut wlock = self.rw_lock.write().unwrap();
 
         for tag in self.sorted_tags().iter() {
@@ -338,7 +339,7 @@ impl FieldMap {
         }
     }
 
-    fn total(&self) -> isize {
+    pub fn total(&self) -> isize {
         let rlock = self.rw_lock.read().unwrap();
         let mut total = 0;
 
@@ -352,7 +353,7 @@ impl FieldMap {
         total
     }
 
-    fn length(&self) -> isize {
+    pub fn length(&self) -> isize {
         let rlock = self.rw_lock.read().unwrap();
         let mut length = 0;
 

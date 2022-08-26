@@ -5,8 +5,8 @@ use std::string::ToString;
 #[derive(Default, Clone, Debug)]
 pub struct TagValue {
     pub tag: Tag,
-    pub value: Vec<u8>,
-    pub bytes: Vec<u8>,
+    pub value: String,
+    pub bytes: String,
 }
 
 impl TagValue {
@@ -17,45 +17,43 @@ impl TagValue {
         self_value.push('');
 
         TagValue {
-            bytes: self_value.into_bytes(),
             tag,
-            value: value.as_bytes().to_vec(),
+            value: value.to_string(),
+            bytes: self_value,
         }
     }
 
-    pub fn parse(&mut self, raw_field_bytes: Vec<u8>) -> Result<(), String> {
-        let field_string = String::from_utf8_lossy(&raw_field_bytes);
-        let sep_index_option = field_string.find('=');
+    pub fn parse(&mut self, raw_field_bytes: &str) -> Result<(), String> {
+        let sep_index_option = raw_field_bytes.find('=');
         if sep_index_option.is_none() {
-            return Err(format!("TagValue::parse: No '=' in '{:?}'", field_string));
+            return Err(format!("TagValue::parse: No '=' in '{}'", raw_field_bytes));
         }
 
         let sep_index = sep_index_option.unwrap();
         if sep_index == 0 {
-            return Err(format!("TagValue::parse: No tag in '{:?}'", field_string));
+            return Err(format!("TagValue::parse: No tag in '{}'", raw_field_bytes));
         }
 
-        let parsed_tag_string = field_string.get(0..sep_index).unwrap();
+        let parsed_tag_string = raw_field_bytes.get(0..sep_index).unwrap();
         let parsed_tag = parsed_tag_string
             .parse::<isize>()
             .map_err(|err| format!("TagValue::parse: {:?}", err.to_string()))?;
 
         self.tag = parsed_tag;
-        let n = field_string.chars().count();
-        self.value = field_string
+        let n = raw_field_bytes.chars().count();
+        self.value = raw_field_bytes
             .get(sep_index + 1..n - 1)
             .unwrap()
-            .as_bytes()
-            .to_vec();
-        self.bytes = field_string.as_bytes().to_vec();
+            .to_string();
+        self.bytes = raw_field_bytes.to_string();
 
         Ok(())
     }
 
     pub fn total(&self) -> isize {
         let mut total: isize = 0;
-        for b in self.bytes.iter() {
-            total += *b as isize;
+        for b in self.bytes.chars() {
+            total += b as isize;
         }
         total
     }
@@ -67,8 +65,7 @@ impl TagValue {
 
 impl ToString for TagValue {
     fn to_string(&self) -> String {
-        let bytes = self.bytes.clone();
-        String::from_utf8_lossy(&bytes).to_string()
+        self.bytes.clone()
     }
 }
 
@@ -79,7 +76,7 @@ mod tests {
     #[test]
     fn test_tag_value_init() {
         let tv = TagValue::init(8, "blahblah");
-        let expected_data = "8=blahblah".as_bytes().to_vec();
+        let expected_data = "8=blahblah".to_string();
 
         assert_eq!(
             tv.bytes, expected_data,
@@ -87,7 +84,7 @@ mod tests {
             expected_data, tv.bytes,
         );
 
-        let expected_value = "blahblah".as_bytes().to_vec();
+        let expected_value = "blahblah".to_string();
         assert_eq!(
             tv.value, expected_value,
             "Expected {:?}, got {:?}",
@@ -99,26 +96,26 @@ mod tests {
     fn test_tag_value_parse() {
         let string_field = "8=FIX.4.0";
         let mut tv = TagValue::default();
-        let result = tv.parse(string_field.as_bytes().to_vec());
+        let result = tv.parse(string_field);
         assert!(result.is_ok());
         assert_eq!(8, tv.tag);
-        assert_eq!(tv.bytes, string_field.as_bytes().to_vec());
-        assert_eq!(tv.value, "FIX.4.0".as_bytes().to_vec());
+        assert_eq!(tv.bytes, string_field.to_string());
+        assert_eq!(tv.value, "FIX.4.0");
     }
 
     #[test]
     fn test_tag_value_parse_fail() {
         let mut string_field = "not_tag_equal_value";
         let mut tv = TagValue::default();
-        let result = tv.parse(string_field.as_bytes().to_vec());
+        let result = tv.parse(string_field);
         assert!(result.is_err());
 
         string_field = "tag_not_an_int=uhoh";
-        let result = tv.parse(string_field.as_bytes().to_vec());
+        let result = tv.parse(string_field);
         assert!(result.is_err());
 
         string_field = "=notag";
-        let result = tv.parse(string_field.as_bytes().to_vec());
+        let result = tv.parse(string_field);
         assert!(result.is_err());
     }
 
@@ -126,7 +123,7 @@ mod tests {
     fn test_tag_value_string() {
         let string_field = "8=FIX.4.0";
         let mut tv = TagValue::default();
-        let result = tv.parse(string_field.as_bytes().to_vec());
+        let result = tv.parse(string_field);
         assert!(result.is_ok());
 
         assert_eq!(String::from("8=FIX.4.0"), tv.to_string());
@@ -136,7 +133,7 @@ mod tests {
     fn test_tag_value_length() {
         let string_field = "8=FIX.4.0";
         let mut tv = TagValue::default();
-        let result = tv.parse(string_field.as_bytes().to_vec());
+        let result = tv.parse(string_field);
         assert!(result.is_ok());
         assert_eq!(string_field.chars().count() as isize, tv.length());
     }
@@ -145,7 +142,7 @@ mod tests {
     fn test_tag_value_total() {
         let string_field = "1=hello";
         let mut tv = TagValue::default();
-        let result = tv.parse(string_field.as_bytes().to_vec());
+        let result = tv.parse(string_field);
         assert!(result.is_ok());
         assert_eq!(
             643,

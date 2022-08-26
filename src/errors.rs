@@ -352,7 +352,7 @@ mod tests {
             expected_error_string,
             "expected: {}, got: {}\n",
             expected_error_string,
-            msg_rej.to_string(),
+            msg_rej,
         );
 
         assert_eq!(
@@ -396,7 +396,7 @@ mod tests {
             expected_error_string,
             "expected: {}, got: {}\n",
             expected_error_string,
-            msg_rej.to_string(),
+            msg_rej,
         );
         assert_eq!(
             msg_rej.reject_reason(),
