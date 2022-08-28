@@ -1,9 +1,6 @@
-use crate::datadictionary::{
-    datadictionary::{
-        Component, ComponentType, DataDictionary, Enum, FieldDef, FieldType, MessageDef,
-        MessagePart,
-    },
+use super::{
     xml::{XMLComponent, XMLComponentEnum, XMLDoc, XMLField},
+    Component, ComponentType, DataDictionary, Enum, FieldDef, FieldType, MessageDef, MessagePart,
 };
 use anyhow::Error;
 use std::collections::HashMap;

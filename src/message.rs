@@ -1,5 +1,5 @@
 use crate::{
-    datadictionary::datadictionary::DataDictionary,
+    datadictionary::DataDictionary,
     errors::MessageRejectErrorTrait,
     field_map::{FieldMap, LocalField},
     fix_string::FIXString,
@@ -432,7 +432,8 @@ mod tests {
 
     //     "github.com/quickfixgo/quickfix/datadictionary"
 
-    // func BenchmarkParseMessage(b *testing.B) {
+    // #[test]
+    // fn benchmark_parse_message(b *testing.B) {
     // 	rawMsg := bytes.NewBufferString("8=FIX.4.29=10435=D34=249=TW52=20140515-19:49:56.65956=ISLD11=10021=140=154=155=TSLA60=00010101-00:00:00.00010=039")
 
     // 	var msg Message
@@ -446,22 +447,26 @@ mod tests {
     // 	msg *Message
     // }
 
-    // func TestMessageSuite(t *testing.T) {
+    // #[test]
+    // fn test_message_suite(t *testing.T) {
     // 	suite.Run(t, new(MessageSuite))
     // }
 
-    // func (s *MessageSuite) SetupTest() {
+    // #[test]
+    // fn (s *MessageSuite) SetupTest() {
     // 	s.msg = NewMessage()
     // }
 
-    // func (s *MessageSuite) TestParseMessageEmpty() {
+    // #[test]
+    // fn (s *MessageSuite) TestParseMessageEmpty() {
     // 	rawMsg := bytes.NewBufferString("")
 
     // 	err := ParseMessage(s.msg, rawMsg)
     // 	s.NotNil(err)
     // }
 
-    // func (s *MessageSuite) TestParseMessage() {
+    // #[test]
+    // fn (s *MessageSuite) TestParseMessage() {
     // 	rawMsg := bytes.NewBufferString("8=FIX.4.29=10435=D34=249=TW52=20140515-19:49:56.65956=ISLD11=10021=140=154=155=TSLA60=00010101-00:00:00.00010=039")
 
     // 	err := ParseMessage(s.msg, rawMsg)
@@ -484,7 +489,8 @@ mod tests {
     // 	s.False(s.msg.IsMsgTypeOf("A"))
     // }
 
-    // func (s *MessageSuite) TestParseMessageWithDataDictionary() {
+    // #[test]
+    // fn (s *MessageSuite) TestParseMessageWithDataDictionary() {
     // 	dict := new(datadictionary.DataDictionary)
     // 	dict.Header = &datadictionary.MessageDef{
     // 		Fields: map[int]*datadictionary.FieldDef{
@@ -504,13 +510,15 @@ mod tests {
     // 	s.FieldEquals(Tag(5050), "HELLO", s.msg.Trailer)
     // }
 
-    // func (s *MessageSuite) TestParseOutOfOrder() {
+    // #[test]
+    // fn (s *MessageSuite) TestParseOutOfOrder() {
     // 	//allow fields out of order, save for validation
     // 	rawMsg := bytes.NewBufferString("8=FIX.4.09=8135=D11=id21=338=10040=154=155=MSFT34=249=TW52=20140521-22:07:0956=ISLD10=250")
     // 	s.Nil(ParseMessage(s.msg, rawMsg))
     // }
 
-    // func (s *MessageSuite) TestBuild() {
+    // #[test]
+    // fn (s *MessageSuite) TestBuild() {
     // 	s.msg.Header.SetField(tagBeginString, FIXString(BeginStringFIX44))
     // 	s.msg.Header.SetField(tagMsgType, FIXString("A"))
     // 	s.msg.Header.SetField(tagSendingTime, FIXString("20140615-19:49:56"))
@@ -523,7 +531,8 @@ mod tests {
     // 	s.True(bytes.Equal(expectedBytes, result), "Unexpected bytes, got %s", string(result))
     // }
 
-    // func (s *MessageSuite) TestReBuild() {
+    // #[test]
+    // fn (s *MessageSuite) TestReBuild() {
     // 	rawMsg := bytes.NewBufferString("8=FIX.4.29=10435=D34=249=TW52=20140515-19:49:56.65956=ISLD11=10021=140=154=155=TSLA60=00010101-00:00:00.00010=039")
 
     // 	s.Nil(ParseMessage(s.msg, rawMsg))
@@ -542,7 +551,8 @@ mod tests {
     // 	s.True(bytes.Equal(s.msg.bodyBytes, expectedBodyBytes), "Incorrect body bytes, got %s", string(s.msg.bodyBytes))
     // }
 
-    // func (s *MessageSuite) TestReverseRoute() {
+    // #[test]
+    // fn (s *MessageSuite) TestReverseRoute() {
     // 	s.Nil(ParseMessage(s.msg, bytes.NewBufferString("8=FIX.4.29=17135=D34=249=TW50=KK52=20060102-15:04:0556=ISLD57=AP144=BB115=JCD116=CS128=MG129=CB142=JV143=RY145=BH11=ID21=338=10040=w54=155=INTC60=20060102-15:04:0510=123")))
 
     // 	builder := s.msg.reverseRoute()
@@ -573,14 +583,16 @@ mod tests {
     // 	}
     // }
 
-    // func (s *MessageSuite) TestReverseRouteIgnoreEmpty() {
+    // #[test]
+    // fn (s *MessageSuite) TestReverseRouteIgnoreEmpty() {
     // 	s.Nil(ParseMessage(s.msg, bytes.NewBufferString("8=FIX.4.09=12835=D34=249=TW52=20060102-15:04:0556=ISLD115=116=CS128=MG129=CB11=ID21=338=10040=w54=155=INTC60=20060102-15:04:0510=123")))
     // 	builder := s.msg.reverseRoute()
 
     // 	s.False(builder.Header.Has(tagDeliverToCompID), "Should not reverse if empty")
     // }
 
-    // func (s *MessageSuite) TestReverseRouteFIX40() {
+    // #[test]
+    // fn (s *MessageSuite) TestReverseRouteFIX40() {
     // 	//onbehalfof/deliverto location id not supported in fix 4.0
     // 	s.Nil(ParseMessage(s.msg, bytes.NewBufferString("8=FIX.4.09=17135=D34=249=TW50=KK52=20060102-15:04:0556=ISLD57=AP144=BB115=JCD116=CS128=MG129=CB142=JV143=RY145=BH11=ID21=338=10040=w54=155=INTC60=20060102-15:04:0510=123")))
 
@@ -591,7 +603,8 @@ mod tests {
     // 	s.False(builder.Header.Has(tagOnBehalfOfLocationID), "onbehalfof location id not supported in fix40")
     // }
 
-    // func (s *MessageSuite) TestCopyIntoMessage() {
+    // #[test]
+    // fn (s *MessageSuite) TestCopyIntoMessage() {
     // 	msgString := "8=FIX.4.29=17135=D34=249=TW50=KK52=20060102-15:04:0556=ISLD57=AP144=BB115=JCD116=CS128=MG129=CB142=JV143=RY145=BH11=ID21=338=10040=w54=155=INTC60=20060102-15:04:0510=123"
     // 	msgBuf := bytes.NewBufferString(msgString)
     // 	s.Nil(ParseMessage(s.msg, msgBuf))
@@ -627,12 +640,14 @@ mod tests {
     // 	s.Equal(dest.String(), renderedString)
     // }
 
-    // func checkFieldInt(s *MessageSuite, fields FieldMap, tag, expected int) {
+    // #[test]
+    // fn check_field_int(s *MessageSuite, fields FieldMap, tag, expected int) {
     // 	toCheck, _ := fields.GetInt(Tag(tag))
     // 	s.Equal(expected, toCheck)
     // }
 
-    // func checkFieldString(s *MessageSuite, fields FieldMap, tag int, expected string) {
+    // #[test]
+    // fn check_field_string(s *MessageSuite, fields FieldMap, tag int, expected string) {
     // 	toCheck, err := fields.GetString(Tag(tag))
     // 	s.NoError(err)
     // 	s.Equal(expected, toCheck)
