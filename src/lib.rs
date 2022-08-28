@@ -20,6 +20,7 @@ pub mod fix_string;
 pub mod fix_utc_timestamp;
 pub mod log;
 pub mod message;
+pub mod msg_type;
 pub mod session_id;
 pub mod tag;
 pub mod tag_value;
