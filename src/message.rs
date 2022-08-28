@@ -176,25 +176,25 @@ impl Message {
         let mut raw_bytes =
             extract_specific_field(field, TAG_BEGIN_STRING, self.raw_message.clone())?;
 
-        self.header.field_map.add(LocalField::new(
-            self.fields[field_index..field_index + 1].to_vec(),
-        ));
+        self.header
+            .field_map
+            .add(self.fields[field_index..field_index + 1].to_vec());
         field_index += 1;
 
         let mut parsed_field_bytes = self.fields.get_mut(field_index).unwrap();
         raw_bytes = extract_specific_field(parsed_field_bytes, TAG_BODY_LENGTH, raw_bytes)?;
 
-        self.header.field_map.add(LocalField::new(
-            self.fields[field_index..field_index + 1].to_vec(),
-        ));
+        self.header
+            .field_map
+            .add(self.fields[field_index..field_index + 1].to_vec());
         field_index += 1;
 
         parsed_field_bytes = self.fields.get_mut(field_index).unwrap();
         raw_bytes = extract_specific_field(parsed_field_bytes, TAG_MSG_TYPE, raw_bytes)?;
 
-        self.header.field_map.add(LocalField::new(
-            self.fields[field_index..field_index + 1].to_vec(),
-        ));
+        self.header
+            .field_map
+            .add(self.fields[field_index..field_index + 1].to_vec());
         field_index += 1;
 
         let mut trailer_bytes = String::new();
@@ -206,19 +206,19 @@ impl Message {
             raw_bytes = extract_field(parsed_field_bytes, raw_bytes)?;
 
             if is_header_field(&parsed_field_bytes.tag, transport_data_dictionary) {
-                self.header.field_map.add(LocalField::new(
-                    self.fields[field_index..field_index + 1].to_vec(),
-                ));
+                self.header
+                    .field_map
+                    .add(self.fields[field_index..field_index + 1].to_vec());
             } else if is_trailer_field(&parsed_field_bytes.tag, transport_data_dictionary) {
-                self.trailer.field_map.add(LocalField::new(
-                    self.fields[field_index..field_index + 1].to_vec(),
-                ));
+                self.trailer
+                    .field_map
+                    .add(self.fields[field_index..field_index + 1].to_vec());
             } else {
                 found_body = true;
                 trailer_bytes = raw_bytes.clone();
-                self.body.field_map.add(LocalField::new(
-                    self.fields[field_index..field_index + 1].to_vec(),
-                ));
+                self.body
+                    .field_map
+                    .add(self.fields[field_index..field_index + 1].to_vec());
             }
 
             if parsed_field_bytes.tag == TAG_CHECK_SUM {

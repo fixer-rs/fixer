@@ -1,7 +1,7 @@
 use crate::tag::Tag;
 use simple_error::SimpleError;
 use std::error::Error;
-use std::fmt::{Display, Formatter, Result};
+use std::fmt::{Display, Formatter, Result as FmtResult};
 
 lazy_static! {
     // ERR_DO_NOT_SEND is a convenience error to indicate a DoNotSend in ToApp
@@ -34,6 +34,8 @@ pub trait MessageRejectErrorTrait: Error {
     fn is_business_reject(&self) -> bool;
 }
 
+pub type MessageRejectErrorResult = Result<(), Box<dyn MessageRejectErrorTrait>>;
+
 // RejectLogon indicates the application is rejecting permission to logon. Implements MessageRejectError
 #[derive(Debug)]
 pub struct RejectLogon {
@@ -41,7 +43,7 @@ pub struct RejectLogon {
 }
 
 impl Display for RejectLogon {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         write!(f, "{}", self.text)
     }
 }
@@ -92,7 +94,7 @@ impl MessageRejectError {
 }
 
 impl Display for MessageRejectError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         write!(f, "{}", self.text)
     }
 }

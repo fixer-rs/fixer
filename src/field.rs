@@ -1,4 +1,4 @@
-use crate::{tag::Tag, tag_value::TagValue};
+use crate::{field_map::LocalField, tag::Tag, tag_value::TagValue};
 use std::error::Error;
 
 // FieldValueWriter is an interface for writing field values
@@ -28,18 +28,18 @@ pub trait Field: FieldWriter + FieldValueReader {}
 // FieldGroupWriter is an interface for writing a FieldGroup
 pub trait FieldGroupWriter {
     fn tag(&self) -> Tag;
-    fn write(&self) -> Vec<TagValue>;
+    fn write(&self) -> LocalField;
 }
 
 // FieldGroupReader is an interface for reading a FieldGroup
 pub trait FieldGroupReader {
     fn tag(&self) -> Tag;
-    fn read(&self, tag_value: &[TagValue]) -> Result<Vec<TagValue>, Box<dyn Error>>;
+    fn read(&self, tag_value: &LocalField) -> Result<LocalField, Box<dyn Error>>;
 }
 
 // FieldGroup is the interface implemented by all typed Groups in a Message
 pub trait FieldGroup {
     fn tag(&self) -> Tag;
     fn write(&self) -> Vec<TagValue>;
-    fn read(&self, tag_value: &[TagValue]) -> Result<Vec<TagValue>, Box<dyn Error>>;
+    fn read(&self, tag_value: &LocalField) -> Result<LocalField, Box<dyn Error>>;
 }

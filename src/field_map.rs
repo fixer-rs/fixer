@@ -1,6 +1,6 @@
 use crate::errors::{
     conditionally_required_field_missing, incorrect_data_format_for_value, other_error,
-    MessageRejectError, MessageRejectErrorTrait,
+    MessageRejectError, MessageRejectErrorResult, MessageRejectErrorTrait,
 };
 use crate::field::{
     Field, FieldGroupReader, FieldGroupWriter, FieldValueReader, FieldValueWriter, FieldWriter,
@@ -18,31 +18,39 @@ use std::collections::HashMap;
 use std::sync::RwLock;
 use std::vec;
 
-pub struct LocalField(Vec<TagValue>);
+pub type LocalField = Vec<TagValue>;
 
-impl LocalField {
-    pub fn new(tag_value_vec: Vec<TagValue>) -> Self {
-        LocalField(tag_value_vec)
+pub trait LocalFieldTrait {
+    fn new(tag_value_vec: Vec<TagValue>) -> Self;
+    fn field_tag(&self) -> &Tag;
+    fn init_field(&mut self, tag: Tag, value: &'_ str);
+    fn write_field(&mut self, buffer: &mut String);
+    fn first(&self) -> &TagValue;
+}
+
+impl LocalFieldTrait for LocalField {
+    fn new(tag_value_vec: Vec<TagValue>) -> Self {
+        tag_value_vec
     }
 
     fn field_tag(&self) -> &Tag {
-        &(self.0)[0].tag
+        &self[0].tag
     }
 
     fn init_field(&mut self, tag: Tag, value: &'_ str) {
         let tv = TagValue::init(tag, value);
-        self.0.clear();
-        self.0.push(tv)
+        self.clear();
+        self.push(tv)
     }
 
     fn write_field(&mut self, buffer: &mut String) {
-        for tv in self.0.iter() {
+        for tv in self.iter() {
             buffer.push_str(&tv.bytes);
         }
     }
 
     fn first(&self) -> &TagValue {
-        &self.0[0]
+        &self[0]
     }
 }
 
@@ -117,10 +125,7 @@ impl FieldMap {
     }
 
     // get parses out a field in this FieldMap. Returned reject may indicate the field is not present, or the field value is invalid.
-    pub fn get<P: Field + FieldValueReader>(
-        &self,
-        parser: &mut P,
-    ) -> Result<(), Box<dyn MessageRejectErrorTrait>> {
+    pub fn get<P: Field + FieldValueReader>(&self, parser: &mut P) -> MessageRejectErrorResult {
         self.get_field(parser.tag(), parser)
     }
 
@@ -138,7 +143,7 @@ impl FieldMap {
         &self,
         tag: Tag,
         parser: &mut P,
-    ) -> Result<(), Box<dyn MessageRejectErrorTrait>> {
+    ) -> MessageRejectErrorResult {
         let rlock = self.rw_lock.read().map_err(|_| other_error())?;
         let f = rlock
             .tag_lookup
@@ -199,10 +204,7 @@ impl FieldMap {
     }
 
     // get_group is a Get fntion specific to Group Fields.
-    pub fn get_group<P: FieldGroupReader>(
-        &self,
-        parser: P,
-    ) -> Result<(), Box<dyn MessageRejectErrorTrait>> {
+    pub fn get_group<P: FieldGroupReader>(&self, parser: P) -> MessageRejectErrorResult {
         let rlock = self.rw_lock.read().map_err(|_| other_error())?;
 
         let tag = &parser.tag();
@@ -211,7 +213,7 @@ impl FieldMap {
             .get(tag)
             .ok_or_else(|| conditionally_required_field_missing(*tag))?;
 
-        parser.read(&f.0).map_err(|err| {
+        parser.read(&f).map_err(|err| {
             if (*err).is::<MessageRejectError>() {
                 return err.downcast::<MessageRejectError>().unwrap().as_trait();
             }
@@ -231,7 +233,7 @@ impl FieldMap {
         let mut wlock = self.rw_lock.write().unwrap();
 
         if let Entry::Vacant(e) = wlock.tag_lookup.entry(tag) {
-            e.insert(LocalField::new(vec![]));
+            e.insert(vec![]);
             wlock.tag_sort.tags.push(tag);
         }
 
@@ -270,9 +272,7 @@ impl FieldMap {
         to_wlock.tag_lookup = HashMap::new();
 
         for (k, v) in m_rlock.tag_lookup.iter() {
-            to_wlock
-                .tag_lookup
-                .insert(*k, LocalField(vec![v.first().clone()]));
+            to_wlock.tag_lookup.insert(*k, vec![v.first().clone()]);
         }
 
         to_wlock.tag_sort.tags = m_rlock.tag_sort.tags.clone();
@@ -297,7 +297,7 @@ impl FieldMap {
         let tag = &field.tag();
 
         if !wlock.tag_lookup.contains_key(tag) {
-            wlock.tag_lookup.insert(*tag, LocalField::new(vec![]));
+            wlock.tag_lookup.insert(*tag, vec![]);
             wlock.tag_sort.tags.push(*tag);
         }
 
@@ -314,9 +314,7 @@ impl FieldMap {
         if !wlock.tag_lookup.contains_key(&field.tag()) {
             wlock.tag_sort.tags.push(field.tag());
         }
-        wlock
-            .tag_lookup
-            .insert(field.tag(), LocalField(field.write()));
+        wlock.tag_lookup.insert(field.tag(), field.write());
         self
     }
 
@@ -345,7 +343,6 @@ impl FieldMap {
 
         for fields in rlock.tag_lookup.values() {
             fields
-                .0
                 .iter()
                 .filter(|tv| tv.tag != TAG_CHECK_SUM)
                 .for_each(|tv| total += tv.total());
@@ -359,7 +356,6 @@ impl FieldMap {
 
         for fields in rlock.tag_lookup.values() {
             fields
-                .0
                 .iter()
                 .filter(|tv| {
                     tv.tag != TAG_BEGIN_STRING
