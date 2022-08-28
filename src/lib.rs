@@ -24,6 +24,7 @@ pub mod msg_type;
 pub mod session_id;
 pub mod tag;
 pub mod tag_value;
+pub mod validation;
 
 //FIX BeginString string values
 const BEGIN_STRING_FIX40: &str = "FIX.4.0";

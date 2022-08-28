@@ -174,10 +174,14 @@ impl ComponentType {
 
 // TagSet is set for tags.
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
-pub struct TagSet(HashSet<isize>);
+pub struct TagSet(pub HashSet<isize>);
 
 // add adds a tag to the tagset.
 impl TagSet {
+    pub fn new() -> Self {
+        TagSet(hashset!())
+    }
+
     pub fn add(&mut self, tag: isize) {
         self.0.insert(tag);
     }
@@ -420,7 +424,7 @@ impl MessageDef {
 }
 
 // parse loads and build a datadictionary instance from an xml file.
-async fn parse(path: &'_ str) -> Result<DataDictionary, Error> {
+pub async fn parse(path: &'_ str) -> Result<DataDictionary, Error> {
     let mut file = File::open(path).await?;
 
     let mut contents = vec![];

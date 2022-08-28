@@ -30,6 +30,7 @@ impl FieldValueWriter for FIXInt {
 }
 
 impl FieldValue for FIXInt {}
+
 #[cfg(test)]
 mod tests {
 

@@ -213,7 +213,7 @@ impl FieldMap {
             .get(tag)
             .ok_or_else(|| conditionally_required_field_missing(*tag))?;
 
-        parser.read(&f).map_err(|err| {
+        parser.read(f).map_err(|err| {
             if (*err).is::<MessageRejectError>() {
                 return err.downcast::<MessageRejectError>().unwrap().as_trait();
             }
@@ -326,10 +326,9 @@ impl FieldMap {
         sorted_tags
     }
 
-    pub fn write(&mut self, buffer: &mut String) {
-        let mut wlock = self.rw_lock.write().unwrap();
-
+    pub fn write(&self, buffer: &mut String) {
         for tag in self.sorted_tags().iter() {
+            let mut wlock = self.rw_lock.write().unwrap();
             if wlock.tag_lookup.contains_key(tag) {
                 let field = wlock.tag_lookup.get_mut(tag).unwrap();
                 field.write_field(buffer);

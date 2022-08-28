@@ -7,7 +7,7 @@ use crate::{
     tag_value::TagValue,
     BEGIN_STRING_FIX40,
 };
-use chrono::{offset::Local, DateTime};
+use chrono::NaiveDateTime;
 use std::{
     cmp::Ordering,
     error::Error,
@@ -100,23 +100,37 @@ pub struct Message {
     pub trailer: Trailer,
     pub body: Body,
     // receive_time is the time that this message was read from the socket connection
-    pub receive_time: DateTime<Local>,
+    pub receive_time: NaiveDateTime,
     raw_message: String,
     // slice of Bytes corresponding to the message body
     body_bytes: String,
     // field bytes as they appear in the raw message
-    fields: Vec<TagValue>,
+    pub fields: LocalField,
     // flag is true if this message should not be returned to pool after use
     pub keep_message: bool,
 }
 
 impl ToString for Message {
     fn to_string(&self) -> String {
+        if !self.raw_message.is_empty() {
+            return self.raw_message.clone();
+        }
+
+        // self.build()
         todo!()
     }
 }
 
 impl Message {
+    pub fn new() -> Self {
+        Message {
+            header: Header::default(),
+            body: Body::default(),
+            trailer: Trailer::default(),
+            ..Default::default()
+        }
+    }
+
     pub fn to_message(self) -> Self {
         self
     }
@@ -323,15 +337,14 @@ impl Message {
     }
 
     // build constructs a []byte from a Message instance
-    fn build(&mut self) -> Vec<u8> {
+    pub fn build(&mut self) -> String {
         self.cook();
-
         let mut b = String::new();
 
         self.header.field_map.write(&mut b);
         self.body.field_map.write(&mut b);
         self.trailer.field_map.write(&mut b);
-        b.as_bytes().to_owned()
+        b
     }
 
     fn cook(&mut self) {
