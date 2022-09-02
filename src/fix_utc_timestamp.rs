@@ -23,26 +23,27 @@ pub struct FIXUTCTimestamp {
 }
 
 impl FieldValueReader for FIXUTCTimestamp {
-    fn read(&mut self, input: &str) -> Result<(), ()> {
-        match input.chars().count() {
+    fn read(&mut self, input: &[u8]) -> Result<(), ()> {
+        let input_str = String::from_utf8_lossy(input).to_string();
+        match input_str.len() {
             17 => {
                 self.precision = TimestampPrecision::Seconds;
-                self.time = NaiveDateTime::parse_from_str(input, UTC_TIMESTAMP_SECONDS_FORMAT)
+                self.time = NaiveDateTime::parse_from_str(&input_str, UTC_TIMESTAMP_SECONDS_FORMAT)
                     .map_err(|_| ())?;
             }
             21 => {
                 self.precision = TimestampPrecision::Millis;
-                self.time = NaiveDateTime::parse_from_str(input, UTC_TIMESTAMP_MILLIS_FORMAT)
+                self.time = NaiveDateTime::parse_from_str(&input_str, UTC_TIMESTAMP_MILLIS_FORMAT)
                     .map_err(|_| ())?;
             }
             24 => {
                 self.precision = TimestampPrecision::Micros;
-                self.time = NaiveDateTime::parse_from_str(input, UTC_TIMESTAMP_MICROS_FORMAT)
+                self.time = NaiveDateTime::parse_from_str(&input_str, UTC_TIMESTAMP_MICROS_FORMAT)
                     .map_err(|_| ())?;
             }
             27 => {
                 self.precision = TimestampPrecision::Nanos;
-                self.time = NaiveDateTime::parse_from_str(input, UTC_TIMESTAMP_NANOS_FORMAT)
+                self.time = NaiveDateTime::parse_from_str(&input_str, UTC_TIMESTAMP_NANOS_FORMAT)
                     .map_err(|_| ())?;
             }
             _ => (),
@@ -53,14 +54,28 @@ impl FieldValueReader for FIXUTCTimestamp {
 }
 
 impl FieldValueWriter for FIXUTCTimestamp {
-    fn write(&self) -> String {
+    fn write(&self) -> Vec<u8> {
         match self.precision {
-            TimestampPrecision::Seconds => {
-                self.time.format(UTC_TIMESTAMP_SECONDS_FORMAT).to_string()
-            }
-            TimestampPrecision::Millis => self.time.format(UTC_TIMESTAMP_MILLIS_FORMAT).to_string(),
-            TimestampPrecision::Micros => self.time.format(UTC_TIMESTAMP_MICROS_FORMAT).to_string(),
-            TimestampPrecision::Nanos => self.time.format(UTC_TIMESTAMP_NANOS_FORMAT).to_string(),
+            TimestampPrecision::Seconds => self
+                .time
+                .format(UTC_TIMESTAMP_SECONDS_FORMAT)
+                .to_string()
+                .into_bytes(),
+            TimestampPrecision::Millis => self
+                .time
+                .format(UTC_TIMESTAMP_MILLIS_FORMAT)
+                .to_string()
+                .into_bytes(),
+            TimestampPrecision::Micros => self
+                .time
+                .format(UTC_TIMESTAMP_MICROS_FORMAT)
+                .to_string()
+                .into_bytes(),
+            TimestampPrecision::Nanos => self
+                .time
+                .format(UTC_TIMESTAMP_NANOS_FORMAT)
+                .to_string()
+                .into_bytes(),
         }
     }
 }
@@ -76,27 +91,27 @@ mod tests {
     fn test_fixutc_timestamp_write() {
         let ts = NaiveDate::from_ymd(2016, 2, 8).and_hms_nano(22, 7, 16, 954_123_123);
 
-        struct TestCase {
+        struct TestCase<'a> {
             precision: TimestampPrecision,
-            val: String,
+            val: &'a [u8],
         }
 
         let tests = vec![
             TestCase {
                 precision: TimestampPrecision::Millis,
-                val: "20160208-22:07:16.954".to_string(),
+                val: "20160208-22:07:16.954".as_bytes(),
             },
             TestCase {
                 precision: TimestampPrecision::Seconds,
-                val: "20160208-22:07:16".to_string(),
+                val: "20160208-22:07:16".as_bytes(),
             },
             TestCase {
                 precision: TimestampPrecision::Micros,
-                val: "20160208-22:07:16.954123".to_string(),
+                val: "20160208-22:07:16.954123".as_bytes(),
             },
             TestCase {
                 precision: TimestampPrecision::Nanos,
-                val: "20160208-22:07:16.954123123".to_string(),
+                val: "20160208-22:07:16.954123123".as_bytes(),
             },
         ];
 
@@ -105,7 +120,7 @@ mod tests {
             f.time = ts;
             f.precision = test.precision;
             let b = f.write();
-            assert_eq!(b, test.val, "got {}; want {}", b, test.val);
+            assert_eq!(b, test.val, "got {:?}; want {:?}", b, test.val);
         }
     }
 
@@ -142,7 +157,7 @@ mod tests {
 
         for test in tests.iter() {
             let mut f = FIXUTCTimestamp::default();
-            let result = f.read(test.time_str);
+            let result = f.read(test.time_str.as_bytes());
             assert!(result.is_ok(), "Unexpected error: {:?}", result);
             assert_eq!(
                 f.time, test.expected_time,

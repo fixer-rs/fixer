@@ -5,14 +5,14 @@ use std::error::Error;
 // FieldValueWriter is an interface for writing field values
 pub trait FieldValueWriter {
     // write writes out the contents of the FieldValue to a []byte
-    fn write(&self) -> String;
+    fn write(&self) -> Vec<u8>;
 }
 
 // FieldValueReader is an interface for reading field values
 pub trait FieldValueReader {
     // read reads the contents of the []byte into FieldValue.
     // returns an error if there are issues in the data processing
-    fn read(&mut self, input: &str) -> Result<(), ()>;
+    fn read(&mut self, input: &[u8]) -> Result<(), ()>;
 }
 
 // The FieldValue interface is used to write/extract typed field values to/from raw bytes

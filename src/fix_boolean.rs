@@ -14,12 +14,12 @@ impl FixBooleanTrait for FIXBoolean {
 }
 
 impl FieldValueReader for FIXBoolean {
-    fn read(&mut self, input: &str) -> Result<(), ()> {
-        if input == "Y" {
+    fn read(&mut self, input: &[u8]) -> Result<(), ()> {
+        if input[0] as char == 'Y' {
             *self = true;
             return Ok(());
         }
-        if input == "N" {
+        if input[0] as char == 'N' {
             *self = false;
             return Ok(());
         }
@@ -28,11 +28,11 @@ impl FieldValueReader for FIXBoolean {
 }
 
 impl FieldValueWriter for FIXBoolean {
-    fn write(&self) -> String {
+    fn write(&self) -> Vec<u8> {
         if *self {
-            return "Y".to_string();
+            return vec!['Y' as u8];
         }
-        "N".to_string()
+        vec!['N' as u8]
     }
 }
 
@@ -46,44 +46,44 @@ mod tests {
     fn test_boolean_write() {
         struct TestCase {
             val: FIXBoolean,
-            expected: String,
+            expected: Vec<u8>,
         }
         let tests = vec![
             TestCase {
                 val: true,
-                expected: String::from("Y"),
+                expected: vec!['Y' as u8],
             },
             TestCase {
                 val: false,
-                expected: String::from("N"),
+                expected: vec!['N' as u8],
             },
         ];
         for test in tests.iter() {
             let b = test.val.write();
-            assert_eq!(b, test.expected, "got {}; want {}", b, test.expected);
+            assert_eq!(b, test.expected, "got {:?}; want {:?}", b, test.expected);
         }
     }
 
     #[test]
     fn test_fix_boolean_read() {
         struct TestCase<'a> {
-            bytes: &'a str,
+            bytes: &'a [u8],
             expected: bool,
             expect_error: bool,
         }
         let tests = vec![
             TestCase {
-                bytes: "Y",
+                bytes: &['Y' as u8],
                 expected: true,
                 expect_error: false,
             },
             TestCase {
-                bytes: "N",
+                bytes: &['N' as u8],
                 expected: false,
                 expect_error: false,
             },
             TestCase {
-                bytes: "blah",
+                bytes: "blah".as_bytes(),
                 expected: false,
                 expect_error: true,
             },

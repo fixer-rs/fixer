@@ -14,11 +14,11 @@ impl FIXFloatTrait for FIXFloat {
 }
 
 impl FieldValueReader for FIXFloat {
-    fn read(&mut self, input: &str) -> Result<(), ()> {
+    fn read(&mut self, input: &[u8]) -> Result<(), ()> {
         let f = fast_float::parse(input).map_err(|_| ())?;
 
-        for chr in input.chars() {
-            if chr != '.' && chr != '-' && !('0'..='9').contains(&chr) {
+        for chr in input.iter() {
+            if *chr != '.' as u8 && *chr != '-' as u8 && !('0' as u8..='9' as u8).contains(chr) {
                 return Err(());
             }
         }
@@ -30,8 +30,8 @@ impl FieldValueReader for FIXFloat {
 }
 
 impl FieldValueWriter for FIXFloat {
-    fn write(&self) -> String {
-        format!("{}", self)
+    fn write(&self) -> Vec<u8> {
+        format!("{}", self).into_bytes()
     }
 }
 
@@ -54,55 +54,55 @@ mod tests {
         }];
         for test in tests.iter() {
             let b = test.field.write();
-            assert_eq!(b, test.val, "got {}; want {}", b, test.val);
+            assert_eq!(b, test.val.as_bytes(), "got {:?}; want {}", b, test.val);
         }
     }
 
     #[test]
     fn test_float_read() {
         struct TestCase<'a> {
-            bytes: &'a str,
+            bytes: &'a [u8],
             value: f64,
             expect_error: bool,
         }
         let tests = vec![
             TestCase {
-                bytes: "15",
+                bytes: "15".as_bytes(),
                 value: 15.0,
                 expect_error: false,
             },
             TestCase {
-                bytes: "99.9",
+                bytes: "99.9".as_bytes(),
                 value: 99.9,
                 expect_error: false,
             },
             TestCase {
-                bytes: "0.00",
+                bytes: "0.00".as_bytes(),
                 value: 0.0,
                 expect_error: false,
             },
             TestCase {
-                bytes: ("-99.9"),
+                bytes: "-99.9".as_bytes(),
                 value: -99.9,
                 expect_error: false,
             },
             TestCase {
-                bytes: ("-99.9.9"),
+                bytes: "-99.9.9".as_bytes(),
                 value: 0.0,
                 expect_error: true,
             },
             TestCase {
-                bytes: ("blah"),
+                bytes: "blah".as_bytes(),
                 value: 0.0,
                 expect_error: true,
             },
             TestCase {
-                bytes: ("1.a1"),
+                bytes: "1.a1".as_bytes(),
                 value: 0.0,
                 expect_error: true,
             },
             TestCase {
-                bytes: ("+200.00"),
+                bytes: "+200.00".as_bytes(),
                 value: 0.0,
                 expect_error: true,
             },

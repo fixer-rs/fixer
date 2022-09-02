@@ -7,15 +7,15 @@ type FIXBytes = Vec<u8>;
 // 	return []byte(f)
 // }
 impl FieldValueReader for FIXBytes {
-    fn read(&mut self, input: &str) -> Result<(), ()> {
-        *self = input.as_bytes().to_vec();
+    fn read(&mut self, input: &[u8]) -> Result<(), ()> {
+        *self = input.to_vec();
         Ok(())
     }
 }
 
 impl FieldValueWriter for FIXBytes {
-    fn write(&self) -> String {
-        String::from_utf8_lossy(self).to_string()
+    fn write(&self) -> Vec<u8> {
+        self.clone()
     }
 }
 

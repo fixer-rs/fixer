@@ -15,7 +15,7 @@ use std::{
     string::ToString,
 };
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct Header {
     pub field_map: FieldMap,
 }
@@ -55,7 +55,7 @@ impl Header {
     }
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct Body {
     pub field_map: FieldMap,
 }
@@ -67,7 +67,7 @@ impl Body {
     }
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct Trailer {
     pub field_map: FieldMap,
 }
@@ -94,16 +94,16 @@ impl Trailer {
 }
 
 //Message is a FIX Message abstraction.
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct Message {
     pub header: Header,
     pub trailer: Trailer,
     pub body: Body,
     // receive_time is the time that this message was read from the socket connection
     pub receive_time: NaiveDateTime,
-    raw_message: String,
+    raw_message: Vec<u8>,
     // slice of Bytes corresponding to the message body
-    body_bytes: String,
+    body_bytes: Vec<u8>,
     // field bytes as they appear in the raw message
     pub fields: LocalField,
     // flag is true if this message should not be returned to pool after use
@@ -113,7 +113,7 @@ pub struct Message {
 impl ToString for Message {
     fn to_string(&self) -> String {
         if !self.raw_message.is_empty() {
-            return self.raw_message.clone();
+            return todo!();
         }
 
         // self.build()
@@ -158,12 +158,12 @@ impl Message {
         self.header.field_map.clear();
         self.body.field_map.clear();
         self.trailer.field_map.clear();
-        self.raw_message = String::from_utf8_lossy(raw_message).to_string();
+        self.raw_message = raw_message.to_vec();
 
         // allocate fields in one chunk
         let mut field_count = 0;
-        for b in self.raw_message.bytes() {
-            if b == 0o001 {
+        for b in self.raw_message.iter() {
+            if *b as i32 == 0o001 {
                 field_count += 1;
             }
         }
@@ -172,72 +172,76 @@ impl Message {
             return Err(ParseError {
                 orig_error: format!(
                     "No Fields detected in {}",
-                    String::from_utf8_lossy(raw_message)
+                    String::from_utf8_lossy(&self.raw_message).as_ref()
                 ),
             });
         }
 
-        if self.fields.capacity() < field_count {
-            self.fields = Vec::with_capacity(field_count);
-        } else {
-            self.fields = self.fields[0..field_count].to_vec();
-        }
+        self.fields = vec![TagValue::default(); field_count];
 
         let mut field_index = 0;
 
         // message must start with begin string, body length, msg type
         let field = self.fields.get_mut(field_index).unwrap();
-        let mut raw_bytes =
-            extract_specific_field(field, TAG_BEGIN_STRING, self.raw_message.clone())?;
+        let raw_bytes = extract_specific_field(field, TAG_BEGIN_STRING, &self.raw_message)?;
 
-        self.header
-            .field_map
-            .add(self.fields[field_index..field_index + 1].to_vec());
+        self.header.field_map.add(
+            self.fields
+                .get(field_index..field_index + 1)
+                .unwrap()
+                .to_vec(),
+        );
+        field_index += 1;
+
+        let parsed_field_bytes = self.fields.get_mut(field_index).unwrap();
+        let raw_bytes = extract_specific_field(parsed_field_bytes, TAG_BODY_LENGTH, &raw_bytes)?;
+
+        self.header.field_map.add(
+            self.fields
+                .get(field_index..field_index + 1)
+                .unwrap()
+                .to_vec(),
+        );
         field_index += 1;
 
         let mut parsed_field_bytes = self.fields.get_mut(field_index).unwrap();
-        raw_bytes = extract_specific_field(parsed_field_bytes, TAG_BODY_LENGTH, raw_bytes)?;
+        let raw_bytes = extract_specific_field(parsed_field_bytes, TAG_MSG_TYPE, &raw_bytes)?;
 
-        self.header
-            .field_map
-            .add(self.fields[field_index..field_index + 1].to_vec());
+        let mut tag = parsed_field_bytes.tag.clone();
+
+        self.header.field_map.add(
+            self.fields
+                .get(field_index..field_index + 1)
+                .unwrap()
+                .to_vec(),
+        );
         field_index += 1;
 
-        parsed_field_bytes = self.fields.get_mut(field_index).unwrap();
-        raw_bytes = extract_specific_field(parsed_field_bytes, TAG_MSG_TYPE, raw_bytes)?;
-
-        self.header
-            .field_map
-            .add(self.fields[field_index..field_index + 1].to_vec());
-        field_index += 1;
-
-        let mut trailer_bytes = String::new();
+        let mut trailer_bytes = vec![];
         let mut found_body = false;
 
-        loop {
-            let mut cloned_fields = self.fields.get(field_index).unwrap().clone();
-            parsed_field_bytes = &mut cloned_fields;
-            raw_bytes = extract_field(parsed_field_bytes, raw_bytes)?;
+        while tag != TAG_CHECK_SUM {
+            parsed_field_bytes = self.fields.get_mut(field_index).unwrap();
+            let raw_bytes = extract_field(parsed_field_bytes, &raw_bytes)?;
 
-            if is_header_field(&parsed_field_bytes.tag, transport_data_dictionary) {
-                self.header
-                    .field_map
-                    .add(self.fields[field_index..field_index + 1].to_vec());
-            } else if is_trailer_field(&parsed_field_bytes.tag, transport_data_dictionary) {
-                self.trailer
-                    .field_map
-                    .add(self.fields[field_index..field_index + 1].to_vec());
+            let fields = self
+                .fields
+                .clone()
+                .get(field_index..field_index + 1)
+                .unwrap()
+                .to_vec();
+
+            if is_header_field(&tag, transport_data_dictionary) {
+                self.header.field_map.add(fields);
+            } else if is_trailer_field(&tag, transport_data_dictionary) {
+                self.trailer.field_map.add(fields);
             } else {
                 found_body = true;
                 trailer_bytes = raw_bytes.clone();
-                self.body
-                    .field_map
-                    .add(self.fields[field_index..field_index + 1].to_vec());
+                self.body.field_map.add(fields);
             }
 
-            if parsed_field_bytes.tag == TAG_CHECK_SUM {
-                break;
-            }
+            tag = parsed_field_bytes.tag.clone();
 
             if !found_body {
                 self.body_bytes = raw_bytes.clone();
@@ -246,10 +250,9 @@ impl Message {
             field_index += 1;
         }
 
-        if self.body_bytes.chars().count() > trailer_bytes.chars().count() {
-            self.body_bytes = self.body_bytes
-                [..self.body_bytes.chars().count() - trailer_bytes.chars().count()]
-                .to_string();
+        if self.body_bytes.len() > trailer_bytes.len() {
+            self.body_bytes =
+                self.body_bytes[..self.body_bytes.len() - trailer_bytes.len()].to_vec();
         }
 
         let mut length = 0;
@@ -337,10 +340,10 @@ impl Message {
     }
 
     // build constructs a []byte from a Message instance
-    pub fn build(&mut self) -> String {
+    pub fn build(&mut self) -> Vec<u8> {
         self.cook();
-        let mut b = String::new();
 
+        let mut b = vec![];
         self.header.field_map.write(&mut b);
         self.body.field_map.write(&mut b);
         self.trailer.field_map.write(&mut b);
@@ -406,9 +409,9 @@ fn is_trailer_field(tag: &Tag, data_dict: Option<&DataDictionary>) -> bool {
 fn extract_specific_field(
     field: &mut TagValue,
     expected_tag: Tag,
-    buffer: String,
-) -> Result<String, ParseError> {
-    let rem_buffer = extract_field(field, buffer)?;
+    buffer: &[u8],
+) -> Result<Vec<u8>, ParseError> {
+    let rem_buffer = extract_field(field, &buffer)?;
     if field.tag != expected_tag {
         return Err(ParseError {
             orig_error: format!(
@@ -420,14 +423,17 @@ fn extract_specific_field(
     Ok(rem_buffer)
 }
 
-fn extract_field(parsed_field_bytes: &mut TagValue, buffer: String) -> Result<String, ParseError> {
-    let end_index = buffer.bytes().position(|x| x == 0o001).ok_or(ParseError {
-        orig_error: format!("extract_field: No Trailing Delim in {}", &buffer),
+fn extract_field(parsed_field_bytes: &mut TagValue, buffer: &[u8]) -> Result<Vec<u8>, ParseError> {
+    let end_index = buffer.iter().position(|x| *x == 0o001).ok_or(ParseError {
+        orig_error: format!(
+            "extract_field: No Trailing Delim in {}",
+            String::from_utf8_lossy(&buffer).as_ref()
+        ),
     })?;
     parsed_field_bytes
         .parse(&buffer[..end_index + 1])
         .map_err(|err| ParseError { orig_error: err })?;
-    Ok(buffer[(end_index + 1)..].to_string())
+    Ok(buffer.get((end_index + 1)..).unwrap().to_vec())
 }
 
 fn format_check_sum(value: isize) -> String {

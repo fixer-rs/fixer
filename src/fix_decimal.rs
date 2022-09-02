@@ -8,18 +8,20 @@ pub struct FIXDecimal {
 }
 
 impl FieldValueReader for FIXDecimal {
-    fn read(&mut self, input: &str) -> Result<(), ()> {
-        let fix_decimal = Decimal::from_str_exact(input).map_err(|_| ())?;
+    fn read(&mut self, input: &[u8]) -> Result<(), ()> {
+        let fix_decimal =
+            Decimal::from_str_exact(&String::from_utf8_lossy(input)).map_err(|_| ())?;
         self.decimal = fix_decimal;
         Ok(())
     }
 }
 
 impl FieldValueWriter for FIXDecimal {
-    fn write(&self) -> String {
+    fn write(&self) -> Vec<u8> {
         self.decimal
             .round_dp(self.scale.try_into().unwrap())
             .to_string()
+            .into_bytes()
     }
 }
 
@@ -61,7 +63,7 @@ mod tests {
 
         for test in tests.iter() {
             let b = test.decimal.write();
-            assert_eq!(test.expected, b);
+            assert_eq!(test.expected.as_bytes(), b);
         }
     }
 

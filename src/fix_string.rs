@@ -14,16 +14,16 @@ impl FIXStringTrait for FIXString {
 }
 
 impl FieldValueReader for FIXString {
-    fn read(&mut self, input: &str) -> Result<(), ()> {
+    fn read(&mut self, input: &[u8]) -> Result<(), ()> {
         self.clear();
-        self.push_str(input);
+        *self = String::from_utf8_lossy(input).to_string();
         Ok(())
     }
 }
 
 impl FieldValueWriter for FIXString {
-    fn write(&self) -> String {
-        self.to_string()
+    fn write(&self) -> Vec<u8> {
+        self.as_bytes().to_vec()
     }
 }
 
@@ -45,19 +45,19 @@ mod tests {
         }];
         for test in tests.iter() {
             let b = test.field.write();
-            assert_eq!(b, test.val, "got {}; want {}", b, test.val);
+            assert_eq!(b, test.val.as_bytes(), "got {:?}; want {}", b, test.val);
         }
     }
 
     #[test]
     fn test_fix_string_read() {
         struct TestCase<'a> {
-            bytes: &'a str,
+            bytes: &'a [u8],
             value: String,
             expected_error: bool,
         }
         let tests = vec![TestCase {
-            bytes: "blah",
+            bytes: "blah".as_bytes(),
             value: String::from("blah"),
             expected_error: false,
         }];

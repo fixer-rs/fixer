@@ -1,4 +1,5 @@
 use crate::field::{FieldValue, FieldValueReader, FieldValueWriter};
+use atoi::FromRadix10;
 
 // FIXInt is a FIX Int Value, implements FieldValue
 pub type FIXInt = isize;
@@ -14,8 +15,12 @@ impl FIXIntTrait for FIXInt {
 }
 
 impl FieldValueReader for FIXInt {
-    fn read(&mut self, input: &str) -> Result<(), ()> {
-        let f = input.parse::<isize>().map_err(|_| ())?;
+    fn read(&mut self, input: &[u8]) -> Result<(), ()> {
+        let (f, dgt) = isize::from_radix_10(input);
+
+        if dgt == 0 {
+            return Err(());
+        }
 
         *self = f;
 
@@ -24,8 +29,8 @@ impl FieldValueReader for FIXInt {
 }
 
 impl FieldValueWriter for FIXInt {
-    fn write(&self) -> String {
-        itoa::Buffer::new().format(*self).to_string()
+    fn write(&self) -> Vec<u8> {
+        itoa::Buffer::new().format(*self).to_string().into_bytes()
     }
 }
 
@@ -39,17 +44,17 @@ mod tests {
     #[test]
     fn test_fix_int_write() {
         let field = 5;
-        assert_eq!(String::from("5"), field.write());
+        assert_eq!(vec!['5' as u8], field.write());
     }
 
     #[test]
     fn test_fix_int_read() {
         let mut field = FIXInt::default();
-        let mut err = field.read("15");
+        let mut err = field.read("15".as_bytes());
         assert!(err.is_ok(), "Unexpected error");
         assert_eq!(15, field);
 
-        err = field.read("blah");
+        err = field.read("blah".as_bytes());
         assert!(err.is_err(), "Unexpected error");
     }
 

@@ -12,9 +12,11 @@ use crate::fix_utc_timestamp::FIXUTCTimestamp;
 use crate::tag::{Tag, TAG_BEGIN_STRING, TAG_BODY_LENGTH, TAG_CHECK_SUM};
 use crate::tag_value::TagValue;
 use chrono::naive::NaiveDateTime;
+use chrono::Local;
 use std::cmp::Ordering;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::fmt;
 use std::sync::RwLock;
 use std::vec;
 
@@ -23,8 +25,8 @@ pub type LocalField = Vec<TagValue>;
 pub trait LocalFieldTrait {
     fn new(tag_value_vec: Vec<TagValue>) -> Self;
     fn field_tag(&self) -> &Tag;
-    fn init_field(&mut self, tag: Tag, value: &'_ str);
-    fn write_field(&mut self, buffer: &mut String);
+    fn init_field(&mut self, tag: Tag, value: &[u8]);
+    fn write_field(&mut self, buffer: &mut Vec<u8>);
     fn first(&self) -> &TagValue;
 }
 
@@ -37,15 +39,15 @@ impl LocalFieldTrait for LocalField {
         &self[0].tag
     }
 
-    fn init_field(&mut self, tag: Tag, value: &'_ str) {
+    fn init_field(&mut self, tag: Tag, value: &[u8]) {
         let tv = TagValue::init(tag, value);
         self.clear();
         self.push(tv)
     }
 
-    fn write_field(&mut self, buffer: &mut String) {
+    fn write_field(&mut self, buffer: &mut Vec<u8>) {
         for tv in self.iter() {
-            buffer.push_str(&tv.bytes);
+            buffer.extend_from_slice(&tv.bytes);
         }
     }
 
@@ -62,6 +64,12 @@ struct TagSort {
     compare: TagOrder,
 }
 
+impl fmt::Debug for TagSort {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TagSort").field("tags", &self.tags).finish()
+    }
+}
+
 impl TagSort {
     pub fn len(&self) -> isize {
         self.tags.len() as isize
@@ -75,11 +83,13 @@ impl TagSort {
     }
 }
 
+#[derive(Debug)]
 pub struct FieldMapContent {
     tag_lookup: HashMap<Tag, LocalField>,
     tag_sort: TagSort,
 }
 
+#[derive(Debug)]
 // FieldMap is a collection of fix fields that make up a fix message.
 pub struct FieldMap {
     rw_lock: RwLock<FieldMapContent>,
@@ -158,13 +168,13 @@ impl FieldMap {
     }
 
     // get_bytes is a zero-copy get_field wrapper for []bytes fields
-    pub fn get_bytes(&self, tag: Tag) -> Result<String, Box<dyn MessageRejectErrorTrait>> {
+    pub fn get_bytes(&self, tag: Tag) -> Result<Vec<u8>, Box<dyn MessageRejectErrorTrait>> {
         let rlock = self.rw_lock.read().map_err(|_| other_error())?;
         let f = rlock
             .tag_lookup
             .get(&tag)
             .ok_or_else(|| conditionally_required_field_missing(tag))?;
-        Ok(f.first().value.to_string())
+        Ok(f.first().value.clone())
     }
 
     // get_bool is a get_field wrapper for bool fields
@@ -229,11 +239,11 @@ impl FieldMap {
     }
 
     // set_bytes sets bytes
-    pub fn set_bytes<'a>(&mut self, tag: Tag, value: &'a str) -> &FieldMap {
+    pub fn set_bytes<'a>(&mut self, tag: Tag, value: &'a [u8]) -> &FieldMap {
         let mut wlock = self.rw_lock.write().unwrap();
 
-        if let Entry::Vacant(e) = wlock.tag_lookup.entry(tag) {
-            e.insert(vec![]);
+        if !wlock.tag_lookup.contains_key(&tag) {
+            wlock.tag_lookup.insert(tag, vec![]);
             wlock.tag_sort.tags.push(tag);
         }
 
@@ -254,7 +264,7 @@ impl FieldMap {
 
     // set_string is a set_field wrapper for string fields
     pub fn set_string<'a>(&mut self, tag: Tag, value: &'a str) -> &FieldMap {
-        self.set_bytes(tag, value)
+        self.set_bytes(tag, value.as_bytes())
     }
 
     // clear purges all fields from field map
@@ -326,7 +336,7 @@ impl FieldMap {
         sorted_tags
     }
 
-    pub fn write(&self, buffer: &mut String) {
+    pub fn write(&self, buffer: &mut Vec<u8>) {
         for tag in self.sorted_tags().iter() {
             let mut wlock = self.rw_lock.write().unwrap();
             if wlock.tag_lookup.contains_key(tag) {
@@ -491,7 +501,7 @@ mod tests {
 
         let b = f_map.get_bytes(1);
         assert!(b.is_ok());
-        assert_eq!("hello", b.unwrap());
+        assert_eq!("hello".as_bytes(), b.unwrap());
     }
 
     #[test]
