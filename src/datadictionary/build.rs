@@ -1,3 +1,5 @@
+use crate::msg_type;
+
 use super::{
     xml::{XMLComponent, XMLComponentEnum, XMLDoc, XMLField},
     Component, ComponentType, DataDictionary, Enum, FieldDef, FieldType, MessageDef, MessagePart,
@@ -56,12 +58,14 @@ impl Builder {
         self.build_message_defs()?;
 
         if self.doc.header.is_some() {
-            let header = self.build_message_def(self.doc.header.as_ref().unwrap().clone())?;
+            let doc_header = self.doc.header.as_ref().unwrap().clone();
+            let header = self.build_message_def(&doc_header)?;
             self.dict.header = header;
         }
 
         if self.doc.trailer.is_some() {
-            let trailer = self.build_message_def(self.doc.trailer.as_ref().unwrap().clone())?;
+            let doc_trailer = self.doc.trailer.as_ref().unwrap().clone();
+            let trailer = self.build_message_def(&doc_trailer)?;
             self.dict.trailer = trailer;
         }
 
@@ -107,7 +111,7 @@ impl Builder {
                     let child_component = Component::new(component_type, member.is_required());
                     parts.push(MessagePart::Component(child_component));
                 } else {
-                    let field = self.build_field_def(member.clone())?;
+                    let field = self.build_field_def(member)?;
                     parts.push(MessagePart::FieldDef(field))
                 }
             }
@@ -149,7 +153,7 @@ impl Builder {
             let inner_messages = self.doc.messages.as_ref().unwrap().clone();
             if inner_messages.messages.is_some() {
                 for m in inner_messages.messages.as_ref().unwrap().iter() {
-                    let message_def = self.build_message_def(m.clone())?;
+                    let message_def = self.build_message_def(m)?;
                     let name = message_def.msg_type.to_string();
                     self.dict.messages.insert(name, message_def);
                 }
@@ -159,7 +163,7 @@ impl Builder {
         Ok(())
     }
 
-    fn build_message_def(&mut self, xml_message: XMLComponent) -> Result<MessageDef, Error> {
+    fn build_message_def(&mut self, xml_message: &XMLComponent) -> Result<MessageDef, Error> {
         let mut parts: Vec<MessagePart> = vec![];
 
         if xml_message.members.is_some() {
@@ -169,27 +173,28 @@ impl Builder {
                         return Err(new_unknown_component(member.name()));
                     }
 
+                    let component_type = self.dict.component_types.get(member.name()).unwrap();
+
                     parts.push(MessagePart::Component(Component::new(
-                        ComponentType::default(),
+                        component_type.clone(),
                         member.is_required(),
                     )));
                 } else {
-                    let field = self.build_field_def(member.clone())?;
+                    let field = self.build_field_def(member)?;
                     parts.push(MessagePart::FieldDef(field));
                 }
             }
         }
 
-        Ok(MessageDef::new(
-            xml_message.name.unwrap_or_default(),
-            xml_message.msg_type.unwrap_or_default(),
-            parts,
-        ))
+        let name = xml_message.name.clone().unwrap_or_default();
+        let msg_type = xml_message.msg_type.clone().unwrap_or_default();
+
+        Ok(MessageDef::new(name, msg_type, parts))
     }
 
     fn build_group_field_def(
         &mut self,
-        xml_field: XMLComponentEnum,
+        xml_field: &XMLComponentEnum,
         group_field_type: FieldType,
     ) -> Result<FieldDef, Error> {
         let mut parts: Vec<MessagePart> = vec![];
@@ -209,7 +214,7 @@ impl Builder {
             XMLComponentEnum::Field(f) => {
                 if f.fields.is_some() {
                     for member in f.fields.as_ref().unwrap().iter() {
-                        let f = self.build_field_def(member.clone())?;
+                        let f = self.build_field_def(member)?;
                         parts.push(MessagePart::FieldDef(f));
                     }
                 }
@@ -220,7 +225,7 @@ impl Builder {
         Ok(FieldDef::new_group(group_field_type, required, parts))
     }
 
-    fn build_field_def(&mut self, xml_field: XMLComponentEnum) -> Result<FieldDef, Error> {
+    fn build_field_def(&mut self, xml_field: &XMLComponentEnum) -> Result<FieldDef, Error> {
         if !self.dict.field_type_by_name.contains_key(xml_field.name()) {
             return Err(new_unknown_field(xml_field.name()));
         }
@@ -228,7 +233,7 @@ impl Builder {
         let field_type = self.dict.field_type_by_name.get(xml_field.name()).unwrap();
 
         if xml_field.is_group() {
-            return self.build_group_field_def(xml_field, field_type.clone());
+            return self.build_group_field_def(&xml_field, field_type.clone());
         }
 
         Ok(FieldDef::new(field_type.clone(), xml_field.is_required()))
@@ -418,7 +423,7 @@ mod tests {
                 ..Default::default()
             };
 
-            let result = b.build_field_def(xml_field);
+            let result = b.build_field_def(&xml_field);
             assert!(result.is_ok());
             assert_eq!(11, result.as_ref().unwrap().tag());
             assert!(result.as_ref().unwrap().child_tags().is_empty());

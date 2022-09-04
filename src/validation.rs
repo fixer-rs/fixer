@@ -181,7 +181,7 @@ fn validate_walk(
         } else if tag.is_trailer() {
             &transport_dd.trailer
         } else {
-            &app_dd.messages[msg_type]
+            &app_dd.messages.get(msg_type).unwrap()
         };
 
         let field_def = message_def
@@ -225,11 +225,12 @@ fn validate_visit_group_field(
     field_def: &FieldDef,
     field_stack: &LocalField,
 ) -> Result<LocalField, Box<dyn MessageRejectErrorTrait>> {
-    let num_in_group_tag = field_stack[0].tag;
+    let first_field_stack = field_stack.get(0).unwrap();
+    let num_in_group_tag = first_field_stack.tag;
     let mut num_in_group = FIXInt::default();
 
     num_in_group
-        .read(&field_stack[0].value)
+        .read(&first_field_stack.value)
         .map_err(|_| incorrect_data_format_for_value(num_in_group_tag))?;
 
     let mutable_field_stack = field_stack[1..].to_vec();
@@ -372,38 +373,34 @@ fn validate_field(
 
     let mut prototype = <dyn FieldValue>::default();
 
-    match &(field_type.r#type) {
-        str if str == "MULTIPLESTRINGVALUE" || str == "MULTIPLEVALUESTRING" => {}
-        str if str == "MULTIPLECHARVALUE" => {}
-        str if str == "CHAR" => {}
-        str if str == "CURRENCY" => {}
-        str if str == "DATA" => {}
-        str if str == "MONTHYEAR" => {}
-        str if str == "LOCALMKTDATE" || str == "DATE" => {}
-        str if str == "EXCHANGE" => {}
-        str if str == "LANGUAGE" => {}
-        str if str == "XMLDATA" => {}
-        str if str == "COUNTRY" => {}
-        str if str == "UTCTIMEONLY" => {}
-        str if str == "UTCDATEONLY" || str == "UTCDATE" => {}
-        str if str == "TZTIMEONLY" => {}
-        str if str == "TZTIMESTAMP" => {}
-        str if str == "STRING" => prototype = Box::new(FIXString::new()),
-        str if str == "BOOLEAN" => prototype = Box::new(FIXBoolean::default()),
-        str if str == "LENGTH" => {}
-        str if str == "DAYOFMONTH" => {}
-        str if str == "NUMINGROUP" => {}
-        str if str == "SEQNUM" => {}
-        str if str == "INT" => prototype = Box::new(FIXInt::default()),
-        str if str == "UTCTIMESTAMP" || str == "TIME" => {
-            prototype = Box::new(FIXUTCTimestamp::default())
+    match field_type.r#type.as_str() {
+        "MULTIPLESTRINGVALUE"
+        | "MULTIPLEVALUESTRING"
+        | "MULTIPLECHARVALUE"
+        | "CHAR"
+        | "CURRENCY"
+        | "DATA"
+        | "MONTHYEAR"
+        | "LOCALMKTDATE"
+        | "DATE"
+        | "EXCHANGE"
+        | "LANGUAGE"
+        | "XMLDATA"
+        | "COUNTRY"
+        | "UTCTIMEONLY"
+        | "UTCDATEONLY"
+        | "UTCDATE"
+        | "TZTIMEONLY"
+        | "TZTIMESTAMP"
+        | "STRING" => prototype = Box::new(FIXString::new()),
+        "BOOLEAN" => prototype = Box::new(FIXBoolean::default()),
+        "LENGTH" | "DAYOFMONTH" | "NUMINGROUP" | "SEQNUM" | "INT" => {
+            prototype = Box::new(FIXInt::default())
         }
-        str if str == "QTY" || str == "QUANTITY" => {}
-        str if str == "AMT" => {}
-        str if str == "PRICE" => {}
-        str if str == "PRICEOFFSET" => {}
-        str if str == "PERCENTAGE" => {}
-        str if str == "FLOAT" => prototype = Box::new(FIXFloat::default()),
+        "UTCTIMESTAMP" | "TIME" => prototype = Box::new(FIXUTCTimestamp::default()),
+        "QTY" | "QUANTITY" | "AMT" | "PRICE" | "PRICEOFFSET" | "PERCENTAGE" | "FLOAT" => {
+            prototype = Box::new(FIXFloat::default())
+        }
         _ => {}
     }
 
@@ -434,34 +431,31 @@ mod tests {
     async fn test_validate() {
         let tests = vec![
             tc_invalid_tag_number_header().await,
-            // tc_invalid_tag_number_body().await,
-            // tc_invalid_tag_number_trailer().await,
-            // tc_tag_specified_without_a_value().await,
-            // tc_invalid_msg_type().await,
-            // tc_value_is_incorrect().await,
-            // tc_incorrect_data_format_for_value().await,
-            // tc_tag_specified_out_of_required_order_header().await,
-            // tc_tag_specified_out_of_required_order_trailer().await,
-            // tc_tag_specified_out_of_required_order_disabled_header().await,
-            // tc_tag_specified_out_of_required_order_disabled_trailer().await,
-            // tc_tag_appears_more_than_once().await,
-            // tc_float_validation().await,
-            // tc_tag_not_defined_for_message().await,
-            // tc_tag_is_defined_for_message().await,
-            // tc_field_not_found_body().await,
-            // tc_field_not_found_header().await,
-            // tc_invalid_tag_check_disabled().await,
-            // tc_invalid_tag_check_enabled().await,
+            tc_invalid_tag_number_body().await,
+            tc_invalid_tag_number_trailer().await,
+            tc_tag_specified_without_a_value().await,
+            tc_invalid_msg_type().await,
+            tc_value_is_incorrect().await,
+            tc_incorrect_data_format_for_value().await,
+            tc_tag_specified_out_of_required_order_header().await,
+            tc_tag_specified_out_of_required_order_trailer().await,
+            tc_tag_specified_out_of_required_order_disabled_header().await,
+            tc_tag_specified_out_of_required_order_disabled_trailer().await,
+            tc_tag_appears_more_than_once().await,
+            tc_float_validation().await,
+            tc_tag_not_defined_for_message().await,
+            tc_tag_is_defined_for_message().await,
+            tc_field_not_found_body().await,
+            tc_field_not_found_header().await,
+            tc_invalid_tag_check_disabled().await,
+            tc_invalid_tag_check_enabled().await,
         ];
 
         for test in tests.iter() {
-            println!(
-                "---------------------------------- {}",
-                String::from_utf8_lossy(&test.message_bytes).as_ref()
-            );
             let mut msg = Message::new();
             let parse_error = msg.parse_message(&test.message_bytes);
-            // assert!(parse_error.is_ok());
+
+            assert!(parse_error.is_ok());
             let reject_result = test.validator.validate(&msg);
 
             if reject_result.is_ok() {
@@ -477,44 +471,44 @@ mod tests {
                 );
             }
 
-            // let reject = reject_result.unwrap_err();
+            let reject = reject_result.unwrap_err();
 
-            // assert_eq!(
-            //     reject.reject_reason(),
-            //     test.expected_reject_reason,
-            //     "{}: Expected reason {} got {}",
-            //     test.test_name,
-            //     test.expected_reject_reason,
-            //     reject.reject_reason(),
-            // );
+            assert_eq!(
+                reject.reject_reason(),
+                test.expected_reject_reason,
+                "{}: Expected reason {} got {}",
+                test.test_name,
+                test.expected_reject_reason,
+                reject.reject_reason(),
+            );
 
-            // if reject.ref_tag_id().is_none() && test.expected_ref_tag_id.is_none() {
-            //     // ok, expected and actual ref tag not set
-            // } else if reject.ref_tag_id().is_some() && test.expected_ref_tag_id.is_none() {
-            //     assert!(
-            //         false,
-            //         "{}: Unexpected RefTag '{}'",
-            //         test.test_name,
-            //         reject.ref_tag_id().unwrap()
-            //     );
-            // } else if reject.ref_tag_id().is_none() && test.expected_ref_tag_id.is_some() {
-            //     assert!(
-            //         false,
-            //         "{}: Expected RefTag '{}'",
-            //         test.test_name,
-            //         test.expected_ref_tag_id.unwrap()
-            //     );
-            // } else if reject.ref_tag_id().unwrap() == test.expected_ref_tag_id.unwrap() {
-            //     // ok, tags equal
-            // } else {
-            //     assert!(
-            //         false,
-            //         "{}: Expected RefTag '{}' got '{}'",
-            //         test.test_name,
-            //         test.expected_ref_tag_id.unwrap(),
-            //         reject.ref_tag_id().unwrap()
-            //     );
-            // }
+            if reject.ref_tag_id().is_none() && test.expected_ref_tag_id.is_none() {
+                // ok, expected and actual ref tag not set
+            } else if reject.ref_tag_id().is_some() && test.expected_ref_tag_id.is_none() {
+                assert!(
+                    false,
+                    "{}: Unexpected RefTag '{}'",
+                    test.test_name,
+                    reject.ref_tag_id().unwrap()
+                );
+            } else if reject.ref_tag_id().is_none() && test.expected_ref_tag_id.is_some() {
+                assert!(
+                    false,
+                    "{}: Expected RefTag '{}'",
+                    test.test_name,
+                    test.expected_ref_tag_id.unwrap()
+                );
+            } else if reject.ref_tag_id().unwrap() == test.expected_ref_tag_id.unwrap() {
+                // ok, tags equal
+            } else {
+                assert!(
+                    false,
+                    "{}: Expected RefTag '{}' got '{}'",
+                    test.test_name,
+                    test.expected_ref_tag_id.unwrap(),
+                    reject.ref_tag_id().unwrap()
+                );
+            }
         }
     }
 
@@ -710,7 +704,7 @@ mod tests {
             message_bytes,
             do_not_expect_reject: true,
             expected_reject_reason: REJECT_REASON_OTHER,
-            expected_ref_tag_id: Some(666), // fake tag
+            expected_ref_tag_id: None,
         }
     }
 
@@ -900,7 +894,7 @@ mod tests {
             validator,
             message_bytes,
             expected_reject_reason: REJECT_REASON_INVALID_MSG_TYPE,
-            expected_ref_tag_id: Some(666), // fake tag
+            expected_ref_tag_id: None,
             do_not_expect_reject: false,
         }
     }
@@ -1036,7 +1030,7 @@ mod tests {
             message_bytes,
             do_not_expect_reject: false,
             expected_ref_tag_id: Some(tag),
-            expected_reject_reason: REJECT_REASON_OTHER, // fake reason
+            expected_reject_reason: REJECT_REASON_INVALID_TAG_NUMBER, // fake reason
         }
     }
 

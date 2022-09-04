@@ -12,9 +12,7 @@ use crate::fix_utc_timestamp::FIXUTCTimestamp;
 use crate::tag::{Tag, TAG_BEGIN_STRING, TAG_BODY_LENGTH, TAG_CHECK_SUM};
 use crate::tag_value::TagValue;
 use chrono::naive::NaiveDateTime;
-use chrono::Local;
 use std::cmp::Ordering;
-use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::RwLock;
@@ -36,7 +34,7 @@ impl LocalFieldTrait for LocalField {
     }
 
     fn field_tag(&self) -> &Tag {
-        &self[0].tag
+        &self.get(0).unwrap().tag
     }
 
     fn init_field(&mut self, tag: Tag, value: &[u8]) {
@@ -289,7 +287,7 @@ impl FieldMap {
         to_wlock.tag_sort.compare = m_rlock.tag_sort.compare;
     }
 
-    pub fn add(&mut self, f: LocalField) {
+    pub fn add(&mut self, f: &LocalField) {
         let mut wlock = self.rw_lock.write().unwrap();
 
         let t = f.field_tag();
@@ -297,7 +295,7 @@ impl FieldMap {
             wlock.tag_sort.tags.push(*t);
         }
 
-        wlock.tag_lookup.insert(*t, f);
+        wlock.tag_lookup.insert(*t, f.to_vec());
     }
 
     // set is a setter for fields
@@ -328,15 +326,14 @@ impl FieldMap {
         self
     }
 
-    // TODO: maybe self sort this on insert?
-    fn sorted_tags(&self) -> Vec<Tag> {
-        let rlock = self.rw_lock.read().unwrap();
-        let mut sorted_tags = self.tags();
-        sorted_tags.sort_by(rlock.tag_sort.compare);
-        sorted_tags
+    fn sorted_tags(&mut self) -> Vec<Tag> {
+        let mut wlock = self.rw_lock.write().unwrap();
+        let compare = wlock.tag_sort.compare;
+        wlock.tag_sort.tags.sort_by(&compare);
+        wlock.tag_sort.tags.clone()
     }
 
-    pub fn write(&self, buffer: &mut Vec<u8>) {
+    pub fn write(&mut self, buffer: &mut Vec<u8>) {
         for tag in self.sorted_tags().iter() {
             let mut wlock = self.rw_lock.write().unwrap();
             if wlock.tag_lookup.contains_key(tag) {

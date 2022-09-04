@@ -22,12 +22,12 @@ pub struct Header {
 
 // in the message header, the first 3 tags in the message header must be 8,9,35
 pub fn header_field_ordering(i: &Tag, j: &Tag) -> Ordering {
-    fn ordering(t: &Tag) -> u32 {
+    fn ordering(t: &Tag) -> isize {
         match *t {
             TAG_BEGIN_STRING => 1,
             TAG_BODY_LENGTH => 2,
             TAG_MSG_TYPE => 3,
-            _ => u32::MAX,
+            _ => isize::MAX,
         }
     }
 
@@ -36,8 +36,7 @@ pub fn header_field_ordering(i: &Tag, j: &Tag) -> Ordering {
 
     if orderi < orderj {
         return Ordering::Less;
-    }
-    if orderi > orderj {
+    } else if orderi > orderj {
         return Ordering::Greater;
     }
 
@@ -75,10 +74,10 @@ pub struct Trailer {
 // In the trailer, CheckSum (tag 10) must be last
 fn trailer_field_ordering(i: &Tag, j: &Tag) -> Ordering {
     if *i == TAG_CHECK_SUM {
-        return Ordering::Less;
+        return Ordering::Greater;
     }
     if *j == TAG_CHECK_SUM {
-        return Ordering::Greater;
+        return Ordering::Less;
     }
     if i < j {
         return Ordering::Less;
@@ -124,9 +123,9 @@ impl ToString for Message {
 impl Message {
     pub fn new() -> Self {
         Message {
-            header: Header::default(),
-            body: Body::default(),
-            trailer: Trailer::default(),
+            header: Header::init(),
+            body: Body::init(),
+            trailer: Trailer::init(),
             ..Default::default()
         }
     }
@@ -172,7 +171,7 @@ impl Message {
             return Err(ParseError {
                 orig_error: format!(
                     "No Fields detected in {}",
-                    String::from_utf8_lossy(&self.raw_message).as_ref()
+                    String::from_utf8_lossy(&self.raw_message)
                 ),
             });
         }
@@ -183,65 +182,44 @@ impl Message {
 
         // message must start with begin string, body length, msg type
         let field = self.fields.get_mut(field_index).unwrap();
-        let raw_bytes = extract_specific_field(field, TAG_BEGIN_STRING, &self.raw_message)?;
+        let raw_bytes = extract_specific_field(field, TAG_BEGIN_STRING, raw_message.clone())?;
 
-        self.header.field_map.add(
-            self.fields
-                .get(field_index..field_index + 1)
-                .unwrap()
-                .to_vec(),
-        );
+        self.header.field_map.add(&vec![field.clone()]);
         field_index += 1;
 
         let parsed_field_bytes = self.fields.get_mut(field_index).unwrap();
         let raw_bytes = extract_specific_field(parsed_field_bytes, TAG_BODY_LENGTH, &raw_bytes)?;
 
-        self.header.field_map.add(
-            self.fields
-                .get(field_index..field_index + 1)
-                .unwrap()
-                .to_vec(),
-        );
+        self.header.field_map.add(&vec![parsed_field_bytes.clone()]);
         field_index += 1;
 
-        let mut parsed_field_bytes = self.fields.get_mut(field_index).unwrap();
-        let raw_bytes = extract_specific_field(parsed_field_bytes, TAG_MSG_TYPE, &raw_bytes)?;
+        let parsed_field_bytes = self.fields.get_mut(field_index).unwrap();
+        let mut raw_bytes = extract_specific_field(parsed_field_bytes, TAG_MSG_TYPE, &raw_bytes)?;
 
-        let mut tag = parsed_field_bytes.tag.clone();
-
-        self.header.field_map.add(
-            self.fields
-                .get(field_index..field_index + 1)
-                .unwrap()
-                .to_vec(),
-        );
+        self.header.field_map.add(&vec![parsed_field_bytes.clone()]);
         field_index += 1;
-
         let mut trailer_bytes = vec![];
         let mut found_body = false;
 
-        while tag != TAG_CHECK_SUM {
-            parsed_field_bytes = self.fields.get_mut(field_index).unwrap();
-            let raw_bytes = extract_field(parsed_field_bytes, &raw_bytes)?;
+        loop {
+            let parsed_field_bytes = self.fields.get_mut(field_index).unwrap();
+            raw_bytes = extract_field(parsed_field_bytes, &raw_bytes)?;
 
-            let fields = self
-                .fields
-                .clone()
-                .get(field_index..field_index + 1)
-                .unwrap()
-                .to_vec();
+            let fields = vec![parsed_field_bytes.clone()];
 
-            if is_header_field(&tag, transport_data_dictionary) {
-                self.header.field_map.add(fields);
-            } else if is_trailer_field(&tag, transport_data_dictionary) {
-                self.trailer.field_map.add(fields);
+            if is_header_field(&parsed_field_bytes.tag, transport_data_dictionary) {
+                self.header.field_map.add(&fields);
+            } else if is_trailer_field(&parsed_field_bytes.tag, transport_data_dictionary) {
+                self.trailer.field_map.add(&fields);
             } else {
                 found_body = true;
                 trailer_bytes = raw_bytes.clone();
-                self.body.field_map.add(fields);
+                self.body.field_map.add(&fields);
             }
 
-            tag = parsed_field_bytes.tag.clone();
+            if parsed_field_bytes.tag == TAG_CHECK_SUM {
+                break;
+            }
 
             if !found_body {
                 self.body_bytes = raw_bytes.clone();
@@ -251,8 +229,11 @@ impl Message {
         }
 
         if self.body_bytes.len() > trailer_bytes.len() {
-            self.body_bytes =
-                self.body_bytes[..self.body_bytes.len() - trailer_bytes.len()].to_vec();
+            self.body_bytes = self
+                .body_bytes
+                .get(..self.body_bytes.len() - trailer_bytes.len())
+                .unwrap()
+                .to_vec();
         }
 
         let mut length = 0;
@@ -430,8 +411,9 @@ fn extract_field(parsed_field_bytes: &mut TagValue, buffer: &[u8]) -> Result<Vec
             String::from_utf8_lossy(&buffer).as_ref()
         ),
     })?;
+    let buffer_slice = buffer.get(..(end_index + 1)).unwrap();
     parsed_field_bytes
-        .parse(&buffer[..end_index + 1])
+        .parse(buffer_slice)
         .map_err(|err| ParseError { orig_error: err })?;
     Ok(buffer.get((end_index + 1)..).unwrap().to_vec())
 }

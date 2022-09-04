@@ -25,7 +25,7 @@ impl TagValue {
     }
 
     pub fn parse(&mut self, raw_field_bytes: &[u8]) -> Result<(), String> {
-        let sep_index_option = raw_field_bytes.iter().position(|x| '=' as u8 == *x);
+        let sep_index_option = raw_field_bytes.iter().position(|x| '=' == *x as char);
         if sep_index_option.is_none() {
             return Err(format!(
                 "TagValue::parse: No '=' in '{}'",
@@ -56,12 +56,6 @@ impl TagValue {
         let n = raw_field_bytes.len();
         self.value = raw_field_bytes.get(sep_index + 1..n - 1).unwrap().to_vec();
         self.bytes = raw_field_bytes.to_vec();
-
-        println!(
-            "------------------------------------- tag: {}, value: {}",
-            parsed_tag,
-            String::from_utf8_lossy(&self.value)
-        );
 
         Ok(())
     }
