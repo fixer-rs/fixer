@@ -112,10 +112,11 @@ pub struct Message {
 impl ToString for Message {
     fn to_string(&self) -> String {
         if !self.raw_message.is_empty() {
-            return todo!();
+            return String::from_utf8_lossy(&self.raw_message).to_string();
         }
 
-        // self.build()
+        // TODO: do not allocate
+        // String::from_utf8_lossy(&self.build()).to_string()
         todo!()
     }
 }
