@@ -1,41 +1,50 @@
 use crate::log::{Log, LogFactory};
-
+use chrono::{format, Utc};
+use std::fmt::Debug;
 struct ScreenLog {
     prefix: String,
 }
 
-// impl Log for ScreenLog {
-//     fn on_incoming(&self, data: Vec<u8>) {
-//         todo!()
-//     }
+const TIME_FORMAT: &'static str = "%Y-%m-%d %H:%M:%S %z %Z";
 
-//     fn on_outgoing(&self, data: Vec<u8>) {
-//         todo!()
-//     }
+impl Log for ScreenLog {
+    fn on_incoming(&self, data: Vec<u8>) {
+        let log_time = Utc::now();
 
-//     fn on_event(&self, event: String) {
-//         todo!()
-//     }
+        print!(
+            "<{}, {}, incoming>\n  ({})\n",
+            log_time.format(TIME_FORMAT),
+            &self.prefix,
+            String::from_utf8_lossy(&data)
+        )
+    }
 
-//     fn on_eventf(&self, event: String, t: T) {
-//         todo!()
-//     }
-// }
+    fn on_outgoing(&self, data: Vec<u8>) {
+        let log_time = Utc::now();
 
-// func (l screenLog) OnIncoming(s []byte) {
-// 	logTime := time.Now().UTC()
-// 	fmt.Printf("<%v, %s, incoming>\n  (%s)\n", logTime, l.prefix, s)
-// }
+        print!(
+            "<{}, {}, outgoing>\n  ({})\n",
+            log_time.format(TIME_FORMAT),
+            &self.prefix,
+            String::from_utf8_lossy(&data)
+        )
+    }
 
-// func (l screenLog) OnOutgoing(s []byte) {
-// 	logTime := time.Now().UTC()
-// 	fmt.Printf("<%v, %s, outgoing>\n  (%s)\n", logTime, l.prefix, s)
-// }
+    fn on_event(&self, data: String) {
+        let log_time = Utc::now();
 
-// func (l screenLog) OnEvent(s string) {
-// 	logTime := time.Now().UTC()
-// 	fmt.Printf("<%v, %s, event>\n  (%s)\n", logTime, l.prefix, s)
-// }
+        print!(
+            "<{}, {}, event>\n  ({})\n",
+            log_time.format(TIME_FORMAT),
+            &self.prefix,
+            &data
+        )
+    }
+
+    fn on_eventf(&self, format: String, params: Vec<Box<dyn Debug>>) {
+        // self.on_event(format!(&format, ..params))
+    }
+}
 
 // func (l screenLog) OnEventf(format string, a ...interface{}) {
 // 	l.OnEvent(fmt.Sprintf(format, a...))
@@ -57,3 +66,5 @@ struct ScreenLog {
 // func NewScreenLogFactory() LogFactory {
 // 	return screenLogFactory{}
 // }
+
+// TODO
