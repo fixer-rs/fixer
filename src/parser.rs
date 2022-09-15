@@ -107,7 +107,7 @@ impl Parser {
                 .unwrap(),
         );
 
-        if length <= 0 || dgt == 0 {
+        if length == 0 && dgt == 0 {
             return Err(simple_error!("Invalid length"));
         }
 

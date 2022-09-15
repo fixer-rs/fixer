@@ -24,12 +24,11 @@ use std::{
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
-    time::Duration,
 };
 
 use tokio::{
     sync::{broadcast, RwLock},
-    time::{sleep, Sleep},
+    time::{sleep, Duration, Sleep},
 };
 
 /// The [`!Sync`][trait@std::marker::Sync] one.
@@ -208,10 +207,9 @@ impl Future for ASwitchingSleep {
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::time::Duration;
     use tokio::{
         select,
-        time::{sleep, Instant},
+        time::{sleep, Duration, Instant},
     };
 
     #[tokio::test]

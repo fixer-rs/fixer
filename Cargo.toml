@@ -20,6 +20,7 @@ fast-float = "0.2.0"
 itoa = "1.0"
 lazy_static = "1.4.0"
 maplit = "1.0"
+parse_duration = "2.1.1"
 quick-xml = {version = "0.23", features = ["serialize"]}
 rust_decimal = "1.25"
 serde = {version = "1.0", features = ["derive"]}

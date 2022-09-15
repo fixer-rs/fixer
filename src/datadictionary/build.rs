@@ -1,5 +1,3 @@
-use crate::msg_type;
-
 use super::{
     xml::{XMLComponent, XMLComponentEnum, XMLDoc, XMLField},
     Component, ComponentType, DataDictionary, Enum, FieldDef, FieldType, MessageDef, MessagePart,

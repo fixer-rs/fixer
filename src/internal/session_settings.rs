@@ -1,5 +1,5 @@
 use crate::internal::time_range::TimeRange;
-use chrono::Duration;
+use tokio::time::Duration;
 
 // SessionSettings stores all of the configuration for a given session
 pub struct SessionSettings {

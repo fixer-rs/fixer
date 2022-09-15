@@ -48,11 +48,7 @@ impl Display for RejectLogon {
     }
 }
 
-impl Error for RejectLogon {
-    fn description(&self) -> &str {
-        &self.text
-    }
-}
+impl Error for RejectLogon {}
 
 impl MessageRejectErrorTrait for RejectLogon {
     // reject_reason implements MessageRejectError
@@ -99,11 +95,7 @@ impl Display for MessageRejectError {
     }
 }
 
-impl Error for MessageRejectError {
-    fn description(&self) -> &str {
-        &self.text
-    }
-}
+impl Error for MessageRejectError {}
 
 impl MessageRejectErrorTrait for MessageRejectError {
     fn reject_reason(&self) -> isize {

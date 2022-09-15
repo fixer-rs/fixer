@@ -28,6 +28,7 @@ pub mod parser;
 pub mod screen_log;
 pub mod session;
 pub mod session_id;
+pub mod session_settings;
 pub mod store;
 pub mod tag;
 pub mod tag_value;

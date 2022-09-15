@@ -103,10 +103,10 @@ impl MessageStore for MemoryStore {
     }
 }
 
-struct MemoryStoreFactory;
+pub struct MemoryStoreFactory;
 
 impl MessageStoreFactory for MemoryStoreFactory {
-    fn create(&self, session_id: SessionID) -> SimpleResult<Box<dyn MessageStore>> {
+    fn create(&self, _session_id: SessionID) -> SimpleResult<Box<dyn MessageStore>> {
         let mut m = MemoryStore::default();
         let result = m.reset();
         if result.is_err() {
