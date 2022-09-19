@@ -231,7 +231,7 @@ impl Builder {
         let field_type = self.dict.field_type_by_name.get(xml_field.name()).unwrap();
 
         if xml_field.is_group() {
-            return self.build_group_field_def(&xml_field, field_type.clone());
+            return self.build_group_field_def(xml_field, field_type.clone());
         }
 
         Ok(FieldDef::new(field_type.clone(), xml_field.is_required()))

@@ -47,7 +47,7 @@ impl Validator for FixValidator {
         }
         let msg_type = msg.header.field_map.get_string(TAG_MSG_TYPE)?;
 
-        validate_fix(&self.data_dictionary, &self.settings, &msg_type, &msg)
+        validate_fix(&self.data_dictionary, &self.settings, &msg_type, msg)
     }
 }
 
@@ -72,7 +72,7 @@ impl Validator for FixtValidator {
                 &self.transport_data_dictionary,
                 &self.settings,
                 &msg_type,
-                &msg,
+                msg,
             );
         }
 
@@ -81,7 +81,7 @@ impl Validator for FixtValidator {
             &self.app_data_dictionary,
             &self.settings,
             &msg_type,
-            &msg,
+            msg,
         )
     }
 }
@@ -93,9 +93,9 @@ impl dyn Validator {
         app_data_dictionary: DataDictionary,
         transport_data_dictionary: Option<DataDictionary>,
     ) -> Box<Self> {
-        if transport_data_dictionary.is_some() {
+        if let Some(transport_data_dictionary) = transport_data_dictionary {
             return Box::new(FixtValidator {
-                transport_data_dictionary: transport_data_dictionary.unwrap(),
+                transport_data_dictionary,
                 app_data_dictionary,
                 settings,
             });
@@ -172,7 +172,7 @@ fn validate_walk(
     let mut remaining_fields = msg.fields.clone();
     let mut iterated_tags = TagSet::new();
 
-    while remaining_fields.len() > 0 {
+    while !remaining_fields.is_empty() {
         let field = &remaining_fields[0];
         let tag = field.tag;
 
@@ -181,13 +181,13 @@ fn validate_walk(
         } else if tag.is_trailer() {
             &transport_dd.trailer
         } else {
-            &app_dd.messages.get(msg_type).unwrap()
+            app_dd.messages.get(msg_type).unwrap()
         };
 
         let field_def = message_def
             .fields
             .get(&tag)
-            .ok_or(tag_not_defined_for_this_message_type(tag))?;
+            .ok_or_else(|| tag_not_defined_for_this_message_type(tag))?;
 
         if iterated_tags.0.contains(&tag) {
             return Err(tag_appears_more_than_once(tag));
@@ -200,7 +200,7 @@ fn validate_walk(
         remaining_fields = validate_visit_field(field_def, &sent_remaining_fields)?;
     }
 
-    if remaining_fields.len() != 0 {
+    if !remaining_fields.is_empty() {
         return Err(tag_not_defined_for_this_message_type(
             remaining_fields[0].tag,
         ));
@@ -238,7 +238,7 @@ fn validate_visit_group_field(
     let mut child_defs: Vec<FieldDef> = vec![];
     let mut group_count = 0;
 
-    while mutable_field_stack.len() > 0 {
+    while !mutable_field_stack.is_empty() {
         // start of repeating group
         if mutable_field_stack[0].tag == field_def.fields[0].tag() {
             child_defs = field_def.fields.clone();
@@ -354,7 +354,7 @@ fn validate_field(
     _valid_fields: &TagSet,
     field: &TagValue,
 ) -> MessageRejectErrorResult {
-    if field.value.len() == 0 {
+    if field.value.is_empty() {
         return Err(tag_specified_without_a_value(field.tag));
     }
 
@@ -392,14 +392,14 @@ fn validate_field(
         | "UTCDATE"
         | "TZTIMEONLY"
         | "TZTIMESTAMP"
-        | "STRING" => prototype = Box::new(FIXString::new()),
-        "BOOLEAN" => prototype = Box::new(FIXBoolean::default()),
+        | "STRING" => prototype = Box::<FIXString>::default(),
+        "BOOLEAN" => prototype = Box::<FIXBoolean>::default(),
         "LENGTH" | "DAYOFMONTH" | "NUMINGROUP" | "SEQNUM" | "INT" => {
-            prototype = Box::new(FIXInt::default())
+            prototype = Box::<FIXInt>::default()
         }
-        "UTCTIMESTAMP" | "TIME" => prototype = Box::new(FIXUTCTimestamp::default()),
+        "UTCTIMESTAMP" | "TIME" => prototype = Box::<FIXUTCTimestamp>::default(),
         "QTY" | "QUANTITY" | "AMT" | "PRICE" | "PRICEOFFSET" | "PERCENTAGE" | "FLOAT" => {
-            prototype = Box::new(FIXFloat::default())
+            prototype = Box::<FIXFloat>::default()
         }
         _ => {}
     }

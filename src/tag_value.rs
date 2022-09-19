@@ -1,5 +1,4 @@
 use crate::tag::Tag;
-use atoi::FromRadix10;
 use std::string::ToString;
 
 // TagValue is a low-level FIX field abstraction
@@ -13,9 +12,9 @@ pub struct TagValue {
 impl TagValue {
     pub fn init(tag: Tag, value: &[u8]) -> Self {
         let mut self_value = itoa::Buffer::new().format(tag).as_bytes().to_vec();
-        self_value.push('=' as u8);
+        self_value.push(b'=');
         self_value.extend_from_slice(value);
-        self_value.push('' as u8);
+        self_value.push(b'');
 
         TagValue {
             tag,
@@ -42,15 +41,12 @@ impl TagValue {
         }
 
         let parsed_tag_bytes = raw_field_bytes.get(0..sep_index).unwrap();
-
-        let (parsed_tag, dgt) = isize::from_radix_10(parsed_tag_bytes);
-
-        if dgt == 0 {
-            return Err(format!(
+        let parsed_tag = atoi_simd::parse::<isize>(parsed_tag_bytes).map_err(|_| {
+            format!(
                 "tagValue.Parse: '{}'",
                 String::from_utf8_lossy(parsed_tag_bytes)
-            ));
-        }
+            )
+        })?;
 
         self.tag = parsed_tag;
         let n = raw_field_bytes.len();

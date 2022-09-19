@@ -29,7 +29,7 @@ impl EventTimer {
                         timer.stop().await;
                     },
 
-                    () = &mut timer => {(&t.f)()}
+                    () = &mut timer => {(t.f)()}
                 }
             }
         });

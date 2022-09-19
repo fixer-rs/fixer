@@ -183,7 +183,7 @@ impl Message {
 
         // message must start with begin string, body length, msg type
         let field = self.fields.get_mut(field_index).unwrap();
-        let raw_bytes = extract_specific_field(field, TAG_BEGIN_STRING, raw_message.clone())?;
+        let raw_bytes = extract_specific_field(field, TAG_BEGIN_STRING, &*raw_message)?;
 
         self.header.field_map.add(&vec![field.clone()]);
         field_index += 1;
@@ -393,7 +393,7 @@ fn extract_specific_field(
     expected_tag: Tag,
     buffer: &[u8],
 ) -> Result<Vec<u8>, ParseError> {
-    let rem_buffer = extract_field(field, &buffer)?;
+    let rem_buffer = extract_field(field, buffer)?;
     if field.tag != expected_tag {
         return Err(ParseError {
             orig_error: format!(
@@ -409,7 +409,7 @@ fn extract_field(parsed_field_bytes: &mut TagValue, buffer: &[u8]) -> Result<Vec
     let end_index = buffer.iter().position(|x| *x == 0o001).ok_or(ParseError {
         orig_error: format!(
             "extract_field: No Trailing Delim in {}",
-            String::from_utf8_lossy(&buffer).as_ref()
+            String::from_utf8_lossy(buffer).as_ref()
         ),
     })?;
     let buffer_slice = buffer.get(..(end_index + 1)).unwrap();

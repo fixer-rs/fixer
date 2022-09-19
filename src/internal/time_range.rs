@@ -2,7 +2,7 @@ use chrono::{
     Datelike, Duration, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, Timelike, Weekday,
 };
 use simple_error::SimpleResult;
-use std::ops::Add;
+use std::{cmp::Ordering, ops::Add};
 
 // TimeOfDay represents the time of day
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -13,7 +13,7 @@ pub struct TimeOfDay {
     d: Duration,
 }
 
-const SHORT_FORM: &'static str = "%H:%M:%S";
+const SHORT_FORM: &str = "%H:%M:%S";
 
 impl TimeOfDay {
     // new returns a newly initialized TimeOfDay
@@ -138,10 +138,8 @@ impl TimeRange {
             if day < start_day || end_day < day {
                 return false;
             }
-        } else {
-            if end_day < day && day < start_day {
-                return false;
-            }
+        } else if end_day < day && day < start_day {
+            return false;
         }
 
         let time_of_day = TimeOfDay::new(
@@ -196,15 +194,19 @@ impl TimeRange {
             }
         } else {
             let end_day = self.end_day.unwrap().num_days_from_sunday();
+
             let t1_weekday = t1.weekday().num_days_from_sunday();
-            if end_day < t1_weekday {
-                day_offset = 7 + (end_day - t1_weekday) as i64
-            } else if t1_weekday == end_day {
-                if self.end_time.d <= t1_time.d {
-                    day_offset = 7;
+
+            match t1_weekday.cmp(&end_day) {
+                Ordering::Less => {
+                    day_offset = (end_day - t1_weekday) as i64;
                 }
-            } else {
-                day_offset = (end_day - t1_weekday) as i64;
+                Ordering::Greater => day_offset = 7 + (end_day - t1_weekday) as i64,
+                Ordering::Equal => {
+                    if self.end_time.d <= t1_time.d {
+                        day_offset = 7;
+                    }
+                }
             }
         }
 

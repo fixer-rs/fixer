@@ -237,11 +237,11 @@ impl FieldMap {
     }
 
     // set_bytes sets bytes
-    pub fn set_bytes<'a>(&mut self, tag: Tag, value: &'a [u8]) -> &FieldMap {
+    pub fn set_bytes(&mut self, tag: Tag, value: &[u8]) -> &FieldMap {
         let mut wlock = self.rw_lock.write().unwrap();
 
-        if !wlock.tag_lookup.contains_key(&tag) {
-            wlock.tag_lookup.insert(tag, vec![]);
+        if let std::collections::hash_map::Entry::Vacant(e) = wlock.tag_lookup.entry(tag) {
+            e.insert(vec![]);
             wlock.tag_sort.tags.push(tag);
         }
 
@@ -261,7 +261,7 @@ impl FieldMap {
     }
 
     // set_string is a set_field wrapper for string fields
-    pub fn set_string<'a>(&mut self, tag: Tag, value: &'a str) -> &FieldMap {
+    pub fn set_string(&mut self, tag: Tag, value: &str) -> &FieldMap {
         self.set_bytes(tag, value.as_bytes())
     }
 

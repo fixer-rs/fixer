@@ -18,7 +18,7 @@ impl FieldValueReader for FIXFloat {
         let f = fast_float::parse(input).map_err(|_| ())?;
 
         for chr in input.iter() {
-            if *chr != '.' as u8 && *chr != '-' as u8 && !('0' as u8..='9' as u8).contains(chr) {
+            if *chr != b'.' && *chr != b'-' && !(b'0'..=b'9').contains(chr) {
                 return Err(());
             }
         }

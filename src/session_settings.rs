@@ -1,4 +1,3 @@
-use atoi::FromRadix10;
 use parse_duration::parse;
 use std::collections::HashMap;
 use std::error::Error;
@@ -78,17 +77,14 @@ impl SessionSettings {
     pub fn int_setting(&self, setting: &str) -> Result<isize, Box<dyn Error>> {
         let string_val = self.setting(setting)?;
 
-        let (value, dgt) = isize::from_radix_10(string_val.as_bytes());
-
-        if value == 0 && dgt == 0 {
-            return Err(Box::new(IncorrectFormatForSetting {
+        atoi_simd::parse::<isize>(string_val.as_bytes()).map_err(|_| {
+            Box::new(IncorrectFormatForSetting {
                 setting: setting.to_string(),
-                value: string_val,
+                value: string_val.clone(),
                 err: Box::new(simple_error!("invalid setting")),
-            }));
-        }
-
-        Ok(value)
+            })
+            .into()
+        })
     }
 
     // duration_setting returns the requested setting parsed as a Duration.
@@ -97,11 +93,11 @@ impl SessionSettings {
         let string_val = self.setting(setting)?;
 
         let val_result = parse(&string_val);
-        if val_result.is_err() {
+        if let Err(val) = val_result {
             return Err(Box::new(IncorrectFormatForSetting {
                 setting: setting.to_string(),
                 value: string_val,
-                err: Box::new(val_result.unwrap_err()),
+                err: Box::new(val),
             }));
         }
         Ok(val_result.unwrap())

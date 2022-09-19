@@ -32,7 +32,7 @@ impl SessionID {
 impl ToString for SessionID {
     fn to_string(&self) -> String {
         let mut result = self.begin_string.clone();
-        result.push_str(":");
+        result.push(':');
         result.push_str(&self.sender_comp_id);
 
         append_optional(&mut result, "/", &self.sender_sub_id);

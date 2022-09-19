@@ -1,11 +1,11 @@
-use crate::log::{Log, LogFactory};
-use chrono::{format, Utc};
+use crate::log::Log;
+use chrono::Utc;
 use std::fmt::Debug;
 struct ScreenLog {
     prefix: String,
 }
 
-const TIME_FORMAT: &'static str = "%Y-%m-%d %H:%M:%S %z %Z";
+const TIME_FORMAT: &str = "%Y-%m-%d %H:%M:%S %z %Z";
 
 impl Log for ScreenLog {
     fn on_incoming(&self, data: Vec<u8>) {

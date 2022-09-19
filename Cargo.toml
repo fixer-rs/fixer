@@ -13,13 +13,15 @@ version = "0.1.0"
 
 [dependencies]
 anyhow = "1.0.62"
-atoi = "1.0"
+atoi_simd = "0.10.1"
 chrono = {version = "0.4", features = ["default", "serde"]}
 delegate = "0.7.0"
 fast-float = "0.2.0"
 itoa = "1.0"
 lazy_static = "1.4.0"
 maplit = "1.0"
+memmem = "0.1.1"
+owning_ref = "0.4.1"
 parse_duration = "2.1.1"
 quick-xml = {version = "0.23", features = ["serialize"]}
 rust_decimal = "1.25"
