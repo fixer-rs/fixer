@@ -17,11 +17,10 @@ pub trait Log {
 }
 
 // The LogFactory trait creates global and session specific Log instances
-pub trait LogFactory<T> {
+pub trait LogFactory {
     // create global log
-    fn create() -> Result<Box<dyn Log>, String>;
+    fn create(&self) -> Result<Box<dyn Log>, String>;
 
     // create_session_log session specific log
-    fn create_session_log(session_id: SessionID) -> Result<Box<dyn Log>, String>;
+    fn create_session_log(&self, session_id: SessionID) -> Result<Box<dyn Log>, String>;
 }
-// TODO
