@@ -8,14 +8,14 @@ pub const MSG_TYPE_LOGOUT: char = '5';
 
 // is_admin_message_type returns true if the message type is a session level message.
 pub fn is_admin_message_type(m: char) -> bool {
-    match m {
+    matches!(
+        m,
         MSG_TYPE_HEARTBEAT
-        | MSG_TYPE_LOGON
-        | MSG_TYPE_TEST_REQUEST
-        | MSG_TYPE_RESEND_REQUEST
-        | MSG_TYPE_REJECT
-        | MSG_TYPE_SEQUENCE_RESET
-        | MSG_TYPE_LOGOUT => true,
-        _ => false,
-    }
+            | MSG_TYPE_LOGON
+            | MSG_TYPE_TEST_REQUEST
+            | MSG_TYPE_RESEND_REQUEST
+            | MSG_TYPE_REJECT
+            | MSG_TYPE_SEQUENCE_RESET
+            | MSG_TYPE_LOGOUT
+    )
 }

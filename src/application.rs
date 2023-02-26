@@ -16,20 +16,14 @@ pub trait Application {
     fn on_logout(session_id: SessionID);
 
     // to_admin notification of admin message being sent to target.
-    fn to_admin<'a>(message: &'a Message, session_id: SessionID);
+    fn to_admin(message: &'_ Message, session_id: SessionID);
 
     // to_app notification of app message being sent to target.
-    fn to_app<'a>(message: &'a Message, session_id: SessionID) -> SimpleResult<()>;
+    fn to_app(message: &'_ Message, session_id: SessionID) -> SimpleResult<()>;
 
     // from_admin notification of admin message being received from target.
-    fn from_admin<'a>(
-        message: &'a Message,
-        session_id: SessionID,
-    ) -> Box<dyn MessageRejectErrorTrait>;
+    fn from_admin(message: &'_ Message, session_id: SessionID) -> Box<dyn MessageRejectErrorTrait>;
 
     // from_app notification of app message being received from target.
-    fn from_app<'a>(
-        message: &'a Message,
-        session_id: SessionID,
-    ) -> Box<dyn MessageRejectErrorTrait>;
+    fn from_app(message: &'_ Message, session_id: SessionID) -> Box<dyn MessageRejectErrorTrait>;
 }

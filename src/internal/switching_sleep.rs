@@ -96,7 +96,7 @@ impl SwitchingSleep {
 
     /// Check if the timer (if any) is elapsed.
     pub fn is_elapsed(&self) -> bool {
-        self.sleeper.is_some() && (&self.sleeper).as_ref().unwrap().is_elapsed()
+        self.sleeper.is_some() && self.sleeper.as_ref().unwrap().is_elapsed()
     }
 }
 

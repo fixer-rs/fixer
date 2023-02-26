@@ -47,6 +47,6 @@ pub trait FieldGroup {
 
 impl dyn FieldValue {
     pub fn default() -> Box<dyn FieldValue + Send> {
-        Box::new(FIXBoolean::default())
+        Box::<FIXBoolean>::default()
     }
 }

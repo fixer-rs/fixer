@@ -30,9 +30,9 @@ impl FieldValueReader for FIXBoolean {
 impl FieldValueWriter for FIXBoolean {
     fn write(&self) -> Vec<u8> {
         if *self {
-            return vec!['Y' as u8];
+            return vec![b'Y'];
         }
-        vec!['N' as u8]
+        vec![b'N']
     }
 }
 
@@ -51,11 +51,11 @@ mod tests {
         let tests = vec![
             TestCase {
                 val: true,
-                expected: vec!['Y' as u8],
+                expected: vec![b'Y'],
             },
             TestCase {
                 val: false,
-                expected: vec!['N' as u8],
+                expected: vec![b'N'],
             },
         ];
         for test in tests.iter() {
@@ -73,12 +73,12 @@ mod tests {
         }
         let tests = vec![
             TestCase {
-                bytes: &['Y' as u8],
+                bytes: &[b'Y'],
                 expected: true,
                 expect_error: false,
             },
             TestCase {
-                bytes: &['N' as u8],
+                bytes: &[b'N'],
                 expected: false,
                 expect_error: false,
             },
