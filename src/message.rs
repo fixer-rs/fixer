@@ -115,9 +115,7 @@ impl ToString for Message {
             return String::from_utf8_lossy(&self.raw_message).to_string();
         }
 
-        // TODO: do not allocate
-        // String::from_utf8_lossy(&self.build()).to_string()
-        todo!()
+        String::from_utf8_lossy(&self.build()).to_string()
     }
 }
 
@@ -135,7 +133,7 @@ impl Message {
         self
     }
 
-    pub fn copy_into(&mut self, to: &mut Message) {
+    pub fn copy_into(&self, to: &mut Message) {
         self.header.field_map.copy_into(&mut to.header.field_map);
         self.body.field_map.copy_into(&mut to.body.field_map);
         self.trailer.field_map.copy_into(&mut to.trailer.field_map);
@@ -162,8 +160,8 @@ impl Message {
 
         // allocate fields in one chunk
         let mut field_count = 0;
-        for b in self.raw_message.iter() {
-            if *b as i32 == 0o001 {
+        for b in &self.raw_message {
+            if *b == 0o001 {
                 field_count += 1;
             }
         }
@@ -177,7 +175,11 @@ impl Message {
             });
         }
 
-        self.fields = vec![TagValue::default(); field_count];
+        if self.fields.capacity() < field_count {
+            self.fields = vec![TagValue::default(); field_count];
+        } else {
+            self.fields = self.fields[0..field_count].to_vec();
+        }
 
         let mut field_index = 0;
 
@@ -197,14 +199,24 @@ impl Message {
         let parsed_field_bytes = self.fields.get_mut(field_index).unwrap();
         let mut raw_bytes = extract_specific_field(parsed_field_bytes, TAG_MSG_TYPE, &raw_bytes)?;
 
+        let mut xml_data_len = 0_isize;
+        let mut xml_data_msg = false;
+
         self.header.field_map.add(&vec![parsed_field_bytes.clone()]);
         field_index += 1;
+
         let mut trailer_bytes = vec![];
         let mut found_body = false;
 
         loop {
             let parsed_field_bytes = self.fields.get_mut(field_index).unwrap();
-            raw_bytes = extract_field(parsed_field_bytes, &raw_bytes)?;
+            raw_bytes = if xml_data_len.is_positive() {
+                xml_data_len = 0;
+                xml_data_msg = true;
+                extract_xml_data_field(parsed_field_bytes, &raw_bytes, xml_data_len)?
+            } else {
+                extract_field(parsed_field_bytes, &raw_bytes)?
+            };
 
             let fields = vec![parsed_field_bytes.clone()];
 
@@ -224,6 +236,11 @@ impl Message {
 
             if !found_body {
                 self.body_bytes = raw_bytes.clone();
+            }
+
+            if parsed_field_bytes.tag == TAG_XML_DATA_LEN {
+                xml_data_len = self.header.field_map.get_int(TAG_XML_DATA_LEN).unwrap();
+                // TODO: check safety
             }
 
             field_index += 1;
@@ -255,7 +272,7 @@ impl Message {
             });
 
         if let Ok(bl) = body_length {
-            if bl != length {
+            if bl != length && !xml_data_msg {
                 return Err(ParseError {
                     orig_error: format!(
                         "Incorrect Message Length, expected {} , got {}",
@@ -286,7 +303,7 @@ impl Message {
     fn reverse_route(&self) -> Message {
         let mut reverse_msg = Message::default();
 
-        let mut copy = |src: Tag, dest: Tag| {
+        let copy = |src: Tag, dest: Tag| {
             let mut field = FIXString::new();
             let get_field = self.header.field_map.get_field(src, &mut field);
             if get_field.is_ok() && !field.is_empty() {
@@ -299,7 +316,7 @@ impl Message {
         copy(TAG_SENDER_LOCATION_ID, TAG_TARGET_LOCATION_ID);
 
         copy(TAG_TARGET_COMP_ID, TAG_SENDER_COMP_ID);
-        copy(TAG_TARGET_SUB_ID, TAG_SENDER_COMP_ID);
+        copy(TAG_TARGET_SUB_ID, TAG_SENDER_SUB_ID);
         copy(TAG_TARGET_LOCATION_ID, TAG_SENDER_LOCATION_ID);
 
         copy(TAG_ON_BEHALF_OF_COMP_ID, TAG_DELIVER_TO_COMP_ID);
@@ -322,7 +339,7 @@ impl Message {
     }
 
     // build constructs a []byte from a Message instance
-    pub fn build(&mut self) -> Vec<u8> {
+    pub fn build(&self) -> Vec<u8> {
         self.cook();
 
         let mut b = vec![];
@@ -332,7 +349,7 @@ impl Message {
         b
     }
 
-    fn cook(&mut self) {
+    fn cook(&self) {
         let body_length = self.header.field_map.length()
             + self.body.field_map.length()
             + self.trailer.field_map.length();
@@ -405,8 +422,31 @@ fn extract_specific_field(
     Ok(rem_buffer)
 }
 
+fn extract_xml_data_field(
+    parsed_field_bytes: &mut TagValue,
+    buffer: &[u8],
+    data_len: isize,
+) -> Result<Vec<u8>, ParseError> {
+    let mut end_index = buffer
+        .iter()
+        .position(|x| *x == '=' as u8)
+        .ok_or(ParseError {
+            orig_error: format!(
+                "extract_field: No Trailing Delim in {}",
+                String::from_utf8_lossy(buffer).as_ref()
+            ),
+        })?;
+    end_index += data_len as usize + 1;
+    let buffer_slice = buffer.get(..(end_index + 1)).unwrap();
+    parsed_field_bytes
+        .parse(buffer_slice)
+        .map_err(|err| ParseError { orig_error: err })?;
+
+    Ok(buffer.get((end_index + 1)..).unwrap().to_vec())
+}
+
 fn extract_field(parsed_field_bytes: &mut TagValue, buffer: &[u8]) -> Result<Vec<u8>, ParseError> {
-    let end_index = buffer.iter().position(|x| *x == 0o001).ok_or(ParseError {
+    let end_index = buffer.iter().position(|x| *x == 1).ok_or(ParseError {
         orig_error: format!(
             "extract_field: No Trailing Delim in {}",
             String::from_utf8_lossy(buffer).as_ref()
@@ -426,232 +466,345 @@ fn format_check_sum(value: isize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    //     "bytes"
-    //     "reflect"
-    //     "testing"
+    use crate::datadictionary::{DataDictionary, FieldDef, MessageDef};
+    use crate::fixer_test::FixerSuite;
+    use crate::tag::Tag;
+    use crate::BEGIN_STRING_FIX44;
+    use delegate::delegate;
+    use std::any::Any;
+    use std::collections::HashMap;
 
-    //     "github.com/stretchr/testify/suite"
+    struct MessageSuite {
+        suite: FixerSuite,
+        msg: Message,
+    }
 
-    //     "github.com/quickfixgo/quickfix/datadictionary"
+    fn setup_test() -> MessageSuite {
+        MessageSuite {
+            suite: FixerSuite::default(),
+            msg: Message::new(),
+        }
+    }
 
-    // #[test]
-    // fn benchmark_parse_message(b *testing.B) {
-    // 	rawMsg := bytes.NewBufferString("8=FIX.4.29=10435=D34=249=TW52=20140515-19:49:56.65956=ISLD11=10021=140=154=155=TSLA60=00010101-00:00:00.00010=039")
+    impl MessageSuite {
+        delegate! {
+            to self.suite {
+                fn field_equals(&self, tag: Tag, expected_value: Box<dyn Any>, field_map: &FieldMap) ;
+            }
+        }
+    }
 
-    // 	var msg Message
-    // 	for i := 0; i < b.N; i++ {
-    // 		_ = ParseMessage(&msg, rawMsg)
-    // 	}
-    // }
+    #[test]
+    fn test_xml_non_fix() {
+        let raw_message = "8=FIX.4.29=37235=n34=25512369=148152=20200522-07:05:33.75649=CME50=G56=OAEAAAN57=TRADE_CAPTURE143=US,IL212=261213=<RTRF>8=FIX.4.29=22535=BZ34=6549369=651852=20200522-07:05:33.74649=CME50=G56=9Q5000N57=DUMMY143=US,IL11=ACP159013113373460=20200522-07:05:33.734533=0893=Y1028=Y1300=991369=99612:325081373=31374=91375=15979=159013113373461769710=167</RTRF>10=245\"".as_bytes();
+        let mut msg = Message::new();
+        let parse_result = msg.parse_message(raw_message);
+        println!("----- {}", parse_result.unwrap_err().to_string());
+        // assert!(parse_result.is_ok());
+        // assert!(
+        //     msg.header.field_map.has(TAG_XML_DATA),
+        //     "Expected xmldata tag"
+        // );
+    }
 
-    // type MessageSuite struct {
-    // 	QuickFIXSuite
-    // 	msg *Message
-    // }
+    #[test]
+    fn test_parse_message_empty() {
+        let mut s = setup_test();
+        let raw_message = "".as_bytes();
 
-    // #[test]
-    // fn test_message_suite(t *testing.T) {
-    // 	suite.Run(t, new(MessageSuite))
-    // }
+        let parse_result = s.msg.parse_message(raw_message);
+        assert!(parse_result.is_err());
+    }
 
-    // #[test]
-    // fn (s *MessageSuite) SetupTest() {
-    // 	s.msg = NewMessage()
-    // }
+    #[test]
+    fn test_parse_message() {
+        let mut s = setup_test();
+        let raw_message = "8=FIX.4.29=10435=D34=249=TW52=20140515-19:49:56.65956=ISLD11=10021=140=154=155=TSLA60=00010101-00:00:00.00010=039".as_bytes();
 
-    // #[test]
-    // fn (s *MessageSuite) TestParseMessageEmpty() {
-    // 	rawMsg := bytes.NewBufferString("")
+        let res = s.msg.parse_message(raw_message);
+        assert!(res.is_ok());
+        assert_eq!(
+            raw_message, &s.msg.raw_message,
+            "Expected msg bytes to equal raw bytes"
+        );
 
-    // 	err := ParseMessage(s.msg, rawMsg)
-    // 	s.NotNil(err)
-    // }
+        let expected_body_bytes = "11=10021=140=154=155=TSLA60=00010101-00:00:00.000".as_bytes();
+        assert_eq!(
+            &s.msg.body_bytes,
+            expected_body_bytes,
+            "Incorrect body bytes, got {}",
+            String::from_utf8_lossy(&s.msg.body_bytes)
+        );
+        assert_eq!(14, s.msg.fields.len());
+        let msg_type_result = s.msg.msg_type();
+        assert!(msg_type_result.is_ok());
+        let msg_type = msg_type_result.unwrap();
+        assert_eq!("D", &msg_type);
+        assert!(s.msg.is_msg_type_of("D"));
+        assert!(!s.msg.is_msg_type_of("A"));
+    }
 
-    // #[test]
-    // fn (s *MessageSuite) TestParseMessage() {
-    // 	rawMsg := bytes.NewBufferString("8=FIX.4.29=10435=D34=249=TW52=20140515-19:49:56.65956=ISLD11=10021=140=154=155=TSLA60=00010101-00:00:00.00010=039")
+    #[test]
+    fn test_parse_message_with_data_dictionary() {
+        let mut s = setup_test();
+        let mut dict = DataDictionary::default();
+        dict.header = MessageDef::default();
+        let mut hd_fields = HashMap::<isize, FieldDef>::default();
+        let hd_fd = FieldDef::default();
+        hd_fields.insert(10030, hd_fd);
+        dict.header.fields = hd_fields;
 
-    // 	err := ParseMessage(s.msg, rawMsg)
-    // 	s.Nil(err)
+        let mut tr_fields = HashMap::<isize, FieldDef>::default();
+        let tr_fd = FieldDef::default();
+        tr_fields.insert(5050, tr_fd);
+        dict.trailer.fields = tr_fields;
 
-    // 	s.True(bytes.Equal(rawMsg.Bytes(), s.msg.rawMessage.Bytes()), "Expected msg bytes to equal raw bytes")
+        let raw_message = "8=FIX.4.29=12635=D34=249=TW52=20140515-19:49:56.65956=ISLD10030=CUST11=10021=140=154=155=TSLA60=00010101-00:00:00.0005050=HELLO10=039".as_bytes();
 
-    // 	expectedBodyBytes := []byte("11=10021=140=154=155=TSLA60=00010101-00:00:00.000")
+        let parse_result =
+            s.msg
+                .parse_message_with_data_dictionary(raw_message, Some(&dict), Some(&dict));
+        assert!(parse_result.is_ok());
+        s.field_equals(10030 as Tag, Box::new("CUST"), &s.msg.header.field_map);
+        s.field_equals(5050 as Tag, Box::new("HELLO"), &s.msg.trailer.field_map);
+    }
 
-    // 	s.True(bytes.Equal(s.msg.bodyBytes, expectedBodyBytes), "Incorrect body bytes, got %s", string(s.msg.bodyBytes))
+    #[test]
+    fn test_parse_out_of_order() {
+        // allow fields out of order, save for validation
+        let mut s = setup_test();
+        let raw_message =  "8=FIX.4.09=8135=D11=id21=338=10040=154=155=MSFT34=249=TW52=20140521-22:07:0956=ISLD10=250".as_bytes();
+        let parse_result = s.msg.parse_message(raw_message);
+        assert!(parse_result.is_ok())
+    }
 
-    // 	s.Equal(14, len(s.msg.fields))
+    #[test]
+    fn test_build() {
+        let s = setup_test();
+        s.msg
+            .header
+            .field_map
+            .set_field(TAG_BEGIN_STRING, FIXString::from(BEGIN_STRING_FIX44));
+        s.msg
+            .header
+            .field_map
+            .set_field(TAG_MSG_TYPE, FIXString::from("A"));
+        s.msg
+            .header
+            .field_map
+            .set_field(TAG_SENDING_TIME, FIXString::from("20140615-19:49:56"));
 
-    // 	msgType, err := s.msg.MsgType()
-    // 	s.Nil(err)
+        s.msg
+            .body
+            .field_map
+            .set_field(553 as Tag, FIXString::from("my_user"));
+        s.msg
+            .body
+            .field_map
+            .set_field(554 as Tag, FIXString::from("secret"));
 
-    // 	s.Equal("D", msgType)
-    // 	s.True(s.msg.IsMsgTypeOf("D"))
+        let expected_bytes =
+            "8=FIX.4.49=4935=A52=20140615-19:49:56553=my_user554=secret10=072".as_bytes();
+        let result = s.msg.build();
+        assert_eq!(
+            expected_bytes,
+            result,
+            "Unexpected bytes, got {}",
+            String::from_utf8_lossy(&result)
+        );
+    }
 
-    // 	s.False(s.msg.IsMsgTypeOf("A"))
-    // }
+    #[test]
+    fn test_re_build() {
+        let mut s = setup_test();
+        let raw_message =  "8=FIX.4.29=10435=D34=249=TW52=20140515-19:49:56.65956=ISLD11=10021=140=154=155=TSLA60=00010101-00:00:00.00010=039".as_bytes();
 
-    // #[test]
-    // fn (s *MessageSuite) TestParseMessageWithDataDictionary() {
-    // 	dict := new(datadictionary.DataDictionary)
-    // 	dict.Header = &datadictionary.MessageDef{
-    // 		Fields: map[int]*datadictionary.FieldDef{
-    // 			10030: nil,
-    // 		},
-    // 	}
-    // 	dict.Trailer = &datadictionary.MessageDef{
-    // 		Fields: map[int]*datadictionary.FieldDef{
-    // 			5050: nil,
-    // 		},
-    // 	}
-    // 	rawMsg := bytes.NewBufferString("8=FIX.4.29=12635=D34=249=TW52=20140515-19:49:56.65956=ISLD10030=CUST11=10021=140=154=155=TSLA60=00010101-00:00:00.0005050=HELLO10=039")
+        let parse_result = s.msg.parse_message(raw_message);
+        assert!(parse_result.is_ok());
 
-    // 	err := ParseMessageWithDataDictionary(s.msg, rawMsg, dict, dict)
-    // 	s.Nil(err)
-    // 	s.FieldEquals(Tag(10030), "CUST", s.msg.Header)
-    // 	s.FieldEquals(Tag(5050), "HELLO", s.msg.Trailer)
-    // }
+        s.msg.header.field_map.set_field(
+            TAG_ORIG_SENDING_TIME,
+            FIXString::from("20140515-19:49:56.659"),
+        );
+        s.msg
+            .header
+            .field_map
+            .set_field(TAG_SENDING_TIME, FIXString::from("20140615-19:49:56"));
 
-    // #[test]
-    // fn (s *MessageSuite) TestParseOutOfOrder() {
-    // 	//allow fields out of order, save for validation
-    // 	rawMsg := bytes.NewBufferString("8=FIX.4.09=8135=D11=id21=338=10040=154=155=MSFT34=249=TW52=20140521-22:07:0956=ISLD10=250")
-    // 	s.Nil(ParseMessage(s.msg, rawMsg))
-    // }
+        let rebuild_bytes = s.msg.build();
+        let expected_bytes = "8=FIX.4.29=12635=D34=249=TW52=20140615-19:49:5656=ISLD122=20140515-19:49:56.65911=10021=140=154=155=TSLA60=00010101-00:00:00.00010=128".as_bytes();
 
-    // #[test]
-    // fn (s *MessageSuite) TestBuild() {
-    // 	s.msg.Header.SetField(tagBeginString, FIXString(BeginStringFIX44))
-    // 	s.msg.Header.SetField(tagMsgType, FIXString("A"))
-    // 	s.msg.Header.SetField(tagSendingTime, FIXString("20140615-19:49:56"))
+        assert_eq!(
+            expected_bytes,
+            &rebuild_bytes,
+            "Unexpected bytes,\n +{}\n-{}",
+            String::from_utf8_lossy(&rebuild_bytes),
+            String::from_utf8_lossy(expected_bytes),
+        );
 
-    // 	s.msg.Body.SetField(Tag(553), FIXString("my_user"))
-    // 	s.msg.Body.SetField(Tag(554), FIXString("secret"))
+        let expected_body_bytes = "11=10021=140=154=155=TSLA60=00010101-00:00:00.000".as_bytes();
 
-    // 	expectedBytes := []byte("8=FIX.4.49=4935=A52=20140615-19:49:56553=my_user554=secret10=072")
-    // 	result := s.msg.build()
-    // 	s.True(bytes.Equal(expectedBytes, result), "Unexpected bytes, got %s", string(result))
-    // }
+        assert_eq!(
+            &s.msg.body_bytes,
+            expected_body_bytes,
+            "Incorrect body bytes, got {}",
+            String::from_utf8_lossy(&s.msg.body_bytes)
+        );
+    }
 
-    // #[test]
-    // fn (s *MessageSuite) TestReBuild() {
-    // 	rawMsg := bytes.NewBufferString("8=FIX.4.29=10435=D34=249=TW52=20140515-19:49:56.65956=ISLD11=10021=140=154=155=TSLA60=00010101-00:00:00.00010=039")
+    #[test]
+    fn test_reverse_route() {
+        let mut s = setup_test();
+        let raw_message = "8=FIX.4.29=17135=D34=249=TW50=KK52=20060102-15:04:0556=ISLD57=AP144=BB115=JCD116=CS128=MG129=CB142=JV143=RY145=BH11=ID21=338=10040=w54=155=INTC60=20060102-15:04:0510=123".as_bytes();
 
-    // 	s.Nil(ParseMessage(s.msg, rawMsg))
+        let parse_result = s.msg.parse_message(raw_message);
+        assert!(parse_result.is_ok());
 
-    // 	s.msg.Header.SetField(tagOrigSendingTime, FIXString("20140515-19:49:56.659"))
-    // 	s.msg.Header.SetField(tagSendingTime, FIXString("20140615-19:49:56"))
+        let mut builder = s.msg.reverse_route();
 
-    // 	rebuildBytes := s.msg.build()
+        struct TestCase<'a> {
+            tag: Tag,
+            expected_value: &'a str,
+        }
+        let tests = vec![
+            TestCase {
+                tag: TAG_TARGET_COMP_ID,
+                expected_value: "TW",
+            },
+            TestCase {
+                tag: TAG_TARGET_SUB_ID,
+                expected_value: "KK",
+            },
+            TestCase {
+                tag: TAG_TARGET_LOCATION_ID,
+                expected_value: "JV",
+            },
+            TestCase {
+                tag: TAG_SENDER_COMP_ID,
+                expected_value: "ISLD",
+            },
+            TestCase {
+                tag: TAG_SENDER_SUB_ID,
+                expected_value: "AP",
+            },
+            TestCase {
+                tag: TAG_SENDER_LOCATION_ID,
+                expected_value: "RY",
+            },
+            TestCase {
+                tag: TAG_DELIVER_TO_COMP_ID,
+                expected_value: "JCD",
+            },
+            TestCase {
+                tag: TAG_DELIVER_TO_SUB_ID,
+                expected_value: "CS",
+            },
+            TestCase {
+                tag: TAG_DELIVER_TO_LOCATION_ID,
+                expected_value: "BB",
+            },
+            TestCase {
+                tag: TAG_ON_BEHALF_OF_COMP_ID,
+                expected_value: "MG",
+            },
+            TestCase {
+                tag: TAG_ON_BEHALF_OF_SUB_ID,
+                expected_value: "CB",
+            },
+            TestCase {
+                tag: TAG_ON_BEHALF_OF_LOCATION_ID,
+                expected_value: "BH",
+            },
+        ];
 
-    // 	expectedBytes := []byte("8=FIX.4.29=12635=D34=249=TW52=20140615-19:49:5656=ISLD122=20140515-19:49:56.65911=10021=140=154=155=TSLA60=00010101-00:00:00.00010=128")
+        for tc in tests.iter() {
+            let mut field = FIXString::default();
+            let field_result = builder.header.field_map.get_field(tc.tag, &mut field);
+            assert!(field_result.is_ok());
+            assert_eq!(tc.expected_value, &field);
+        }
+    }
 
-    // 	s.True(bytes.Equal(expectedBytes, rebuildBytes), "Unexpected bytes,\n +%s\n-%s", rebuildBytes, expectedBytes)
+    #[test]
+    fn test_reverse_route_ignore_empty() {
+        let mut s = setup_test();
+        let raw_message = "8=FIX.4.09=12835=D34=249=TW52=20060102-15:04:0556=ISLD115=116=CS128=MG129=CB11=ID21=338=10040=w54=155=INTC60=20060102-15:04:0510=123".as_bytes();
+        let parse_result = s.msg.parse_message(raw_message);
+        assert!(parse_result.is_ok());
 
-    // 	expectedBodyBytes := []byte("11=10021=140=154=155=TSLA60=00010101-00:00:00.000")
+        let builder = s.msg.reverse_route();
+        assert!(
+            !builder.header.field_map.has(TAG_DELIVER_TO_COMP_ID),
+            "Should not reverse if empty"
+        );
+    }
 
-    // 	s.True(bytes.Equal(s.msg.bodyBytes, expectedBodyBytes), "Incorrect body bytes, got %s", string(s.msg.bodyBytes))
-    // }
+    #[test]
+    fn test_reverse_route_fix40() {
+        //onbehalfof/deliverto location id not supported in fix 4.0
+        let mut s = setup_test();
+        let raw_message = "8=FIX.4.09=17135=D34=249=TW50=KK52=20060102-15:04:0556=ISLD57=AP144=BB115=JCD116=CS128=MG129=CB142=JV143=RY145=BH11=ID21=338=10040=w54=155=INTC60=20060102-15:04:0510=123".as_bytes();
+        let parse_result = s.msg.parse_message(raw_message);
+        assert!(parse_result.is_ok());
 
-    // #[test]
-    // fn (s *MessageSuite) TestReverseRoute() {
-    // 	s.Nil(ParseMessage(s.msg, bytes.NewBufferString("8=FIX.4.29=17135=D34=249=TW50=KK52=20060102-15:04:0556=ISLD57=AP144=BB115=JCD116=CS128=MG129=CB142=JV143=RY145=BH11=ID21=338=10040=w54=155=INTC60=20060102-15:04:0510=123")))
+        let builder = s.msg.reverse_route();
+        assert!(
+            !builder.header.field_map.has(TAG_DELIVER_TO_LOCATION_ID),
+            "delivertolocation id not supported in fix40"
+        );
+        assert!(
+            !builder.header.field_map.has(TAG_ON_BEHALF_OF_LOCATION_ID),
+            "onbehalfof location id not supported in fix40"
+        );
+    }
 
-    // 	builder := s.msg.reverseRoute()
+    #[test]
+    fn test_copy_into_message() {
+        let mut s = setup_test();
+        let raw_message = "8=FIX.4.29=17135=D34=249=TW50=KK52=20060102-15:04:0556=ISLD57=AP144=BB115=JCD116=CS128=MG129=CB142=JV143=RY145=BH11=ID21=338=10040=w54=155=INTC60=20060102-15:04:0510=123".as_bytes();
+        let parse_result = s.msg.parse_message(raw_message);
+        assert!(parse_result.is_ok());
 
-    // 	var testCases = []struct {
-    // 		tag           Tag
-    // 		expectedValue string
-    // 	}{
-    // 		{tagTargetCompID, "TW"},
-    // 		{tagTargetSubID, "KK"},
-    // 		{tagTargetLocationID, "JV"},
-    // 		{tagSenderCompID, "ISLD"},
-    // 		{tagSenderSubID, "AP"},
-    // 		{tagSenderLocationID, "RY"},
-    // 		{tagDeliverToCompID, "JCD"},
-    // 		{tagDeliverToSubID, "CS"},
-    // 		{tagDeliverToLocationID, "BB"},
-    // 		{tagOnBehalfOfCompID, "MG"},
-    // 		{tagOnBehalfOfSubID, "CB"},
-    // 		{tagOnBehalfOfLocationID, "BH"},
-    // 	}
+        let mut dest = Message::new();
+        s.msg.copy_into(&mut dest);
 
-    // 	for _, tc := range testCases {
-    // 		var field FIXString
-    // 		s.Nil(builder.Header.GetField(tc.tag, &field))
+        check_field_int(&s, &dest.header.field_map, TAG_MSG_SEQ_NUM as isize, 2);
+        check_field_int(&s, &dest.body.field_map, 21, 3);
+        check_field_string(&s, &dest.body.field_map, 11, "ID");
+        assert_eq!(dest.body_bytes.len(), s.msg.body_bytes.len());
 
-    // 		s.Equal(tc.expectedValue, string(field))
-    // 	}
-    // }
+        // copying decouples the message from its input buffer, so the raw message will be re-rendered
+        let rendered_string = "8=FIX.4.29=17135=D34=249=TW50=KK52=20060102-15:04:0556=ISLD57=AP115=JCD116=CS128=MG129=CB142=JV143=RY144=BB145=BH11=ID21=338=10040=w54=155=INTC60=20060102-15:04:0510=033";
+        assert_eq!(&dest.to_string(), rendered_string);
 
-    // #[test]
-    // fn (s *MessageSuite) TestReverseRouteIgnoreEmpty() {
-    // 	s.Nil(ParseMessage(s.msg, bytes.NewBufferString("8=FIX.4.09=12835=D34=249=TW52=20060102-15:04:0556=ISLD115=116=CS128=MG129=CB11=ID21=338=10040=w54=155=INTC60=20060102-15:04:0510=123")))
-    // 	builder := s.msg.reverseRoute()
+        assert_eq!(s.msg.body_bytes, dest.body_bytes);
+        assert!(s.msg.is_msg_type_of("D"));
+        assert_eq!(s.msg.receive_time, dest.receive_time);
+        assert_eq!(s.msg.fields, dest.fields);
 
-    // 	s.False(builder.Header.Has(tagDeliverToCompID), "Should not reverse if empty")
-    // }
+        // update the source message to validate the copy is truly deep
+        let new_msg_string =
+            "8=FIX.4.49=4935=A52=20140615-19:49:56553=my_user554=secret10=072".as_bytes();
+        let parse_result = s.msg.parse_message(new_msg_string);
+        assert!(parse_result.is_ok());
+        assert!(s.msg.is_msg_type_of("A"));
+        assert_eq!(s.msg.to_string().as_bytes(), new_msg_string);
 
-    // #[test]
-    // fn (s *MessageSuite) TestReverseRouteFIX40() {
-    // 	//onbehalfof/deliverto location id not supported in fix 4.0
-    // 	s.Nil(ParseMessage(s.msg, bytes.NewBufferString("8=FIX.4.09=17135=D34=249=TW50=KK52=20060102-15:04:0556=ISLD57=AP144=BB115=JCD116=CS128=MG129=CB142=JV143=RY145=BH11=ID21=338=10040=w54=155=INTC60=20060102-15:04:0510=123")))
+        assert!(&dest.is_msg_type_of("D"));
+        assert_eq!(&dest.to_string(), rendered_string);
+    }
 
-    // 	builder := s.msg.reverseRoute()
+    fn check_field_int(_s: &MessageSuite, fields: &FieldMap, tag: isize, expected: isize) {
+        let to_check_result = fields.get_int(tag as Tag);
+        assert!(to_check_result.is_ok());
+        let to_check = to_check_result.unwrap();
+        assert_eq!(expected, to_check);
+    }
 
-    // 	s.False(builder.Header.Has(tagDeliverToLocationID), "delivertolocation id not supported in fix40")
-
-    // 	s.False(builder.Header.Has(tagOnBehalfOfLocationID), "onbehalfof location id not supported in fix40")
-    // }
-
-    // #[test]
-    // fn (s *MessageSuite) TestCopyIntoMessage() {
-    // 	msgString := "8=FIX.4.29=17135=D34=249=TW50=KK52=20060102-15:04:0556=ISLD57=AP144=BB115=JCD116=CS128=MG129=CB142=JV143=RY145=BH11=ID21=338=10040=w54=155=INTC60=20060102-15:04:0510=123"
-    // 	msgBuf := bytes.NewBufferString(msgString)
-    // 	s.Nil(ParseMessage(s.msg, msgBuf))
-
-    // 	dest := NewMessage()
-    // 	s.msg.CopyInto(dest)
-
-    // 	checkFieldInt(s, dest.Header.FieldMap, int(tagMsgSeqNum), 2)
-    // 	checkFieldInt(s, dest.Body.FieldMap, 21, 3)
-    // 	checkFieldString(s, dest.Body.FieldMap, 11, "ID")
-    // 	s.Equal(len(dest.bodyBytes), len(s.msg.bodyBytes))
-
-    // 	// copying decouples the message from its input buffer, so the raw message will be re-rendered
-    // 	renderedString := "8=FIX.4.29=17135=D34=249=TW50=KK52=20060102-15:04:0556=ISLD57=AP115=JCD116=CS128=MG129=CB142=JV143=RY144=BB145=BH11=ID21=338=10040=w54=155=INTC60=20060102-15:04:0510=033"
-    // 	s.Equal(dest.String(), renderedString)
-
-    // 	s.True(reflect.DeepEqual(s.msg.bodyBytes, dest.bodyBytes))
-    // 	s.True(s.msg.IsMsgTypeOf("D"))
-    // 	s.Equal(s.msg.ReceiveTime, dest.ReceiveTime)
-
-    // 	s.True(reflect.DeepEqual(s.msg.fields, dest.fields))
-
-    // 	// update the source message to validate the copy is truly deep
-    // 	newMsgString := "8=FIX.4.49=4935=A52=20140615-19:49:56553=my_user554=secret10=072"
-    // 	s.Nil(ParseMessage(s.msg, bytes.NewBufferString(newMsgString)))
-    // 	s.True(s.msg.IsMsgTypeOf("A"))
-    // 	s.Equal(s.msg.String(), newMsgString)
-
-    // 	// clear the source buffer also
-    // 	msgBuf.Reset()
-
-    // 	s.True(dest.IsMsgTypeOf("D"))
-    // 	s.Equal(dest.String(), renderedString)
-    // }
-
-    // #[test]
-    // fn check_field_int(s *MessageSuite, fields FieldMap, tag, expected int) {
-    // 	toCheck, _ := fields.GetInt(Tag(tag))
-    // 	s.Equal(expected, toCheck)
-    // }
-
-    // #[test]
-    // fn check_field_string(s *MessageSuite, fields FieldMap, tag int, expected string) {
-    // 	toCheck, err := fields.GetString(Tag(tag))
-    // 	s.NoError(err)
-    // 	s.Equal(expected, toCheck)
-    // }
+    fn check_field_string(_s: &MessageSuite, fields: &FieldMap, tag: isize, expected: &str) {
+        let to_check_result = fields.get_string(tag as Tag);
+        assert!(to_check_result.is_ok());
+        let to_check = to_check_result.unwrap();
+        assert_eq!(expected, &to_check);
+    }
 }

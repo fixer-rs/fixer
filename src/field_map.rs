@@ -55,7 +55,7 @@ impl LocalFieldTrait for LocalField {
 }
 
 // TagOrder true if tag i should occur before tag j
-type TagOrder = fn(i: &Tag, j: &Tag) -> Ordering;
+pub type TagOrder = fn(i: &Tag, j: &Tag) -> Ordering;
 
 struct TagSort {
     tags: Vec<Tag>,
@@ -232,12 +232,12 @@ impl FieldMap {
     }
 
     // set_field sets the field with Tag tag
-    pub fn set_field<F: FieldValueWriter>(&mut self, tag: Tag, field: F) -> &FieldMap {
+    pub fn set_field<F: FieldValueWriter>(&self, tag: Tag, field: F) -> &FieldMap {
         self.set_bytes(tag, &field.write())
     }
 
     // set_bytes sets bytes
-    pub fn set_bytes(&mut self, tag: Tag, value: &[u8]) -> &FieldMap {
+    pub fn set_bytes(&self, tag: Tag, value: &[u8]) -> &FieldMap {
         let mut wlock = self.rw_lock.write().unwrap();
 
         if let std::collections::hash_map::Entry::Vacant(e) = wlock.tag_lookup.entry(tag) {
@@ -251,29 +251,29 @@ impl FieldMap {
     }
 
     // set_bool is a set_field wrapper for bool fields
-    pub fn set_bool(&mut self, tag: Tag, value: bool) -> &FieldMap {
+    pub fn set_bool(&self, tag: Tag, value: bool) -> &FieldMap {
         self.set_field(tag, value)
     }
 
     // set_int is a set_field wrapper for int fields
-    pub fn set_int(&mut self, tag: Tag, value: isize) -> &FieldMap {
+    pub fn set_int(&self, tag: Tag, value: isize) -> &FieldMap {
         self.set_bytes(tag, &(value as FIXInt).write())
     }
 
     // set_string is a set_field wrapper for string fields
-    pub fn set_string(&mut self, tag: Tag, value: &str) -> &FieldMap {
+    pub fn set_string(&self, tag: Tag, value: &str) -> &FieldMap {
         self.set_bytes(tag, value.as_bytes())
     }
 
     // clear purges all fields from field map
-    pub fn clear(&mut self) {
+    pub fn clear(&self) {
         let mut wlock = self.rw_lock.write().unwrap();
         wlock.tag_sort.tags.clear();
         wlock.tag_lookup.clear();
     }
 
     // copy_into overwrites the given FieldMap with this one
-    pub fn copy_into(&mut self, to: &mut FieldMap) {
+    pub fn copy_into(&self, to: &mut FieldMap) {
         let m_rlock = self.rw_lock.read().unwrap();
         let mut to_wlock = to.rw_lock.write().unwrap();
 
@@ -299,7 +299,7 @@ impl FieldMap {
     }
 
     // set is a setter for fields
-    pub fn set<F: FieldWriter>(&mut self, field: F) -> &FieldMap {
+    pub fn set<F: FieldWriter>(&self, field: F) -> &FieldMap {
         let mut wlock = self.rw_lock.write().unwrap();
 
         let tag = &field.tag();
@@ -326,14 +326,14 @@ impl FieldMap {
         self
     }
 
-    fn sorted_tags(&mut self) -> Vec<Tag> {
+    fn sorted_tags(&self) -> Vec<Tag> {
         let mut wlock = self.rw_lock.write().unwrap();
         let compare = wlock.tag_sort.compare;
         wlock.tag_sort.tags.sort_by(&compare);
         wlock.tag_sort.tags.clone()
     }
 
-    pub fn write(&mut self, buffer: &mut Vec<u8>) {
+    pub fn write(&self, buffer: &mut Vec<u8>) {
         for tag in self.sorted_tags().iter() {
             let mut wlock = self.rw_lock.write().unwrap();
             if wlock.tag_lookup.contains_key(tag) {
@@ -382,7 +382,7 @@ mod tests {
 
     #[test]
     fn test_field_map_clear() {
-        let mut f_map = FieldMap::default();
+        let f_map = FieldMap::default();
 
         f_map.set_field(1, String::from("hello"));
         f_map.set_field(2, String::from("world"));
@@ -397,7 +397,7 @@ mod tests {
 
     #[test]
     fn test_field_map_set_and_get() {
-        let mut f_map = FieldMap::default();
+        let f_map = FieldMap::default();
 
         f_map.set_field(1, String::from("hello"));
         f_map.set_field(2, String::from("world"));
@@ -442,7 +442,7 @@ mod tests {
 
     #[test]
     fn test_field_map_length() {
-        let mut f_map = FieldMap::default();
+        let f_map = FieldMap::default();
 
         f_map.set_field(1, String::from("hello"));
         f_map.set_field(2, String::from("world"));
@@ -459,7 +459,7 @@ mod tests {
 
     #[test]
     fn test_field_map_total() {
-        let mut f_map = FieldMap::init();
+        let f_map = FieldMap::init();
 
         f_map.set_field(1, String::from("hello"));
         f_map.set_field(2, String::from("world"));
@@ -503,7 +503,7 @@ mod tests {
 
     #[test]
     fn test_field_map_bool_typed_set_and_get() {
-        let mut f_map = FieldMap::init();
+        let f_map = FieldMap::init();
 
         f_map.set_bool(1, true);
         let v = f_map.get_bool(1);
@@ -526,7 +526,7 @@ mod tests {
 
     #[test]
     fn test_field_map_copy_into() {
-        let mut f_map_a = FieldMap::init_with_ordering(header_field_ordering);
+        let f_map_a = FieldMap::init_with_ordering(header_field_ordering);
 
         f_map_a.set_string(9, "length");
         f_map_a.set_string(8, "begin");
@@ -563,7 +563,7 @@ mod tests {
         assert_eq!(vec![8, 9, 35, 1, 2], f_map_b.sorted_tags());
 
         // updating the existing map doesn't affect the new
-        let mut f_map_a = FieldMap::init();
+        let f_map_a = FieldMap::init();
         f_map_a.set_string(1, "AA");
         let s = f_map_b.get_string(1);
         assert!(s.is_ok());

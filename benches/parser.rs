@@ -10,6 +10,6 @@ pub fn benchmark_parser_read_message(c: &mut Criterion) {
             let reader = BufReader::new(STREAM.as_bytes());
             let mut parser = parser::Parser::new(reader);
             let _ = parser.read_message();
-        })
+        });
     });
 }
