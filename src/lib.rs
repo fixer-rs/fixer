@@ -24,6 +24,7 @@ pub mod internal;
 pub mod log;
 pub mod message;
 pub mod msg_type;
+pub mod null_log;
 pub mod parser;
 pub mod screen_log;
 pub mod session;
