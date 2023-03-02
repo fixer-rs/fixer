@@ -17,8 +17,10 @@ atoi_simd = "0.10.1"
 chrono = {version = "0.4", features = ["default", "serde"]}
 delegate = "0.7.0"
 fast-float = "0.2.0"
+flexi_logger = {version = "0.25", features = ["async"]} 
 itoa = "1.0"
 lazy_static = "1.4.0"
+log = "0.4"
 maplit = "1.0"
 memmem = "0.1.1"
 owning_ref = "0.4.1"
@@ -29,6 +31,7 @@ serde = {version = "1.0", features = ["derive"]}
 serde_derive = "1.0"
 simple-error = "0.2"
 tokio = {version = "1.20", features = ["io-util", "fs", "rt", "sync", "macros", "time"]}
+ramhorns = "0.5"
 
 [dev-dependencies]
 async_once = "0.2.6"

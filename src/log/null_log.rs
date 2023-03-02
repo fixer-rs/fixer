@@ -1,15 +1,16 @@
 use crate::log::{Log, LogFactory};
+use std::collections::HashMap;
 
 pub struct NullLog {}
 
 impl Log for NullLog {
-    fn on_incoming(&self, _data: Vec<u8>) {}
+    fn on_incoming(&self, _data: &[u8]) {}
 
-    fn on_outgoing(&self, _data: Vec<u8>) {}
+    fn on_outgoing(&self, _data: &[u8]) {}
 
-    fn on_event(&self, _data: String) {}
+    fn on_event(&self, _data: &str) {}
 
-    fn on_eventf(&self, _format: String, _params: Vec<Box<dyn std::fmt::Debug>>) {}
+    fn on_eventf(&self, _format: &str, _params: &HashMap<&str, &str>) {}
 }
 
 pub struct NullLogFactory {}
