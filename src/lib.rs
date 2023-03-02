@@ -20,6 +20,8 @@ pub mod fix_float;
 pub mod fix_int;
 pub mod fix_string;
 pub mod fix_utc_timestamp;
+#[cfg(test)]
+pub mod fixer_test;
 pub mod internal;
 pub mod log;
 pub mod message;
@@ -30,6 +32,7 @@ pub mod screen_log;
 pub mod session;
 pub mod session_id;
 pub mod session_settings;
+pub mod session_state;
 pub mod store;
 pub mod tag;
 pub mod tag_value;

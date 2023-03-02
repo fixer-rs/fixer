@@ -15,7 +15,7 @@ struct SessionWrapper {
 }
 
 // Session is the primary FIX abstraction for message communication
-struct Session {
+pub struct Session {
     store: Box<dyn MessageStore>,
     log: Box<dyn Log>,
     session_id: SessionID,
@@ -144,7 +144,7 @@ struct Session {
 
 // func (s *session) sendLogonInReplyTo(setResetSeqNum bool, inReplyTo *Message) error {
 // 	logon := NewMessage()
-// 	logon.Header.SetField(tagMsgType, FIXString("A"))
+// 	logon.Header.SetField(TAG_MSG_TYPE, FIXString("A"))
 // 	logon.Header.SetField(tagBeginString, FIXString(s.sessionID.BeginString))
 // 	logon.Header.SetField(tagTargetCompID, FIXString(s.sessionID.TargetCompID))
 // 	logon.Header.SetField(tagSenderCompID, FIXString(s.sessionID.SenderCompID))
@@ -168,7 +168,7 @@ struct Session {
 
 // func (s *session) buildLogout(reason string) *Message {
 // 	logout := NewMessage()
-// 	logout.Header.SetField(tagMsgType, FIXString("5"))
+// 	logout.Header.SetField(TAG_MSG_TYPE, FIXString("5"))
 // 	logout.Header.SetField(tagBeginString, FIXString(s.sessionID.BeginString))
 // 	logout.Header.SetField(tagTargetCompID, FIXString(s.sessionID.TargetCompID))
 // 	logout.Header.SetField(tagSenderCompID, FIXString(s.sessionID.SenderCompID))
@@ -278,7 +278,7 @@ struct Session {
 // 	seqNum := s.store.NextSenderMsgSeqNum()
 // 	msg.Header.SetField(tagMsgSeqNum, FIXInt(seqNum))
 
-// 	msgType, err := msg.Header.GetBytes(tagMsgType)
+// 	msgType, err := msg.Header.GetBytes(TAG_MSG_TYPE)
 // 	if err != nil {
 // 		return
 // 	}
@@ -361,7 +361,7 @@ struct Session {
 // 	nextState.resendRangeEnd = endSeq
 
 // 	resend := NewMessage()
-// 	resend.Header.SetBytes(tagMsgType, msgTypeResendRequest)
+// 	resend.Header.SetBytes(TAG_MSG_TYPE, msgTypeResendRequest)
 // 	resend.Body.SetField(tagBeginSeqNo, FIXInt(beginSeq))
 
 // 	var endSeqNo int
@@ -522,7 +522,7 @@ struct Session {
 // }
 
 // func (s *session) fromCallback(msg *Message) MessageRejectError {
-// 	msgType, err := msg.Header.GetBytes(tagMsgType)
+// 	msgType, err := msg.Header.GetBytes(TAG_MSG_TYPE)
 // 	if err != nil {
 // 		return err
 // 	}
@@ -626,13 +626,13 @@ struct Session {
 // 	if s.sessionID.BeginString >= BeginStringFIX42 {
 
 // 		if rej.IsBusinessReject() {
-// 			reply.Header.SetField(tagMsgType, FIXString("j"))
+// 			reply.Header.SetField(TAG_MSG_TYPE, FIXString("j"))
 // 			reply.Body.SetField(tagBusinessRejectReason, FIXInt(rej.RejectReason()))
 // 			if refID := rej.BusinessRejectRefID(); refID != "" {
 // 				reply.Body.SetField(tagBusinessRejectRefID, FIXString(refID))
 // 			}
 // 		} else {
-// 			reply.Header.SetField(tagMsgType, FIXString("3"))
+// 			reply.Header.SetField(TAG_MSG_TYPE, FIXString("3"))
 // 			switch {
 // 			default:
 // 				reply.Body.SetField(tagSessionRejectReason, FIXInt(rej.RejectReason()))
@@ -647,11 +647,11 @@ struct Session {
 // 		reply.Body.SetField(tagText, FIXString(rej.Error()))
 
 // 		var msgType FIXString
-// 		if err := msg.Header.GetField(tagMsgType, &msgType); err == nil {
+// 		if err := msg.Header.GetField(TAG_MSG_TYPE, &msgType); err == nil {
 // 			reply.Body.SetField(tagRefMsgType, msgType)
 // 		}
 // 	} else {
-// 		reply.Header.SetField(tagMsgType, FIXString("3"))
+// 		reply.Header.SetField(TAG_MSG_TYPE, FIXString("3"))
 
 // 		if refTagID := rej.RefTagID(); refTagID != nil {
 // 			reply.Body.SetField(tagText, FIXString(fmt.Sprintf("%s (%d)", rej.Error(), *refTagID)))

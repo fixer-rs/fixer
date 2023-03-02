@@ -2,7 +2,7 @@ use crate::tag::Tag;
 use std::string::ToString;
 
 // TagValue is a low-level FIX field abstraction
-#[derive(Default, Clone, Debug)]
+#[derive(Default, Clone, Debug, PartialEq)]
 pub struct TagValue {
     pub tag: Tag,
     pub value: Vec<u8>,
