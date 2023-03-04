@@ -1,6 +1,9 @@
 use crate::{
     datadictionary::DataDictionary,
-    errors::MessageRejectErrorTrait,
+    errors::{MessageRejectErrorResult, MessageRejectErrorTrait},
+    field::{
+        Field, FieldGroupReader, FieldGroupWriter, FieldValueReader, FieldValueWriter, FieldWriter,
+    },
     field_map::{FieldMap, LocalField},
     fix_string::FIXString,
     tag::*,
@@ -8,6 +11,7 @@ use crate::{
     BEGIN_STRING_FIX40,
 };
 use chrono::NaiveDateTime;
+use delegate::delegate;
 use std::{
     cmp::Ordering,
     error::Error,
@@ -52,6 +56,38 @@ impl Header {
         let field_map = FieldMap::init_with_ordering(header_field_ordering);
         Header { field_map }
     }
+
+    delegate! {
+        to self.field_map {
+            pub fn tags(&self) -> Vec<Tag>;
+            pub fn get<P: Field + FieldValueReader>(&self, parser: &mut P) -> MessageRejectErrorResult;
+            pub fn has(&self, tag: Tag) -> bool;
+            pub fn get_field<P: FieldValueReader>(
+                &self,
+                tag: Tag,
+                parser: &mut P,
+            ) -> MessageRejectErrorResult;
+            pub fn get_bytes(&self, tag: Tag) -> Result<Vec<u8>, Box<dyn MessageRejectErrorTrait>>;
+            pub fn get_bool(&self, tag: Tag) -> Result<bool, Box<dyn MessageRejectErrorTrait>>;
+            pub fn get_int(&self, tag: Tag) -> Result<isize, Box<dyn MessageRejectErrorTrait>>;
+            pub fn get_time(&self, tag: Tag) -> Result<NaiveDateTime, Box<dyn MessageRejectErrorTrait>>;
+            pub fn get_string(&self, tag: Tag) -> Result<String, Box<dyn MessageRejectErrorTrait>>;
+            pub fn get_group<P: FieldGroupReader>(&self, parser: P) -> MessageRejectErrorResult;
+            pub fn set_field<F: FieldValueWriter>(&self, tag: Tag, field: F) -> &FieldMap;
+            pub fn set_bytes(&self, tag: Tag, value: &[u8]) -> &FieldMap;
+            pub fn set_bool(&self, tag: Tag, value: bool) -> &FieldMap;
+            pub fn set_int(&self, tag: Tag, value: isize) -> &FieldMap;
+            pub fn set_string(&self, tag: Tag, value: &str) -> &FieldMap;
+            pub fn clear(&self);
+            pub fn copy_into(&self, to: &mut FieldMap);
+            pub fn add(&mut self, f: &LocalField);
+            pub fn set<F: FieldWriter>(&self, field: F) -> &FieldMap;
+            pub fn set_group<F: FieldGroupWriter>(&mut self, field: F) -> &FieldMap;
+            pub fn write(&self, buffer: &mut Vec<u8>);
+            pub fn total(&self) -> isize;
+            pub fn length(&self) -> isize;
+        }
+    }
 }
 
 #[derive(Debug, Default)]
@@ -63,6 +99,38 @@ impl Body {
     pub fn init() -> Self {
         let field_map = FieldMap::init();
         Body { field_map }
+    }
+
+    delegate! {
+        to self.field_map {
+            pub fn tags(&self) -> Vec<Tag>;
+            pub fn get<P: Field + FieldValueReader>(&self, parser: &mut P) -> MessageRejectErrorResult;
+            pub fn has(&self, tag: Tag) -> bool;
+            pub fn get_field<P: FieldValueReader>(
+                &self,
+                tag: Tag,
+                parser: &mut P,
+            ) -> MessageRejectErrorResult;
+            pub fn get_bytes(&self, tag: Tag) -> Result<Vec<u8>, Box<dyn MessageRejectErrorTrait>>;
+            pub fn get_bool(&self, tag: Tag) -> Result<bool, Box<dyn MessageRejectErrorTrait>>;
+            pub fn get_int(&self, tag: Tag) -> Result<isize, Box<dyn MessageRejectErrorTrait>>;
+            pub fn get_time(&self, tag: Tag) -> Result<NaiveDateTime, Box<dyn MessageRejectErrorTrait>>;
+            pub fn get_string(&self, tag: Tag) -> Result<String, Box<dyn MessageRejectErrorTrait>>;
+            pub fn get_group<P: FieldGroupReader>(&self, parser: P) -> MessageRejectErrorResult;
+            pub fn set_field<F: FieldValueWriter>(&self, tag: Tag, field: F) -> &FieldMap;
+            pub fn set_bytes(&self, tag: Tag, value: &[u8]) -> &FieldMap;
+            pub fn set_bool(&self, tag: Tag, value: bool) -> &FieldMap;
+            pub fn set_int(&self, tag: Tag, value: isize) -> &FieldMap;
+            pub fn set_string(&self, tag: Tag, value: &str) -> &FieldMap;
+            pub fn clear(&self);
+            pub fn copy_into(&self, to: &mut FieldMap);
+            pub fn add(&mut self, f: &LocalField);
+            pub fn set<F: FieldWriter>(&self, field: F) -> &FieldMap;
+            pub fn set_group<F: FieldGroupWriter>(&mut self, field: F) -> &FieldMap;
+            pub fn write(&self, buffer: &mut Vec<u8>);
+            pub fn total(&self) -> isize;
+            pub fn length(&self) -> isize;
+        }
     }
 }
 
@@ -89,6 +157,38 @@ impl Trailer {
     pub fn init() -> Self {
         let field_map = FieldMap::init_with_ordering(trailer_field_ordering);
         Trailer { field_map }
+    }
+
+    delegate! {
+        to self.field_map {
+            pub fn tags(&self) -> Vec<Tag>;
+            pub fn get<P: Field + FieldValueReader>(&self, parser: &mut P) -> MessageRejectErrorResult;
+            pub fn has(&self, tag: Tag) -> bool;
+            pub fn get_field<P: FieldValueReader>(
+                &self,
+                tag: Tag,
+                parser: &mut P,
+            ) -> MessageRejectErrorResult;
+            pub fn get_bytes(&self, tag: Tag) -> Result<Vec<u8>, Box<dyn MessageRejectErrorTrait>>;
+            pub fn get_bool(&self, tag: Tag) -> Result<bool, Box<dyn MessageRejectErrorTrait>>;
+            pub fn get_int(&self, tag: Tag) -> Result<isize, Box<dyn MessageRejectErrorTrait>>;
+            pub fn get_time(&self, tag: Tag) -> Result<NaiveDateTime, Box<dyn MessageRejectErrorTrait>>;
+            pub fn get_string(&self, tag: Tag) -> Result<String, Box<dyn MessageRejectErrorTrait>>;
+            pub fn get_group<P: FieldGroupReader>(&self, parser: P) -> MessageRejectErrorResult;
+            pub fn set_field<F: FieldValueWriter>(&self, tag: Tag, field: F) -> &FieldMap;
+            pub fn set_bytes(&self, tag: Tag, value: &[u8]) -> &FieldMap;
+            pub fn set_bool(&self, tag: Tag, value: bool) -> &FieldMap;
+            pub fn set_int(&self, tag: Tag, value: isize) -> &FieldMap;
+            pub fn set_string(&self, tag: Tag, value: &str) -> &FieldMap;
+            pub fn clear(&self);
+            pub fn copy_into(&self, to: &mut FieldMap);
+            pub fn add(&mut self, f: &LocalField);
+            pub fn set<F: FieldWriter>(&self, field: F) -> &FieldMap;
+            pub fn set_group<F: FieldGroupWriter>(&mut self, field: F) -> &FieldMap;
+            pub fn write(&self, buffer: &mut Vec<u8>);
+            pub fn total(&self) -> isize;
+            pub fn length(&self) -> isize;
+        }
     }
 }
 
@@ -134,9 +234,9 @@ impl Message {
     }
 
     pub fn copy_into(&self, to: &mut Message) {
-        self.header.field_map.copy_into(&mut to.header.field_map);
-        self.body.field_map.copy_into(&mut to.body.field_map);
-        self.trailer.field_map.copy_into(&mut to.trailer.field_map);
+        self.header.copy_into(&mut to.header.field_map);
+        self.body.copy_into(&mut to.body.field_map);
+        self.trailer.copy_into(&mut to.trailer.field_map);
         to.receive_time = self.receive_time;
         to.body_bytes = self.body_bytes.clone();
         to.fields = self.fields.clone();
@@ -151,11 +251,11 @@ impl Message {
         &mut self,
         raw_message: &[u8],
         transport_data_dictionary: Option<&DataDictionary>,
-        application_data_dictionary: Option<&DataDictionary>,
+        _application_data_dictionary: Option<&DataDictionary>,
     ) -> Result<(), ParseError> {
-        self.header.field_map.clear();
-        self.body.field_map.clear();
-        self.trailer.field_map.clear();
+        self.header.clear();
+        self.body.clear();
+        self.trailer.clear();
         self.raw_message = raw_message.to_vec();
 
         // allocate fields in one chunk
@@ -187,13 +287,13 @@ impl Message {
         let field = self.fields.get_mut(field_index).unwrap();
         let raw_bytes = extract_specific_field(field, TAG_BEGIN_STRING, &*raw_message)?;
 
-        self.header.field_map.add(&vec![field.clone()]);
+        self.header.add(&vec![field.clone()]);
         field_index += 1;
 
         let parsed_field_bytes = self.fields.get_mut(field_index).unwrap();
         let raw_bytes = extract_specific_field(parsed_field_bytes, TAG_BODY_LENGTH, &raw_bytes)?;
 
-        self.header.field_map.add(&vec![parsed_field_bytes.clone()]);
+        self.header.add(&vec![parsed_field_bytes.clone()]);
         field_index += 1;
 
         let parsed_field_bytes = self.fields.get_mut(field_index).unwrap();
@@ -202,7 +302,7 @@ impl Message {
         let mut xml_data_len = 0_isize;
         let mut xml_data_msg = false;
 
-        self.header.field_map.add(&vec![parsed_field_bytes.clone()]);
+        self.header.add(&vec![parsed_field_bytes.clone()]);
         field_index += 1;
 
         let mut trailer_bytes = vec![];
@@ -211,9 +311,11 @@ impl Message {
         loop {
             let parsed_field_bytes = self.fields.get_mut(field_index).unwrap();
             raw_bytes = if xml_data_len.is_positive() {
+                let raw_bytes =
+                    extract_xml_data_field(parsed_field_bytes, &raw_bytes, xml_data_len)?;
                 xml_data_len = 0;
                 xml_data_msg = true;
-                extract_xml_data_field(parsed_field_bytes, &raw_bytes, xml_data_len)?
+                raw_bytes
             } else {
                 extract_field(parsed_field_bytes, &raw_bytes)?
             };
@@ -221,13 +323,13 @@ impl Message {
             let fields = vec![parsed_field_bytes.clone()];
 
             if is_header_field(&parsed_field_bytes.tag, transport_data_dictionary) {
-                self.header.field_map.add(&fields);
+                self.header.add(&fields);
             } else if is_trailer_field(&parsed_field_bytes.tag, transport_data_dictionary) {
-                self.trailer.field_map.add(&fields);
+                self.trailer.add(&fields);
             } else {
                 found_body = true;
                 trailer_bytes = raw_bytes.clone();
-                self.body.field_map.add(&fields);
+                self.body.add(&fields);
             }
 
             if parsed_field_bytes.tag == TAG_CHECK_SUM {
@@ -239,8 +341,7 @@ impl Message {
             }
 
             if parsed_field_bytes.tag == TAG_XML_DATA_LEN {
-                xml_data_len = self.header.field_map.get_int(TAG_XML_DATA_LEN).unwrap();
-                // TODO: check safety
+                xml_data_len = self.header.get_int(TAG_XML_DATA_LEN).unwrap();
             }
 
             field_index += 1;
@@ -265,7 +366,6 @@ impl Message {
 
         let body_length = self
             .header
-            .field_map
             .get_int(TAG_BODY_LENGTH)
             .map_err(|e| ParseError {
                 orig_error: format!("{}", e),
@@ -287,7 +387,7 @@ impl Message {
 
     // MsgType returns MsgType (tag 35) field's value
     pub fn msg_type(&self) -> Result<String, Box<dyn MessageRejectErrorTrait>> {
-        self.header.field_map.get_string(TAG_MSG_TYPE)
+        self.header.get_string(TAG_MSG_TYPE)
     }
 
     // is_msg_type_of returns true if the Header contains MsgType (tag 35) field and its value is the specified one.
@@ -301,13 +401,13 @@ impl Message {
 
     // reverseRoute returns a message builder with routing header fields initialized as the reverse of this message.
     fn reverse_route(&self) -> Message {
-        let mut reverse_msg = Message::default();
+        let reverse_msg = Message::default();
 
         let copy = |src: Tag, dest: Tag| {
             let mut field = FIXString::new();
-            let get_field = self.header.field_map.get_field(src, &mut field);
+            let get_field = self.header.get_field(src, &mut field);
             if get_field.is_ok() && !field.is_empty() {
-                reverse_msg.header.field_map.set_field(dest, field);
+                reverse_msg.header.set_field(dest, field);
             }
         };
 
@@ -326,10 +426,7 @@ impl Message {
 
         // tags added in 4.1
         let mut begin_string = FIXString::new();
-        let get_field = self
-            .header
-            .field_map
-            .get_field(TAG_BEGIN_STRING, &mut begin_string);
+        let get_field = self.header.get_field(TAG_BEGIN_STRING, &mut begin_string);
         if get_field.is_ok() && begin_string != BEGIN_STRING_FIX40 {
             copy(TAG_ON_BEHALF_OF_LOCATION_ID, TAG_DELIVER_TO_LOCATION_ID);
             copy(TAG_DELIVER_TO_LOCATION_ID, TAG_ON_BEHALF_OF_LOCATION_ID);
@@ -343,23 +440,17 @@ impl Message {
         self.cook();
 
         let mut b = vec![];
-        self.header.field_map.write(&mut b);
-        self.body.field_map.write(&mut b);
-        self.trailer.field_map.write(&mut b);
+        self.header.write(&mut b);
+        self.body.write(&mut b);
+        self.trailer.write(&mut b);
         b
     }
 
     fn cook(&self) {
-        let body_length = self.header.field_map.length()
-            + self.body.field_map.length()
-            + self.trailer.field_map.length();
-        self.header.field_map.set_int(TAG_BODY_LENGTH, body_length);
-        let check_sum = (self.header.field_map.total()
-            + self.body.field_map.total()
-            + self.trailer.field_map.total())
-            % 256;
+        let body_length = self.header.length() + self.body.length() + self.trailer.length();
+        self.header.set_int(TAG_BODY_LENGTH, body_length);
+        let check_sum = (self.header.total() + self.body.total() + self.trailer.total()) % 256;
         self.trailer
-            .field_map
             .set_string(TAG_CHECK_SUM, &format_check_sum(check_sum));
     }
 }
@@ -499,12 +590,11 @@ mod tests {
         let raw_message = "8=FIX.4.29=37235=n34=25512369=148152=20200522-07:05:33.75649=CME50=G56=OAEAAAN57=TRADE_CAPTURE143=US,IL212=261213=<RTRF>8=FIX.4.29=22535=BZ34=6549369=651852=20200522-07:05:33.74649=CME50=G56=9Q5000N57=DUMMY143=US,IL11=ACP159013113373460=20200522-07:05:33.734533=0893=Y1028=Y1300=991369=99612:325081373=31374=91375=15979=159013113373461769710=167</RTRF>10=245\"".as_bytes();
         let mut msg = Message::new();
         let parse_result = msg.parse_message(raw_message);
-        println!("----- {}", parse_result.unwrap_err().to_string());
-        // assert!(parse_result.is_ok());
-        // assert!(
-        //     msg.header.field_map.has(TAG_XML_DATA),
-        //     "Expected xmldata tag"
-        // );
+        assert!(parse_result.is_ok());
+        assert!(
+            msg.header.field_map.has(TAG_XML_DATA),
+            "Expected xmldata tag"
+        );
     }
 
     #[test]
@@ -583,25 +673,14 @@ mod tests {
         let s = setup_test();
         s.msg
             .header
-            .field_map
             .set_field(TAG_BEGIN_STRING, FIXString::from(BEGIN_STRING_FIX44));
+        s.msg.header.set_field(TAG_MSG_TYPE, FIXString::from("A"));
         s.msg
             .header
-            .field_map
-            .set_field(TAG_MSG_TYPE, FIXString::from("A"));
-        s.msg
-            .header
-            .field_map
             .set_field(TAG_SENDING_TIME, FIXString::from("20140615-19:49:56"));
 
-        s.msg
-            .body
-            .field_map
-            .set_field(553 as Tag, FIXString::from("my_user"));
-        s.msg
-            .body
-            .field_map
-            .set_field(554 as Tag, FIXString::from("secret"));
+        s.msg.body.set_field(553 as Tag, FIXString::from("my_user"));
+        s.msg.body.set_field(554 as Tag, FIXString::from("secret"));
 
         let expected_bytes =
             "8=FIX.4.49=4935=A52=20140615-19:49:56553=my_user554=secret10=072".as_bytes();
@@ -622,13 +701,12 @@ mod tests {
         let parse_result = s.msg.parse_message(raw_message);
         assert!(parse_result.is_ok());
 
-        s.msg.header.field_map.set_field(
+        s.msg.header.set_field(
             TAG_ORIG_SENDING_TIME,
             FIXString::from("20140515-19:49:56.659"),
         );
         s.msg
             .header
-            .field_map
             .set_field(TAG_SENDING_TIME, FIXString::from("20140615-19:49:56"));
 
         let rebuild_bytes = s.msg.build();
@@ -660,7 +738,7 @@ mod tests {
         let parse_result = s.msg.parse_message(raw_message);
         assert!(parse_result.is_ok());
 
-        let mut builder = s.msg.reverse_route();
+        let builder = s.msg.reverse_route();
 
         struct TestCase<'a> {
             tag: Tag,
@@ -719,7 +797,7 @@ mod tests {
 
         for tc in tests.iter() {
             let mut field = FIXString::default();
-            let field_result = builder.header.field_map.get_field(tc.tag, &mut field);
+            let field_result = builder.header.get_field(tc.tag, &mut field);
             assert!(field_result.is_ok());
             assert_eq!(tc.expected_value, &field);
         }
@@ -734,7 +812,7 @@ mod tests {
 
         let builder = s.msg.reverse_route();
         assert!(
-            !builder.header.field_map.has(TAG_DELIVER_TO_COMP_ID),
+            !builder.header.has(TAG_DELIVER_TO_COMP_ID),
             "Should not reverse if empty"
         );
     }
@@ -749,11 +827,11 @@ mod tests {
 
         let builder = s.msg.reverse_route();
         assert!(
-            !builder.header.field_map.has(TAG_DELIVER_TO_LOCATION_ID),
+            !builder.header.has(TAG_DELIVER_TO_LOCATION_ID),
             "delivertolocation id not supported in fix40"
         );
         assert!(
-            !builder.header.field_map.has(TAG_ON_BEHALF_OF_LOCATION_ID),
+            !builder.header.has(TAG_ON_BEHALF_OF_LOCATION_ID),
             "onbehalfof location id not supported in fix40"
         );
     }
