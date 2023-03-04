@@ -1,4 +1,5 @@
 use crate::log::{Log, LogFactory};
+use crate::session::session_id::SessionID;
 use std::collections::HashMap;
 
 pub struct NullLog {}
@@ -20,10 +21,7 @@ impl LogFactory for NullLogFactory {
         Ok(Box::new(NullLog {}))
     }
 
-    fn create_session_log(
-        &self,
-        _session_id: crate::session_id::SessionID,
-    ) -> Result<Box<dyn Log>, String> {
+    fn create_session_log(&self, _session_id: SessionID) -> Result<Box<dyn Log>, String> {
         Ok(Box::new(NullLog {}))
     }
 }

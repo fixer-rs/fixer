@@ -1,16 +1,22 @@
 use crate::internal::event::Event;
 use crate::message::Message;
+use crate::session::logout_state::LogoutState;
 use crate::session::Session;
+use delegate::delegate;
 
 // 	"github.com/quickfixgo/quickfix/internal"
 
-// type stateMachine struct {
-// 	State                 sessionState
-// 	pendingStop, stopped  bool
-// 	notifyOnInSessionTime chan interface{}
-// }
+pub enum SessionStateEnum {
+    LogoutState(LogoutState),
+}
 
-// func (sm *stateMachine) Start(s *session) {
+pub struct StateMachine {
+    pub state: SessionStateEnum,
+    // 	pendingStop, stopped  bool
+    // 	notifyOnInSessionTime chan interface{}
+}
+
+// fn start(&self, s *session) {
 // 	sm.pendingStop = false
 // 	sm.stopped = false
 
@@ -18,7 +24,7 @@ use crate::session::Session;
 // 	sm.CheckSessionTime(s, time.Now())
 // }
 
-// func (sm *stateMachine) Connect(session *session) {
+// fn connect(&self, session *session) {
 // 	// No special logon logic needed for FIX Acceptors.
 // 	if !session.InitiateLogon {
 // 		sm.setState(session, logonState{})
@@ -42,22 +48,22 @@ use crate::session::Session;
 // 	time.AfterFunc(session.LogonTimeout, func() { session.sessionEvent <- internal.LogonTimeout })
 // }
 
-// func (sm *stateMachine) Stop(session *session) {
+// fn stop(&self, session *session) {
 // 	sm.pendingStop = true
 // 	sm.setState(session, sm.State.Stop(session))
 // }
 
-// func (sm *stateMachine) Stopped() bool {
+// fn stopped(&self, ) bool {
 // 	return sm.stopped
 // }
 
-// func (sm *stateMachine) Disconnected(session *session) {
+// fn disconnected(&self, session *session) {
 // 	if sm.IsConnected() {
 // 		sm.setState(session, latentState{})
 // 	}
 // }
 
-// func (sm *stateMachine) Incoming(session *session, m fixIn) {
+// fn incoming(&self, session *session, m fixIn) {
 // 	sm.CheckSessionTime(session, time.Now())
 // 	if !sm.IsConnected() {
 // 		return
@@ -76,11 +82,11 @@ use crate::session::Session;
 // 	session.peerTimer.Reset(time.Duration(float64(1.2) * float64(session.HeartBtInt)))
 // }
 
-// func (sm *stateMachine) fixMsgIn(session *session, m *Message) {
+// fn fix_msg_in(&self, session *session, m *Message) {
 // 	sm.setState(session, sm.State.FixMsgIn(session, m))
 // }
 
-// func (sm *stateMachine) SendAppMessages(session *session) {
+// fn send_app_messages(&self, session *session) {
 // 	sm.CheckSessionTime(session, time.Now())
 
 // 	session.sendMutex.Lock()
@@ -93,12 +99,12 @@ use crate::session::Session;
 // 	}
 // }
 
-// func (sm *stateMachine) Timeout(session *session, e internal.Event) {
+// fn timeout(&self, session *session, e internal.Event) {
 // 	sm.CheckSessionTime(session, time.Now())
 // 	sm.setState(session, sm.State.Timeout(session, e))
 // }
 
-// func (sm *stateMachine) CheckSessionTime(session *session, now time.Time) {
+// fn check_session_time(&self, session *session, now time.Time) {
 // 	if !session.SessionTime.IsInRange(now) {
 // 		if sm.IsSessionTime() {
 // 			session.log.OnEvent("Not in session")
@@ -129,7 +135,7 @@ use crate::session::Session;
 // 	}
 // }
 
-// func (sm *stateMachine) setState(session *session, nextState sessionState) {
+// fn set_state(&self, session *session, nextState sessionState) {
 // 	if !nextState.IsConnected() {
 // 		if sm.IsConnected() {
 // 			sm.handleDisconnectState(session)
@@ -144,14 +150,14 @@ use crate::session::Session;
 // 	sm.State = nextState
 // }
 
-// func (sm *stateMachine) notifyInSessionTime() {
+// fn notify_in_session_time(&self, ) {
 // 	if sm.notifyOnInSessionTime != nil {
 // 		close(sm.notifyOnInSessionTime)
 // 	}
 // 	sm.notifyOnInSessionTime = nil
 // }
 
-// func (sm *stateMachine) handleDisconnectState(s *session) {
+// fn handle_disconnect_state(&self, s *session) {
 // 	doOnLogout := s.IsLoggedOn()
 
 // 	switch s.State.(type) {
@@ -170,19 +176,19 @@ use crate::session::Session;
 // 	s.onDisconnect()
 // }
 
-// func (sm *stateMachine) IsLoggedOn() bool {
+// fn is_logged_on(&self, ) bool {
 // 	return sm.State.IsLoggedOn()
 // }
 
-// func (sm *stateMachine) IsConnected() bool {
+// fn is_connected(&self, ) bool {
 // 	return sm.State.IsConnected()
 // }
 
-// func (sm *stateMachine) IsSessionTime() bool {
+// fn is_session_time(&self, ) bool {
 // 	return sm.State.IsSessionTime()
 // }
 
-// func handleStateError(s *session, err error) sessionState {
+// fn handleStateError(s *session, err error) sessionState {
 // 	s.logError(err)
 // 	return latentState{}
 // }
@@ -192,10 +198,10 @@ use crate::session::Session;
 pub trait SessionState: ToString {
     // fix_msg_in is called by the session on incoming messages from the counter party.
     // The return type is the next session state following message processing.
-    fn fix_msg_in(&self, session: &Session, message: &Message) -> Self;
+    fn fix_msg_in(&self, session: &Session, message: &Message) -> Box<Self>;
 
     // timeout is called by the session on a timeout event.
-    fn timeout(&self, session: &Session, event: Event) -> Self;
+    fn timeout(&self, session: &Session, event: Event) -> Box<Self>;
 
     // is_logged_on returns true if state is logged on an in session, false otherwise.
     fn is_logged_on(&self) -> bool;
@@ -203,43 +209,83 @@ pub trait SessionState: ToString {
     // is_connected returns true if the state is connected.
     fn is_connected(&self) -> bool;
 
-    // 	// IsSessionTime returns true if the state is in session time.
-    // 	IsSessionTime() bool
+    // is_session_time returns true if the state is in session time.
+    fn is_session_time(&self) -> bool;
 
-    // 	// ShutdownNow terminates the session state immediately.
-    // 	ShutdownNow(*session)
+    // shutdown_now terminates the session state immediately.
+    fn shutdown_now(&self, session: &Session);
 
-    // 	// Stop triggers a clean stop.
-    // 	Stop(*session) (nextState sessionState)
-
-    // 	// Stringer debugging convenience.
-    // 	fmt.Stringer
+    // stop triggers a clean stop.
+    fn stop(&self, session: &Session) -> Box<Self>;
 }
 
-// type inSessionTime struct{}
+#[derive(Default)]
+pub struct InSessionTime;
 
-// func (inSessionTime) IsSessionTime() bool { return true }
+impl InSessionTime {
+    pub fn is_session_time(&self) -> bool {
+        true
+    }
+}
 
-// type connected struct{}
+#[derive(Default)]
+pub struct Connected;
 
-// func (connected) IsConnected() bool   { return true }
-// func (connected) IsSessionTime() bool { return true }
+impl Connected {
+    pub fn is_connected(&self) -> bool {
+        true
+    }
+    pub fn is_session_time(&self) -> bool {
+        true
+    }
+}
 
-// type connectedNotLoggedOn struct{ connected }
+#[derive(Default)]
+pub struct ConnectedNotLoggedOn {
+    pub connected: Connected,
+}
 
-// func (connectedNotLoggedOn) IsLoggedOn() bool     { return false }
-// func (connectedNotLoggedOn) ShutdownNow(*session) {}
+impl ConnectedNotLoggedOn {
+    delegate! {
+        to self.connected {
+            pub fn is_connected(&self) -> bool;
+            pub fn is_session_time(&self) -> bool;
+        }
+    }
 
-// type loggedOn struct{ connected }
+    pub fn is_logged_on(&self) -> bool {
+        false
+    }
 
-// func (loggedOn) IsLoggedOn() bool { return true }
-// func (loggedOn) ShutdownNow(s *session) {
+    pub fn shutdown_now(&self, _session: &Session) {}
+}
+
+#[derive(Default)]
+pub struct LoggedOn {
+    pub connected: Connected,
+}
+impl LoggedOn {
+    delegate! {
+        to self.connected {
+            pub fn is_connected(&self) -> bool;
+            pub fn is_session_time(&self) -> bool;
+        }
+    }
+
+    pub fn is_logged_on(&self) -> bool {
+        true
+    }
+
+    pub fn shutdown_now(&self, s: &Session) {}
+}
+
+// fn (loggedOn) ShutdownNow(s *session) {
 // 	if err := s.sendLogout(""); err != nil {
 // 		s.logError(err)
 // 	}
 // }
 
-// func (loggedOn) Stop(s *session) (nextState sessionState) {
+// fn (loggedOn) Stop(s *session) (nextState sessionState) {
 // 	if err := s.initiateLogout(""); err != nil {
 // 		return handleStateError(s, err)
 // 	}

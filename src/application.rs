@@ -1,6 +1,6 @@
 use crate::errors::MessageRejectErrorTrait;
 use crate::message::Message;
-use crate::session_id::SessionID;
+use crate::session::session_id::SessionID;
 use simple_error::SimpleResult;
 
 // Application interface should be implemented by FIX Applications.
