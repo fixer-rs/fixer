@@ -92,7 +92,7 @@ impl MessageRejectErrorTrait for RejectLogon {
 
 // impl From<MessageRejectErrorTrait>
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct MessageRejectError {
     pub reject_reason: isize,
     pub text: String,
