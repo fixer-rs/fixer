@@ -42,10 +42,10 @@ struct FixValidator {
 impl Validator for FixValidator {
     // Validate tests the message against the provided data dictionary.
     fn validate(&self, msg: &Message) -> MessageRejectErrorResult {
-        if !msg.header.field_map.has(TAG_MSG_TYPE) {
+        if !msg.header.has(TAG_MSG_TYPE) {
             return Err(required_tag_missing(TAG_MSG_TYPE));
         }
-        let msg_type = msg.header.field_map.get_string(TAG_MSG_TYPE)?;
+        let msg_type = msg.header.get_string(TAG_MSG_TYPE)?;
 
         validate_fix(&self.data_dictionary, &self.settings, &msg_type, msg)
     }
@@ -61,11 +61,11 @@ impl Validator for FixtValidator {
     // validate tests the message against the provided transport and app data dictionaries.
     // If the message is an admin message, it will be validated against the transport data dictionary.
     fn validate(&self, msg: &Message) -> MessageRejectErrorResult {
-        if !msg.header.field_map.has(TAG_MSG_TYPE) {
+        if !msg.header.has(TAG_MSG_TYPE) {
             return Err(required_tag_missing(TAG_MSG_TYPE));
         }
 
-        let msg_type = msg.header.field_map.get_string(TAG_MSG_TYPE)?;
+        let msg_type = msg.header.get_string(TAG_MSG_TYPE)?;
 
         if is_admin_message_type(msg_type.chars().next().unwrap()) {
             return validate_fix(
@@ -513,27 +513,18 @@ mod tests {
     }
 
     fn create_fix40_new_order_single() -> Message {
-        let mut msg = Message::new();
+        let msg = Message::new();
         let now = Utc::now().naive_utc();
+        msg.header.set_field(TAG_MSG_TYPE, FIXString::from("D"));
         msg.header
-            .field_map
-            .set_field(TAG_MSG_TYPE, FIXString::from("D"));
-        msg.header
-            .field_map
             .set_field(TAG_BEGIN_STRING, FIXString::from("FIX.4.0"));
+        msg.header.set_field(TAG_BODY_LENGTH, FIXString::from("0"));
         msg.header
-            .field_map
-            .set_field(TAG_BODY_LENGTH, FIXString::from("0"));
-        msg.header
-            .field_map
             .set_field(TAG_SENDER_COMP_ID, FIXString::from("0"));
         msg.header
-            .field_map
             .set_field(TAG_TARGET_COMP_ID, FIXString::from("0"));
-        msg.header
-            .field_map
-            .set_field(TAG_MSG_SEQ_NUM, FIXString::from("0"));
-        msg.header.field_map.set_field(
+        msg.header.set_field(TAG_MSG_SEQ_NUM, FIXString::from("0"));
+        msg.header.set_field(
             TAG_SENDING_TIME,
             FIXUTCTimestamp {
                 time: now,
@@ -541,43 +532,32 @@ mod tests {
             },
         );
 
-        msg.body.field_map.set_field(11, FIXString::from("A"));
-        msg.body.field_map.set_field(21, FIXString::from("1"));
-        msg.body.field_map.set_field(55, FIXString::from("A"));
-        msg.body.field_map.set_field(54, FIXString::from("1"));
-        msg.body.field_map.set_field(40, FIXString::from("1"));
-        msg.body.field_map.set_field(38, 5 as FIXInt);
-        msg.body.field_map.set_field(100, FIXString::from("0"));
+        msg.body.set_field(11, FIXString::from("A"));
+        msg.body.set_field(21, FIXString::from("1"));
+        msg.body.set_field(55, FIXString::from("A"));
+        msg.body.set_field(54, FIXString::from("1"));
+        msg.body.set_field(40, FIXString::from("1"));
+        msg.body.set_field(38, 5 as FIXInt);
+        msg.body.set_field(100, FIXString::from("0"));
 
-        msg.trailer
-            .field_map
-            .set_field(TAG_CHECK_SUM, FIXString::from("000"));
+        msg.trailer.set_field(TAG_CHECK_SUM, FIXString::from("000"));
 
         msg
     }
 
     fn create_fix43_new_order_single() -> Message {
-        let mut msg = Message::new();
+        let msg = Message::new();
         let now = Utc::now().naive_utc();
+        msg.header.set_field(TAG_MSG_TYPE, FIXString::from("D"));
         msg.header
-            .field_map
-            .set_field(TAG_MSG_TYPE, FIXString::from("D"));
-        msg.header
-            .field_map
             .set_field(TAG_BEGIN_STRING, FIXString::from("FIX.4.3"));
+        msg.header.set_field(TAG_BODY_LENGTH, FIXString::from("0"));
         msg.header
-            .field_map
-            .set_field(TAG_BODY_LENGTH, FIXString::from("0"));
-        msg.header
-            .field_map
             .set_field(TAG_SENDER_COMP_ID, FIXString::from("0"));
         msg.header
-            .field_map
             .set_field(TAG_TARGET_COMP_ID, FIXString::from("0"));
-        msg.header
-            .field_map
-            .set_field(TAG_MSG_SEQ_NUM, FIXString::from("0"));
-        msg.header.field_map.set_field(
+        msg.header.set_field(TAG_MSG_SEQ_NUM, FIXString::from("0"));
+        msg.header.set_field(
             TAG_SENDING_TIME,
             FIXUTCTimestamp {
                 time: now.clone(),
@@ -585,13 +565,13 @@ mod tests {
             },
         );
 
-        msg.body.field_map.set_field(11, FIXString::from("A"));
-        msg.body.field_map.set_field(21, FIXString::from("1"));
-        msg.body.field_map.set_field(55, FIXString::from("A"));
-        msg.body.field_map.set_field(54, FIXString::from("1"));
-        msg.body.field_map.set_field(38, 5 as FIXInt);
-        msg.body.field_map.set_field(40, FIXString::from("1"));
-        msg.body.field_map.set_field(
+        msg.body.set_field(11, FIXString::from("A"));
+        msg.body.set_field(21, FIXString::from("1"));
+        msg.body.set_field(55, FIXString::from("A"));
+        msg.body.set_field(54, FIXString::from("1"));
+        msg.body.set_field(38, 5 as FIXInt);
+        msg.body.set_field(40, FIXString::from("1"));
+        msg.body.set_field(
             60,
             FIXUTCTimestamp {
                 time: now,
@@ -599,9 +579,7 @@ mod tests {
             },
         );
 
-        msg.trailer
-            .field_map
-            .set_field(TAG_CHECK_SUM, FIXString::from("000"));
+        msg.trailer.set_field(TAG_CHECK_SUM, FIXString::from("000"));
 
         msg
     }
@@ -609,12 +587,11 @@ mod tests {
     async fn tc_invalid_tag_number_header() -> ValidateTest {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let validator = <dyn Validator>::new(ValidatorSettings::default(), dict, None);
-        let mut invalid_header_field_message = create_fix40_new_order_single();
+        let invalid_header_field_message = create_fix40_new_order_single();
         let tag = 9999 as Tag;
 
         invalid_header_field_message
             .header
-            .field_map
             .set_field(tag, FIXString::from("hello"));
         let message_bytes = invalid_header_field_message.build();
 
@@ -631,11 +608,10 @@ mod tests {
     async fn tc_invalid_tag_number_body() -> ValidateTest {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let validator = <dyn Validator>::new(ValidatorSettings::default(), dict, None);
-        let mut invalid_body_field_message = create_fix40_new_order_single();
+        let invalid_body_field_message = create_fix40_new_order_single();
         let tag = 9999 as Tag;
         invalid_body_field_message
             .body
-            .field_map
             .set_field(tag, FIXString::from("hello"));
         let message_bytes = invalid_body_field_message.build();
 
@@ -652,11 +628,10 @@ mod tests {
     async fn tc_invalid_tag_number_trailer() -> ValidateTest {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let validator = <dyn Validator>::new(ValidatorSettings::default(), dict, None);
-        let mut invalid_trailer_field_message = create_fix40_new_order_single();
+        let invalid_trailer_field_message = create_fix40_new_order_single();
         let tag = 9999 as Tag;
         invalid_trailer_field_message
             .trailer
-            .field_map
             .set_field(tag, FIXString::from("hello"));
         let message_bytes = invalid_trailer_field_message.build();
 
@@ -673,12 +648,9 @@ mod tests {
     async fn tc_tag_not_defined_for_message() -> ValidateTest {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let validator = <dyn Validator>::new(ValidatorSettings::default(), dict, None);
-        let mut invalid_msg = create_fix40_new_order_single();
+        let invalid_msg = create_fix40_new_order_single();
         let tag = 41 as Tag;
-        invalid_msg
-            .body
-            .field_map
-            .set_field(tag, FIXString::from("hello"));
+        invalid_msg.body.set_field(tag, FIXString::from("hello"));
         let message_bytes = invalid_msg.build();
 
         ValidateTest {
@@ -695,7 +667,7 @@ mod tests {
         // compare to tcTagIsNotDefinedForMessage
         let dict = parse("./spec/FIX43.xml").await.unwrap();
         let validator = <dyn Validator>::new(ValidatorSettings::default(), dict, None);
-        let mut valid_msg = create_fix43_new_order_single();
+        let valid_msg = create_fix43_new_order_single();
         let message_bytes = valid_msg.build();
 
         ValidateTest {
@@ -711,32 +683,26 @@ mod tests {
     async fn tc_field_not_found_body() -> ValidateTest {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let validator = <dyn Validator>::new(ValidatorSettings::default(), dict, None);
-        let mut invalid_msg1 = Message::new();
+        let invalid_msg1 = Message::new();
         invalid_msg1
             .header
-            .field_map
             .set_field(TAG_MSG_TYPE, FIXString::from("D"));
         invalid_msg1
             .header
-            .field_map
             .set_field(TAG_BEGIN_STRING, FIXString::from("FIX.4.0"));
         invalid_msg1
             .header
-            .field_map
             .set_field(TAG_BODY_LENGTH, FIXString::from("0"));
         invalid_msg1
             .header
-            .field_map
             .set_field(TAG_SENDER_COMP_ID, FIXString::from("0"));
         invalid_msg1
             .header
-            .field_map
             .set_field(TAG_TARGET_COMP_ID, FIXString::from("0"));
         invalid_msg1
             .header
-            .field_map
             .set_field(TAG_MSG_SEQ_NUM, FIXString::from("0"));
-        invalid_msg1.header.field_map.set_field(
+        invalid_msg1.header.set_field(
             TAG_SENDING_TIME,
             FIXUTCTimestamp {
                 time: Utc::now().naive_utc(),
@@ -746,34 +712,18 @@ mod tests {
 
         invalid_msg1
             .trailer
-            .field_map
             .set_field(TAG_CHECK_SUM, FIXString::from("000"));
 
-        invalid_msg1
-            .body
-            .field_map
-            .set_field(11, FIXString::from("A"));
-        invalid_msg1
-            .body
-            .field_map
-            .set_field(21, FIXString::from("A"));
-        invalid_msg1
-            .body
-            .field_map
-            .set_field(55, FIXString::from("A"));
-        invalid_msg1
-            .body
-            .field_map
-            .set_field(54, FIXString::from("A"));
-        invalid_msg1
-            .body
-            .field_map
-            .set_field(38, FIXString::from("A"));
+        invalid_msg1.body.set_field(11, FIXString::from("A"));
+        invalid_msg1.body.set_field(21, FIXString::from("A"));
+        invalid_msg1.body.set_field(55, FIXString::from("A"));
+        invalid_msg1.body.set_field(54, FIXString::from("A"));
+        invalid_msg1.body.set_field(38, FIXString::from("A"));
 
         let tag = 40 as Tag;
-        // ord type is required
-        // invalid_msg1.body.field_map.set_field(Tag(40), "A"))
 
+        // ord type is required
+        // invalid_msg1.body.set_field(Tag(40), "A"))
         let message_bytes = invalid_msg1.build();
 
         ValidateTest {
@@ -790,56 +740,34 @@ mod tests {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let validator = <dyn Validator>::new(ValidatorSettings::default(), dict, None);
 
-        let mut invalid_msg2 = Message::new();
+        let invalid_msg2 = Message::new();
         invalid_msg2
             .trailer
-            .field_map
             .set_field(TAG_CHECK_SUM, FIXString::from("000"));
 
-        invalid_msg2
-            .body
-            .field_map
-            .set_field(11, FIXString::from("A"));
-        invalid_msg2
-            .body
-            .field_map
-            .set_field(21, FIXString::from("A"));
-        invalid_msg2
-            .body
-            .field_map
-            .set_field(55, FIXString::from("A"));
-        invalid_msg2
-            .body
-            .field_map
-            .set_field(54, FIXString::from("A"));
-        invalid_msg2
-            .body
-            .field_map
-            .set_field(38, FIXString::from("A"));
+        invalid_msg2.body.set_field(11, FIXString::from("A"));
+        invalid_msg2.body.set_field(21, FIXString::from("A"));
+        invalid_msg2.body.set_field(55, FIXString::from("A"));
+        invalid_msg2.body.set_field(54, FIXString::from("A"));
+        invalid_msg2.body.set_field(38, FIXString::from("A"));
 
         invalid_msg2
             .header
-            .field_map
             .set_field(TAG_MSG_TYPE, FIXString::from("D"));
         invalid_msg2
             .header
-            .field_map
             .set_field(TAG_BEGIN_STRING, FIXString::from("FIX.4.0"));
         invalid_msg2
             .header
-            .field_map
             .set_field(TAG_BODY_LENGTH, FIXString::from("0"));
         invalid_msg2
             .header
-            .field_map
             .set_field(TAG_SENDER_COMP_ID, FIXString::from("0"));
         invalid_msg2
             .header
-            .field_map
             .set_field(TAG_TARGET_COMP_ID, FIXString::from("0"));
         invalid_msg2
             .header
-            .field_map
             .set_field(TAG_MSG_SEQ_NUM, FIXString::from("0"));
         // sending time is required
         // invalid_msg2.Header.FieldMap.set_field(tag.SendingTime, "0"))
@@ -860,13 +788,10 @@ mod tests {
     async fn tc_tag_specified_without_a_value() -> ValidateTest {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let validator = <dyn Validator>::new(ValidatorSettings::default(), dict, None);
-        let mut builder = create_fix40_new_order_single();
+        let builder = create_fix40_new_order_single();
 
         let bogus_tag = 109 as Tag;
-        builder
-            .body
-            .field_map
-            .set_field(bogus_tag, FIXString::from(""));
+        builder.body.set_field(bogus_tag, FIXString::from(""));
         let message_bytes = builder.build();
 
         ValidateTest {
@@ -882,11 +807,8 @@ mod tests {
     async fn tc_invalid_msg_type() -> ValidateTest {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let validator = <dyn Validator>::new(ValidatorSettings::default(), dict, None);
-        let mut builder = create_fix40_new_order_single();
-        builder
-            .header
-            .field_map
-            .set_field(TAG_MSG_TYPE, FIXString::from("z"));
+        let builder = create_fix40_new_order_single();
+        builder.header.set_field(TAG_MSG_TYPE, FIXString::from("z"));
         let message_bytes = builder.build();
 
         ValidateTest {
@@ -904,8 +826,8 @@ mod tests {
         let validator = <dyn Validator>::new(ValidatorSettings::default(), dict, None);
 
         let tag = 21 as Tag;
-        let mut builder = create_fix40_new_order_single();
-        builder.body.field_map.set_field(tag, FIXString::from("4"));
+        let builder = create_fix40_new_order_single();
+        builder.body.set_field(tag, FIXString::from("4"));
         let message_bytes = builder.build();
 
         ValidateTest {
@@ -921,12 +843,9 @@ mod tests {
     async fn tc_incorrect_data_format_for_value() -> ValidateTest {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let validator = <dyn Validator>::new(ValidatorSettings::default(), dict, None);
-        let mut builder = create_fix40_new_order_single();
+        let builder = create_fix40_new_order_single();
         let tag = 38 as Tag;
-        builder
-            .body
-            .field_map
-            .set_field(tag, FIXString::from("+200.00"));
+        builder.body.set_field(tag, FIXString::from("+200.00"));
         let message_bytes = builder.build();
 
         ValidateTest {
@@ -943,13 +862,10 @@ mod tests {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let validator = <dyn Validator>::new(ValidatorSettings::default(), dict, None);
 
-        let mut builder = create_fix40_new_order_single();
+        let builder = create_fix40_new_order_single();
         let tag = TAG_ON_BEHALF_OF_COMP_ID;
         // 	should be in header
-        builder
-            .body
-            .field_map
-            .set_field(tag, FIXString::from("CWB"));
+        builder.body.set_field(tag, FIXString::from("CWB"));
         let message_bytes = builder.build();
 
         ValidateTest {
@@ -966,13 +882,10 @@ mod tests {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let validator = <dyn Validator>::new(ValidatorSettings::default(), dict, None);
 
-        let mut builder = create_fix40_new_order_single();
+        let builder = create_fix40_new_order_single();
         let tag = TAG_SIGNATURE;
         // should be in trailer
-        builder
-            .body
-            .field_map
-            .set_field(tag, FIXString::from("SIG"));
+        builder.body.set_field(tag, FIXString::from("SIG"));
         let message_bytes = builder.build();
 
         let ref_tag = 100 as Tag;
@@ -992,12 +905,9 @@ mod tests {
         custom_validator_settings.reject_invalid_message = false;
         let validator = <dyn Validator>::new(custom_validator_settings, dict, None);
 
-        let mut builder = create_fix40_new_order_single();
+        let builder = create_fix40_new_order_single();
         let tag = 9999 as Tag;
-        builder
-            .body
-            .field_map
-            .set_field(tag, FIXString::from("hello"));
+        builder.body.set_field(tag, FIXString::from("hello"));
         let message_bytes = builder.build();
 
         ValidateTest {
@@ -1016,12 +926,9 @@ mod tests {
         custom_validator_settings.reject_invalid_message = true;
         let validator = <dyn Validator>::new(custom_validator_settings, dict, None);
 
-        let mut builder = create_fix40_new_order_single();
+        let builder = create_fix40_new_order_single();
         let tag = 9999 as Tag;
-        builder
-            .body
-            .field_map
-            .set_field(tag, FIXString::from("hello"));
+        builder.body.set_field(tag, FIXString::from("hello"));
         let message_bytes = builder.build();
 
         ValidateTest {
@@ -1040,13 +947,10 @@ mod tests {
         custom_validator_settings.check_fields_out_of_order = false;
         let validator = <dyn Validator>::new(custom_validator_settings, dict, None);
 
-        let mut builder = create_fix40_new_order_single();
+        let builder = create_fix40_new_order_single();
         let tag = TAG_ON_BEHALF_OF_COMP_ID;
         // should be in header
-        builder
-            .body
-            .field_map
-            .set_field(tag, FIXString::from("CWB"));
+        builder.body.set_field(tag, FIXString::from("CWB"));
         let message_bytes = builder.build();
 
         ValidateTest {
@@ -1065,13 +969,10 @@ mod tests {
         custom_validator_settings.check_fields_out_of_order = false;
         let validator = <dyn Validator>::new(custom_validator_settings, dict, None);
 
-        let mut builder = create_fix40_new_order_single();
+        let builder = create_fix40_new_order_single();
         let tag = TAG_SIGNATURE;
         // should be in trailer
-        builder
-            .body
-            .field_map
-            .set_field(tag, FIXString::from("SIG"));
+        builder.body.set_field(tag, FIXString::from("SIG"));
         let message_bytes = builder.build();
 
         ValidateTest {

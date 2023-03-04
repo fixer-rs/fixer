@@ -54,7 +54,7 @@ pub struct TimeRange {
 impl TimeRange {
     // new_utc returns a time range in UTC
     pub fn new_utc(start_time: TimeOfDay, end_time: TimeOfDay) -> Self {
-        Self::new_in_location(start_time, end_time, FixedOffset::west(0))
+        Self::new_in_location(start_time, end_time, FixedOffset::west_opt(0).unwrap())
     }
 
     // new_in_location returns a time range in a given location
@@ -80,7 +80,7 @@ impl TimeRange {
             end_time,
             start_day,
             end_day,
-            FixedOffset::west(0),
+            FixedOffset::west_opt(0).unwrap(),
         )
     }
 
@@ -210,11 +210,14 @@ impl TimeRange {
             }
         }
 
-        let session_end = NaiveDate::from_ymd(tmp1.year(), tmp1.month(), tmp1.day()).and_hms(
-            self.end_time.hour as u32,
-            self.end_time.minute as u32,
-            self.end_time.second as u32,
-        );
+        let session_end = NaiveDate::from_ymd_opt(tmp1.year(), tmp1.month(), tmp1.day())
+            .unwrap()
+            .and_hms_opt(
+                self.end_time.hour as u32,
+                self.end_time.minute as u32,
+                self.end_time.second as u32,
+            )
+            .unwrap();
         let session_end = session_end.add(self.loc);
         let session_end = session_end.add(Duration::days(day_offset));
 
@@ -258,7 +261,7 @@ mod tests {
         assert_eq!(TimeOfDay::new(18, 0, 0), r.end_time);
         assert!(r.start_day.is_none());
         assert!(r.end_day.is_none());
-        assert_eq!(FixedOffset::east(0), r.loc);
+        assert_eq!(FixedOffset::east_opt(0).unwrap(), r.loc);
     }
 
     #[test]
@@ -266,13 +269,13 @@ mod tests {
         let r = TimeRange::new_in_location(
             TimeOfDay::new(3, 0, 0),
             TimeOfDay::new(18, 0, 0),
-            FixedOffset::east(9 * 3600),
+            FixedOffset::east_opt(9 * 3600).unwrap(),
         );
         assert_eq!(TimeOfDay::new(3, 0, 0), r.start_time);
         assert_eq!(TimeOfDay::new(18, 0, 0), r.end_time);
         assert!(r.start_day.is_none());
         assert!(r.end_day.is_none());
-        assert_eq!(FixedOffset::east(9 * 3600), r.loc);
+        assert_eq!(FixedOffset::east_opt(9 * 3600).unwrap(), r.loc);
     }
 
     #[test]
@@ -289,7 +292,7 @@ mod tests {
         assert!(r.end_day.is_some());
         assert_eq!(Weekday::Mon, r.start_day.unwrap());
         assert_eq!(Weekday::Wed, r.end_day.unwrap());
-        assert_eq!(FixedOffset::east(0), r.loc);
+        assert_eq!(FixedOffset::east_opt(0).unwrap(), r.loc);
     }
 
     #[test]
@@ -299,7 +302,7 @@ mod tests {
             TimeOfDay::new(18, 0, 0),
             Weekday::Mon,
             Weekday::Wed,
-            FixedOffset::east(9 * 3600),
+            FixedOffset::east_opt(9 * 3600).unwrap(),
         );
         assert_eq!(TimeOfDay::new(3, 0, 0), r.start_time);
         assert_eq!(TimeOfDay::new(18, 0, 0), r.end_time);
@@ -307,7 +310,7 @@ mod tests {
         assert!(r.end_day.is_some());
         assert_eq!(Weekday::Mon, r.start_day.unwrap());
         assert_eq!(Weekday::Wed, r.end_day.unwrap());
-        assert_eq!(FixedOffset::east(9 * 3600), r.loc);
+        assert_eq!(FixedOffset::east_opt(9 * 3600).unwrap(), r.loc);
     }
 
     #[test]
@@ -315,53 +318,71 @@ mod tests {
         let mut start = TimeOfDay::new(3, 0, 0);
         let mut end = TimeOfDay::new(18, 0, 0);
 
-        let mut now = NaiveDate::from_ymd(2016, 8, 10)
-            .and_hms(10, 0, 0)
-            .add(FixedOffset::east(0));
+        let mut now = NaiveDate::from_ymd_opt(2016, 8, 10)
+            .unwrap()
+            .and_hms_opt(10, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
 
         assert!(TimeRange::new_utc(start, end).is_in_range(&now));
 
-        now = NaiveDate::from_ymd(2016, 8, 10)
-            .and_hms(18, 0, 0)
-            .add(FixedOffset::east(0));
+        now = NaiveDate::from_ymd_opt(2016, 8, 10)
+            .unwrap()
+            .and_hms_opt(18, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
 
         assert!(TimeRange::new_utc(start, end).is_in_range(&now));
 
-        now = NaiveDate::from_ymd(2016, 8, 10)
-            .and_hms(2, 0, 0)
-            .add(FixedOffset::east(0));
+        now = NaiveDate::from_ymd_opt(2016, 8, 10)
+            .unwrap()
+            .and_hms_opt(2, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(!TimeRange::new_utc(start, end).is_in_range(&now));
 
-        now = NaiveDate::from_ymd(2016, 8, 10)
-            .and_hms(19, 0, 0)
-            .add(FixedOffset::east(0));
+        now = NaiveDate::from_ymd_opt(2016, 8, 10)
+            .unwrap()
+            .and_hms_opt(19, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(!TimeRange::new_utc(start, end).is_in_range(&now));
 
-        now = NaiveDate::from_ymd(2016, 8, 10)
-            .and_hms(18, 0, 1)
-            .add(FixedOffset::east(0));
+        now = NaiveDate::from_ymd_opt(2016, 8, 10)
+            .unwrap()
+            .and_hms_opt(18, 0, 1)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(!TimeRange::new_utc(start, end).is_in_range(&now));
 
         start = TimeOfDay::new(18, 0, 0);
         end = TimeOfDay::new(3, 0, 0);
-        now = NaiveDate::from_ymd(2016, 8, 10)
-            .and_hms(18, 0, 0)
-            .add(FixedOffset::east(0));
+        now = NaiveDate::from_ymd_opt(2016, 8, 10)
+            .unwrap()
+            .and_hms_opt(18, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(TimeRange::new_utc(start, end).is_in_range(&now));
 
-        now = NaiveDate::from_ymd(2016, 8, 10)
-            .and_hms(3, 0, 0)
-            .add(FixedOffset::east(0));
+        now = NaiveDate::from_ymd_opt(2016, 8, 10)
+            .unwrap()
+            .and_hms_opt(3, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(TimeRange::new_utc(start, end).is_in_range(&now));
 
-        now = NaiveDate::from_ymd(2016, 8, 10)
-            .and_hms(4, 0, 0)
-            .add(FixedOffset::east(0));
+        now = NaiveDate::from_ymd_opt(2016, 8, 10)
+            .unwrap()
+            .and_hms_opt(4, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(!TimeRange::new_utc(start, end).is_in_range(&now));
 
-        now = NaiveDate::from_ymd(2016, 8, 10)
-            .and_hms(17, 0, 0)
-            .add(FixedOffset::east(0));
+        now = NaiveDate::from_ymd_opt(2016, 8, 10)
+            .unwrap()
+            .and_hms_opt(17, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(!TimeRange::new_utc(start, end).is_in_range(&now));
 
         // var tr *TimeRange
@@ -370,25 +391,31 @@ mod tests {
         //     "always in range if time range is nil"
         // );
 
-        let loc = FixedOffset::west(60);
+        let loc = FixedOffset::west_opt(60).unwrap();
         start = TimeOfDay::new(3, 0, 0);
         end = TimeOfDay::new(5, 0, 0);
 
-        now = NaiveDate::from_ymd(2016, 8, 10)
-            .and_hms(3, 0, 0)
-            .add(FixedOffset::east(0));
+        now = NaiveDate::from_ymd_opt(2016, 8, 10)
+            .unwrap()
+            .and_hms_opt(3, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(!TimeRange::new_in_location(start, end, loc).is_in_range(&now));
 
-        now = NaiveDate::from_ymd(2016, 8, 10)
-            .and_hms(3, 1, 0)
-            .add(FixedOffset::east(0));
+        now = NaiveDate::from_ymd_opt(2016, 8, 10)
+            .unwrap()
+            .and_hms_opt(3, 1, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(TimeRange::new_in_location(start, end, loc).is_in_range(&now));
 
         start = TimeOfDay::new(0, 0, 0);
         end = TimeOfDay::new(0, 0, 0);
-        now = NaiveDate::from_ymd(2016, 8, 10)
-            .and_hms(18, 0, 0)
-            .add(FixedOffset::east(0));
+        now = NaiveDate::from_ymd_opt(2016, 8, 10)
+            .unwrap()
+            .and_hms_opt(18, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(TimeRange::new_utc(start, end).is_in_range(&now));
     }
 
@@ -399,40 +426,50 @@ mod tests {
         let mut start_day = Weekday::Mon;
         let mut end_day = Weekday::Thu;
 
-        let mut now = NaiveDate::from_ymd(2004, 7, 28)
-            .and_hms(2, 0, 0)
-            .add(FixedOffset::east(0));
+        let mut now = NaiveDate::from_ymd_opt(2004, 7, 28)
+            .unwrap()
+            .and_hms_opt(2, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_range(&now)
         );
-        now = NaiveDate::from_ymd(2004, 7, 27)
-            .and_hms(18, 0, 0)
-            .add(FixedOffset::east(0));
+        now = NaiveDate::from_ymd_opt(2004, 7, 27)
+            .unwrap()
+            .and_hms_opt(18, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_range(&now)
         );
 
-        now = NaiveDate::from_ymd(2004, 7, 27)
-            .and_hms(3, 0, 0)
-            .add(FixedOffset::east(0));
+        now = NaiveDate::from_ymd_opt(2004, 7, 27)
+            .unwrap()
+            .and_hms_opt(3, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_range(&now)
         );
 
-        now = NaiveDate::from_ymd(2004, 7, 26)
-            .and_hms(2, 59, 59)
-            .add(FixedOffset::east(0));
+        now = NaiveDate::from_ymd_opt(2004, 7, 26)
+            .unwrap()
+            .and_hms_opt(2, 59, 59)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             !TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_range(&now)
         );
 
-        now = NaiveDate::from_ymd(2004, 7, 29)
-            .and_hms(18, 0, 1)
-            .add(FixedOffset::east(0));
+        now = NaiveDate::from_ymd_opt(2004, 7, 29)
+            .unwrap()
+            .and_hms_opt(18, 0, 1)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             !TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_range(&now)
@@ -441,49 +478,61 @@ mod tests {
         start_day = Weekday::Thu;
         end_day = Weekday::Mon;
 
-        now = NaiveDate::from_ymd(2004, 7, 24)
-            .and_hms(2, 0, 0)
-            .add(FixedOffset::east(0));
+        now = NaiveDate::from_ymd_opt(2004, 7, 24)
+            .unwrap()
+            .and_hms_opt(2, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_range(&now)
         );
 
-        now = NaiveDate::from_ymd(2004, 7, 28)
-            .and_hms(2, 0, 0)
-            .add(FixedOffset::east(0));
+        now = NaiveDate::from_ymd_opt(2004, 7, 28)
+            .unwrap()
+            .and_hms_opt(2, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             !TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_range(&now)
         );
 
-        now = NaiveDate::from_ymd(2004, 7, 22)
-            .and_hms(3, 0, 0)
-            .add(FixedOffset::east(0));
+        now = NaiveDate::from_ymd_opt(2004, 7, 22)
+            .unwrap()
+            .and_hms_opt(3, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_range(&now)
         );
 
-        now = NaiveDate::from_ymd(2004, 7, 26)
-            .and_hms(18, 0, 0)
-            .add(FixedOffset::east(0));
+        now = NaiveDate::from_ymd_opt(2004, 7, 26)
+            .unwrap()
+            .and_hms_opt(18, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_range(&now)
         );
 
-        now = NaiveDate::from_ymd(2004, 7, 22)
-            .and_hms(2, 59, 59)
-            .add(FixedOffset::east(0));
+        now = NaiveDate::from_ymd_opt(2004, 7, 22)
+            .unwrap()
+            .and_hms_opt(2, 59, 59)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             !TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_range(&now)
         );
 
-        now = NaiveDate::from_ymd(2004, 7, 26)
-            .and_hms(18, 0, 1)
-            .add(FixedOffset::east(0));
+        now = NaiveDate::from_ymd_opt(2004, 7, 26)
+            .unwrap()
+            .and_hms_opt(18, 0, 1)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             !TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_range(&now)
@@ -494,65 +543,81 @@ mod tests {
         start_day = Weekday::Sun;
         end_day = Weekday::Sun;
 
-        now = NaiveDate::from_ymd(2006, 12, 3)
-            .and_hms(8, 59, 0)
-            .add(FixedOffset::east(0));
+        now = NaiveDate::from_ymd_opt(2006, 12, 3)
+            .unwrap()
+            .and_hms_opt(8, 59, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_range(&now)
         );
 
-        now = NaiveDate::from_ymd(2006, 12, 3)
-            .and_hms(8, 59, 1)
-            .add(FixedOffset::east(0));
+        now = NaiveDate::from_ymd_opt(2006, 12, 3)
+            .unwrap()
+            .and_hms_opt(8, 59, 1)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             !TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_range(&now)
         );
 
-        now = NaiveDate::from_ymd(2006, 12, 3)
-            .and_hms(9, 1, 0)
-            .add(FixedOffset::east(0));
+        now = NaiveDate::from_ymd_opt(2006, 12, 3)
+            .unwrap()
+            .and_hms_opt(9, 1, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_range(&now)
         );
 
-        now = NaiveDate::from_ymd(2006, 12, 3)
-            .and_hms(9, 0, 0)
-            .add(FixedOffset::east(0));
+        now = NaiveDate::from_ymd_opt(2006, 12, 3)
+            .unwrap()
+            .and_hms_opt(9, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             !TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_range(&now)
         );
 
-        now = NaiveDate::from_ymd(2006, 12, 4)
-            .and_hms(8, 59, 0)
-            .add(FixedOffset::east(0));
+        now = NaiveDate::from_ymd_opt(2006, 12, 4)
+            .unwrap()
+            .and_hms_opt(8, 59, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_range(&now)
         );
 
-        now = NaiveDate::from_ymd(2006, 12, 4)
-            .and_hms(8, 59, 1)
-            .add(FixedOffset::east(0));
+        now = NaiveDate::from_ymd_opt(2006, 12, 4)
+            .unwrap()
+            .and_hms_opt(8, 59, 1)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_range(&now)
         );
 
-        now = NaiveDate::from_ymd(2006, 12, 4)
-            .and_hms(9, 1, 0)
-            .add(FixedOffset::east(0));
+        now = NaiveDate::from_ymd_opt(2006, 12, 4)
+            .unwrap()
+            .and_hms_opt(9, 1, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_range(&now)
         );
 
-        now = NaiveDate::from_ymd(2006, 12, 4)
-            .and_hms(9, 0, 0)
-            .add(FixedOffset::east(0));
+        now = NaiveDate::from_ymd_opt(2006, 12, 4)
+            .unwrap()
+            .and_hms_opt(9, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_range(&now)
@@ -563,25 +628,31 @@ mod tests {
         start_day = Weekday::Sun;
         end_day = Weekday::Sun;
 
-        now = NaiveDate::from_ymd(2006, 12, 3)
-            .and_hms(8, 59, 0)
-            .add(FixedOffset::east(0));
+        now = NaiveDate::from_ymd_opt(2006, 12, 3)
+            .unwrap()
+            .and_hms_opt(8, 59, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_range(&now)
         );
 
-        now = NaiveDate::from_ymd(2006, 12, 3)
-            .and_hms(9, 1, 0)
-            .add(FixedOffset::east(0));
+        now = NaiveDate::from_ymd_opt(2006, 12, 3)
+            .unwrap()
+            .and_hms_opt(9, 1, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_range(&now)
         );
 
-        now = NaiveDate::from_ymd(2006, 12, 4)
-            .and_hms(8, 59, 0)
-            .add(FixedOffset::east(0));
+        now = NaiveDate::from_ymd_opt(2006, 12, 4)
+            .unwrap()
+            .and_hms_opt(8, 59, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             !TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_range(&now)
@@ -595,56 +666,76 @@ mod tests {
         let mut end = TimeOfDay::new(18, 0, 0);
 
         // same time
-        let mut time1 = NaiveDate::from_ymd(2016, 8, 10)
-            .and_hms(10, 0, 0)
-            .add(FixedOffset::east(0));
-        let mut time2 = NaiveDate::from_ymd(2016, 8, 10)
-            .and_hms(10, 0, 0)
-            .add(FixedOffset::east(0));
+        let mut time1 = NaiveDate::from_ymd_opt(2016, 8, 10)
+            .unwrap()
+            .and_hms_opt(10, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
+        let mut time2 = NaiveDate::from_ymd_opt(2016, 8, 10)
+            .unwrap()
+            .and_hms_opt(10, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
 
         assert!(TimeRange::new_utc(start, end).is_in_same_range(&time1, &time2));
         assert!(TimeRange::new_utc(start, end).is_in_same_range(&time2, &time1));
 
         // time 2 in same session but greater
-        time1 = NaiveDate::from_ymd(2016, 8, 10)
-            .and_hms(10, 0, 0)
-            .add(FixedOffset::east(0));
-        time2 = NaiveDate::from_ymd(2016, 8, 10)
-            .and_hms(11, 0, 0)
-            .add(FixedOffset::east(0));
+        time1 = NaiveDate::from_ymd_opt(2016, 8, 10)
+            .unwrap()
+            .and_hms_opt(10, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
+        time2 = NaiveDate::from_ymd_opt(2016, 8, 10)
+            .unwrap()
+            .and_hms_opt(11, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
 
         assert!(TimeRange::new_utc(start, end).is_in_same_range(&time1, &time2));
         assert!(TimeRange::new_utc(start, end).is_in_same_range(&time2, &time1));
 
         // time 2 in same session but less
-        time1 = NaiveDate::from_ymd(2016, 8, 10)
-            .and_hms(11, 0, 0)
-            .add(FixedOffset::east(0));
-        time2 = NaiveDate::from_ymd(2016, 8, 10)
-            .and_hms(10, 0, 0)
-            .add(FixedOffset::east(0));
+        time1 = NaiveDate::from_ymd_opt(2016, 8, 10)
+            .unwrap()
+            .and_hms_opt(11, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
+        time2 = NaiveDate::from_ymd_opt(2016, 8, 10)
+            .unwrap()
+            .and_hms_opt(10, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
 
         assert!(TimeRange::new_utc(start, end).is_in_same_range(&time1, &time2));
         assert!(TimeRange::new_utc(start, end).is_in_same_range(&time2, &time1));
 
         // time 1 not in session
-        time1 = NaiveDate::from_ymd(2016, 8, 10)
-            .and_hms(19, 0, 0)
-            .add(FixedOffset::east(0));
-        time2 = NaiveDate::from_ymd(2016, 8, 10)
-            .and_hms(10, 0, 0)
-            .add(FixedOffset::east(0));
+        time1 = NaiveDate::from_ymd_opt(2016, 8, 10)
+            .unwrap()
+            .and_hms_opt(19, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
+        time2 = NaiveDate::from_ymd_opt(2016, 8, 10)
+            .unwrap()
+            .and_hms_opt(10, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
 
         assert!(!TimeRange::new_utc(start, end).is_in_same_range(&time1, &time2));
         assert!(!TimeRange::new_utc(start, end).is_in_same_range(&time2, &time1));
 
         // time 2 not in session
-        time1 = NaiveDate::from_ymd(2016, 8, 10)
-            .and_hms(10, 0, 0)
-            .add(FixedOffset::east(0));
-        time2 = NaiveDate::from_ymd(2016, 8, 10)
-            .and_hms(2, 0, 0)
-            .add(FixedOffset::east(0));
+        time1 = NaiveDate::from_ymd_opt(2016, 8, 10)
+            .unwrap()
+            .and_hms_opt(10, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
+        time2 = NaiveDate::from_ymd_opt(2016, 8, 10)
+            .unwrap()
+            .and_hms_opt(2, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
 
         assert!(!TimeRange::new_utc(start, end).is_in_same_range(&time1, &time2));
         assert!(!TimeRange::new_utc(start, end).is_in_same_range(&time2, &time1));
@@ -654,45 +745,61 @@ mod tests {
         end = TimeOfDay::new(3, 0, 0);
 
         // same session same day
-        time1 = NaiveDate::from_ymd(2016, 8, 10)
-            .and_hms(19, 0, 0)
-            .add(FixedOffset::east(0));
-        time2 = NaiveDate::from_ymd(2016, 8, 10)
-            .and_hms(20, 0, 0)
-            .add(FixedOffset::east(0));
+        time1 = NaiveDate::from_ymd_opt(2016, 8, 10)
+            .unwrap()
+            .and_hms_opt(19, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
+        time2 = NaiveDate::from_ymd_opt(2016, 8, 10)
+            .unwrap()
+            .and_hms_opt(20, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
 
         assert!(TimeRange::new_utc(start, end).is_in_same_range(&time1, &time2));
         assert!(TimeRange::new_utc(start, end).is_in_same_range(&time2, &time1));
 
         // same session time 2 is in next day
-        time1 = NaiveDate::from_ymd(2016, 8, 10)
-            .and_hms(19, 0, 0)
-            .add(FixedOffset::east(0));
-        time2 = NaiveDate::from_ymd(2016, 8, 11)
-            .and_hms(2, 0, 0)
-            .add(FixedOffset::east(0));
+        time1 = NaiveDate::from_ymd_opt(2016, 8, 10)
+            .unwrap()
+            .and_hms_opt(19, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
+        time2 = NaiveDate::from_ymd_opt(2016, 8, 11)
+            .unwrap()
+            .and_hms_opt(2, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
 
         assert!(TimeRange::new_utc(start, end).is_in_same_range(&time1, &time2));
         assert!(TimeRange::new_utc(start, end).is_in_same_range(&time2, &time1));
 
         // same session time 1 is in next day
-        time1 = NaiveDate::from_ymd(2016, 8, 11)
-            .and_hms(2, 0, 0)
-            .add(FixedOffset::east(0));
-        time2 = NaiveDate::from_ymd(2016, 8, 10)
-            .and_hms(19, 0, 0)
-            .add(FixedOffset::east(0));
+        time1 = NaiveDate::from_ymd_opt(2016, 8, 11)
+            .unwrap()
+            .and_hms_opt(2, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
+        time2 = NaiveDate::from_ymd_opt(2016, 8, 10)
+            .unwrap()
+            .and_hms_opt(19, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
 
         assert!(TimeRange::new_utc(start, end).is_in_same_range(&time1, &time2));
         assert!(TimeRange::new_utc(start, end).is_in_same_range(&time2, &time1));
 
         // time1 is 25 hours greater than time2
-        time1 = NaiveDate::from_ymd(2016, 8, 11)
-            .and_hms(21, 0, 0)
-            .add(FixedOffset::east(0));
-        time2 = NaiveDate::from_ymd(2016, 8, 10)
-            .and_hms(20, 0, 0)
-            .add(FixedOffset::east(0));
+        time1 = NaiveDate::from_ymd_opt(2016, 8, 11)
+            .unwrap()
+            .and_hms_opt(21, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
+        time2 = NaiveDate::from_ymd_opt(2016, 8, 10)
+            .unwrap()
+            .and_hms_opt(20, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
 
         assert!(!TimeRange::new_utc(start, end).is_in_same_range(&time1, &time2));
         assert!(!TimeRange::new_utc(start, end).is_in_same_range(&time2, &time1));
@@ -701,36 +808,48 @@ mod tests {
         start = TimeOfDay::new(6, 0, 0);
         end = TimeOfDay::new(6, 0, 0);
 
-        time1 = NaiveDate::from_ymd(2016, 1, 13)
-            .and_hms(19, 10, 0)
-            .add(FixedOffset::east(0));
-        time2 = NaiveDate::from_ymd(2016, 1, 14)
-            .and_hms(19, 6, 0)
-            .add(FixedOffset::east(0));
+        time1 = NaiveDate::from_ymd_opt(2016, 1, 13)
+            .unwrap()
+            .and_hms_opt(19, 10, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
+        time2 = NaiveDate::from_ymd_opt(2016, 1, 14)
+            .unwrap()
+            .and_hms_opt(19, 6, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(!TimeRange::new_utc(start, end).is_in_same_range(&time1, &time2));
         assert!(!TimeRange::new_utc(start, end).is_in_same_range(&time2, &time1));
 
         start = TimeOfDay::new(0, 0, 0);
         end = TimeOfDay::new(2, 0, 0);
-        let loc = FixedOffset::west(60);
+        let loc = FixedOffset::west_opt(60).unwrap();
 
-        time1 = NaiveDate::from_ymd(2016, 8, 10)
-            .and_hms(0, 1, 0)
-            .add(FixedOffset::east(0));
-        time2 = NaiveDate::from_ymd(2016, 8, 10)
-            .and_hms(0, 1, 0)
-            .add(FixedOffset::east(0));
+        time1 = NaiveDate::from_ymd_opt(2016, 8, 10)
+            .unwrap()
+            .and_hms_opt(0, 1, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
+        time2 = NaiveDate::from_ymd_opt(2016, 8, 10)
+            .unwrap()
+            .and_hms_opt(0, 1, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(TimeRange::new_in_location(start, end, loc).is_in_same_range(&time1, &time2));
         assert!(TimeRange::new_in_location(start, end, loc).is_in_same_range(&time2, &time1));
 
         start = TimeOfDay::new(2, 0, 0);
         end = TimeOfDay::new(0, 0, 0);
-        time1 = NaiveDate::from_ymd(2016, 8, 10)
-            .and_hms(2, 1, 0)
-            .add(FixedOffset::east(0));
-        time2 = NaiveDate::from_ymd(2016, 8, 10)
-            .and_hms(2, 1, 0)
-            .add(FixedOffset::east(0));
+        time1 = NaiveDate::from_ymd_opt(2016, 8, 10)
+            .unwrap()
+            .and_hms_opt(2, 1, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
+        time2 = NaiveDate::from_ymd_opt(2016, 8, 10)
+            .unwrap()
+            .and_hms_opt(2, 1, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(TimeRange::new_in_location(start, end, loc).is_in_same_range(&time1, &time2));
         assert!(TimeRange::new_in_location(start, end, loc).is_in_same_range(&time2, &time1));
 
@@ -739,56 +858,76 @@ mod tests {
 
         start = TimeOfDay::new(0, 0, 0);
         end = TimeOfDay::new(0, 0, 0);
-        time1 = NaiveDate::from_ymd(2016, 8, 10)
-            .and_hms(0, 0, 0)
-            .add(FixedOffset::east(0));
-        time2 = NaiveDate::from_ymd(2016, 8, 11)
-            .and_hms(0, 0, 0)
-            .add(FixedOffset::east(0));
+        time1 = NaiveDate::from_ymd_opt(2016, 8, 10)
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
+        time2 = NaiveDate::from_ymd_opt(2016, 8, 11)
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(!TimeRange::new_in_location(start, end, loc).is_in_same_range(&time1, &time2));
         assert!(!TimeRange::new_in_location(start, end, loc).is_in_same_range(&time2, &time1));
 
-        time1 = NaiveDate::from_ymd(2016, 8, 10)
-            .and_hms(23, 59, 59)
-            .add(FixedOffset::east(0));
-        time2 = NaiveDate::from_ymd(2016, 8, 11)
-            .and_hms(0, 0, 0)
-            .add(FixedOffset::east(0));
+        time1 = NaiveDate::from_ymd_opt(2016, 8, 10)
+            .unwrap()
+            .and_hms_opt(23, 59, 59)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
+        time2 = NaiveDate::from_ymd_opt(2016, 8, 11)
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(!TimeRange::new_utc(start, end).is_in_same_range(&time1, &time2));
         assert!(!TimeRange::new_utc(start, end).is_in_same_range(&time2, &time1));
 
         start = TimeOfDay::new(1, 49, 0);
         end = TimeOfDay::new(1, 49, 0);
-        time1 = NaiveDate::from_ymd(2016, 8, 16)
-            .and_hms(1, 48, 21)
-            .add(FixedOffset::east(0));
-        time2 = NaiveDate::from_ymd(2016, 8, 16)
-            .and_hms(1, 49, 02)
-            .add(FixedOffset::east(0));
+        time1 = NaiveDate::from_ymd_opt(2016, 8, 16)
+            .unwrap()
+            .and_hms_opt(1, 48, 21)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
+        time2 = NaiveDate::from_ymd_opt(2016, 8, 16)
+            .unwrap()
+            .and_hms_opt(1, 49, 02)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
 
         assert!(!TimeRange::new_utc(start, end).is_in_same_range(&time1, &time2));
         assert!(!TimeRange::new_utc(start, end).is_in_same_range(&time2, &time1));
 
         start = TimeOfDay::new(1, 49, 0);
         end = TimeOfDay::new(1, 49, 0);
-        time1 = NaiveDate::from_ymd(2016, 8, 16)
-            .and_hms(13, 48, 21)
-            .add(FixedOffset::east(0));
-        time2 = NaiveDate::from_ymd(2016, 8, 16)
-            .and_hms(13, 49, 02)
-            .add(FixedOffset::east(0));
+        time1 = NaiveDate::from_ymd_opt(2016, 8, 16)
+            .unwrap()
+            .and_hms_opt(13, 48, 21)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
+        time2 = NaiveDate::from_ymd_opt(2016, 8, 16)
+            .unwrap()
+            .and_hms_opt(13, 49, 02)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
 
         assert!(TimeRange::new_utc(start, end).is_in_same_range(&time1, &time2));
         assert!(TimeRange::new_utc(start, end).is_in_same_range(&time2, &time1));
 
         start = TimeOfDay::new(13, 49, 0);
         end = TimeOfDay::new(13, 49, 0);
-        time1 = NaiveDate::from_ymd(2016, 8, 16)
-            .and_hms(13, 48, 21)
-            .add(FixedOffset::east(0));
-        time2 = NaiveDate::from_ymd(2016, 8, 16)
-            .and_hms(13, 49, 02)
-            .add(FixedOffset::east(0));
+        time1 = NaiveDate::from_ymd_opt(2016, 8, 16)
+            .unwrap()
+            .and_hms_opt(13, 48, 21)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
+        time2 = NaiveDate::from_ymd_opt(2016, 8, 16)
+            .unwrap()
+            .and_hms_opt(13, 49, 02)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
 
         assert!(!TimeRange::new_utc(start, end).is_in_same_range(&time1, &time2));
         assert!(!TimeRange::new_utc(start, end).is_in_same_range(&time2, &time1));
@@ -801,89 +940,121 @@ mod tests {
         let mut start_day = Weekday::Mon;
         let mut end_day = Weekday::Thu;
 
-        let mut time1 = NaiveDate::from_ymd(2004, 7, 27)
-            .and_hms(3, 0, 0)
-            .add(FixedOffset::east(0));
-        let mut time2 = NaiveDate::from_ymd(2004, 7, 25)
-            .and_hms(3, 0, 0)
-            .add(FixedOffset::east(0));
+        let mut time1 = NaiveDate::from_ymd_opt(2004, 7, 27)
+            .unwrap()
+            .and_hms_opt(3, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
+        let mut time2 = NaiveDate::from_ymd_opt(2004, 7, 25)
+            .unwrap()
+            .and_hms_opt(3, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             !TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_same_range(&time1, &time2)
         );
 
-        time1 = NaiveDate::from_ymd(2004, 7, 31)
-            .and_hms(3, 0, 0)
-            .add(FixedOffset::east(0));
-        time2 = NaiveDate::from_ymd(2004, 7, 27)
-            .and_hms(3, 0, 0)
-            .add(FixedOffset::east(0));
+        time1 = NaiveDate::from_ymd_opt(2004, 7, 31)
+            .unwrap()
+            .and_hms_opt(3, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
+        time2 = NaiveDate::from_ymd_opt(2004, 7, 27)
+            .unwrap()
+            .and_hms_opt(3, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             !TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_same_range(&time1, &time2)
         );
 
-        time1 = NaiveDate::from_ymd(2004, 7, 27)
-            .and_hms(3, 0, 0)
-            .add(FixedOffset::east(0));
-        time2 = NaiveDate::from_ymd(2004, 7, 27)
-            .and_hms(3, 0, 0)
-            .add(FixedOffset::east(0));
+        time1 = NaiveDate::from_ymd_opt(2004, 7, 27)
+            .unwrap()
+            .and_hms_opt(3, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
+        time2 = NaiveDate::from_ymd_opt(2004, 7, 27)
+            .unwrap()
+            .and_hms_opt(3, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_same_range(&time1, &time2)
         );
 
-        time1 = NaiveDate::from_ymd(2004, 7, 26)
-            .and_hms(10, 0, 0)
-            .add(FixedOffset::east(0));
-        time2 = NaiveDate::from_ymd(2004, 7, 27)
-            .and_hms(3, 0, 0)
-            .add(FixedOffset::east(0));
+        time1 = NaiveDate::from_ymd_opt(2004, 7, 26)
+            .unwrap()
+            .and_hms_opt(10, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
+        time2 = NaiveDate::from_ymd_opt(2004, 7, 27)
+            .unwrap()
+            .and_hms_opt(3, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_same_range(&time1, &time2)
         );
 
-        time1 = NaiveDate::from_ymd(2004, 7, 27)
-            .and_hms(10, 0, 0)
-            .add(FixedOffset::east(0));
-        time2 = NaiveDate::from_ymd(2004, 7, 29)
-            .and_hms(2, 0, 0)
-            .add(FixedOffset::east(0));
+        time1 = NaiveDate::from_ymd_opt(2004, 7, 27)
+            .unwrap()
+            .and_hms_opt(10, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
+        time2 = NaiveDate::from_ymd_opt(2004, 7, 29)
+            .unwrap()
+            .and_hms_opt(2, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_same_range(&time1, &time2)
         );
 
-        time1 = NaiveDate::from_ymd(2004, 7, 27)
-            .and_hms(10, 0, 0)
-            .add(FixedOffset::east(0));
-        time2 = NaiveDate::from_ymd(2004, 7, 20)
-            .and_hms(3, 0, 0)
-            .add(FixedOffset::east(0));
+        time1 = NaiveDate::from_ymd_opt(2004, 7, 27)
+            .unwrap()
+            .and_hms_opt(10, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
+        time2 = NaiveDate::from_ymd_opt(2004, 7, 20)
+            .unwrap()
+            .and_hms_opt(3, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             !TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_same_range(&time1, &time2)
         );
 
-        time1 = NaiveDate::from_ymd(2004, 7, 27)
-            .and_hms(2, 0, 0)
-            .add(FixedOffset::east(0));
-        time2 = NaiveDate::from_ymd(2004, 7, 20)
-            .and_hms(3, 0, 0)
-            .add(FixedOffset::east(0));
+        time1 = NaiveDate::from_ymd_opt(2004, 7, 27)
+            .unwrap()
+            .and_hms_opt(2, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
+        time2 = NaiveDate::from_ymd_opt(2004, 7, 20)
+            .unwrap()
+            .and_hms_opt(3, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             !TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_same_range(&time1, &time2)
         );
 
-        time1 = NaiveDate::from_ymd(2004, 7, 26)
-            .and_hms(2, 0, 0)
-            .add(FixedOffset::east(0));
-        time2 = NaiveDate::from_ymd(2004, 7, 19)
-            .and_hms(3, 0, 0)
-            .add(FixedOffset::east(0));
+        time1 = NaiveDate::from_ymd_opt(2004, 7, 26)
+            .unwrap()
+            .and_hms_opt(2, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
+        time2 = NaiveDate::from_ymd_opt(2004, 7, 19)
+            .unwrap()
+            .and_hms_opt(3, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             !TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_same_range(&time1, &time2)
@@ -898,36 +1069,48 @@ mod tests {
         end_day = Weekday::Sat;
 
         // Check that ST-->DST (Sunday is missing one hour) is handled
-        time1 = NaiveDate::from_ymd(2006, 4, 4)
-            .and_hms(0, 0, 0)
-            .add(FixedOffset::east(0));
-        time2 = NaiveDate::from_ymd(2006, 4, 3)
-            .and_hms(1, 0, 0)
-            .add(FixedOffset::east(0));
+        time1 = NaiveDate::from_ymd_opt(2006, 4, 4)
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
+        time2 = NaiveDate::from_ymd_opt(2006, 4, 3)
+            .unwrap()
+            .and_hms_opt(1, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_same_range(&time1, &time2)
         );
 
         // Check that DST-->ST (Sunday has an extra hour) is handled
-        time1 = NaiveDate::from_ymd(2006, 10, 30)
-            .and_hms(0, 0, 0)
-            .add(FixedOffset::east(0));
-        time2 = NaiveDate::from_ymd(2006, 10, 31)
-            .and_hms(1, 0, 0)
-            .add(FixedOffset::east(0));
+        time1 = NaiveDate::from_ymd_opt(2006, 10, 30)
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
+        time2 = NaiveDate::from_ymd_opt(2006, 10, 31)
+            .unwrap()
+            .and_hms_opt(1, 0, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_same_range(&time1, &time2)
         );
 
         // Check that everything works across a year boundary
-        time1 = NaiveDate::from_ymd(2006, 12, 31)
-            .and_hms(10, 10, 10)
-            .add(FixedOffset::east(0));
-        time2 = NaiveDate::from_ymd(2007, 1, 1)
-            .and_hms(10, 10, 10)
-            .add(FixedOffset::east(0));
+        time1 = NaiveDate::from_ymd_opt(2006, 12, 31)
+            .unwrap()
+            .and_hms_opt(10, 10, 10)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
+        time2 = NaiveDate::from_ymd_opt(2007, 1, 1)
+            .unwrap()
+            .and_hms_opt(10, 10, 10)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_same_range(&time1, &time2)
@@ -938,28 +1121,36 @@ mod tests {
         end_day = Weekday::Sun;
         start_time = TimeOfDay::new(9, 1, 0);
         end_time = TimeOfDay::new(8, 59, 0);
-        time1 = NaiveDate::from_ymd(2006, 12, 3)
-            .and_hms(9, 1, 0)
-            .add(FixedOffset::east(0));
-        time2 = NaiveDate::from_ymd(2006, 12, 3)
-            .and_hms(9, 1, 0)
-            .add(FixedOffset::east(0));
+        time1 = NaiveDate::from_ymd_opt(2006, 12, 3)
+            .unwrap()
+            .and_hms_opt(9, 1, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
+        time2 = NaiveDate::from_ymd_opt(2006, 12, 3)
+            .unwrap()
+            .and_hms_opt(9, 1, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_same_range(&time1, &time2)
         );
 
-        time2 = NaiveDate::from_ymd(2006, 12, 10)
-            .and_hms(9, 1, 0)
-            .add(FixedOffset::east(0));
+        time2 = NaiveDate::from_ymd_opt(2006, 12, 10)
+            .unwrap()
+            .and_hms_opt(9, 1, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             !TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_same_range(&time1, &time2)
         );
 
-        time2 = NaiveDate::from_ymd(2006, 12, 4)
-            .and_hms(9, 1, 0)
-            .add(FixedOffset::east(0));
+        time2 = NaiveDate::from_ymd_opt(2006, 12, 4)
+            .unwrap()
+            .and_hms_opt(9, 1, 0)
+            .unwrap()
+            .add(FixedOffset::east_opt(0).unwrap());
         assert!(
             TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
                 .is_in_same_range(&time1, &time2)
