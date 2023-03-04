@@ -1,4 +1,4 @@
-use crate::log::{Log, LogFactory};
+use crate::log::{LogFactoryTrait, LogTrait};
 use flexi_logger::LoggerHandle;
 use log::info;
 use ramhorns::Template;
@@ -9,7 +9,7 @@ pub struct FileLog {
     message_logger: LoggerHandle,
 }
 
-impl Log for FileLog {
+impl LogTrait for FileLog {
     fn on_incoming(&self, data: &[u8]) {
         info!(
             target: "message_logger",
@@ -34,9 +34,9 @@ impl Log for FileLog {
         )
     }
 
-    fn on_eventf(&self, fmt: &str, params: &HashMap<&str, &str>) {
+    fn on_eventf(&self, fmt: &str, params: HashMap<String, String>) {
         let tpl = Template::new(fmt).unwrap();
-        self.on_event(&tpl.render(params));
+        self.on_event(&tpl.render(&params));
     }
 }
 

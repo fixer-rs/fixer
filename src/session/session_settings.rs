@@ -93,11 +93,11 @@ impl SessionSettings {
         let string_val = self.setting(setting)?;
 
         let val_result = parse(&string_val);
-        if let Err(val) = val_result {
+        if let Err(err) = val_result {
             return Err(Box::new(IncorrectFormatForSetting {
                 setting: setting.to_string(),
                 value: string_val,
-                err: Box::new(val),
+                err: Box::new(err),
             }));
         }
         Ok(val_result.unwrap())

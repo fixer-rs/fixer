@@ -13,8 +13,8 @@ use crate::tag::*;
 use crate::tag_value::TagValue;
 
 // Validator validates a FIX message
-pub trait Validator {
-    fn validate(&self, message: &Message) -> MessageRejectErrorResult;
+pub trait Validator: Send + Sync {
+    fn validate(&self, msg: &Message) -> MessageRejectErrorResult;
 }
 
 // ValidatorSettings describe validation behavior
@@ -67,7 +67,7 @@ impl Validator for FixtValidator {
 
         let msg_type = msg.header.get_string(TAG_MSG_TYPE)?;
 
-        if is_admin_message_type(msg_type.chars().next().unwrap()) {
+        if is_admin_message_type(msg_type.as_bytes()) {
             return validate_fix(
                 &self.transport_data_dictionary,
                 &self.settings,
@@ -212,7 +212,7 @@ fn validate_walk(
 fn validate_visit_field(
     field_def: &FieldDef,
     fields: &LocalField,
-) -> Result<LocalField, Box<dyn MessageRejectErrorTrait>> {
+) -> Result<LocalField, MessageRejectErrorEnum> {
     if field_def.is_group() {
         let new_fields = validate_visit_group_field(field_def, fields)?;
         return Ok(new_fields);
@@ -224,7 +224,7 @@ fn validate_visit_field(
 fn validate_visit_group_field(
     field_def: &FieldDef,
     field_stack: &LocalField,
-) -> Result<LocalField, Box<dyn MessageRejectErrorTrait>> {
+) -> Result<LocalField, MessageRejectErrorEnum> {
     let first_field_stack = field_stack.get(0).unwrap();
     let num_in_group_tag = first_field_stack.tag;
     let mut num_in_group = FIXInt::default();
@@ -295,21 +295,21 @@ fn validate_required(
     transport_dd: &DataDictionary,
     app_dd: &DataDictionary,
     msg_type: &str,
-    message: &Message,
+    msg: &Message,
 ) -> MessageRejectErrorResult {
     validate_required_field_map(
-        message,
+        msg,
         &transport_dd.header.required_tags,
-        &message.header.field_map,
+        &msg.header.field_map,
     )?;
 
     let required_tags = &app_dd.messages.get(msg_type).unwrap().required_tags;
-    validate_required_field_map(message, required_tags, &message.body.field_map)?;
+    validate_required_field_map(msg, required_tags, &msg.body.field_map)?;
 
     validate_required_field_map(
-        message,
+        msg,
         &transport_dd.trailer.required_tags,
-        &message.trailer.field_map,
+        &msg.trailer.field_map,
     )?;
 
     Ok(())
@@ -333,9 +333,9 @@ fn validate_fields(
     transport_dd: &DataDictionary,
     app_dd: &DataDictionary,
     msg_type: &str,
-    message: &Message,
+    msg: &Message,
 ) -> MessageRejectErrorResult {
-    for field in message.fields.iter() {
+    for field in msg.fields.iter() {
         if field.tag.is_header() {
             validate_field(transport_dd, &transport_dd.header.tags, field)?;
         } else if field.tag.is_trailer() {
@@ -415,7 +415,6 @@ fn validate_field(
 mod tests {
     use super::*;
     use crate::datadictionary::parse;
-    use crate::fix_utc_timestamp::TimestampPrecision;
     use chrono::Utc;
 
     struct ValidateTest {
@@ -524,13 +523,8 @@ mod tests {
         msg.header
             .set_field(TAG_TARGET_COMP_ID, FIXString::from("0"));
         msg.header.set_field(TAG_MSG_SEQ_NUM, FIXString::from("0"));
-        msg.header.set_field(
-            TAG_SENDING_TIME,
-            FIXUTCTimestamp {
-                time: now,
-                precision: TimestampPrecision::default(),
-            },
-        );
+        msg.header
+            .set_field(TAG_SENDING_TIME, FIXUTCTimestamp::from_time(now));
 
         msg.body.set_field(11, FIXString::from("A"));
         msg.body.set_field(21, FIXString::from("1"));
@@ -557,13 +551,8 @@ mod tests {
         msg.header
             .set_field(TAG_TARGET_COMP_ID, FIXString::from("0"));
         msg.header.set_field(TAG_MSG_SEQ_NUM, FIXString::from("0"));
-        msg.header.set_field(
-            TAG_SENDING_TIME,
-            FIXUTCTimestamp {
-                time: now.clone(),
-                precision: TimestampPrecision::default(),
-            },
-        );
+        msg.header
+            .set_field(TAG_SENDING_TIME, FIXUTCTimestamp::from_time(now));
 
         msg.body.set_field(11, FIXString::from("A"));
         msg.body.set_field(21, FIXString::from("1"));
@@ -571,13 +560,7 @@ mod tests {
         msg.body.set_field(54, FIXString::from("1"));
         msg.body.set_field(38, 5 as FIXInt);
         msg.body.set_field(40, FIXString::from("1"));
-        msg.body.set_field(
-            60,
-            FIXUTCTimestamp {
-                time: now,
-                precision: TimestampPrecision::default(),
-            },
-        );
+        msg.body.set_field(60, FIXUTCTimestamp::from_time(now));
 
         msg.trailer.set_field(TAG_CHECK_SUM, FIXString::from("000"));
 
@@ -702,13 +685,9 @@ mod tests {
         invalid_msg1
             .header
             .set_field(TAG_MSG_SEQ_NUM, FIXString::from("0"));
-        invalid_msg1.header.set_field(
-            TAG_SENDING_TIME,
-            FIXUTCTimestamp {
-                time: Utc::now(),
-                precision: TimestampPrecision::default(),
-            },
-        );
+        invalid_msg1
+            .header
+            .set_field(TAG_SENDING_TIME, FIXUTCTimestamp::from_time(Utc::now()));
 
         invalid_msg1
             .trailer

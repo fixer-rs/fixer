@@ -1,6 +1,7 @@
-use chrono::{DateTime, Datelike, Duration, FixedOffset, NaiveTime, TimeZone, Timelike, Weekday};
+use chrono::{
+    DateTime, Datelike, Duration, FixedOffset, Local, NaiveTime, TimeZone, Timelike, Weekday,
+};
 use simple_error::SimpleResult;
-use std::{cmp::Ordering, ops::Add};
 
 // TimeOfDay represents the time of day
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -15,6 +16,11 @@ const SHORT_FORM: &str = "%H:%M:%S";
 
 pub fn utc() -> FixedOffset {
     FixedOffset::east_opt(0).unwrap()
+}
+
+pub fn gen_now() -> DateTime<FixedOffset> {
+    let now = Local::now();
+    now.with_timezone(now.offset())
 }
 
 impl TimeOfDay {
@@ -94,9 +100,7 @@ impl TimeRange {
 
         r
     }
-}
 
-impl TimeRange {
     fn is_in_time_range(&self, t: &DateTime<FixedOffset>) -> bool {
         let new_t = t.with_timezone(&self.loc);
         let ts = TimeOfDay::new(
@@ -164,22 +168,23 @@ impl TimeRange {
     }
 
     // is_in_same_range &determines if &two points in time are in the same time range
-    pub fn is_in_same_range(&self, t1: &DateTime<FixedOffset>, t2: &DateTime<FixedOffset>) -> bool {
+    pub fn is_in_same_range(
+        &self,
+        t1: &mut DateTime<FixedOffset>,
+        t2: &mut DateTime<FixedOffset>,
+    ) -> bool {
         if !(self.is_in_range(t1) && self.is_in_range(t2)) {
             return false;
         }
 
-        let mut tmp1 = t1;
-        let mut tmp2 = t2;
-
-        if t2.lt(t1) {
-            (tmp1, tmp2) = (t2, t1);
+        if t2 < t1 {
+            (*t1, *t2) = (*t2, *t1);
         }
 
-        let tmp1 = &tmp1.with_timezone(&self.loc);
-        let t1_hour = tmp1.hour() as isize;
-        let t1_minute = tmp1.minute() as isize;
-        let t1_second = tmp1.second() as isize;
+        let t1 = &t1.with_timezone(&self.loc);
+        let t1_hour = t1.hour() as isize;
+        let t1_minute = t1.minute() as isize;
+        let t1_second = t1.second() as isize;
 
         let t1_time = TimeOfDay::new(t1_hour, t1_minute, t1_second);
         let mut day_offset = 0;
@@ -190,36 +195,33 @@ impl TimeRange {
             }
         } else {
             let end_day = self.end_day.unwrap().num_days_from_sunday();
-
             let t1_weekday = t1.weekday().num_days_from_sunday();
 
-            match t1_weekday.cmp(&end_day) {
-                Ordering::Less => {
-                    day_offset = (end_day - t1_weekday) as i64;
+            if end_day < t1_weekday {
+                day_offset = 7 + (end_day - t1_weekday) as i64;
+            } else if t1_weekday == end_day {
+                if self.end_time.d <= t1_time.d {
+                    day_offset = 7;
                 }
-                Ordering::Greater => day_offset = 7 + (end_day - t1_weekday) as i64,
-                Ordering::Equal => {
-                    if self.end_time.d <= t1_time.d {
-                        day_offset = 7;
-                    }
-                }
+            } else {
+                day_offset = (end_day - t1_weekday) as i64;
             }
         }
 
         let mut session_end = self
             .loc
             .with_ymd_and_hms(
-                tmp1.year(),
-                tmp1.month(),
-                tmp1.day(),
+                t1.year(),
+                t1.month(),
+                t1.day(),
                 self.end_time.hour as u32,
                 self.end_time.minute as u32,
                 self.end_time.second as u32,
             )
             .unwrap();
-        session_end = session_end.add(Duration::days(day_offset));
+        session_end = session_end + Duration::days(day_offset);
 
-        tmp2.lt(&session_end)
+        t2 < &mut session_end
     }
 }
 
@@ -523,36 +525,36 @@ mod tests {
         let mut time1 = utc().with_ymd_and_hms(2016, 8, 10, 10, 0, 0).unwrap();
         let mut time2 = utc().with_ymd_and_hms(2016, 8, 10, 10, 0, 0).unwrap();
 
-        assert!(TimeRange::new_utc(start, end).is_in_same_range(&time1, &time2));
-        assert!(TimeRange::new_utc(start, end).is_in_same_range(&time2, &time1));
+        assert!(TimeRange::new_utc(start, end).is_in_same_range(&mut time1, &mut time2));
+        assert!(TimeRange::new_utc(start, end).is_in_same_range(&mut time2, &mut time1));
 
         // time 2 in same session but greater
         time1 = utc().with_ymd_and_hms(2016, 8, 10, 10, 0, 0).unwrap();
         time2 = utc().with_ymd_and_hms(2016, 8, 10, 11, 0, 0).unwrap();
 
-        assert!(TimeRange::new_utc(start, end).is_in_same_range(&time1, &time2));
-        assert!(TimeRange::new_utc(start, end).is_in_same_range(&time2, &time1));
+        assert!(TimeRange::new_utc(start, end).is_in_same_range(&mut time1, &mut time2));
+        assert!(TimeRange::new_utc(start, end).is_in_same_range(&mut time2, &mut time1));
 
         // time 2 in same session but less
         time1 = utc().with_ymd_and_hms(2016, 8, 10, 11, 0, 0).unwrap();
         time2 = utc().with_ymd_and_hms(2016, 8, 10, 10, 0, 0).unwrap();
 
-        assert!(TimeRange::new_utc(start, end).is_in_same_range(&time1, &time2));
-        assert!(TimeRange::new_utc(start, end).is_in_same_range(&time2, &time1));
+        assert!(TimeRange::new_utc(start, end).is_in_same_range(&mut time1, &mut time2));
+        assert!(TimeRange::new_utc(start, end).is_in_same_range(&mut time2, &mut time1));
 
         // time 1 not in session
         time1 = utc().with_ymd_and_hms(2016, 8, 10, 19, 0, 0).unwrap();
         time2 = utc().with_ymd_and_hms(2016, 8, 10, 10, 0, 0).unwrap();
 
-        assert!(!TimeRange::new_utc(start, end).is_in_same_range(&time1, &time2));
-        assert!(!TimeRange::new_utc(start, end).is_in_same_range(&time2, &time1));
+        assert!(!TimeRange::new_utc(start, end).is_in_same_range(&mut time1, &mut time2));
+        assert!(!TimeRange::new_utc(start, end).is_in_same_range(&mut time2, &mut time1));
 
         // time 2 not in session
         time1 = utc().with_ymd_and_hms(2016, 8, 10, 10, 0, 0).unwrap();
         time2 = utc().with_ymd_and_hms(2016, 8, 10, 2, 0, 0).unwrap();
 
-        assert!(!TimeRange::new_utc(start, end).is_in_same_range(&time1, &time2));
-        assert!(!TimeRange::new_utc(start, end).is_in_same_range(&time2, &time1));
+        assert!(!TimeRange::new_utc(start, end).is_in_same_range(&mut time1, &mut time2));
+        assert!(!TimeRange::new_utc(start, end).is_in_same_range(&mut time2, &mut time1));
 
         // start time is greater than end time
         start = TimeOfDay::new(18, 0, 0);
@@ -562,29 +564,29 @@ mod tests {
         time1 = utc().with_ymd_and_hms(2016, 8, 10, 19, 0, 0).unwrap();
         time2 = utc().with_ymd_and_hms(2016, 8, 10, 20, 0, 0).unwrap();
 
-        assert!(TimeRange::new_utc(start, end).is_in_same_range(&time1, &time2));
-        assert!(TimeRange::new_utc(start, end).is_in_same_range(&time2, &time1));
+        assert!(TimeRange::new_utc(start, end).is_in_same_range(&mut time1, &mut time2));
+        assert!(TimeRange::new_utc(start, end).is_in_same_range(&mut time2, &mut time1));
 
         // same session time 2 is in next day
         time1 = utc().with_ymd_and_hms(2016, 8, 10, 19, 0, 0).unwrap();
         time2 = utc().with_ymd_and_hms(2016, 8, 11, 2, 0, 0).unwrap();
 
-        assert!(TimeRange::new_utc(start, end).is_in_same_range(&time1, &time2));
-        assert!(TimeRange::new_utc(start, end).is_in_same_range(&time2, &time1));
+        assert!(TimeRange::new_utc(start, end).is_in_same_range(&mut time1, &mut time2));
+        assert!(TimeRange::new_utc(start, end).is_in_same_range(&mut time2, &mut time1));
 
         // same session time 1 is in next day
         time1 = utc().with_ymd_and_hms(2016, 8, 11, 2, 0, 0).unwrap();
         time2 = utc().with_ymd_and_hms(2016, 8, 10, 19, 0, 0).unwrap();
 
-        assert!(TimeRange::new_utc(start, end).is_in_same_range(&time1, &time2));
-        assert!(TimeRange::new_utc(start, end).is_in_same_range(&time2, &time1));
+        assert!(TimeRange::new_utc(start, end).is_in_same_range(&mut time1, &mut time2));
+        assert!(TimeRange::new_utc(start, end).is_in_same_range(&mut time2, &mut time1));
 
         // time1 is 25 hours greater than time2
         time1 = utc().with_ymd_and_hms(2016, 8, 11, 21, 0, 0).unwrap();
         time2 = utc().with_ymd_and_hms(2016, 8, 10, 20, 0, 0).unwrap();
 
-        assert!(!TimeRange::new_utc(start, end).is_in_same_range(&time1, &time2));
-        assert!(!TimeRange::new_utc(start, end).is_in_same_range(&time2, &time1));
+        assert!(!TimeRange::new_utc(start, end).is_in_same_range(&mut time1, &mut time2));
+        assert!(!TimeRange::new_utc(start, end).is_in_same_range(&mut time2, &mut time1));
 
         // start time is greater than end time
         start = TimeOfDay::new(6, 0, 0);
@@ -592,8 +594,8 @@ mod tests {
 
         time1 = utc().with_ymd_and_hms(2016, 1, 13, 19, 10, 0).unwrap();
         time2 = utc().with_ymd_and_hms(2016, 1, 14, 19, 6, 0).unwrap();
-        assert!(!TimeRange::new_utc(start, end).is_in_same_range(&time1, &time2));
-        assert!(!TimeRange::new_utc(start, end).is_in_same_range(&time2, &time1));
+        assert!(!TimeRange::new_utc(start, end).is_in_same_range(&mut time1, &mut time2));
+        assert!(!TimeRange::new_utc(start, end).is_in_same_range(&mut time2, &mut time1));
 
         start = TimeOfDay::new(0, 0, 0);
         end = TimeOfDay::new(2, 0, 0);
@@ -601,51 +603,63 @@ mod tests {
 
         time1 = utc().with_ymd_and_hms(2016, 8, 10, 0, 1, 0).unwrap();
         time2 = utc().with_ymd_and_hms(2016, 8, 10, 0, 1, 0).unwrap();
-        assert!(TimeRange::new_in_location(start, end, loc).is_in_same_range(&time1, &time2));
-        assert!(TimeRange::new_in_location(start, end, loc).is_in_same_range(&time2, &time1));
+        assert!(
+            TimeRange::new_in_location(start, end, loc).is_in_same_range(&mut time1, &mut time2)
+        );
+        assert!(
+            TimeRange::new_in_location(start, end, loc).is_in_same_range(&mut time2, &mut time1)
+        );
 
         start = TimeOfDay::new(2, 0, 0);
         end = TimeOfDay::new(0, 0, 0);
         time1 = utc().with_ymd_and_hms(2016, 8, 10, 2, 1, 0).unwrap();
         time2 = utc().with_ymd_and_hms(2016, 8, 10, 2, 1, 0).unwrap();
-        assert!(TimeRange::new_in_location(start, end, loc).is_in_same_range(&time1, &time2));
-        assert!(TimeRange::new_in_location(start, end, loc).is_in_same_range(&time2, &time1));
+        assert!(
+            TimeRange::new_in_location(start, end, loc).is_in_same_range(&mut time1, &mut time2)
+        );
+        assert!(
+            TimeRange::new_in_location(start, end, loc).is_in_same_range(&mut time2, &mut time1)
+        );
 
         start = TimeOfDay::new(0, 0, 0);
         end = TimeOfDay::new(0, 0, 0);
         time1 = utc().with_ymd_and_hms(2016, 8, 10, 0, 0, 0).unwrap();
         time2 = utc().with_ymd_and_hms(2016, 8, 11, 0, 0, 0).unwrap();
-        assert!(!TimeRange::new_in_location(start, end, loc).is_in_same_range(&time1, &time2));
-        assert!(!TimeRange::new_in_location(start, end, loc).is_in_same_range(&time2, &time1));
+        assert!(
+            !TimeRange::new_in_location(start, end, loc).is_in_same_range(&mut time1, &mut time2)
+        );
+        assert!(
+            !TimeRange::new_in_location(start, end, loc).is_in_same_range(&mut time2, &mut time1)
+        );
 
         time1 = utc().with_ymd_and_hms(2016, 8, 10, 23, 59, 59).unwrap();
         time2 = utc().with_ymd_and_hms(2016, 8, 11, 0, 0, 0).unwrap();
-        assert!(!TimeRange::new_utc(start, end).is_in_same_range(&time1, &time2));
-        assert!(!TimeRange::new_utc(start, end).is_in_same_range(&time2, &time1));
+        assert!(!TimeRange::new_utc(start, end).is_in_same_range(&mut time1, &mut time2));
+        assert!(!TimeRange::new_utc(start, end).is_in_same_range(&mut time2, &mut time1));
 
         start = TimeOfDay::new(1, 49, 0);
         end = TimeOfDay::new(1, 49, 0);
         time1 = utc().with_ymd_and_hms(2016, 8, 16, 1, 48, 21).unwrap();
         time2 = utc().with_ymd_and_hms(2016, 8, 16, 1, 49, 02).unwrap();
 
-        assert!(!TimeRange::new_utc(start, end).is_in_same_range(&time1, &time2));
-        assert!(!TimeRange::new_utc(start, end).is_in_same_range(&time2, &time1));
+        assert!(!TimeRange::new_utc(start, end).is_in_same_range(&mut time1, &mut time2));
+        assert!(!TimeRange::new_utc(start, end).is_in_same_range(&mut time2, &mut time1));
 
         start = TimeOfDay::new(1, 49, 0);
         end = TimeOfDay::new(1, 49, 0);
         time1 = utc().with_ymd_and_hms(2016, 8, 16, 13, 48, 21).unwrap();
         time2 = utc().with_ymd_and_hms(2016, 8, 16, 13, 49, 02).unwrap();
 
-        assert!(TimeRange::new_utc(start, end).is_in_same_range(&time1, &time2));
-        assert!(TimeRange::new_utc(start, end).is_in_same_range(&time2, &time1));
+        assert!(TimeRange::new_utc(start, end).is_in_same_range(&mut time1, &mut time2));
+        assert!(TimeRange::new_utc(start, end).is_in_same_range(&mut time2, &mut time1));
 
         start = TimeOfDay::new(13, 49, 0);
         end = TimeOfDay::new(13, 49, 0);
         time1 = utc().with_ymd_and_hms(2016, 8, 16, 13, 48, 21).unwrap();
         time2 = utc().with_ymd_and_hms(2016, 8, 16, 13, 49, 02).unwrap();
 
-        assert!(!TimeRange::new_utc(start, end).is_in_same_range(&time1, &time2));
-        assert!(!TimeRange::new_utc(start, end).is_in_same_range(&time2, &time1));
+        assert!(!TimeRange::new_utc(start, end).is_in_same_range(&mut time1, &mut time2));
+        assert!(!TimeRange::new_utc(start, end).is_in_same_range(&mut time2, &mut time1));
     }
 
     #[test]
@@ -659,56 +673,56 @@ mod tests {
         let mut time2 = utc().with_ymd_and_hms(2004, 7, 25, 3, 0, 0).unwrap();
         assert!(
             !TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
-                .is_in_same_range(&time1, &time2)
+                .is_in_same_range(&mut time1, &mut time2)
         );
 
         time1 = utc().with_ymd_and_hms(2004, 7, 31, 3, 0, 0).unwrap();
         time2 = utc().with_ymd_and_hms(2004, 7, 27, 3, 0, 0).unwrap();
         assert!(
             !TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
-                .is_in_same_range(&time1, &time2)
+                .is_in_same_range(&mut time1, &mut time2)
         );
 
         time1 = utc().with_ymd_and_hms(2004, 7, 27, 3, 0, 0).unwrap();
         time2 = utc().with_ymd_and_hms(2004, 7, 27, 3, 0, 0).unwrap();
         assert!(
             TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
-                .is_in_same_range(&time1, &time2)
+                .is_in_same_range(&mut time1, &mut time2)
         );
 
         time1 = utc().with_ymd_and_hms(2004, 7, 26, 10, 0, 0).unwrap();
         time2 = utc().with_ymd_and_hms(2004, 7, 27, 3, 0, 0).unwrap();
         assert!(
             TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
-                .is_in_same_range(&time1, &time2)
+                .is_in_same_range(&mut time1, &mut time2)
         );
 
         time1 = utc().with_ymd_and_hms(2004, 7, 27, 10, 0, 0).unwrap();
         time2 = utc().with_ymd_and_hms(2004, 7, 29, 2, 0, 0).unwrap();
         assert!(
             TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
-                .is_in_same_range(&time1, &time2)
+                .is_in_same_range(&mut time1, &mut time2)
         );
 
         time1 = utc().with_ymd_and_hms(2004, 7, 27, 10, 0, 0).unwrap();
         time2 = utc().with_ymd_and_hms(2004, 7, 20, 3, 0, 0).unwrap();
         assert!(
             !TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
-                .is_in_same_range(&time1, &time2)
+                .is_in_same_range(&mut time1, &mut time2)
         );
 
         time1 = utc().with_ymd_and_hms(2004, 7, 27, 2, 0, 0).unwrap();
         time2 = utc().with_ymd_and_hms(2004, 7, 20, 3, 0, 0).unwrap();
         assert!(
             !TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
-                .is_in_same_range(&time1, &time2)
+                .is_in_same_range(&mut time1, &mut time2)
         );
 
         time1 = utc().with_ymd_and_hms(2004, 7, 26, 2, 0, 0).unwrap();
         time2 = utc().with_ymd_and_hms(2004, 7, 19, 3, 0, 0).unwrap();
         assert!(
             !TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
-                .is_in_same_range(&time1, &time2)
+                .is_in_same_range(&mut time1, &mut time2)
         );
 
         // Reset start/end time so that they fall within an hour of midnight
@@ -724,7 +738,7 @@ mod tests {
         time2 = utc().with_ymd_and_hms(2006, 4, 3, 1, 0, 0).unwrap();
         assert!(
             TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
-                .is_in_same_range(&time1, &time2)
+                .is_in_same_range(&mut time1, &mut time2)
         );
 
         // Check that DST-->ST (Sunday has an extra hour) is handled
@@ -732,7 +746,7 @@ mod tests {
         time2 = utc().with_ymd_and_hms(2006, 10, 31, 1, 0, 0).unwrap();
         assert!(
             TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
-                .is_in_same_range(&time1, &time2)
+                .is_in_same_range(&mut time1, &mut time2)
         );
 
         // Check that everything works across a year boundary
@@ -740,7 +754,7 @@ mod tests {
         time2 = utc().with_ymd_and_hms(2007, 1, 1, 10, 10, 10).unwrap();
         assert!(
             TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
-                .is_in_same_range(&time1, &time2)
+                .is_in_same_range(&mut time1, &mut time2)
         );
 
         // Session days are the same
@@ -752,19 +766,19 @@ mod tests {
         time2 = utc().with_ymd_and_hms(2006, 12, 3, 9, 1, 0).unwrap();
         assert!(
             TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
-                .is_in_same_range(&time1, &time2)
+                .is_in_same_range(&mut time1, &mut time2)
         );
 
         time2 = utc().with_ymd_and_hms(2006, 12, 10, 9, 1, 0).unwrap();
         assert!(
             !TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
-                .is_in_same_range(&time1, &time2)
+                .is_in_same_range(&mut time1, &mut time2)
         );
 
         time2 = utc().with_ymd_and_hms(2006, 12, 4, 9, 1, 0).unwrap();
         assert!(
             TimeRange::new_utc_week_range(start_time, end_time, start_day, end_day)
-                .is_in_same_range(&time1, &time2)
+                .is_in_same_range(&mut time1, &mut time2)
         );
     }
 }

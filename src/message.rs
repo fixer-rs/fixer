@@ -1,6 +1,6 @@
 use crate::{
     datadictionary::DataDictionary,
-    errors::{MessageRejectErrorResult, MessageRejectErrorTrait},
+    errors::{MessageRejectErrorEnum, MessageRejectErrorResult},
     field::{
         Field, FieldGroupReader, FieldGroupWriter, FieldValueReader, FieldValueWriter, FieldWriter,
     },
@@ -19,7 +19,7 @@ use std::{
     string::ToString,
 };
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Header {
     pub field_map: FieldMap,
 }
@@ -67,11 +67,11 @@ impl Header {
                 tag: Tag,
                 parser: &mut P,
             ) -> MessageRejectErrorResult;
-            pub fn get_bytes(&self, tag: Tag) -> Result<Vec<u8>, Box<dyn MessageRejectErrorTrait>>;
-            pub fn get_bool(&self, tag: Tag) -> Result<bool, Box<dyn MessageRejectErrorTrait>>;
-            pub fn get_int(&self, tag: Tag) -> Result<isize, Box<dyn MessageRejectErrorTrait>>;
-            pub fn get_time(&self, tag: Tag) -> Result<DateTime<Utc>, Box<dyn MessageRejectErrorTrait>>;
-            pub fn get_string(&self, tag: Tag) -> Result<String, Box<dyn MessageRejectErrorTrait>>;
+            pub fn get_bytes(&self, tag: Tag) -> Result<Vec<u8>, MessageRejectErrorEnum>;
+            pub fn get_bool(&self, tag: Tag) -> Result<bool, MessageRejectErrorEnum>;
+            pub fn get_int(&self, tag: Tag) -> Result<isize, MessageRejectErrorEnum>;
+            pub fn get_time(&self, tag: Tag) -> Result<DateTime<Utc>, MessageRejectErrorEnum>;
+            pub fn get_string(&self, tag: Tag) -> Result<String, MessageRejectErrorEnum>;
             pub fn get_group<P: FieldGroupReader>(&self, parser: P) -> MessageRejectErrorResult;
             pub fn set_field<F: FieldValueWriter>(&self, tag: Tag, field: F) -> &FieldMap;
             pub fn set_bytes(&self, tag: Tag, value: &[u8]) -> &FieldMap;
@@ -90,7 +90,7 @@ impl Header {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Body {
     pub field_map: FieldMap,
 }
@@ -111,11 +111,11 @@ impl Body {
                 tag: Tag,
                 parser: &mut P,
             ) -> MessageRejectErrorResult;
-            pub fn get_bytes(&self, tag: Tag) -> Result<Vec<u8>, Box<dyn MessageRejectErrorTrait>>;
-            pub fn get_bool(&self, tag: Tag) -> Result<bool, Box<dyn MessageRejectErrorTrait>>;
-            pub fn get_int(&self, tag: Tag) -> Result<isize, Box<dyn MessageRejectErrorTrait>>;
-            pub fn get_time(&self, tag: Tag) -> Result<DateTime<Utc>, Box<dyn MessageRejectErrorTrait>>;
-            pub fn get_string(&self, tag: Tag) -> Result<String, Box<dyn MessageRejectErrorTrait>>;
+            pub fn get_bytes(&self, tag: Tag) -> Result<Vec<u8>, MessageRejectErrorEnum>;
+            pub fn get_bool(&self, tag: Tag) -> Result<bool, MessageRejectErrorEnum>;
+            pub fn get_int(&self, tag: Tag) -> Result<isize, MessageRejectErrorEnum>;
+            pub fn get_time(&self, tag: Tag) -> Result<DateTime<Utc>, MessageRejectErrorEnum>;
+            pub fn get_string(&self, tag: Tag) -> Result<String, MessageRejectErrorEnum>;
             pub fn get_group<P: FieldGroupReader>(&self, parser: P) -> MessageRejectErrorResult;
             pub fn set_field<F: FieldValueWriter>(&self, tag: Tag, field: F) -> &FieldMap;
             pub fn set_bytes(&self, tag: Tag, value: &[u8]) -> &FieldMap;
@@ -134,7 +134,7 @@ impl Body {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Trailer {
     pub field_map: FieldMap,
 }
@@ -169,11 +169,11 @@ impl Trailer {
                 tag: Tag,
                 parser: &mut P,
             ) -> MessageRejectErrorResult;
-            pub fn get_bytes(&self, tag: Tag) -> Result<Vec<u8>, Box<dyn MessageRejectErrorTrait>>;
-            pub fn get_bool(&self, tag: Tag) -> Result<bool, Box<dyn MessageRejectErrorTrait>>;
-            pub fn get_int(&self, tag: Tag) -> Result<isize, Box<dyn MessageRejectErrorTrait>>;
-            pub fn get_time(&self, tag: Tag) -> Result<DateTime<Utc>, Box<dyn MessageRejectErrorTrait>>;
-            pub fn get_string(&self, tag: Tag) -> Result<String, Box<dyn MessageRejectErrorTrait>>;
+            pub fn get_bytes(&self, tag: Tag) -> Result<Vec<u8>, MessageRejectErrorEnum>;
+            pub fn get_bool(&self, tag: Tag) -> Result<bool, MessageRejectErrorEnum>;
+            pub fn get_int(&self, tag: Tag) -> Result<isize, MessageRejectErrorEnum>;
+            pub fn get_time(&self, tag: Tag) -> Result<DateTime<Utc>, MessageRejectErrorEnum>;
+            pub fn get_string(&self, tag: Tag) -> Result<String, MessageRejectErrorEnum>;
             pub fn get_group<P: FieldGroupReader>(&self, parser: P) -> MessageRejectErrorResult;
             pub fn set_field<F: FieldValueWriter>(&self, tag: Tag, field: F) -> &FieldMap;
             pub fn set_bytes(&self, tag: Tag, value: &[u8]) -> &FieldMap;
@@ -193,7 +193,7 @@ impl Trailer {
 }
 
 //Message is a FIX Message abstraction.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Message {
     pub header: Header,
     pub trailer: Trailer,
@@ -243,15 +243,15 @@ impl Message {
     }
 
     pub fn parse_message(&mut self, raw_message: &[u8]) -> Result<(), ParseError> {
-        self.parse_message_with_data_dictionary(raw_message, None, None)
+        self.parse_message_with_data_dictionary(raw_message, &None, &None)
     }
 
     // parse_message_with_data_dictionary constructs a Message from a byte slice wrapping a FIX message using an optional session and application DataDictionary for reference.
     pub fn parse_message_with_data_dictionary(
         &mut self,
         raw_message: &[u8],
-        transport_data_dictionary: Option<&DataDictionary>,
-        _application_data_dictionary: Option<&DataDictionary>,
+        transport_data_dictionary: &Option<DataDictionary>,
+        _application_data_dictionary: &Option<DataDictionary>,
     ) -> Result<(), ParseError> {
         self.header.clear();
         self.body.clear();
@@ -386,7 +386,7 @@ impl Message {
     }
 
     // MsgType returns MsgType (tag 35) field's value
-    pub fn msg_type(&self) -> Result<String, Box<dyn MessageRejectErrorTrait>> {
+    pub fn msg_type(&self) -> Result<String, MessageRejectErrorEnum> {
         self.header.get_string(TAG_MSG_TYPE)
     }
 
@@ -400,7 +400,7 @@ impl Message {
     }
 
     // reverseRoute returns a message builder with routing header fields initialized as the reverse of this message.
-    fn reverse_route(&self) -> Message {
+    pub fn reverse_route(&self) -> Message {
         let reverse_msg = Message::default();
 
         let copy = |src: Tag, dest: Tag| {
@@ -472,7 +472,7 @@ impl Error for ParseError {
     }
 }
 
-fn is_header_field(tag: &Tag, data_dict: Option<&DataDictionary>) -> bool {
+fn is_header_field(tag: &Tag, data_dict: &Option<DataDictionary>) -> bool {
     if tag.is_header() {
         return true;
     }
@@ -481,10 +481,10 @@ fn is_header_field(tag: &Tag, data_dict: Option<&DataDictionary>) -> bool {
         return false;
     }
 
-    data_dict.unwrap().header.fields.contains_key(tag)
+    data_dict.as_ref().unwrap().header.fields.contains_key(tag)
 }
 
-fn is_trailer_field(tag: &Tag, data_dict: Option<&DataDictionary>) -> bool {
+fn is_trailer_field(tag: &Tag, data_dict: &Option<DataDictionary>) -> bool {
     if tag.is_trailer() {
         return true;
     }
@@ -493,7 +493,7 @@ fn is_trailer_field(tag: &Tag, data_dict: Option<&DataDictionary>) -> bool {
         return false;
     }
 
-    data_dict.unwrap().trailer.fields.contains_key(tag)
+    data_dict.as_ref().unwrap().trailer.fields.contains_key(tag)
 }
 
 fn extract_specific_field(
@@ -558,11 +558,10 @@ fn format_check_sum(value: isize) -> String {
 mod tests {
     use super::*;
     use crate::datadictionary::{DataDictionary, FieldDef, MessageDef};
-    use crate::fixer_test::FixerSuite;
+    use crate::fixer_test::{FieldEqual, FixerSuite};
     use crate::tag::Tag;
     use crate::BEGIN_STRING_FIX44;
     use delegate::delegate;
-    use std::any::Any;
     use std::collections::HashMap;
 
     struct MessageSuite {
@@ -580,7 +579,7 @@ mod tests {
     impl MessageSuite {
         delegate! {
             to self.suite {
-                fn field_equals(&self, tag: Tag, expected_value: Box<dyn Any>, field_map: &FieldMap) ;
+                fn field_equals<'a>(&self, tag: Tag, expected_value: FieldEqual<'a>, field_map: &FieldMap) ;
             }
         }
     }
@@ -651,12 +650,22 @@ mod tests {
 
         let raw_message = "8=FIX.4.29=12635=D34=249=TW52=20140515-19:49:56.65956=ISLD10030=CUST11=10021=140=154=155=TSLA60=00010101-00:00:00.0005050=HELLO10=039".as_bytes();
 
+        let dict_ref = &Some(dict);
+
         let parse_result =
             s.msg
-                .parse_message_with_data_dictionary(raw_message, Some(&dict), Some(&dict));
+                .parse_message_with_data_dictionary(raw_message, dict_ref, dict_ref);
         assert!(parse_result.is_ok());
-        s.field_equals(10030 as Tag, Box::new("CUST"), &s.msg.header.field_map);
-        s.field_equals(5050 as Tag, Box::new("HELLO"), &s.msg.trailer.field_map);
+        s.field_equals(
+            10030 as Tag,
+            FieldEqual::Str("CUST"),
+            &s.msg.header.field_map,
+        );
+        s.field_equals(
+            5050 as Tag,
+            FieldEqual::Str("HELLO"),
+            &s.msg.trailer.field_map,
+        );
     }
 
     #[test]
