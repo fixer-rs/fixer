@@ -6,7 +6,7 @@ use std::fmt::{Display, Formatter, Result as FmtResult};
 
 // IncorrectBeginString is a message reject specific to incorrect begin strings.
 #[derive(Debug, Default)]
-struct IncorrectBeginString {
+pub struct IncorrectBeginString {
     pub message_reject_error: MessageRejectError,
 }
 

@@ -6,7 +6,7 @@ pub mod null_log;
 pub mod screen_log;
 
 // Log is a generic trait for logging FIX messages and events.
-pub trait Log {
+pub trait Log: Send + Sync {
     // on_incoming log incoming fix message
     fn on_incoming(&self, data: &[u8]);
 
@@ -17,7 +17,7 @@ pub trait Log {
     fn on_event(&self, data: &str);
 
     // on_eventf log fix event according to format specifier
-    fn on_eventf(&self, format: &str, params: &HashMap<&str, &str>);
+    fn on_eventf(&self, format: &str, params: HashMap<String, String>);
 }
 
 // The LogFactory trait creates global and session specific Log instances

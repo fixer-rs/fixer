@@ -34,9 +34,9 @@ impl Log for FileLog {
         )
     }
 
-    fn on_eventf(&self, fmt: &str, params: &HashMap<&str, &str>) {
+    fn on_eventf(&self, fmt: &str, params: HashMap<String, String>) {
         let tpl = Template::new(fmt).unwrap();
-        self.on_event(&tpl.render(params));
+        self.on_event(&tpl.render(&params));
     }
 }
 

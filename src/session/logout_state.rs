@@ -1,11 +1,15 @@
-use crate::internal::event::Event;
+use crate::internal::event::{Event, LOGOUT_TIMEOUT};
 use crate::message::Message;
 use crate::session::{
+    in_session::InSession,
+    latent_state::LatentState,
     session_state::{ConnectedNotLoggedOn, SessionState},
     Session,
 };
+use async_trait::async_trait;
 use delegate::delegate;
 
+#[derive(Default)]
 pub struct LogoutState {
     connected_not_logged_on: ConnectedNotLoggedOn,
 }
@@ -16,6 +20,7 @@ impl ToString for LogoutState {
     }
 }
 
+#[async_trait]
 impl SessionState for LogoutState {
     delegate! {
         to self.connected_not_logged_on {
@@ -25,52 +30,34 @@ impl SessionState for LogoutState {
             fn shutdown_now(&self, _session: &Session);
         }
     }
-    fn fix_msg_in(&self, session: &Session, message: &Message) -> Box<Self> {
-        todo!()
+
+    async fn fix_msg_in(self, session: &'_ mut Session, msg: &'_ Message) -> Box<dyn SessionState> {
+        let next_state = InSession::default().fix_msg_in(session, msg);
+        // 	nextState = inSession{}.FixMsgIn(session, msg)
+        // 	if nextState, ok := nextState.(latentState); ok {
+        // 		return nextState
+        // 	}
+        Box::new(self)
     }
 
-    fn timeout(&self, session: &Session, event: Event) -> Box<Self> {
-        todo!()
+    fn timeout(self, session: &mut Session, event: Event) -> Box<dyn SessionState> {
+        if event == LOGOUT_TIMEOUT {
+            session
+                .log
+                .on_event("Timed out waiting for logout response");
+            return Box::new(LatentState::default());
+        }
+
+        Box::new(self)
     }
 
-    fn stop(&self, session: &Session) -> Box<Self> {
-        todo!()
+    fn stop(self, _session: &mut Session) -> Box<dyn SessionState> {
+        Box::new(self)
     }
 }
 
-// func (state logoutState) FixMsgIn(session *session, msg *Message) (nextState sessionState) {
-// 	nextState = inSession{}.FixMsgIn(session, msg)
-// 	if nextState, ok := nextState.(latentState); ok {
-// 		return nextState
-// 	}
-
-// 	return state
-// }
-
-// func (state logoutState) Timeout(session *session, event internal.Event) (nextState sessionState) {
-// 	switch event {
-// 	case internal.LogoutTimeout:
-// 		session.log.OnEvent("Timed out waiting for logout response")
-// 		return latentState{}
-// 	}
-
-// 	return state
-// }
-
-// func (state logoutState) Stop(session *session) (nextstate sessionState) {
-// 	return state
-// }
-
 #[cfg(test)]
 mod tests {
-    // import (
-    //     "testing"
-
-    //     "github.com/stretchr/testify/suite"
-
-    //     "github.com/quickfixgo/quickfix/internal"
-    // )
-
     // type LogoutStateTestSuite struct {
     //     SessionSuiteRig
     // }

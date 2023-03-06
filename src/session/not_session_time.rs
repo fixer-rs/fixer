@@ -1,32 +1,56 @@
-// import "github.com/quickfixgo/quickfix/internal"
+use crate::internal::event::Event;
+use crate::message::Message;
+use crate::session::latent_state::LatentState;
+use crate::session::{
+    session_state::{ConnectedNotLoggedOn, SessionState},
+    Session,
+};
+use async_trait::async_trait;
+use delegate::delegate;
 
-// type notSessionTime struct{ latentState }
+pub struct NotSessionTime {
+    pub latent_state: LatentState,
+}
 
-// func (notSessionTime) String() string      { return "Not session time" }
-// func (notSessionTime) IsSessionTime() bool { return false }
+impl ToString for NotSessionTime {
+    fn to_string(&self) -> String {
+        String::from("Not session time")
+    }
+}
 
-// func (state notSessionTime) FixMsgIn(session *session, msg *Message) (nextState sessionState) {
-// 	session.log.OnEventf("Invalid Session State: Unexpected Msg %v while in Latent state", msg)
-// 	return state
-// }
+#[async_trait]
+impl SessionState for NotSessionTime {
+    delegate! {
+        to self.latent_state {
+            fn is_connected(&self) -> bool;
+            fn is_logged_on(&self) -> bool;
+            fn shutdown_now(&self, _session: &Session);
+        }
+    }
 
-// func (state notSessionTime) Timeout(*session, internal.Event) (nextState sessionState) {
-// 	return state
-// }
+    fn is_session_time(&self) -> bool {
+        false
+    }
 
-// func (state notSessionTime) Stop(*session) (nextState sessionState) {
-// 	return state
-// }
+    async fn fix_msg_in(self, session: &'_ mut Session, msg: &'_ Message) -> Box<dyn SessionState> {
+        session.log.on_eventf(
+            "Invalid Session State: Unexpected Msg {{msg}} while in Latent state",
+            hashmap! {String::from("msg") => format!("{:?}", msg)},
+        );
+        Box::new(self)
+    }
+
+    fn timeout(self, _session: &mut Session, _event: Event) -> Box<dyn SessionState> {
+        Box::new(self)
+    }
+
+    fn stop(self, _session: &mut Session) -> Box<dyn SessionState> {
+        Box::new(self)
+    }
+}
 
 #[cfg(test)]
 mod tests {
-
-    // import (
-    // 	"testing"
-
-    // 	"github.com/stretchr/testify/suite"
-    // )
-
     // type NotSessionTimeTestSuite struct {
     // 	SessionSuiteRig
     // }

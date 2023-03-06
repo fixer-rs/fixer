@@ -1,7 +1,7 @@
 use crate::field_map::FieldMap;
 use crate::fix_boolean::FIXBoolean;
 use crate::message::Message;
-use crate::session_state::SessionState;
+use crate::session::session_state::SessionState;
 use crate::tag::{Tag, TAG_MSG_TYPE};
 use std::any::Any;
 

@@ -1,5 +1,6 @@
 use crate::tag::Tag;
 use simple_error::SimpleError;
+use std::any::Any;
 use std::error::Error;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
@@ -26,7 +27,7 @@ pub const REJECT_REASON_INCORRECT_NUM_IN_GROUP_COUNT_FOR_REPEATING_GROUP: isize 
 pub const REJECT_REASON_OTHER: isize = 99;
 
 // MessageRejectError is a type of error that can correlate to a message reject.
-pub trait MessageRejectErrorTrait: Error + IntoError<dyn Error> {
+pub trait MessageRejectErrorTrait: Error + IntoError<dyn Error> + Any {
     // reject_reason, tag 373 for session rejects, tag 380 for business rejects.
     fn reject_reason(&self) -> isize;
     fn business_reject_ref_id(&self) -> &str;

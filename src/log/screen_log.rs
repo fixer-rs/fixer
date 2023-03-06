@@ -1,5 +1,5 @@
 use crate::log::{Log, LogFactory};
-use crate::session_id::SessionID;
+use crate::session::session_id::SessionID;
 use chrono::Utc;
 use flexi_logger::{Logger, LoggerHandle, WriteMode};
 use log::info;
@@ -47,9 +47,9 @@ impl Log for ScreenLog {
         )
     }
 
-    fn on_eventf(&self, fmt: &str, params: &HashMap<&str, &str>) {
+    fn on_eventf(&self, fmt: &str, params: HashMap<String, String>) {
         let tpl = Template::new(fmt).unwrap();
-        self.on_event(&tpl.render(params));
+        self.on_event(&tpl.render(&params));
     }
 }
 

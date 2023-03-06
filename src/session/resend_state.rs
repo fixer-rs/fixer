@@ -1,82 +1,94 @@
-// // Copyright (c) quickfixengine.org  All rights reserved.
-// //
-// // This file may be distributed under the terms of the quickfixengine.org
-// // license as defined by quickfixengine.org and appearing in the file
-// // LICENSE included in the packaging of this file.
-// //
-// // This file is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING
-// // THE WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A
-// // PARTICULAR PURPOSE.
-// //
-// // See http://www.quickfixengine.org/LICENSE for licensing information.
-// //
-// // Contact ask@quickfixengine.org if any conditions of this licensing
-// // are not clear to you.
+use crate::internal::event::Event;
+use crate::message::Message;
+use crate::session::{
+    session_state::{LoggedOn, SessionState},
+    Session,
+};
+use async_trait::async_trait;
+use delegate::delegate;
+use std::collections::HashMap;
 
-// package quickfix
+#[derive(Default)]
+pub struct ResendState {
+    pub logged_on: LoggedOn,
+    pub message_stash: HashMap<isize, Message>,
+    pub current_resend_range_end: isize,
+    pub resend_range_end: isize,
+}
 
-// import "github.com/quickfixgo/quickfix/internal"
+impl ToString for ResendState {
+    fn to_string(&self) -> String {
+        String::from("Resend")
+    }
+}
 
-// type resendState struct {
-// 	loggedOn
-// 	messageStash          map[int]*Message
-// 	currentResendRangeEnd int
-// 	resendRangeEnd        int
-// }
+#[async_trait]
+impl SessionState for ResendState {
+    delegate! {
+        to self.logged_on {
+            fn is_connected(&self) -> bool;
+            fn is_session_time(&self) -> bool;
+            fn is_logged_on(&self) -> bool;
+            fn shutdown_now(&self, _session: &Session);
+            fn stop(self, _session: &mut Session) -> Box<dyn SessionState>;
+        }
+    }
 
-// func (s resendState) String() string { return "Resend" }
+    async fn fix_msg_in(
+        self,
+        _session: &'_ mut Session,
+        _msg: &'_ Message,
+    ) -> Box<dyn SessionState> {
+        // nextState = inSession{}.FixMsgIn(session, msg)
 
-// func (s resendState) Timeout(session *session, event internal.Event) (nextState sessionState) {
-// 	nextState = inSession{}.Timeout(session, event)
-// 	switch nextState.(type) {
-// 	case inSession:
-// 		nextState = s
-// 	case pendingTimeout:
-// 		// Wrap pendingTimeout in resend. prevents us falling back to inSession if recovering
-// 		// from pendingTimeout.
-// 		nextState = pendingTimeout{s}
-// 	}
+        // 	if !nextState.IsLoggedOn() {
+        // 		return
+        // 	}
 
-// 	return
-// }
+        // 	if s.currentResendRangeEnd != 0 && s.currentResendRangeEnd < session.store.NextTargetMsgSeqNum() {
+        // 		nextResendState, err := session.sendResendRequest(session.store.NextTargetMsgSeqNum(), s.resendRangeEnd)
+        // 		if err != nil {
+        // 			return handleStateError(session, err)
+        // 		}
+        // 		nextResendState.messageStash = s.messageStash
+        // 		return nextResendState
+        // 	}
 
-// func (s resendState) FixMsgIn(session *session, msg *Message) (nextState sessionState) {
-// 	nextState = inSession{}.FixMsgIn(session, msg)
+        // 	if s.resendRangeEnd >= session.store.NextTargetMsgSeqNum() {
+        // 		return s
+        // 	}
 
-// 	if !nextState.IsLoggedOn() {
-// 		return
-// 	}
+        // 	for len(s.messageStash) > 0 {
+        // 		targetSeqNum := session.store.NextTargetMsgSeqNum()
+        // 		msg, ok := s.messageStash[targetSeqNum]
+        // 		if !ok {
+        // 			break
+        // 		}
 
-// 	if s.currentResendRangeEnd != 0 && s.currentResendRangeEnd < session.store.NextTargetMsgSeqNum() {
-// 		nextResendState, err := session.sendResendRequest(session.store.NextTargetMsgSeqNum(), s.resendRangeEnd)
-// 		if err != nil {
-// 			return handleStateError(session, err)
-// 		}
-// 		nextResendState.messageStash = s.messageStash
-// 		return nextResendState
-// 	}
+        // 		delete(s.messageStash, targetSeqNum)
 
-// 	if s.resendRangeEnd >= session.store.NextTargetMsgSeqNum() {
-// 		return s
-// 	}
+        // 		nextState = inSession{}.FixMsgIn(session, msg)
+        // 		if !nextState.IsLoggedOn() {
+        // 			return
+        // 		}
+        todo!()
+    }
 
-// 	for len(s.messageStash) > 0 {
-// 		targetSeqNum := session.store.NextTargetMsgSeqNum()
-// 		msg, ok := s.messageStash[targetSeqNum]
-// 		if !ok {
-// 			break
-// 		}
+    fn timeout(self, _session: &mut Session, _event: Event) -> Box<dyn SessionState> {
+        // 	nextState = inSession{}.Timeout(session, event)
+        // 	switch nextState.(type) {
+        // 	case inSession:
+        // 		nextState = s
+        // 	case pendingTimeout:
+        // 		// Wrap pendingTimeout in resend. prevents us falling back to inSession if recovering
+        // 		// from pendingTimeout.
+        // 		nextState = pendingTimeout{s}
+        // 	}
 
-// 		delete(s.messageStash, targetSeqNum)
-
-// 		nextState = inSession{}.FixMsgIn(session, msg)
-// 		if !nextState.IsLoggedOn() {
-// 			return
-// 		}
-// 	}
-
-// 	return
-// }
+        // 	return
+        todo!()
+    }
+}
 
 #[cfg(test)]
 mod tests {

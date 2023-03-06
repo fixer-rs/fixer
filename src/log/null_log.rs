@@ -11,7 +11,7 @@ impl Log for NullLog {
 
     fn on_event(&self, _data: &str) {}
 
-    fn on_eventf(&self, _format: &str, _params: &HashMap<&str, &str>) {}
+    fn on_eventf(&self, _format: &str, _params: HashMap<String, String>) {}
 }
 
 pub struct NullLogFactory {}

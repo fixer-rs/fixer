@@ -13,8 +13,10 @@ version = "0.1.0"
 
 [dependencies]
 anyhow = "1.0.62"
+async-trait = "0.1.66"
 atoi_simd = "0.10.1"
 chrono = {version = "0.4", features = ["default", "serde"]}
+dashmap = "5.4.0"
 defer-lite = "1.0.0"
 delegate = "0.7.0"
 fast-float = "0.2.0"

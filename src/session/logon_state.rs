@@ -1,90 +1,114 @@
-// import (
-// 	"bytes"
+use crate::internal::event::{Event, LOGOUT_TIMEOUT};
+use crate::message::Message;
+use crate::msg_type::MSG_TYPE_LOGON;
+use crate::session::{
+    in_session::InSession,
+    latent_state::LatentState,
+    session_state::{handle_state_error, ConnectedNotLoggedOn, SessionState},
+    Session,
+};
+use crate::tag::TAG_MSG_TYPE;
+use async_trait::async_trait;
+use delegate::delegate;
 
-// 	"github.com/quickfixgo/quickfix/internal"
-// )
+#[derive(Default)]
+pub struct LogonState {
+    connected_not_logged_on: ConnectedNotLoggedOn,
+}
 
-// type logonState struct{ connectedNotLoggedOn }
+impl ToString for LogonState {
+    fn to_string(&self) -> String {
+        String::from("Logon State")
+    }
+}
 
-// func (s logonState) String() string { return "Logon State" }
+#[async_trait]
+impl SessionState for LogonState {
+    delegate! {
+        to self.connected_not_logged_on {
+            fn is_connected(&self) -> bool;
+            fn is_session_time(&self) -> bool;
+            fn is_logged_on(&self) -> bool;
+            fn shutdown_now(&self, _session: &Session);
+        }
+    }
 
-// func (s logonState) FixMsgIn(session *session, msg *Message) (nextState sessionState) {
-// 	msgType, err := msg.Header.GetBytes(tagMsgType)
-// 	if err != nil {
-// 		return handleStateError(session, err)
-// 	}
+    async fn fix_msg_in(self, session: &'_ mut Session, msg: &'_ Message) -> Box<dyn SessionState> {
+        let message_type_result = msg.header.get_bytes(TAG_MSG_TYPE);
+        if let Err(err) = message_type_result {
+            let casted_error = err.into_error();
+            return handle_state_error(session, casted_error);
+        }
 
-// 	if !bytes.Equal(msgType, msgTypeLogon) {
-// 		session.log.OnEventf("Invalid Session State: Received Msg %s while waiting for Logon", msg)
-// 		return latentState{}
-// 	}
+        let msg_type = message_type_result.unwrap();
+        if msg_type != MSG_TYPE_LOGON {
+            session.log.on_eventf(
+                "Invalid Session State: Received Msg {{msg}} while waiting for Logon",
+                hashmap! {String::from("msg") => format!("{:?}", msg)},
+            );
+            return Box::new(LatentState::default());
+        }
 
-// 	if err := session.handleLogon(msg); err != nil {
-// 		switch err := err.(type) {
-// 		case RejectLogon:
-// 			return shutdownWithReason(session, msg, true, err.Error())
+        let handle_logon_result = session.handle_logon(msg).await;
+        if let Err(err) = handle_logon_result {
+            // 		switch err := err.(type) {
+            // 		case RejectLogon:
+            // 			return shutdownWithReason(session, message, true, err.Error())
 
-// 		case targetTooLow:
-// 			return shutdownWithReason(session, msg, false, err.Error())
+            // 		case targetTooLow:
+            // 			return shutdownWithReason(session, message, false, err.Error())
 
-// 		case targetTooHigh:
-// 			var tooHighErr error
-// 			if nextState, tooHighErr = session.doTargetTooHigh(err); tooHighErr != nil {
-// 				return shutdownWithReason(session, msg, false, tooHighErr.Error())
-// 			}
+            // 		case targetTooHigh:
+            // 			var tooHighErr error
+            // 			if nextState, tooHighErr = session.doTargetTooHigh(err); tooHighErr != nil {
+            // 				return shutdownWithReason(session, message, false, tooHighErr.Error())
+            // 			}
 
-// 			return
+            // 			return
 
-// 		default:
-// 			return handleStateError(session, err)
-// 		}
-// 	}
-// 	return inSession{}
-// }
+            // 		default:
+            // 			return handleStateError(session, err)
+            // 		}
+        }
 
-// func (s logonState) Timeout(session *session, e internal.Event) (nextState sessionState) {
-// 	switch e {
-// 	case internal.LogonTimeout:
-// 		session.log.OnEvent("Timed out waiting for logon response")
-// 		return latentState{}
-// 	}
-// 	return s
-// }
+        Box::new(InSession::default())
+    }
 
-// func (s logonState) Stop(session *session) (nextState sessionState) {
-// 	return latentState{}
-// }
+    fn timeout(self, session: &mut Session, event: Event) -> Box<dyn SessionState> {
+        if event == LOGOUT_TIMEOUT {
+            session.log.on_event("Timed out waiting for logon response");
+            return Box::new(LatentState::default());
+        }
 
-// func shutdownWithReason(session *session, msg *Message, incrNextTargetMsgSeqNum bool, reason string) (nextState sessionState) {
-// 	session.log.OnEvent(reason)
-// 	logout := session.buildLogout(reason)
+        Box::new(self)
+    }
 
-// 	if err := session.dropAndSendInReplyTo(logout, msg); err != nil {
-// 		session.logError(err)
-// 	}
+    fn stop(self, _session: &mut Session) -> Box<dyn SessionState> {
+        Box::new(LatentState::default())
+    }
+}
 
-// 	if incrNextTargetMsgSeqNum {
-// 		if err := session.store.IncrNextTargetMsgSeqNum(); err != nil {
-// 			session.logError(err)
-// 		}
-// 	}
+impl LogonState {
+    // func shutdownWithReason(session *session, msg *Message, incrNextTargetMsgSeqNum bool, reason string) (nextState sessionState) {
+    // 	session.log.OnEvent(reason)
+    // 	logout := session.buildLogout(reason)
 
-// 	return latentState{}
-// }
+    // 	if err := session.dropAndSendInReplyTo(logout, msg); err != nil {
+    // 		session.logError(err)
+    // 	}
+
+    // 	if incrNextTargetMsgSeqNum {
+    // 		if err := session.store.IncrNextTargetMsgSeqNum(); err != nil {
+    // 			session.logError(err)
+    // 		}
+    // 	}
+
+    // 	return latentState{}
+    // }
+}
 
 #[cfg(test)]
 mod tests {
-
-    // import (
-    // 	"bytes"
-    // 	"testing"
-    // 	"time"
-
-    // 	"github.com/stretchr/testify/suite"
-
-    // 	"github.com/quickfixgo/quickfix/internal"
-    // )
-
     // type LogonStateTestSuite struct {
     // 	SessionSuiteRig
     // }
@@ -94,12 +118,7 @@ mod tests {
     // }
 
     // func (s *LogonStateTestSuite) SetupTest() {
-    // 	s.Init()
-    // 	s.session.stateMachine.State = logonState{}
-    // }
-
-    // func (s *LogonStateTestSuite) TestPreliminary() {
-    // 	s.False(s.session.IsLoggedOn())
+    // 	s.Init()LOGOUT_TIMEOUT
     // 	s.True(s.session.IsConnected())
     // 	s.True(s.session.IsSessionTime())
     // }

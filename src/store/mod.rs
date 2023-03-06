@@ -1,11 +1,11 @@
 use crate::session::session_id::SessionID;
 use chrono::NaiveDateTime;
 use chrono::Utc;
+use dashmap::DashMap;
 use simple_error::SimpleResult;
-use std::collections::HashMap;
 
 //The MessageStore interface provides methods to record and retrieve messages for resend purposes
-pub trait MessageStore {
+pub trait MessageStore: Send + Sync {
     fn next_sender_msg_seq_num(&self) -> isize;
     fn next_target_msg_seq_num(&self) -> isize;
     fn incr_next_sender_msg_seq_num(&mut self) -> SimpleResult<()>;
@@ -14,6 +14,11 @@ pub trait MessageStore {
     fn set_next_target_msg_seq_num(&mut self, next_seq_num: isize) -> SimpleResult<()>;
     fn creation_time(&self) -> NaiveDateTime;
     fn save_message(&mut self, seq_num: isize, msg: Vec<u8>) -> SimpleResult<()>;
+    fn save_message_and_incr_next_sender_msg_seq_num(
+        &mut self,
+        seq_num: isize,
+        msg: Vec<u8>,
+    ) -> SimpleResult<()>;
     fn get_messages(&self, begin_seq_num: isize, end_seq_num: isize) -> SimpleResult<Vec<Vec<u8>>>;
     fn refresh(&self) -> SimpleResult<()>;
     fn reset(&mut self) -> SimpleResult<()>;
@@ -26,11 +31,11 @@ pub trait MessageStoreFactory {
 }
 
 #[derive(Default)]
-struct MemoryStore {
-    sender_msg_seq_num: isize,
-    target_msg_seq_num: isize,
-    creation_time: NaiveDateTime,
-    message_map: HashMap<isize, Vec<u8>>,
+pub struct MemoryStore {
+    pub sender_msg_seq_num: isize,
+    pub target_msg_seq_num: isize,
+    pub creation_time: NaiveDateTime,
+    pub message_map: DashMap<isize, Vec<u8>>,
 }
 
 impl MessageStore for MemoryStore {
@@ -71,6 +76,15 @@ impl MessageStore for MemoryStore {
         Ok(())
     }
 
+    fn save_message_and_incr_next_sender_msg_seq_num(
+        &mut self,
+        seq_num: isize,
+        msg: Vec<u8>,
+    ) -> SimpleResult<()> {
+        self.save_message(seq_num, msg)?;
+        Ok(self.incr_next_sender_msg_seq_num()?)
+    }
+
     fn get_messages(&self, begin_seq_num: isize, end_seq_num: isize) -> SimpleResult<Vec<Vec<u8>>> {
         let mut msgs: Vec<Vec<u8>> = vec![];
         let mut seq_num = begin_seq_num;
@@ -93,7 +107,7 @@ impl MessageStore for MemoryStore {
         self.sender_msg_seq_num = 0;
         self.target_msg_seq_num = 0;
         self.creation_time = Utc::now().naive_utc();
-        self.message_map = hashmap! {};
+        self.message_map.clear();
         Ok(())
     }
 
