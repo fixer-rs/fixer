@@ -26,12 +26,30 @@ pub const REJECT_REASON_INCORRECT_NUM_IN_GROUP_COUNT_FOR_REPEATING_GROUP: isize 
 pub const REJECT_REASON_OTHER: isize = 99;
 
 // MessageRejectError is a type of error that can correlate to a message reject.
-pub trait MessageRejectErrorTrait: Error {
+pub trait MessageRejectErrorTrait: Error + IntoError<dyn Error> {
     // reject_reason, tag 373 for session rejects, tag 380 for business rejects.
     fn reject_reason(&self) -> isize;
     fn business_reject_ref_id(&self) -> &str;
     fn ref_tag_id(&self) -> Option<Tag>;
     fn is_business_reject(&self) -> bool;
+}
+
+pub trait IntoError<Super: ?Sized> {
+    fn as_error(&self) -> &Super;
+    fn as_error_mut(&mut self) -> &mut Super;
+    fn into_error(self: Box<Self>) -> Box<Super>;
+}
+
+impl<'a, T: 'a + Error> IntoError<dyn Error + 'a> for T {
+    fn as_error(&self) -> &(dyn Error + 'a) {
+        self
+    }
+    fn as_error_mut(&mut self) -> &mut (dyn Error + 'a) {
+        self
+    }
+    fn into_error(self: Box<Self>) -> Box<dyn Error + 'a> {
+        self
+    }
 }
 
 pub type MessageRejectErrorResult = Result<(), Box<dyn MessageRejectErrorTrait>>;
