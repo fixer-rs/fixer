@@ -1,23 +1,3 @@
-//! This crate contains two objects: [`SwitchingSleep`] and [`ASwitchingSleep`].
-//!
-//! [`ASwitchingSleep`] is just a wrapper around
-//! [`Arc`](struct@std::sync::Arc)<[`RwLock`](struct@tokio::sync::RwLock)<[`SwitchingSleep`]>>.
-//!
-//! They are a [`tokio::time::Sleep`](struct@tokio::time::Sleep) with a
-//! switchable state. When you call the [`start`] method a [`Sleep`] is created,
-//! when you call the [`stop`] one the current [`Sleep`] is dropped. So calling
-//! [`start`] will reset the timer.
-//!
-//! The timer will complete after the `duration` time since
-//! [`start`] method is called (or [`new_start`], [`new`] + [`start`]).
-//!
-//! [SwitchingSleep]: struct@SwitchingSleep
-//! [Sleep]: struct@tokio::time::Sleep
-//! [`start`]: SwitchingSleep::start()
-//! [`stop`]: SwitchingSleep::stop()
-//! [`new_start`]: SwitchingSleep::new_start()
-//! [`new`]: SwitchingSleep::new()
-
 use std::{
     fmt::Debug,
     future::Future,
