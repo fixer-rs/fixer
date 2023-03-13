@@ -4,11 +4,10 @@ use crate::msg_type::MSG_TYPE_LOGON;
 use crate::session::{
     in_session::InSession,
     latent_state::LatentState,
-    session_state::{handle_state_error, ConnectedNotLoggedOn, SessionState},
+    session_state::{handle_state_error, ConnectedNotLoggedOn, SessionStateEnum},
     Session,
 };
 use crate::tag::TAG_MSG_TYPE;
-use async_trait::async_trait;
 use delegate::delegate;
 
 #[derive(Default)]
@@ -22,18 +21,17 @@ impl ToString for LogonState {
     }
 }
 
-#[async_trait]
-impl SessionState for LogonState {
+impl LogonState {
     delegate! {
         to self.connected_not_logged_on {
-            fn is_connected(&self) -> bool;
-            fn is_session_time(&self) -> bool;
-            fn is_logged_on(&self) -> bool;
-            fn shutdown_now(&self, _session: &Session);
+            pub fn is_connected(&self) -> bool;
+            pub fn is_session_time(&self) -> bool;
+            pub fn is_logged_on(&self) -> bool;
+            pub fn shutdown_now(&self, _session: &Session);
         }
     }
 
-    async fn fix_msg_in(self, session: &'_ mut Session, msg: &'_ Message) -> Box<dyn SessionState> {
+    pub async fn fix_msg_in(self, session: &'_ mut Session, msg: &'_ Message) -> SessionStateEnum {
         let message_type_result = msg.header.get_bytes(TAG_MSG_TYPE);
         if let Err(err) = message_type_result {
             let casted_error = err.into_error();
@@ -46,7 +44,9 @@ impl SessionState for LogonState {
                 "Invalid Session State: Received Msg {{msg}} while waiting for Logon",
                 hashmap! {String::from("msg") => format!("{:?}", msg)},
             );
-            return Box::new(LatentState::default());
+            return todo!();
+            // Box::new(LatentState::default());
+            // todo!()
         }
 
         let handle_logon_result = session.handle_logon(msg).await;
@@ -71,20 +71,24 @@ impl SessionState for LogonState {
             // 		}
         }
 
-        Box::new(InSession::default())
+        // Box::new(InSession::default())
+        todo!()
     }
 
-    fn timeout(self, session: &mut Session, event: Event) -> Box<dyn SessionState> {
+    pub fn timeout(self, session: &mut Session, event: Event) -> SessionStateEnum {
         if event == LOGOUT_TIMEOUT {
             session.log.on_event("Timed out waiting for logon response");
-            return Box::new(LatentState::default());
+            return todo!();
+            // return Box::new(LatentState::default());
         }
 
-        Box::new(self)
+        todo!()
+        // Box::new(self)
     }
 
-    fn stop(self, _session: &mut Session) -> Box<dyn SessionState> {
-        Box::new(LatentState::default())
+    pub fn stop(self, _session: &mut Session) -> SessionStateEnum {
+        todo!()
+        // Box::new(LatentState::default())
     }
 }
 

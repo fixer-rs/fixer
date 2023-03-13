@@ -2,10 +2,9 @@ use crate::internal::event::Event;
 use crate::message::Message;
 use crate::session::latent_state::LatentState;
 use crate::session::{
-    session_state::{ConnectedNotLoggedOn, SessionState},
+    session_state::{ConnectedNotLoggedOn, SessionStateEnum},
     Session,
 };
-use async_trait::async_trait;
 use delegate::delegate;
 
 pub struct NotSessionTime {
@@ -18,34 +17,36 @@ impl ToString for NotSessionTime {
     }
 }
 
-#[async_trait]
-impl SessionState for NotSessionTime {
+impl NotSessionTime {
     delegate! {
         to self.latent_state {
-            fn is_connected(&self) -> bool;
-            fn is_logged_on(&self) -> bool;
-            fn shutdown_now(&self, _session: &Session);
+            pub fn is_connected(&self) -> bool;
+            pub fn is_logged_on(&self) -> bool;
+            pub fn shutdown_now(&self, _session: &Session);
         }
     }
 
-    fn is_session_time(&self) -> bool {
+    pub fn is_session_time(&self) -> bool {
         false
     }
 
-    async fn fix_msg_in(self, session: &'_ mut Session, msg: &'_ Message) -> Box<dyn SessionState> {
+    pub async fn fix_msg_in(self, session: &'_ mut Session, msg: &'_ Message) -> SessionStateEnum {
         session.log.on_eventf(
             "Invalid Session State: Unexpected Msg {{msg}} while in Latent state",
             hashmap! {String::from("msg") => format!("{:?}", msg)},
         );
-        Box::new(self)
+        todo!()
+        // Box::new(self)
     }
 
-    fn timeout(self, _session: &mut Session, _event: Event) -> Box<dyn SessionState> {
-        Box::new(self)
+    pub fn timeout(self, _session: &mut Session, _event: Event) -> SessionStateEnum {
+        todo!()
+        // Box::new(self)
     }
 
-    fn stop(self, _session: &mut Session) -> Box<dyn SessionState> {
-        Box::new(self)
+    pub fn stop(self, _session: &mut Session) -> SessionStateEnum {
+        // Box::new(self)
+        todo!()
     }
 }
 

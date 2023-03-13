@@ -5,7 +5,7 @@ use simple_error::SimpleResult;
 
 // Application interface should be implemented by FIX Applications.
 // This is the primary interface for processing messages from a FIX Session.
-pub trait Application {
+pub trait Application: Send + Sync {
     // on_create notification of a session begin created.
     fn on_create(&self, session_id: &SessionID);
 

@@ -1,10 +1,9 @@
 use crate::fix_string::FIXString;
 use crate::internal::event::{Event, NEED_HEARTBEAT, PEER_TIMEOUT};
 use crate::message::Message;
-use crate::session::session_state::{LoggedOn, SessionState};
+use crate::session::session_state::{LoggedOn, SessionStateEnum};
 use crate::session::Session;
 use crate::tag::TAG_MSG_TYPE;
-use async_trait::async_trait;
 use delegate::delegate;
 
 #[derive(Default)]
@@ -18,23 +17,22 @@ impl ToString for InSession {
     }
 }
 
-#[async_trait]
-impl SessionState for InSession {
+impl InSession {
     delegate! {
         to self.logged_on {
-            fn is_connected(&self) -> bool;
-            fn is_session_time(&self) -> bool;
-            fn is_logged_on(&self) -> bool;
-            fn shutdown_now(&self, _session: &Session);
-            fn stop(self, _session: &mut Session) -> Box<dyn SessionState>;
+            pub fn is_connected(&self) -> bool;
+            pub fn is_session_time(&self) -> bool;
+            pub fn is_logged_on(&self) -> bool;
+            pub fn shutdown_now(&self, _session: &Session);
+            pub fn stop(self, _session: &mut Session) -> SessionStateEnum;
         }
     }
 
-    async fn fix_msg_in(
+    pub async fn fix_msg_in(
         self,
         _session: &'_ mut Session,
         _msg: &'_ Message,
-    ) -> Box<dyn SessionState> {
+    ) -> SessionStateEnum {
         // msgType, err := msg.Header.GetBytes(tagMsgType)
         // 	if err != nil {
         // 		return handleStateError(session, err)
@@ -72,7 +70,7 @@ impl SessionState for InSession {
         todo!()
     }
 
-    fn timeout(self, session: &mut Session, event: Event) -> Box<dyn SessionState> {
+    pub fn timeout(self, session: &mut Session, event: Event) -> SessionStateEnum {
         if event == NEED_HEARTBEAT {
             let mut heart_beat = Message::new();
             heart_beat

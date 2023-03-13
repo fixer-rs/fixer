@@ -1,10 +1,9 @@
 use crate::internal::event::Event;
 use crate::message::Message;
 use crate::session::{
-    session_state::{LoggedOn, SessionState},
+    session_state::{LoggedOn, SessionStateEnum},
     Session,
 };
-use async_trait::async_trait;
 use delegate::delegate;
 use std::collections::HashMap;
 
@@ -22,23 +21,22 @@ impl ToString for ResendState {
     }
 }
 
-#[async_trait]
-impl SessionState for ResendState {
+impl ResendState {
     delegate! {
         to self.logged_on {
-            fn is_connected(&self) -> bool;
-            fn is_session_time(&self) -> bool;
-            fn is_logged_on(&self) -> bool;
-            fn shutdown_now(&self, _session: &Session);
-            fn stop(self, _session: &mut Session) -> Box<dyn SessionState>;
+            pub fn is_connected(&self) -> bool;
+            pub fn is_session_time(&self) -> bool;
+            pub fn is_logged_on(&self) -> bool;
+            pub fn shutdown_now(&self, _session: &Session);
+            pub fn stop(self, _session: &mut Session) -> SessionStateEnum;
         }
     }
 
-    async fn fix_msg_in(
+    pub async fn fix_msg_in(
         self,
         _session: &'_ mut Session,
         _msg: &'_ Message,
-    ) -> Box<dyn SessionState> {
+    ) -> SessionStateEnum {
         // nextState = inSession{}.FixMsgIn(session, msg)
 
         // 	if !nextState.IsLoggedOn() {
@@ -74,7 +72,7 @@ impl SessionState for ResendState {
         todo!()
     }
 
-    fn timeout(self, _session: &mut Session, _event: Event) -> Box<dyn SessionState> {
+    pub fn timeout(self, _session: &mut Session, _event: Event) -> SessionStateEnum {
         // 	nextState = inSession{}.Timeout(session, event)
         // 	switch nextState.(type) {
         // 	case inSession:

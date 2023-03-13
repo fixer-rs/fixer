@@ -3,10 +3,9 @@ use crate::message::Message;
 use crate::session::{
     in_session::InSession,
     latent_state::LatentState,
-    session_state::{ConnectedNotLoggedOn, SessionState},
+    session_state::{ConnectedNotLoggedOn, SessionStateEnum},
     Session,
 };
-use async_trait::async_trait;
 use delegate::delegate;
 
 #[derive(Default)]
@@ -20,39 +19,42 @@ impl ToString for LogoutState {
     }
 }
 
-#[async_trait]
-impl SessionState for LogoutState {
+impl LogoutState {
     delegate! {
         to self.connected_not_logged_on {
-            fn is_connected(&self) -> bool;
-            fn is_session_time(&self) -> bool;
-            fn is_logged_on(&self) -> bool;
-            fn shutdown_now(&self, _session: &Session);
+            pub fn is_connected(&self) -> bool;
+            pub fn is_session_time(&self) -> bool;
+            pub fn is_logged_on(&self) -> bool;
+            pub fn shutdown_now(&self, _session: &Session);
         }
     }
 
-    async fn fix_msg_in(self, session: &'_ mut Session, msg: &'_ Message) -> Box<dyn SessionState> {
-        let next_state = InSession::default().fix_msg_in(session, msg);
+    pub async fn fix_msg_in(self, session: &'_ mut Session, msg: &'_ Message) -> SessionStateEnum {
+        // let next_state = InSession::default().fix_msg_in(session, msg);
         // 	nextState = inSession{}.FixMsgIn(session, msg)
         // 	if nextState, ok := nextState.(latentState); ok {
         // 		return nextState
         // 	}
-        Box::new(self)
+        todo!()
+        // Box::new(self)
     }
 
-    fn timeout(self, session: &mut Session, event: Event) -> Box<dyn SessionState> {
+    pub fn timeout(self, session: &mut Session, event: Event) -> SessionStateEnum {
         if event == LOGOUT_TIMEOUT {
             session
                 .log
                 .on_event("Timed out waiting for logout response");
-            return Box::new(LatentState::default());
+            // return Box::new(LatentState::default());
+            return todo!();
         }
 
-        Box::new(self)
+        todo!()
+        // Box::new(self)
     }
 
-    fn stop(self, _session: &mut Session) -> Box<dyn SessionState> {
-        Box::new(self)
+    pub fn stop(self, _session: &mut Session) -> SessionStateEnum {
+        // Box::new(self)
+        todo!()
     }
 }
 

@@ -27,7 +27,7 @@ pub const REJECT_REASON_INCORRECT_NUM_IN_GROUP_COUNT_FOR_REPEATING_GROUP: isize 
 pub const REJECT_REASON_OTHER: isize = 99;
 
 // MessageRejectError is a type of error that can correlate to a message reject.
-pub trait MessageRejectErrorTrait: Error + IntoError<dyn Error> + Any {
+pub trait MessageRejectErrorTrait: Error + IntoError<dyn Error> + Any + Send + Sync {
     // reject_reason, tag 373 for session rejects, tag 380 for business rejects.
     fn reject_reason(&self) -> isize;
     fn business_reject_ref_id(&self) -> &str;
@@ -229,7 +229,6 @@ pub fn conditionally_required_field_missing(tag: Tag) -> Box<dyn MessageRejectEr
 }
 
 // value_is_incorrect_no_tag returns an error indicating a field with value that is not valid.
-// FIXME: to be compliant with legacy tests, for certain value issues, do not include ref_tag? (11c_NewSeqNoLess)
 pub fn value_is_incorrect_no_tag() -> Box<dyn MessageRejectErrorTrait> {
     new_message_reject_error(
         String::from("Value is incorrect (out of range) for this tag"),
