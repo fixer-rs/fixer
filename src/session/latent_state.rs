@@ -29,13 +29,11 @@ impl LatentState {
             "Invalid Session State: Unexpected Msg {{msg}} while in Latent state",
             hashmap! {String::from("msg") => format!("{:?}", msg)},
         );
-        todo!()
-        // Box::new(self)
+        SessionStateEnum::LatentState(self)
     }
 
     pub fn timeout(self, _session: &mut Session, _event: Event) -> SessionStateEnum {
-        todo!()
-        // Box::new(self)
+        SessionStateEnum::LatentState(self)
     }
 
     pub fn is_logged_on(&self) -> bool {
@@ -49,8 +47,7 @@ impl LatentState {
     pub fn shutdown_now(&self, _session: &Session) {}
 
     pub fn stop(self, _session: &mut Session) -> SessionStateEnum {
-        todo!()
-        // Box::new(self)
+        SessionStateEnum::LatentState(self)
     }
 }
 

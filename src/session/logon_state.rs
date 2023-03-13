@@ -2,8 +2,6 @@ use crate::internal::event::{Event, LOGOUT_TIMEOUT};
 use crate::message::Message;
 use crate::msg_type::MSG_TYPE_LOGON;
 use crate::session::{
-    in_session::InSession,
-    latent_state::LatentState,
     session_state::{handle_state_error, ConnectedNotLoggedOn, SessionStateEnum},
     Session,
 };
@@ -44,9 +42,7 @@ impl LogonState {
                 "Invalid Session State: Received Msg {{msg}} while waiting for Logon",
                 hashmap! {String::from("msg") => format!("{:?}", msg)},
             );
-            return todo!();
-            // Box::new(LatentState::default());
-            // todo!()
+            return SessionStateEnum::new_latent_state();
         }
 
         let handle_logon_result = session.handle_logon(msg).await;
@@ -71,44 +67,47 @@ impl LogonState {
             // 		}
         }
 
-        // Box::new(InSession::default())
-        todo!()
+        SessionStateEnum::new_in_session()
     }
 
     pub fn timeout(self, session: &mut Session, event: Event) -> SessionStateEnum {
         if event == LOGOUT_TIMEOUT {
             session.log.on_event("Timed out waiting for logon response");
-            return todo!();
-            // return Box::new(LatentState::default());
+            return SessionStateEnum::new_latent_state();
         }
 
-        todo!()
-        // Box::new(self)
+        SessionStateEnum::LogonState(self)
     }
 
     pub fn stop(self, _session: &mut Session) -> SessionStateEnum {
-        todo!()
-        // Box::new(LatentState::default())
+        SessionStateEnum::new_latent_state()
     }
 }
 
 impl LogonState {
-    // func shutdownWithReason(session *session, msg *Message, incrNextTargetMsgSeqNum bool, reason string) (nextState sessionState) {
-    // 	session.log.OnEvent(reason)
-    // 	logout := session.buildLogout(reason)
+    async fn shutdown_with_reason(
+        session: &mut Session,
+        msg: &Message,
+        incr_next_target_msg_seq_num: bool,
+        reason: &str,
+    ) -> SessionStateEnum {
+        session.log.on_event(reason);
+        let logout = session.build_logout(reason);
 
-    // 	if err := session.dropAndSendInReplyTo(logout, msg); err != nil {
-    // 		session.logError(err)
-    // 	}
+        let drop_result = session.drop_and_send_in_reply_to(&logout, Some(msg)).await;
+        if let Err(err) = drop_result {
+            session.log_error(&err);
+        }
 
-    // 	if incrNextTargetMsgSeqNum {
-    // 		if err := session.store.IncrNextTargetMsgSeqNum(); err != nil {
-    // 			session.logError(err)
-    // 		}
-    // 	}
+        if incr_next_target_msg_seq_num {
+            let incr_result = session.store.incr_next_target_msg_seq_num();
+            if let Err(err) = incr_result {
+                session.log_error(&err.into());
+            }
+        }
 
-    // 	return latentState{}
-    // }
+        SessionStateEnum::new_latent_state()
+    }
 }
 
 #[cfg(test)]

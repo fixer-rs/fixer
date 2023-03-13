@@ -1,7 +1,9 @@
 use crate::internal::event::Event;
 use crate::message::Message;
 use crate::session::{
-    session_state::{LoggedOn, SessionStateEnum},
+    in_session::InSession,
+    pending_timeout::PendingTimeout,
+    session_state::{handle_state_error, AfterPendingTimeout, LoggedOn, SessionStateEnum},
     Session,
 };
 use delegate::delegate;
@@ -33,58 +35,74 @@ impl ResendState {
     }
 
     pub async fn fix_msg_in(
-        self,
-        _session: &'_ mut Session,
-        _msg: &'_ Message,
+        mut self,
+        session: &'_ mut Session,
+        msg: &'_ Message,
     ) -> SessionStateEnum {
-        // nextState = inSession{}.FixMsgIn(session, msg)
+        let mut next_state = InSession::default().fix_msg_in(session, msg).await;
+        if let SessionStateEnum::InSession(is) = next_state {
+            if is.is_logged_on() {
+                return SessionStateEnum::InSession(is);
+            }
+        }
 
-        // 	if !nextState.IsLoggedOn() {
-        // 		return
-        // 	}
+        if self.current_resend_range_end != 0
+            && self.current_resend_range_end < session.store.next_target_msg_seq_num()
+        {
+            let next_resend_state_result = session
+                .send_resend_request(
+                    session.store.next_target_msg_seq_num(),
+                    self.resend_range_end,
+                )
+                .await;
+            match next_resend_state_result {
+                Err(err) => return handle_state_error(session, err),
+                Ok(mut next_resend_state) => {
+                    next_resend_state.message_stash = self.message_stash;
+                    return SessionStateEnum::ResendState(next_resend_state);
+                }
+            }
+        }
 
-        // 	if s.currentResendRangeEnd != 0 && s.currentResendRangeEnd < session.store.NextTargetMsgSeqNum() {
-        // 		nextResendState, err := session.sendResendRequest(session.store.NextTargetMsgSeqNum(), s.resendRangeEnd)
-        // 		if err != nil {
-        // 			return handleStateError(session, err)
-        // 		}
-        // 		nextResendState.messageStash = s.messageStash
-        // 		return nextResendState
-        // 	}
+        if self.resend_range_end >= session.store.next_target_msg_seq_num() {
+            return SessionStateEnum::ResendState(self);
+        }
 
-        // 	if s.resendRangeEnd >= session.store.NextTargetMsgSeqNum() {
-        // 		return s
-        // 	}
+        loop {
+            if self.message_stash.is_empty() {
+                break;
+            }
+            let target_seq_num = session.store.next_target_msg_seq_num();
+            let msg_option = self.message_stash.get(&target_seq_num);
+            if msg_option.is_none() {
+                break;
+            }
+            self.message_stash.remove(&target_seq_num);
 
-        // 	for len(s.messageStash) > 0 {
-        // 		targetSeqNum := session.store.NextTargetMsgSeqNum()
-        // 		msg, ok := s.messageStash[targetSeqNum]
-        // 		if !ok {
-        // 			break
-        // 		}
+            next_state = InSession::default().fix_msg_in(session, msg).await;
+            if let SessionStateEnum::InSession(is) = next_state {
+                if !is.is_logged_on() {
+                    return SessionStateEnum::InSession(is);
+                }
+            }
+        }
 
-        // 		delete(s.messageStash, targetSeqNum)
-
-        // 		nextState = inSession{}.FixMsgIn(session, msg)
-        // 		if !nextState.IsLoggedOn() {
-        // 			return
-        // 		}
         todo!()
     }
 
-    pub fn timeout(self, _session: &mut Session, _event: Event) -> SessionStateEnum {
-        // 	nextState = inSession{}.Timeout(session, event)
-        // 	switch nextState.(type) {
-        // 	case inSession:
-        // 		nextState = s
-        // 	case pendingTimeout:
-        // 		// Wrap pendingTimeout in resend. prevents us falling back to inSession if recovering
-        // 		// from pendingTimeout.
-        // 		nextState = pendingTimeout{s}
-        // 	}
-
-        // 	return
-        todo!()
+    pub fn timeout(self, session: &mut Session, event: Event) -> SessionStateEnum {
+        let next_state = InSession::default().timeout(session, event);
+        if let SessionStateEnum::InSession(_) = next_state {
+            return SessionStateEnum::ResendState(self);
+        }
+        if let SessionStateEnum::PendingTimeout(_) = next_state {
+            // Wrap pendingTimeout in resend. prevents us falling back to inSession if recovering
+            // from pendingTimeout.
+            return SessionStateEnum::PendingTimeout(PendingTimeout {
+                session_state: AfterPendingTimeout::ResendState(self),
+            });
+        }
+        next_state
     }
 }
 

@@ -50,6 +50,7 @@ pub mod latent_state;
 pub mod logon_state;
 pub mod logout_state;
 pub mod not_session_time;
+pub mod pending_timeout;
 pub mod resend_state;
 
 // #[derive(Default)]
@@ -579,8 +580,7 @@ impl Session {
         let mut reset_seq_num_flag = FIXBoolean::default();
         let get_field_result = msg
             .body
-            .get_field(TAG_RESET_SEQ_NUM_FLAG, &mut reset_seq_num_flag)
-            .map_err(|err| err.into_error());
+            .get_field(TAG_RESET_SEQ_NUM_FLAG, &mut reset_seq_num_flag);
         if get_field_result.is_ok() {
             if reset_seq_num_flag {
                 if !self.sent_reset {
@@ -621,12 +621,11 @@ impl Session {
         self.peer_timer.reset(Duration::from_nanos(duration));
         self.application.on_logon(&self.session_id);
 
-        // 	if let err = self.checkTargetTooHigh(msg); err != nil {
-        // 		return err
-        // 	}
+        let check_target = self
+            .check_target_too_high(msg)
+            .map_err(|err| err.into_error())?;
 
-        // 	return self.store.incr_next_target_msg_seq_num()
-        todo!()
+        Ok(self.store.incr_next_target_msg_seq_num()?)
     }
 
     pub async fn initiate_logout(&mut self, reason: &str) -> Result<(), Box<dyn Error>> {

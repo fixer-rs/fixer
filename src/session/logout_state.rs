@@ -2,7 +2,6 @@ use crate::internal::event::{Event, LOGOUT_TIMEOUT};
 use crate::message::Message;
 use crate::session::{
     in_session::InSession,
-    latent_state::LatentState,
     session_state::{ConnectedNotLoggedOn, SessionStateEnum},
     Session,
 };
@@ -30,13 +29,11 @@ impl LogoutState {
     }
 
     pub async fn fix_msg_in(self, session: &'_ mut Session, msg: &'_ Message) -> SessionStateEnum {
-        // let next_state = InSession::default().fix_msg_in(session, msg);
-        // 	nextState = inSession{}.FixMsgIn(session, msg)
-        // 	if nextState, ok := nextState.(latentState); ok {
-        // 		return nextState
-        // 	}
-        todo!()
-        // Box::new(self)
+        let next_state = InSession::default().fix_msg_in(session, msg).await;
+        if let SessionStateEnum::LatentState(ls) = next_state {
+            return SessionStateEnum::LatentState(ls);
+        }
+        SessionStateEnum::LogoutState(self)
     }
 
     pub fn timeout(self, session: &mut Session, event: Event) -> SessionStateEnum {
@@ -44,17 +41,14 @@ impl LogoutState {
             session
                 .log
                 .on_event("Timed out waiting for logout response");
-            // return Box::new(LatentState::default());
-            return todo!();
+            return SessionStateEnum::new_latent_state();
         }
 
-        todo!()
-        // Box::new(self)
+        SessionStateEnum::LogoutState(self)
     }
 
     pub fn stop(self, _session: &mut Session) -> SessionStateEnum {
-        // Box::new(self)
-        todo!()
+        SessionStateEnum::LogoutState(self)
     }
 }
 

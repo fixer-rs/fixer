@@ -2,21 +2,26 @@ use crate::internal::event::Event;
 use crate::message::Message;
 use crate::session::{
     in_session::InSession, latent_state::LatentState, logon_state::LogonState,
-    logout_state::LogoutState, not_session_time::NotSessionTime, resend_state::ResendState,
-    Session,
+    logout_state::LogoutState, not_session_time::NotSessionTime, pending_timeout::PendingTimeout,
+    resend_state::ResendState, Session,
 };
 use async_trait::async_trait;
 use delegate::delegate;
 use std::any::Any;
 use std::error::Error;
+use subenum::subenum;
 
+#[subenum(AfterPendingTimeout)]
 pub enum SessionStateEnum {
+    #[subenum(AfterPendingTimeout)]
     InSession(InSession),
     LatentState(LatentState),
     LogonState(LogonState),
     LogoutState(LogoutState),
     NotSessionTime(NotSessionTime),
+    #[subenum(AfterPendingTimeout)]
     ResendState(ResendState),
+    PendingTimeout(PendingTimeout),
 }
 
 impl ToString for SessionStateEnum {
@@ -28,6 +33,8 @@ impl ToString for SessionStateEnum {
             Self::LogonState(ls) => ls,
             Self::NotSessionTime(nst) => nst,
             Self::ResendState(rs) => rs,
+            Self::PendingTimeout(ps) => ps,
+
         } {
             fn to_string(&self) -> String;
         }
@@ -44,6 +51,7 @@ impl SessionState for SessionStateEnum {
             Self::LogonState(ls) => ls,
             Self::NotSessionTime(nst) => nst,
             Self::ResendState(rs) => rs,
+            Self::PendingTimeout(ps) => ps,
         } {
             fn timeout(self, session: &mut Session, event: Event) -> SessionStateEnum;
             fn is_logged_on(&self) -> bool;
@@ -63,32 +71,19 @@ impl SessionState for SessionStateEnum {
             Self::LogonState(ls) => ls.fix_msg_in(session, msg).await,
             Self::NotSessionTime(nst) => nst.fix_msg_in(session, msg).await,
             Self::ResendState(rs) => rs.fix_msg_in(session, msg).await,
+            Self::PendingTimeout(ps) => ps.fix_msg_in(session, msg).await,
         }
     }
+}
 
-    // fn timeout(self, session: &mut Session, event: Event) -> SessionStateEnum {
-    //     todo!()
-    // }
+impl SessionStateEnum {
+    pub fn new_latent_state() -> Self {
+        Self::LatentState(LatentState::default())
+    }
 
-    // fn is_logged_on(&self) -> bool {
-    //     todo!()
-    // }
-
-    // fn is_connected(&self) -> bool {
-    //     todo!()
-    // }
-
-    // fn is_session_time(&self) -> bool {
-    //     todo!()
-    // }
-
-    // fn shutdown_now(&self, session: &Session) {
-    //     todo!()
-    // }
-
-    // fn stop(self, session: &mut Session) -> SessionStateEnum {
-    //     todo!()
-    // }
+    pub fn new_in_session() -> Self {
+        Self::InSession(InSession::default())
+    }
 }
 
 pub struct StateMachine {
@@ -274,8 +269,7 @@ impl StateMachine {
 
 pub fn handle_state_error(s: &Session, err: Box<dyn Error>) -> SessionStateEnum {
     s.log_error(&err);
-    todo!()
-    // Box::new(LatentState::default())
+    SessionStateEnum::new_latent_state()
 }
 
 // sessionState is the current state of the session state machine. The session state determines how the session responds to

@@ -79,6 +79,7 @@ impl InSession {
             // let error_result = session.send(heart_beat);
             // 		if err := session.send(heartBt); err != nil {
             // 			return handleStateError(session, err)
+            // }
         } else if event == PEER_TIMEOUT {
             // 		testReq := NewMessage()
             // 		testReq.Header.SetField(tagMsgType, FIXString("1"))

@@ -1,10 +1,7 @@
 use crate::internal::event::Event;
 use crate::message::Message;
 use crate::session::latent_state::LatentState;
-use crate::session::{
-    session_state::{ConnectedNotLoggedOn, SessionStateEnum},
-    Session,
-};
+use crate::session::{session_state::SessionStateEnum, Session};
 use delegate::delegate;
 
 pub struct NotSessionTime {
@@ -35,18 +32,15 @@ impl NotSessionTime {
             "Invalid Session State: Unexpected Msg {{msg}} while in Latent state",
             hashmap! {String::from("msg") => format!("{:?}", msg)},
         );
-        todo!()
-        // Box::new(self)
+        SessionStateEnum::NotSessionTime(self)
     }
 
     pub fn timeout(self, _session: &mut Session, _event: Event) -> SessionStateEnum {
-        todo!()
-        // Box::new(self)
+        SessionStateEnum::NotSessionTime(self)
     }
 
     pub fn stop(self, _session: &mut Session) -> SessionStateEnum {
-        // Box::new(self)
-        todo!()
+        SessionStateEnum::NotSessionTime(self)
     }
 }
 
