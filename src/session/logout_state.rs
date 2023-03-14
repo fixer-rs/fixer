@@ -24,7 +24,7 @@ impl LogoutState {
             pub fn is_connected(&self) -> bool;
             pub fn is_session_time(&self) -> bool;
             pub fn is_logged_on(&self) -> bool;
-            pub fn shutdown_now(&self, _session: &Session);
+            pub async fn shutdown_now(&self, _session: &Session);
         }
     }
 
@@ -36,7 +36,7 @@ impl LogoutState {
         SessionStateEnum::LogoutState(self)
     }
 
-    pub fn timeout(self, session: &mut Session, event: Event) -> SessionStateEnum {
+    pub async fn timeout(self, session: &mut Session, event: Event) -> SessionStateEnum {
         if event == LOGOUT_TIMEOUT {
             session
                 .log
@@ -47,7 +47,7 @@ impl LogoutState {
         SessionStateEnum::LogoutState(self)
     }
 
-    pub fn stop(self, _session: &mut Session) -> SessionStateEnum {
+    pub async fn stop(self, _session: &mut Session) -> SessionStateEnum {
         SessionStateEnum::LogoutState(self)
     }
 }

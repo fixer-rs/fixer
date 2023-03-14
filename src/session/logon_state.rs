@@ -25,7 +25,7 @@ impl LogonState {
             pub fn is_connected(&self) -> bool;
             pub fn is_session_time(&self) -> bool;
             pub fn is_logged_on(&self) -> bool;
-            pub fn shutdown_now(&self, _session: &Session);
+            pub async fn shutdown_now(&self, _session: &Session);
         }
     }
 
@@ -70,7 +70,7 @@ impl LogonState {
         SessionStateEnum::new_in_session()
     }
 
-    pub fn timeout(self, session: &mut Session, event: Event) -> SessionStateEnum {
+    pub async fn timeout(self, session: &mut Session, event: Event) -> SessionStateEnum {
         if event == LOGOUT_TIMEOUT {
             session.log.on_event("Timed out waiting for logon response");
             return SessionStateEnum::new_latent_state();
@@ -79,7 +79,7 @@ impl LogonState {
         SessionStateEnum::LogonState(self)
     }
 
-    pub fn stop(self, _session: &mut Session) -> SessionStateEnum {
+    pub async fn stop(self, _session: &mut Session) -> SessionStateEnum {
         SessionStateEnum::new_latent_state()
     }
 }

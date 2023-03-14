@@ -1,10 +1,16 @@
+use crate::errors::MessageRejectErrorTrait;
 use crate::fix_string::FIXString;
 use crate::internal::event::{Event, NEED_HEARTBEAT, PEER_TIMEOUT};
 use crate::message::Message;
-use crate::session::session_state::{LoggedOn, SessionStateEnum};
-use crate::session::Session;
-use crate::tag::TAG_MSG_TYPE;
+use crate::msg_type::{MSG_TYPE_HEARTBEAT, MSG_TYPE_LOGON};
+use crate::session::{
+    pending_timeout::PendingTimeout,
+    session_state::{handle_state_error, AfterPendingTimeout, LoggedOn, SessionStateEnum},
+    Session,
+};
+use crate::tag::{TAG_MSG_TYPE, TAG_TEST_REQ_ID};
 use delegate::delegate;
+use tokio::time::Duration;
 
 #[derive(Default)]
 pub struct InSession {
@@ -23,21 +29,22 @@ impl InSession {
             pub fn is_connected(&self) -> bool;
             pub fn is_session_time(&self) -> bool;
             pub fn is_logged_on(&self) -> bool;
-            pub fn shutdown_now(&self, _session: &Session);
-            pub fn stop(self, _session: &mut Session) -> SessionStateEnum;
+            pub async fn shutdown_now(&self, _session: &mut Session);
+            pub async fn stop(self, _session: &mut Session) -> SessionStateEnum;
         }
     }
 
-    pub async fn fix_msg_in(
-        self,
-        _session: &'_ mut Session,
-        _msg: &'_ Message,
-    ) -> SessionStateEnum {
-        // msgType, err := msg.Header.GetBytes(tagMsgType)
-        // 	if err != nil {
-        // 		return handleStateError(session, err)
-        // 	}
+    pub async fn fix_msg_in(self, session: &'_ mut Session, msg: &'_ Message) -> SessionStateEnum {
+        let msg_type_result = msg.header.get_bytes(TAG_MSG_TYPE);
+        if let Err(err) = msg_type_result {
+            return handle_state_error(session, err.into_error());
+        }
 
+        let msg_type = msg_type_result.unwrap();
+        match msg_type.as_ref() {
+            MSG_TYPE_LOGON => {}
+            _ => {}
+        }
         // 	switch {
         // 	case bytes.Equal(msgTypeLogon, msgType):
         // 		if err := session.handleLogon(msg); err != nil {
@@ -66,34 +73,47 @@ impl InSession {
         // 		return handleStateError(session, err)
         // 	}
 
-        // 	return state
-        todo!()
+        SessionStateEnum::InSession(self)
     }
 
-    pub fn timeout(self, session: &mut Session, event: Event) -> SessionStateEnum {
+    pub async fn timeout(self, session: &mut Session, event: Event) -> SessionStateEnum {
         if event == NEED_HEARTBEAT {
-            let mut heart_beat = Message::new();
+            let heart_beat = Message::new();
             heart_beat
                 .header
                 .set_field(TAG_MSG_TYPE, FIXString::from("0"));
-            // let error_result = session.send(heart_beat);
-            // 		if err := session.send(heartBt); err != nil {
-            // 			return handleStateError(session, err)
-            // }
+            let send_result = session.send(&heart_beat).await;
+            if let Err(err) = send_result {
+                return handle_state_error(session, err);
+            }
         } else if event == PEER_TIMEOUT {
-            // 		testReq := NewMessage()
-            // 		testReq.Header.SetField(tagMsgType, FIXString("1"))
-            // 		testReq.Body.SetField(tagTestReqID, FIXString("TEST"))
-            // 		if err := session.send(testReq); err != nil {
-            // 			return handleStateError(session, err)
-            // 		}
-            // 		session.log.OnEvent("Sent test request TEST")
-            // 		session.peerTimer.Reset(time.Duration(float64(1.2) * float64(session.HeartBtInt)))
-            // 		return pendingTimeout{state}
+            let test_req = Message::new();
+            test_req
+                .header
+                .set_field(TAG_MSG_TYPE, FIXString::from("1"));
+            test_req
+                .body
+                .set_field(TAG_TEST_REQ_ID, FIXString::from("TEST"));
+            let send_result = session.send(&test_req).await;
+            if let Err(err) = send_result {
+                return handle_state_error(session, err);
+            }
+
+            session.log.on_event("Sent test request TEST");
+            let duration = (1.2_f64 * (session.iss.heart_bt_int.num_nanoseconds().unwrap() as f64))
+                .round() as u64;
+
+            session
+                .peer_timer
+                .reset(Duration::from_nanos(duration))
+                .await;
+
+            return SessionStateEnum::PendingTimeout(PendingTimeout {
+                session_state: AfterPendingTimeout::InSession(self),
+            });
         }
 
-        // 	return state
-        todo!()
+        SessionStateEnum::InSession(self)
     }
 }
 
@@ -281,62 +301,68 @@ impl InSession {
     // 	return
     // }
 
-    // func (state inSession) processReject(session *session, msg *Message, rej MessageRejectError) sessionState {
-    // 	switch TypedError := rej.(type) {
-    // 	case targetTooHigh:
+    fn process_reject(
+        &self,
+        session: Session,
+        msg: &Message,
+        rej: Box<dyn MessageRejectErrorTrait>,
+    ) -> SessionStateEnum {
+        // 	switch TypedError := rej.(type) {
+        // 	case targetTooHigh:
 
-    // 		var nextState resendState
-    // 		switch currentState := session.State.(type) {
-    // 		case resendState:
-    // 			// Assumes target too high reject already sent.
-    // 			nextState = currentState
-    // 		default:
-    // 			var err error
-    // 			if nextState, err = session.doTargetTooHigh(TypedError); err != nil {
-    // 				return handleStateError(session, err)
-    // 			}
-    // 		}
+        // 		var nextState resendState
+        // 		switch currentState := session.State.(type) {
+        // 		case resendState:
+        // 			// Assumes target too high reject already sent.
+        // 			nextState = currentState
+        // 		default:
+        // 			var err error
+        // 			if nextState, err = session.doTargetTooHigh(TypedError); err != nil {
+        // 				return handleStateError(session, err)
+        // 			}
+        // 		}
 
-    // 		if nextState.messageStash == nil {
-    // 			nextState.messageStash = make(map[int]*Message)
-    // 		}
+        // 		if nextState.messageStash == nil {
+        // 			nextState.messageStash = make(map[int]*Message)
+        // 		}
 
-    // 		nextState.messageStash[TypedError.ReceivedTarget] = msg
-    // 		// Do not reclaim stashed message.
-    // 		msg.keepMessage = true
+        // 		nextState.messageStash[TypedError.ReceivedTarget] = msg
+        // 		// Do not reclaim stashed message.
+        // 		msg.keepMessage = true
 
-    // 		return nextState
+        // 		return nextState
 
-    // 	case targetTooLow:
-    // 		return state.doTargetTooLow(session, msg, TypedError)
-    // 	case incorrectBeginString:
-    // 		if err := session.initiateLogout(rej.Error()); err != nil {
-    // 			return handleStateError(session, err)
-    // 		}
-    // 		return logoutState{}
-    // 	}
+        // 	case targetTooLow:
+        // 		return state.doTargetTooLow(session, msg, TypedError)
+        // 	case incorrectBeginString:
+        // 		if err := session.initiateLogout(rej.Error()); err != nil {
+        // 			return handleStateError(session, err)
+        // 		}
+        // 		return logoutState{}
+        // 	}
 
-    // 	switch rej.RejectReason() {
-    // 	case rejectReasonCompIDProblem, rejectReasonSendingTimeAccuracyProblem:
-    // 		if err := session.doReject(msg, rej); err != nil {
-    // 			return handleStateError(session, err)
-    // 		}
+        // 	switch rej.RejectReason() {
+        // 	case rejectReasonCompIDProblem, rejectReasonSendingTimeAccuracyProblem:
+        // 		if err := session.doReject(msg, rej); err != nil {
+        // 			return handleStateError(session, err)
+        // 		}
 
-    // 		if err := session.initiateLogout(""); err != nil {
-    // 			return handleStateError(session, err)
-    // 		}
-    // 		return logoutState{}
-    // 	default:
-    // 		if err := session.doReject(msg, rej); err != nil {
-    // 			return handleStateError(session, err)
-    // 		}
+        // 		if err := session.initiateLogout(""); err != nil {
+        // 			return handleStateError(session, err)
+        // 		}
+        // 		return logoutState{}
+        // 	default:
+        // 		if err := session.doReject(msg, rej); err != nil {
+        // 			return handleStateError(session, err)
+        // 		}
 
-    // 		if err := session.store.IncrNextTargetMsgSeqNum(); err != nil {
-    // 			return handleStateError(session, err)
-    // 		}
-    // 		return state
-    // 	}
-    // }
+        // 		if err := session.store.IncrNextTargetMsgSeqNum(); err != nil {
+        // 			return handleStateError(session, err)
+        // 		}
+        // 		return state
+        // 	}
+        todo!()
+    }
 
     // func (state inSession) doTargetTooLow(session *session, msg *Message, rej targetTooLow) (nextState sessionState) {
     // 	var posDupFlag FIXBoolean

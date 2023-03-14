@@ -53,13 +53,50 @@ impl SessionState for SessionStateEnum {
             Self::ResendState(rs) => rs,
             Self::PendingTimeout(ps) => ps,
         } {
-            fn timeout(self, session: &mut Session, event: Event) -> SessionStateEnum;
+
             fn is_logged_on(&self) -> bool;
             fn is_connected(&self) -> bool;
             fn is_session_time(&self) -> bool;
-            fn shutdown_now(&self, session: &Session);
-            fn stop(self, session: &mut Session) -> SessionStateEnum;
+            // async fn timeout(self, session: &mut Session, event: Event) -> SessionStateEnum;
+            // async fn shutdown_now(&self, session: &mut Session);
+            // async fn stop(self, session: &mut Session) -> SessionStateEnum;
             // async fn fix_msg_in(self, session: &'_ mut Session, msg: &'_ Message) -> SessionStateEnum;
+        }
+    }
+
+    async fn timeout(self, session: &mut Session, event: Event) -> SessionStateEnum {
+        match self {
+            Self::InSession(is) => is.timeout(session, event).await,
+            Self::LatentState(ls) => ls.timeout(session, event).await,
+            Self::LogoutState(ls) => ls.timeout(session, event).await,
+            Self::LogonState(ls) => ls.timeout(session, event).await,
+            Self::NotSessionTime(nst) => nst.timeout(session, event).await,
+            Self::ResendState(rs) => rs.timeout(session, event).await,
+            Self::PendingTimeout(ps) => ps.timeout(session, event).await,
+        }
+    }
+
+    async fn shutdown_now(&self, session: &mut Session) {
+        match self {
+            Self::InSession(is) => is.shutdown_now(session).await,
+            Self::LatentState(ls) => ls.shutdown_now(session).await,
+            Self::LogoutState(ls) => ls.shutdown_now(session).await,
+            Self::LogonState(ls) => ls.shutdown_now(session).await,
+            Self::NotSessionTime(nst) => nst.shutdown_now(session).await,
+            Self::ResendState(rs) => rs.shutdown_now(session).await,
+            Self::PendingTimeout(ps) => ps.shutdown_now(session).await,
+        }
+    }
+
+    async fn stop(self, session: &mut Session) -> SessionStateEnum {
+        match self {
+            Self::InSession(is) => is.stop(session).await,
+            Self::LatentState(ls) => ls.stop(session).await,
+            Self::LogoutState(ls) => ls.stop(session).await,
+            Self::LogonState(ls) => ls.stop(session).await,
+            Self::NotSessionTime(nst) => nst.stop(session).await,
+            Self::ResendState(rs) => rs.stop(session).await,
+            Self::PendingTimeout(ps) => ps.stop(session).await,
         }
     }
 
@@ -84,6 +121,10 @@ impl SessionStateEnum {
     pub fn new_in_session() -> Self {
         Self::InSession(InSession::default())
     }
+
+    pub fn new_logout_state() -> Self {
+        Self::LogoutState(LogoutState::default())
+    }
 }
 
 pub struct StateMachine {
@@ -94,13 +135,13 @@ pub struct StateMachine {
 }
 
 impl StateMachine {
-    // fn start(&self, s *session) {
-    // 	sm.pendingStop = false
-    // 	sm.stopped = false
+    fn start(&mut self, s: &Session) {
+        self.pending_stop = false;
+        self.stopped = false
 
-    // 	sm.State = latentState{}
-    // 	sm.CheckSessionTime(s, time.Now())
-    // }
+        // 	sm.State = latentState{}
+        // 	sm.CheckSessionTime(s, time.Now())
+    }
 
     // fn connect(&self, session *session) {
     // 	// No special logon logic needed for FIX Acceptors.
@@ -267,8 +308,8 @@ impl StateMachine {
     }
 }
 
-pub fn handle_state_error(s: &Session, err: Box<dyn Error>) -> SessionStateEnum {
-    s.log_error(&err);
+pub fn handle_state_error(session: &Session, err: Box<dyn Error>) -> SessionStateEnum {
+    session.log_error(&err);
     SessionStateEnum::new_latent_state()
 }
 
@@ -281,7 +322,7 @@ pub trait SessionState: ToString + Any {
     async fn fix_msg_in(self, session: &'_ mut Session, msg: &'_ Message) -> SessionStateEnum;
 
     // timeout is called by the session on a timeout event.
-    fn timeout(self, session: &mut Session, event: Event) -> SessionStateEnum;
+    async fn timeout(self, session: &mut Session, event: Event) -> SessionStateEnum;
 
     // is_logged_on returns true if state is logged on an in session, false otherwise.
     fn is_logged_on(&self) -> bool;
@@ -293,10 +334,10 @@ pub trait SessionState: ToString + Any {
     fn is_session_time(&self) -> bool;
 
     // shutdown_now terminates the session state immediately.
-    fn shutdown_now(&self, session: &Session);
+    async fn shutdown_now(&self, session: &mut Session);
 
     // stop triggers a clean stop.
-    fn stop(self, session: &mut Session) -> SessionStateEnum;
+    async fn stop(self, session: &mut Session) -> SessionStateEnum;
 }
 
 #[derive(Default)]
@@ -337,7 +378,7 @@ impl ConnectedNotLoggedOn {
         false
     }
 
-    pub fn shutdown_now(&self, _session: &Session) {}
+    pub async fn shutdown_now(&self, _session: &Session) {}
 }
 
 #[derive(Default)]
@@ -356,19 +397,19 @@ impl LoggedOn {
         true
     }
 
-    pub fn shutdown_now(&self, s: &Session) {
-        // 	if err := s.sendLogout(""); err != nil {
-        // 		s.logError(err)
-        // 	}
+    pub async fn shutdown_now(&self, session: &mut Session) {
+        let logout_result = session.send_logout("").await;
+        if let Err(err) = logout_result {
+            session.log_error(&err);
+        }
     }
 
-    pub fn stop(self, session: &Session) -> SessionStateEnum {
-        // fn (loggedOn) Stop(s *session) (nextState sessionState) {
-        // 	if err := s.initiateLogout(""); err != nil {
-        // 		return handleStateError(s, err)
-        // 	}
+    pub async fn stop(self, session: &mut Session) -> SessionStateEnum {
+        let logout_result = session.initiate_logout("").await;
+        if let Err(err) = logout_result {
+            handle_state_error(session, err);
+        }
 
-        // Box::new(LogoutState::default());
-        todo!()
+        SessionStateEnum::new_logout_state()
     }
 }

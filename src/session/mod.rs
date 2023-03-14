@@ -618,11 +618,10 @@ impl Session {
         let duration =
             (1.2_f64 * (self.iss.heart_bt_int.num_nanoseconds().unwrap() as f64)).round() as u64;
 
-        self.peer_timer.reset(Duration::from_nanos(duration));
+        self.peer_timer.reset(Duration::from_nanos(duration)).await;
         self.application.on_logon(&self.session_id);
 
-        let check_target = self
-            .check_target_too_high(msg)
+        self.check_target_too_high(msg)
             .map_err(|err| err.into_error())?;
 
         Ok(self.store.incr_next_target_msg_seq_num()?)

@@ -18,8 +18,15 @@ impl PendingTimeout {
             pub fn to_string(&self) -> String;
             pub fn is_connected(&self) -> bool;
             pub fn is_logged_on(&self) -> bool;
-            pub fn shutdown_now(&self, _session: &Session);
+
             pub fn is_session_time(&self) -> bool ;
+        }
+    }
+
+    pub async fn shutdown_now(&self, session: &mut Session) {
+        match &self.session_state {
+            AfterPendingTimeout::InSession(is) => is.shutdown_now(session).await,
+            AfterPendingTimeout::ResendState(rs) => rs.shutdown_now(session).await,
         }
     }
 
@@ -30,14 +37,14 @@ impl PendingTimeout {
         }
     }
 
-    pub fn stop(self, session: &mut Session) -> SessionStateEnum {
+    pub async fn stop(self, session: &mut Session) -> SessionStateEnum {
         match self.session_state {
-            AfterPendingTimeout::InSession(is) => is.stop(session),
-            AfterPendingTimeout::ResendState(rs) => rs.stop(session),
+            AfterPendingTimeout::InSession(is) => is.stop(session).await,
+            AfterPendingTimeout::ResendState(rs) => rs.stop(session).await,
         }
     }
 
-    pub fn timeout(self, session: &mut Session, event: Event) -> SessionStateEnum {
+    pub async fn timeout(self, session: &mut Session, event: Event) -> SessionStateEnum {
         if event == PEER_TIMEOUT {
             session.log.on_event("Session Timeout");
             return SessionStateEnum::new_latent_state();

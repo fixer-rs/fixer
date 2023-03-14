@@ -29,8 +29,8 @@ impl ResendState {
             pub fn is_connected(&self) -> bool;
             pub fn is_session_time(&self) -> bool;
             pub fn is_logged_on(&self) -> bool;
-            pub fn shutdown_now(&self, _session: &Session);
-            pub fn stop(self, _session: &mut Session) -> SessionStateEnum;
+            pub async fn shutdown_now(&self, _session: &mut Session);
+            pub async fn stop(self, _session: &mut Session) -> SessionStateEnum;
         }
     }
 
@@ -90,8 +90,8 @@ impl ResendState {
         todo!()
     }
 
-    pub fn timeout(self, session: &mut Session, event: Event) -> SessionStateEnum {
-        let next_state = InSession::default().timeout(session, event);
+    pub async fn timeout(self, session: &mut Session, event: Event) -> SessionStateEnum {
+        let next_state = InSession::default().timeout(session, event).await;
         if let SessionStateEnum::InSession(_) = next_state {
             return SessionStateEnum::ResendState(self);
         }

@@ -19,7 +19,7 @@ impl NotSessionTime {
         to self.latent_state {
             pub fn is_connected(&self) -> bool;
             pub fn is_logged_on(&self) -> bool;
-            pub fn shutdown_now(&self, _session: &Session);
+            pub async fn shutdown_now(&self, _session: &mut Session);
         }
     }
 
@@ -35,11 +35,11 @@ impl NotSessionTime {
         SessionStateEnum::NotSessionTime(self)
     }
 
-    pub fn timeout(self, _session: &mut Session, _event: Event) -> SessionStateEnum {
+    pub async fn timeout(self, _session: &mut Session, _event: Event) -> SessionStateEnum {
         SessionStateEnum::NotSessionTime(self)
     }
 
-    pub fn stop(self, _session: &mut Session) -> SessionStateEnum {
+    pub async fn stop(self, _session: &mut Session) -> SessionStateEnum {
         SessionStateEnum::NotSessionTime(self)
     }
 }

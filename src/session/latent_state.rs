@@ -32,7 +32,7 @@ impl LatentState {
         SessionStateEnum::LatentState(self)
     }
 
-    pub fn timeout(self, _session: &mut Session, _event: Event) -> SessionStateEnum {
+    pub async fn timeout(self, _session: &mut Session, _event: Event) -> SessionStateEnum {
         SessionStateEnum::LatentState(self)
     }
 
@@ -44,9 +44,9 @@ impl LatentState {
         false
     }
 
-    pub fn shutdown_now(&self, _session: &Session) {}
+    pub async fn shutdown_now(&self, _session: &mut Session) {}
 
-    pub fn stop(self, _session: &mut Session) -> SessionStateEnum {
+    pub async fn stop(self, _session: &mut Session) -> SessionStateEnum {
         SessionStateEnum::LatentState(self)
     }
 }
