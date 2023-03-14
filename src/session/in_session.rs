@@ -1,15 +1,29 @@
-use crate::errors::MessageRejectErrorTrait;
+use crate::errors::{
+    required_tag_missing, value_is_incorrect_no_tag, MessageRejectErrorResult,
+    MessageRejectErrorTrait,
+};
+use crate::fix_boolean::FIXBoolean;
+use crate::fix_int::FIXInt;
 use crate::fix_string::FIXString;
 use crate::internal::event::{Event, NEED_HEARTBEAT, PEER_TIMEOUT};
 use crate::message::Message;
-use crate::msg_type::{MSG_TYPE_HEARTBEAT, MSG_TYPE_LOGON};
+use crate::msg_type::{
+    is_admin_message_type, MSG_TYPE_LOGON, MSG_TYPE_LOGOUT, MSG_TYPE_RESEND_REQUEST,
+    MSG_TYPE_SEQUENCE_RESET, MSG_TYPE_TEST_REQUEST,
+};
 use crate::session::{
     pending_timeout::PendingTimeout,
+    session_rejects::TargetTooLow,
     session_state::{handle_state_error, AfterPendingTimeout, LoggedOn, SessionStateEnum},
     Session,
 };
-use crate::tag::{TAG_MSG_TYPE, TAG_TEST_REQ_ID};
+use crate::tag::{
+    TAG_BEGIN_SEQ_NO, TAG_END_SEQ_NO, TAG_GAP_FILL_FLAG, TAG_MSG_SEQ_NUM, TAG_MSG_TYPE,
+    TAG_NEW_SEQ_NO, TAG_TEST_REQ_ID,
+};
+use crate::{BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIX42};
 use delegate::delegate;
+use std::error::Error;
 use tokio::time::Duration;
 
 #[derive(Default)]
@@ -42,36 +56,41 @@ impl InSession {
 
         let msg_type = msg_type_result.unwrap();
         match msg_type.as_ref() {
-            MSG_TYPE_LOGON => {}
-            _ => {}
+            MSG_TYPE_LOGON => {
+                let handle_result = session.handle_logon(msg).await;
+                if handle_result.is_err() {
+                    let logout_result = session.initiate_logout_in_reply_to("", Some(msg)).await;
+                    if let Err(err2) = logout_result {
+                        return handle_state_error(session, err2);
+                    }
+                    return SessionStateEnum::new_logout_state();
+                }
+                return SessionStateEnum::InSession(self);
+            }
+            MSG_TYPE_LOGOUT => {
+                return self.handle_logout(session, msg).await;
+            }
+            MSG_TYPE_RESEND_REQUEST => {
+                return self.handle_resend_request(session, msg).await;
+            }
+            MSG_TYPE_SEQUENCE_RESET => {
+                return self.handle_sequence_reset(session, msg).await;
+            }
+            MSG_TYPE_TEST_REQUEST => {
+                return self.handle_test_request(session, msg).await;
+            }
+            _ => {
+                let verify_result = session.verify(msg);
+                if let Err(err) = verify_result {
+                    return handle_state_error(session, err.into_error());
+                }
+            }
         }
-        // 	switch {
-        // 	case bytes.Equal(msgTypeLogon, msgType):
-        // 		if err := session.handleLogon(msg); err != nil {
-        // 			if err := session.initiateLogoutInReplyTo("", msg); err != nil {
-        // 				return handleStateError(session, err)
-        // 			}
-        // 			return logoutState{}
-        // 		}
 
-        // 		return state
-        // 	case bytes.Equal(msgTypeLogout, msgType):
-        // 		return state.handleLogout(session, msg)
-        // 	case bytes.Equal(msgTypeResendRequest, msgType):
-        // 		return state.handleResendRequest(session, msg)
-        // 	case bytes.Equal(msgTypeSequenceReset, msgType):
-        // 		return state.handleSequenceReset(session, msg)
-        // 	case bytes.Equal(msgTypeTestRequest, msgType):
-        // 		return state.handleTestRequest(session, msg)
-        // 	default:
-        // 		if err := session.verify(msg); err != nil {
-        // 			return state.processReject(session, msg, err)
-        // 		}
-        // 	}
-
-        // 	if err := session.store.IncrNextTargetMsgSeqNum(); err != nil {
-        // 		return handleStateError(session, err)
-        // 	}
+        let incr_result = session.store.incr_next_target_msg_seq_num().await;
+        if let Err(err) = incr_result {
+            handle_state_error(session, err.into());
+        }
 
         SessionStateEnum::InSession(self)
     }
@@ -118,207 +137,282 @@ impl InSession {
 }
 
 impl InSession {
-    // func (state inSession) handleLogout(session *session, msg *Message) (nextState sessionState) {
-    // 	if err := session.verifySelect(msg, false, false); err != nil {
-    // 		return state.processReject(session, msg, err)
-    // 	}
+    async fn handle_logout(self, session: &mut Session, msg: &Message) -> SessionStateEnum {
+        let verify_result = session.verify_select(msg, false, false);
+        if let Err(err) = verify_result {
+            return self.process_reject(session, msg, err);
+        }
 
-    // 	if session.IsLoggedOn() {
-    // 		session.log.OnEvent("Received logout request")
-    // 		session.log.OnEvent("Sending logout response")
+        if session.sm.is_logged_on() {
+            session.log.on_event("Received logout request");
+            session.log.on_event("Sending logout response");
 
-    // 		if err := session.sendLogoutInReplyTo("", msg); err != nil {
-    // 			session.logError(err)
-    // 		}
-    // 	} else {
-    // 		session.log.OnEvent("Received logout response")
-    // 	}
+            let logout_result = session.send_logout_in_reply_to("", Some(msg)).await;
+            if let Err(err) = logout_result {
+                session.log_error(&err);
+            }
+        } else {
+            session.log.on_event("Received logout response");
+        }
 
-    // 	if err := session.store.IncrNextTargetMsgSeqNum(); err != nil {
-    // 		session.logError(err)
-    // 	}
+        let incr_result = session.store.incr_next_target_msg_seq_num().await;
+        if let Err(err) = incr_result {
+            session.log_error(&err.into());
+        }
 
-    // 	if session.ResetOnLogout {
-    // 		if err := session.dropAndReset(); err != nil {
-    // 			session.logError(err)
-    // 		}
-    // 	}
+        if session.iss.reset_on_logout {
+            let drop_result = session.drop_and_reset().await;
+            if let Err(err) = drop_result {
+                session.log_error(&err);
+            }
+        }
 
-    // 	return latentState{}
-    // }
+        SessionStateEnum::new_latent_state()
+    }
 
-    // func (state inSession) handleTestRequest(session *session, msg *Message) (nextState sessionState) {
-    // 	if err := session.verify(msg); err != nil {
-    // 		return state.processReject(session, msg, err)
-    // 	}
-    // 	var testReq FIXString
-    // 	if err := msg.Body.GetField(tagTestReqID, &testReq); err != nil {
-    // 		session.log.OnEvent("Test Request with no testRequestID")
-    // 	} else {
-    // 		heartBt := NewMessage()
-    // 		heartBt.Header.SetField(tagMsgType, FIXString("0"))
-    // 		heartBt.Body.SetField(tagTestReqID, testReq)
-    // 		if err := session.sendInReplyTo(heartBt, msg); err != nil {
-    // 			return handleStateError(session, err)
-    // 		}
-    // 	}
+    async fn handle_test_request(self, session: &mut Session, msg: &Message) -> SessionStateEnum {
+        let verify_result = session.verify(msg);
+        if let Err(err) = verify_result {
+            return self.process_reject(session, msg, err);
+        }
 
-    // 	if err := session.store.IncrNextTargetMsgSeqNum(); err != nil {
-    // 		return handleStateError(session, err)
-    // 	}
-    // 	return state
-    // }
+        let mut test_req = FIXString::new();
+        let field_result = msg.body.get_field(TAG_TEST_REQ_ID, &mut test_req);
+        if field_result.is_err() {
+            session.log.on_event("Test Request with no testRequestID");
+        } else {
+            let heart_bt = Message::new();
+            heart_bt
+                .header
+                .set_field(TAG_MSG_TYPE, FIXString::from("0"));
+            heart_bt.body.set_field(TAG_TEST_REQ_ID, test_req);
+            let send_result = session.send_in_reply_to(&heart_bt, Some(msg)).await;
+            if let Err(err) = send_result {
+                return handle_state_error(session, err);
+            }
+        }
 
-    // func (state inSession) handleSequenceReset(session *session, msg *Message) (nextState sessionState) {
-    // 	var gapFillFlag FIXBoolean
-    // 	if msg.Body.Has(tagGapFillFlag) {
-    // 		if err := msg.Body.GetField(tagGapFillFlag, &gapFillFlag); err != nil {
-    // 			return state.processReject(session, msg, err)
-    // 		}
-    // 	}
+        let incr_result = session.store.incr_next_target_msg_seq_num().await;
+        if let Err(err) = incr_result {
+            return handle_state_error(session, err.into());
+        }
 
-    // 	if err := session.verifySelect(msg, bool(gapFillFlag), bool(gapFillFlag)); err != nil {
-    // 		return state.processReject(session, msg, err)
-    // 	}
+        SessionStateEnum::InSession(self)
+    }
 
-    // 	var newSeqNo FIXInt
-    // 	if err := msg.Body.GetField(tagNewSeqNo, &newSeqNo); err == nil {
-    // 		expectedSeqNum := FIXInt(session.store.NextTargetMsgSeqNum())
-    // 		session.log.OnEventf("Received SequenceReset FROM: %v TO: %v", expectedSeqNum, newSeqNo)
+    async fn handle_sequence_reset(self, session: &mut Session, msg: &Message) -> SessionStateEnum {
+        let mut gap_fill_flag = FIXBoolean::default();
+        if msg.body.has(TAG_GAP_FILL_FLAG) {
+            let field_result = msg.body.get_field(TAG_GAP_FILL_FLAG, &mut gap_fill_flag);
+            if let Err(err) = field_result {
+                return self.process_reject(session, msg, err);
+            }
+        }
 
-    // 		switch {
-    // 		case newSeqNo > expectedSeqNum:
-    // 			if err := session.store.SetNextTargetMsgSeqNum(int(newSeqNo)); err != nil {
-    // 				return handleStateError(session, err)
-    // 			}
-    // 		case newSeqNo < expectedSeqNum:
-    // 			// FIXME: to be compliant with legacy tests, do not include tag in reftagid? (11c_NewSeqNoLess).
-    // 			if err := session.doReject(msg, valueIsIncorrectNoTag()); err != nil {
-    // 				return handleStateError(session, err)
-    // 			}
-    // 		}
-    // 	}
-    // 	return state
-    // }
+        let verify_result = session.verify_select(msg, gap_fill_flag, gap_fill_flag);
+        if let Err(err) = verify_result {
+            return self.process_reject(session, msg, err);
+        }
 
-    // func (state inSession) handleResendRequest(session *session, msg *Message) (nextState sessionState) {
-    // 	if err := session.verifyIgnoreSeqNumTooHighOrLow(msg); err != nil {
-    // 		return state.processReject(session, msg, err)
-    // 	}
+        let mut new_seq_no = FIXInt::default();
+        let field_result = msg.body.get_field(TAG_NEW_SEQ_NO, &mut new_seq_no);
+        if field_result.is_ok() {
+            let expected_seq_num = session.store.next_target_msg_seq_num() as FIXInt;
+            session.log.on_eventf(
+                "MsReceived SequenceReset FROM: {{from}} TO: {{to}}",
+                hashmap! {
+                    String::from("from") => format!("{}", expected_seq_num),
+                    String::from("to") => format!("{}", new_seq_no),
+                },
+            );
 
-    // 	var err error
-    // 	var beginSeqNoField FIXInt
-    // 	if err = msg.Body.GetField(tagBeginSeqNo, &beginSeqNoField); err != nil {
-    // 		return state.processReject(session, msg, RequiredTagMissing(tagBeginSeqNo))
-    // 	}
+            if new_seq_no > expected_seq_num {
+                let set_result = session.store.set_next_target_msg_seq_num(new_seq_no).await;
+                if let Err(err) = set_result {
+                    return handle_state_error(session, err.into());
+                }
+            } else if new_seq_no < expected_seq_num {
+                // FIXME: to be compliant with legacy tests, do not include tag in reftagid? (11c_NewSeqNoLess).
+                let reject_result = session.do_reject(msg, value_is_incorrect_no_tag()).await;
+                if let Err(err) = reject_result {
+                    return handle_state_error(session, err);
+                }
+            }
+        }
+        SessionStateEnum::InSession(self)
+    }
 
-    // 	beginSeqNo := beginSeqNoField
+    async fn handle_resend_request(self, session: &mut Session, msg: &Message) -> SessionStateEnum {
+        let verify_result = session.verify_ignore_seq_num_too_high_or_low(msg);
+        if let Err(err) = verify_result {
+            return self.process_reject(session, msg, err);
+        }
 
-    // 	var endSeqNoField FIXInt
-    // 	if err = msg.Body.GetField(tagEndSeqNo, &endSeqNoField); err != nil {
-    // 		return state.processReject(session, msg, RequiredTagMissing(tagEndSeqNo))
-    // 	}
+        let mut begin_seq_no_field = FIXInt::default();
+        let field_result = msg
+            .body
+            .get_field(TAG_BEGIN_SEQ_NO, &mut begin_seq_no_field);
+        if field_result.is_err() {
+            return self.process_reject(session, msg, required_tag_missing(TAG_BEGIN_SEQ_NO));
+        }
 
-    // 	endSeqNo := int(endSeqNoField)
+        let begin_seq_no = begin_seq_no_field;
 
-    // 	session.log.OnEventf("Received ResendRequest FROM: %d TO: %d", beginSeqNo, endSeqNo)
-    // 	expectedSeqNum := session.store.NextSenderMsgSeqNum()
+        let mut end_seq_no_field = FIXInt::default();
+        let field_result = msg.body.get_field(TAG_END_SEQ_NO, &mut end_seq_no_field);
+        if field_result.is_err() {
+            return self.process_reject(session, msg, required_tag_missing(TAG_END_SEQ_NO));
+        }
 
-    // 	if (session.sessionID.BeginString >= BeginStringFIX42 && endSeqNo == 0) ||
-    // 		(session.sessionID.BeginString <= BeginStringFIX42 && endSeqNo == 999999) ||
-    // 		(endSeqNo >= expectedSeqNum) {
-    // 		endSeqNo = expectedSeqNum - 1
-    // 	}
+        let mut end_seq_no = end_seq_no_field;
+        session.log.on_eventf(
+            "Received ResendRequest FROM: {{from}} TO: {{to}}",
+            hashmap! {
+                String::from("from") => format!("{}", begin_seq_no),
+                String::from("to") => format!("{}", end_seq_no),
+            },
+        );
 
-    // 	if err := state.resendMessages(session, int(beginSeqNo), endSeqNo, *msg); err != nil {
-    // 		return handleStateError(session, err)
-    // 	}
+        let expected_seq_num = session.store.next_sender_msg_seq_num();
+        if (!matches!(
+            session.session_id.begin_string.as_str(),
+            BEGIN_STRING_FIX40 | BEGIN_STRING_FIX41
+        ) && end_seq_no == 0)
+            || (matches!(
+                session.session_id.begin_string.as_str(),
+                BEGIN_STRING_FIX40 | BEGIN_STRING_FIX41 | BEGIN_STRING_FIX42
+            ) && end_seq_no == 999_999)
+            || (end_seq_no >= expected_seq_num)
+        {
+            end_seq_no = expected_seq_num - 1;
+        }
 
-    // 	if err := session.checkTargetTooLow(msg); err != nil {
-    // 		return state
-    // 	}
+        let resent_result = self
+            .resend_messages(session, begin_seq_no, end_seq_no, msg)
+            .await;
+        if let Err(err) = resent_result {
+            return handle_state_error(session, err);
+        }
 
-    // 	if err := session.checkTargetTooHigh(msg); err != nil {
-    // 		return state
-    // 	}
+        let check_result = session.check_target_too_low(msg);
+        if check_result.is_err() {
+            return SessionStateEnum::InSession(self);
+        }
 
-    // 	if err := session.store.IncrNextTargetMsgSeqNum(); err != nil {
-    // 		return handleStateError(session, err)
-    // 	}
-    // 	return state
-    // }
+        let check_result = session.check_target_too_high(msg);
+        if check_result.is_err() {
+            return SessionStateEnum::InSession(self);
+        }
 
-    // func (state inSession) resendMessages(session *session, beginSeqNo, endSeqNo int, inReplyTo Message) (err error) {
-    // 	if session.DisableMessagePersist {
-    // 		err = state.generateSequenceReset(session, beginSeqNo, endSeqNo+1, inReplyTo)
-    // 		return
-    // 	}
+        let incr_result = session.store.incr_next_target_msg_seq_num().await;
+        if let Err(err) = incr_result {
+            return handle_state_error(session, err.into());
+        }
 
-    // 	msgs, err := session.store.GetMessages(beginSeqNo, endSeqNo)
-    // 	if err != nil {
-    // 		session.log.OnEventf("error retrieving messages from store: %s", err.Error())
-    // 		return
-    // 	}
+        SessionStateEnum::InSession(self)
+    }
 
-    // 	seqNum := beginSeqNo
-    // 	nextSeqNum := seqNum
-    // 	msg := NewMessage()
-    // 	for _, msgBytes := range msgs {
-    // 		_ = ParseMessageWithDataDictionary(msg, bytes.NewBuffer(msgBytes), session.transportDataDictionary, session.appDataDictionary)
-    // 		msgType, _ := msg.Header.GetBytes(tagMsgType)
-    // 		sentMessageSeqNum, _ := msg.Header.GetInt(tagMsgSeqNum)
+    async fn resend_messages(
+        &self,
+        session: &mut Session,
+        begin_seq_no: isize,
+        end_seq_no: isize,
+        in_reply_to: &Message,
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+        if session.iss.disable_message_persist {
+            self.generate_sequence_reset(session, begin_seq_no, end_seq_no + 1, in_reply_to)
+                .map_err(|err| err.into_error())?;
+        }
 
-    // 		if isAdminMessageType(msgType) {
-    // 			nextSeqNum = sentMessageSeqNum + 1
-    // 			continue
-    // 		}
+        let get_result = session.store.get_messages(begin_seq_no, end_seq_no).await;
+        if let Err(err) = get_result {
+            session.log.on_eventf(
+                "error retrieving messages from store: {{err}}",
+                hashmap! {
+                    String::from("err") => err.to_string(),
+                },
+            );
+            return Err(err.into());
+        }
+        let msgs = get_result.unwrap();
+        let mut seq_num = begin_seq_no;
+        let mut next_seq_num = seq_num;
+        let mut msg = Message::new();
+        for msg_bytes in msgs.iter() {
+            Message::parse_message_with_data_dictionary(
+                &mut msg,
+                msg_bytes,
+                &session.transport_data_dictionary,
+                &session.app_data_dictionary,
+            )?;
 
-    // 		if !session.resend(msg) {
-    // 			nextSeqNum = sentMessageSeqNum + 1
-    // 			continue
-    // 		}
+            let msg_type = msg
+                .header
+                .get_bytes(TAG_MSG_TYPE)
+                .map_err(|err| err.into_error())?;
 
-    // 		if seqNum != sentMessageSeqNum {
-    // 			if err = state.generateSequenceReset(session, seqNum, sentMessageSeqNum, inReplyTo); err != nil {
-    // 				return err
-    // 			}
-    // 		}
+            let sent_message_seq_num = msg
+                .header
+                .get_int(TAG_MSG_SEQ_NUM)
+                .map_err(|err| err.into_error())?;
 
-    // 		session.log.OnEventf("Resending Message: %v", sentMessageSeqNum)
-    // 		msgBytes = msg.build()
-    // 		session.EnqueueBytesAndSend(msgBytes)
+            if is_admin_message_type(&msg_type) {
+                next_seq_num = sent_message_seq_num + 1;
+                continue;
+            }
 
-    // 		seqNum = sentMessageSeqNum + 1
-    // 		nextSeqNum = seqNum
-    // 	}
+            if !session.resend(&msg) {
+                next_seq_num = sent_message_seq_num + 1;
+                continue;
+            }
 
-    // 	if seqNum != nextSeqNum { // gapfill for catch-up
-    // 		if err = state.generateSequenceReset(session, seqNum, nextSeqNum, inReplyTo); err != nil {
-    // 			return err
-    // 		}
-    // 	}
+            if seq_num != sent_message_seq_num {
+                self.generate_sequence_reset(session, seq_num, sent_message_seq_num, in_reply_to)
+                    .map_err(|err| err.into_error())?;
+            }
 
-    // 	return
-    // }
+            session.log.on_eventf(
+                "Resending Message: {{msg}}",
+                hashmap! {
+                    String::from("msg") => format!("{}", sent_message_seq_num),
+                },
+            );
+
+            let inner_msg_bytes = msg.build();
+
+            session.enqueue_bytes_and_send(&inner_msg_bytes).await;
+
+            seq_num = sent_message_seq_num + 1;
+            next_seq_num = seq_num;
+        }
+
+        if seq_num != next_seq_num {
+            // gapfill for catch-up
+            self.generate_sequence_reset(session, seq_num, next_seq_num, in_reply_to)
+                .map_err(|err| err.into_error())?;
+        }
+
+        Ok(())
+    }
 
     fn process_reject(
         &self,
-        session: Session,
+        session: &Session,
         msg: &Message,
         rej: Box<dyn MessageRejectErrorTrait>,
     ) -> SessionStateEnum {
-        // 	switch TypedError := rej.(type) {
+        // 	switch TypedError = rej.(type) {
         // 	case targetTooHigh:
 
         // 		var nextState resendState
-        // 		switch currentState := session.State.(type) {
+        // 		switch currentState = session.State.(type) {
         // 		case resendState:
         // 			// Assumes target too high reject already sent.
         // 			nextState = currentState
         // 		default:
         // 			var err error
         // 			if nextState, err = session.doTargetTooHigh(TypedError); err != nil {
-        // 				return handleStateError(session, err)
+        // 				return handle_state_error(session, err)
         // 			}
         // 		}
 
@@ -335,111 +429,123 @@ impl InSession {
         // 	case targetTooLow:
         // 		return state.doTargetTooLow(session, msg, TypedError)
         // 	case incorrectBeginString:
-        // 		if err := session.initiateLogout(rej.Error()); err != nil {
-        // 			return handleStateError(session, err)
+        // 		if err = session.initiateLogout(rej.Error()); err != nil {
+        // 			return handle_state_error(session, err)
         // 		}
         // 		return logoutState{}
         // 	}
 
         // 	switch rej.RejectReason() {
         // 	case rejectReasonCompIDProblem, rejectReasonSendingTimeAccuracyProblem:
-        // 		if err := session.doReject(msg, rej); err != nil {
-        // 			return handleStateError(session, err)
+        // 		if err = session.do_reject(msg, rej); err != nil {
+        // 			return handle_state_error(session, err)
         // 		}
 
-        // 		if err := session.initiateLogout(""); err != nil {
-        // 			return handleStateError(session, err)
+        // 		if err = session.initiateLogout(""); err != nil {
+        // 			return handle_state_error(session, err)
         // 		}
         // 		return logoutState{}
         // 	default:
-        // 		if err := session.doReject(msg, rej); err != nil {
-        // 			return handleStateError(session, err)
+        // 		if err = session.do_reject(msg, rej); err != nil {
+        // 			return handle_state_error(session, err)
         // 		}
 
-        // 		if err := session.store.IncrNextTargetMsgSeqNum(); err != nil {
-        // 			return handleStateError(session, err)
+        // 		if err = session.store.incr_next_target_msg_seq_num(); err != nil {
+        // 			return handle_state_error(session, err)
         // 		}
         // 		return state
         // 	}
         todo!()
     }
 
-    // func (state inSession) doTargetTooLow(session *session, msg *Message, rej targetTooLow) (nextState sessionState) {
-    // 	var posDupFlag FIXBoolean
-    // 	if msg.Header.Has(tagPossDupFlag) {
-    // 		if err := msg.Header.GetField(tagPossDupFlag, &posDupFlag); err != nil {
-    // 			if rejErr := session.doReject(msg, err); rejErr != nil {
-    // 				return handleStateError(session, rejErr)
-    // 			}
-    // 			return state
-    // 		}
-    // 	}
+    fn do_target_too_low(
+        self,
+        session: &Session,
+        msg: &Message,
+        rej: TargetTooLow,
+    ) -> SessionStateEnum {
+        // 	var pos_dup_flag FIXBoolean
+        // 	if msg.header.has(TAG_POSS_DUP_FLAG) {
+        // 		if err = msg.header.get_field(TAG_POSS_DUP_FLAG, &pos_dup_flag); err != nil {
+        // 			if rejErr = session.do_reject(msg, err); rejErr != nil {
+        // 				return handle_state_error(session, rejErr)
+        // 			}
+        // 			return state
+        // 		}
+        // 	}
 
-    // 	if !posDupFlag.Bool() {
-    // 		if err := session.initiateLogout(rej.Error()); err != nil {
-    // 			return handleStateError(session, err)
-    // 		}
-    // 		return logoutState{}
-    // 	}
+        // 	if !pos_dup_flag.Bool() {
+        // 		if err = session.initiateLogout(rej.Error()); err != nil {
+        // 			return handle_state_error(session, err)
+        // 		}
+        // 		return logoutState{}
+        // 	}
 
-    // 	if !msg.Header.Has(tagOrigSendingTime) {
-    // 		if err := session.doReject(msg, RequiredTagMissing(tagOrigSendingTime)); err != nil {
-    // 			return handleStateError(session, err)
-    // 		}
-    // 		return state
-    // 	}
+        // 	if !msg.header.has(TAG_ORIG_SENDING_TIME) {
+        // 		if err = session.do_reject(msg, RequiredTagMissing(TAG_ORIG_SENDING_TIME)); err != nil {
+        // 			return handle_state_error(session, err)
+        // 		}
+        // 		return state
+        // 	}
 
-    // 	var origSendingTime FIXUTCTimestamp
-    // 	if err := msg.Header.GetField(tagOrigSendingTime, &origSendingTime); err != nil {
-    // 		if rejErr := session.doReject(msg, err); rejErr != nil {
-    // 			return handleStateError(session, rejErr)
-    // 		}
-    // 		return state
-    // 	}
+        // 	var orig_sending_time FIXUTCTimestamp
+        // 	if err = msg.header.get_field(TAG_ORIG_SENDING_TIME, &orig_sending_time); err != nil {
+        // 		if rejErr = session.do_reject(msg, err); rejErr != nil {
+        // 			return handle_state_error(session, rejErr)
+        // 		}
+        // 		return state
+        // 	}
 
-    // 	sendingTime := new(FIXUTCTimestamp)
-    // 	if err := msg.Header.GetField(tagSendingTime, sendingTime); err != nil {
-    // 		return state.processReject(session, msg, err)
-    // 	}
+        // 	sendingTime = new(FIXUTCTimestamp)
+        // 	if err = msg.header.get_field(TAG_SENDING_TIME, sendingTime); err != nil {
+        // 		return state.process_reject(session, msg, err)
+        // 	}
 
-    // 	if sendingTime.Before(origSendingTime.Time) {
-    // 		if err := session.doReject(msg, sendingTimeAccuracyProblem()); err != nil {
-    // 			return handleStateError(session, err)
-    // 		}
+        // 	if sendingTime.Before(orig_sending_time.Time) {
+        // 		if err = session.do_reject(msg, sendingTimeAccuracyProblem()); err != nil {
+        // 			return handle_state_error(session, err)
+        // 		}
 
-    // 		if err := session.initiateLogout(""); err != nil {
-    // 			return handleStateError(session, err)
-    // 		}
-    // 		return logoutState{}
-    // 	}
+        // 		if err = session.initiateLogout(""); err != nil {
+        // 			return handle_state_error(session, err)
+        // 		}
+        // 		return logoutState{}
+        // 	}
 
-    // 	return state
-    // }
+        // 	return state
+        todo!()
+    }
 
-    // func (state *inSession) generateSequenceReset(session *session, beginSeqNo int, endSeqNo int, inReplyTo Message) (err error) {
-    // 	sequenceReset := NewMessage()
-    // 	session.fillDefaultHeader(sequenceReset, &inReplyTo)
+    fn generate_sequence_reset(
+        &self,
+        session: &Session,
+        begin_seq_no: isize,
+        end_seq_no: isize,
+        in_reply_to: &Message,
+    ) -> MessageRejectErrorResult {
+        // 	sequence_reset = Message::new()
+        // 	session.fillDefaultHeader(sequence_reset, &in_reply_to)
 
-    // 	sequenceReset.Header.SetField(tagMsgType, FIXString("4"))
-    // 	sequenceReset.Header.SetField(tagMsgSeqNum, FIXInt(beginSeqNo))
-    // 	sequenceReset.Header.SetField(tagPossDupFlag, FIXBoolean(true))
-    // 	sequenceReset.Body.SetField(tagNewSeqNo, FIXInt(endSeqNo))
-    // 	sequenceReset.Body.SetField(tagGapFillFlag, FIXBoolean(true))
+        // 	sequence_reset.header.set_field(TAG_MSG_TYPE, FIXString::from("4"))
+        // 	sequence_reset.header.set_field(TAG_MSG_SEQ_NUM, FIXInt(begin_seq_no))
+        // 	sequence_reset.header.set_field(TAG_POSS_DUP_FLAG, FIXBoolean(true))
+        // 	sequence_reset.body.set_field(tagNewSeqNo, FIXInt(end_seq_no))
+        // 	sequence_reset.body.set_field(tagGapFillFlag, FIXBoolean(true))
 
-    // 	var origSendingTime FIXString
-    // 	if err := sequenceReset.Header.GetField(tagSendingTime, &origSendingTime); err == nil {
-    // 		sequenceReset.Header.SetField(tagOrigSendingTime, origSendingTime)
-    // 	}
+        // 	var origSendingTime FIXString
+        // 	if err = sequence_reset.header.get_field(tagSendingTime, &origSendingTime); err == nil {
+        // 		sequence_reset.header.set_field(tagOrigSendingTime, origSendingTime)
+        // 	}
 
-    // 	session.application.ToAdmin(sequenceReset, session.sessionID)
+        // 	session.application.ToAdmin(sequence_reset, session.sessionID)
 
-    // 	msgBytes := sequenceReset.build()
+        // 	msgBytes = sequence_reset.build()
 
-    // 	session.EnqueueBytesAndSend(msgBytes)
-    // 	session.log.OnEventf("Sent SequenceReset TO: %v", endSeqNo)
+        // 	session.enqueue_bytes_and_send(msgBytes)
+        // 	session.log.OnEventf("Sent SequenceReset TO: %v", end_seq_no)
 
-    // 	return
-    // }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -468,7 +574,7 @@ mod tests {
     // }
 
     // func (s *InSessionTestSuite) TestPreliminary() {
-    // 	s.True(s.session.IsLoggedOn())
+    // 	s.True(s.session.is_logged_on())
     // 	s.True(s.session.IsConnected())
     // 	s.True(s.session.IsSessionTime())
     // }
@@ -576,7 +682,7 @@ mod tests {
     // 	s.MessageFactory.seqNum = 5
 
     // 	s.MockApp.On("ToAdmin")
-    // 	msgSeqNumTooHigh := s.NewOrderSingle()
+    // 	msgSeqNumTooHigh = s.NewOrderSingle()
     // 	s.fixMsgIn(s.session, msgSeqNumTooHigh)
 
     // 	s.MockApp.AssertExpectations(s.T())
@@ -589,30 +695,30 @@ mod tests {
     // 	s.MessageFactory.seqNum = 5
 
     // 	s.MockApp.On("ToAdmin")
-    // 	msgSeqNumTooHigh := s.NewOrderSingle()
+    // 	msgSeqNumTooHigh = s.NewOrderSingle()
     // 	s.fixMsgIn(s.session, msgSeqNumTooHigh)
 
     // 	s.MockApp.AssertExpectations(s.T())
     // 	s.LastToAdminMessageSent()
     // 	s.MessageType(string(msgTypeResendRequest), s.MockApp.lastToAdmin)
-    // 	s.FieldEquals(tagBeginSeqNo, 1, s.MockApp.lastToAdmin.Body)
-    // 	s.FieldEquals(tagEndSeqNo, 0, s.MockApp.lastToAdmin.Body)
+    // 	s.FieldEquals(TAG_BEGIN_SEQ_NO, 1, s.MockApp.lastToAdmin.Body)
+    // 	s.FieldEquals(TAG_END_SEQ_NO, 0, s.MockApp.lastToAdmin.Body)
 
-    // 	resendState, ok := s.session.State.(resendState)
+    // 	resendState, ok = s.session.State.(resendState)
     // 	s.True(ok)
     // 	s.NextTargetMsgSeqNum(1)
 
-    // 	stashedMsg, ok := resendState.messageStash[6]
+    // 	stashedMsg, ok = resendState.messageStash[6]
     // 	s.True(ok)
 
-    // 	rawMsg := msgSeqNumTooHigh.build()
-    // 	stashedRawMsg := stashedMsg.build()
+    // 	rawMsg = msgSeqNumTooHigh.build()
+    // 	stashedRawMsg = stashedMsg.build()
     // 	s.Equal(string(rawMsg), string(stashedRawMsg))
     // }
     // func (s *InSessionTestSuite) TestFIXMsgInTargetTooHighResendRequestChunkSize() {
     // 	var tests = []struct {
     // 		chunkSize        int
-    // 		expectedEndSeqNo int
+    // 		expected_end_seq_no int
     // 	}{
     // 		{0, 0},
     // 		{10, 0},
@@ -621,30 +727,30 @@ mod tests {
     // 		{3, 3},
     // 	}
 
-    // 	for _, test := range tests {
+    // 	for _, test = range tests {
     // 		s.SetupTest()
     // 		s.MessageFactory.seqNum = 5
     // 		s.session.ResendRequestChunkSize = test.chunkSize
 
     // 		s.MockApp.On("ToAdmin")
-    // 		msgSeqNumTooHigh := s.NewOrderSingle()
+    // 		msgSeqNumTooHigh = s.NewOrderSingle()
     // 		s.fixMsgIn(s.session, msgSeqNumTooHigh)
 
     // 		s.MockApp.AssertExpectations(s.T())
     // 		s.LastToAdminMessageSent()
     // 		s.MessageType(string(msgTypeResendRequest), s.MockApp.lastToAdmin)
-    // 		s.FieldEquals(tagBeginSeqNo, 1, s.MockApp.lastToAdmin.Body)
-    // 		s.FieldEquals(tagEndSeqNo, test.expectedEndSeqNo, s.MockApp.lastToAdmin.Body)
+    // 		s.FieldEquals(TAG_BEGIN_SEQ_NO, 1, s.MockApp.lastToAdmin.Body)
+    // 		s.FieldEquals(TAG_END_SEQ_NO, test.expected_end_seq_no, s.MockApp.lastToAdmin.Body)
 
-    // 		resendState, ok := s.session.State.(resendState)
+    // 		resendState, ok = s.session.State.(resendState)
     // 		s.True(ok)
     // 		s.NextTargetMsgSeqNum(1)
 
-    // 		stashedMsg, ok := resendState.messageStash[6]
+    // 		stashedMsg, ok = resendState.messageStash[6]
     // 		s.True(ok)
 
-    // 		rawMsg := msgSeqNumTooHigh.build()
-    // 		stashedRawMsg := stashedMsg.build()
+    // 		rawMsg = msgSeqNumTooHigh.build()
+    // 		stashedRawMsg = stashedMsg.build()
     // 		s.Equal(string(rawMsg), string(stashedRawMsg))
     // 	}
     // }
@@ -787,7 +893,7 @@ mod tests {
     // }
 
     // func (s *InSessionTestSuite) TestFIXMsgInTargetTooLow() {
-    // 	s.IncrNextTargetMsgSeqNum()
+    // 	s.incr_next_target_msg_seq_num()
 
     // 	s.MockApp.On("ToAdmin")
     // 	s.fixMsgIn(s.session, s.NewOrderSingle())
@@ -799,11 +905,11 @@ mod tests {
     // }
 
     // func (s *InSessionTestSuite) TestFIXMsgInTargetTooLowPossDup() {
-    // 	s.IncrNextTargetMsgSeqNum()
+    // 	s.incr_next_target_msg_seq_num()
 
     // 	s.MockApp.On("ToAdmin")
-    // 	nos := s.NewOrderSingle()
-    // 	nos.Header.SetField(tagPossDupFlag, FIXBoolean(true))
+    // 	nos = s.NewOrderSingle()
+    // 	nos.header.set_field(tagPossDupFlag, FIXBoolean(true))
 
     // 	s.fixMsgIn(s.session, nos)
     // 	s.MockApp.AssertExpectations(s.T())
@@ -813,8 +919,8 @@ mod tests {
     // 	s.FieldEquals(tagRefTagID, int(tagOrigSendingTime), s.MockApp.lastToAdmin.Body)
     // 	s.State(inSession{})
 
-    // 	nos.Header.SetField(tagOrigSendingTime, FIXUTCTimestamp{Time: time.Now().Add(time.Duration(-1) * time.Minute)})
-    // 	nos.Header.SetField(tagSendingTime, FIXUTCTimestamp{Time: time.Now()})
+    // 	nos.header.set_field(tagOrigSendingTime, FIXUTCTimestamp{Time: time.Now().Add(time.Duration(-1) * time.Minute)})
+    // 	nos.header.set_field(tagSendingTime, FIXUTCTimestamp{Time: time.Now()})
     // 	s.fixMsgIn(s.session, nos)
     // 	s.MockApp.AssertExpectations(s.T())
     // 	s.NoMessageSent()

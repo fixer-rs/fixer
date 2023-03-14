@@ -308,7 +308,10 @@ impl StateMachine {
     }
 }
 
-pub fn handle_state_error(session: &Session, err: Box<dyn Error>) -> SessionStateEnum {
+pub fn handle_state_error(
+    session: &Session,
+    err: Box<dyn Error + Send + Sync>,
+) -> SessionStateEnum {
     session.log_error(&err);
     SessionStateEnum::new_latent_state()
 }

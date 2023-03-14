@@ -1,4 +1,4 @@
-use crate::errors::MessageRejectErrorTrait;
+use crate::errors::MessageRejectErrorResult;
 use crate::message::Message;
 use crate::session::session_id::SessionID;
 use simple_error::SimpleResult;
@@ -22,16 +22,8 @@ pub trait Application: Send + Sync {
     fn to_app(&self, msg: &'_ Message, session_id: &SessionID) -> SimpleResult<()>;
 
     // from_admin notification of admin message being received from target.
-    fn from_admin(
-        &self,
-        msg: &'_ Message,
-        session_id: &'_ SessionID,
-    ) -> Result<(), Box<dyn MessageRejectErrorTrait>>;
+    fn from_admin(&self, msg: &'_ Message, session_id: &'_ SessionID) -> MessageRejectErrorResult;
 
     // from_app notification of app message being received from target.
-    fn from_app(
-        &self,
-        msg: &'_ Message,
-        session_id: &SessionID,
-    ) -> Result<(), Box<dyn MessageRejectErrorTrait>>;
+    fn from_app(&self, msg: &'_ Message, session_id: &SessionID) -> MessageRejectErrorResult;
 }

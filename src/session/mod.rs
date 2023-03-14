@@ -1,10 +1,10 @@
 use crate::application::Application;
 use crate::datadictionary::DataDictionary;
-use crate::errors::MessageRejectErrorTrait;
 use crate::errors::{
     comp_id_problem, required_tag_missing, sending_time_accuracy_problem,
     tag_specified_without_a_value,
 };
+use crate::errors::{MessageRejectErrorResult, MessageRejectErrorTrait};
 use crate::fix_boolean::{FIXBoolean, FixBooleanTrait};
 use crate::fix_int::FIXInt;
 use crate::fix_utc_timestamp::{FIXUTCTimestamp, TimestampPrecision};
@@ -137,7 +137,7 @@ struct FixIn {
 }
 
 impl Session {
-    fn log_error(&self, err: &Box<dyn Error>) {
+    fn log_error(&self, err: &Box<dyn Error + Send + Sync>) {
         self.log.on_event(&err.to_string());
     }
 
@@ -259,7 +259,7 @@ impl Session {
             && self.store.next_sender_msg_seq_num() == 1;
     }
 
-    pub async fn send_logon(&mut self) -> Result<(), Box<dyn Error>> {
+    pub async fn send_logon(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
         self.send_logon_in_reply_to(self.should_send_reset(), None)
             .await
     }
@@ -268,7 +268,7 @@ impl Session {
         &mut self,
         set_reset_seq_num: bool,
         in_reply_to: Option<&Message>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
         let logon = Message::new();
         logon.header.set_field(TAG_MSG_TYPE, FIXString::from("A"));
         logon.header.set_field(
@@ -329,7 +329,7 @@ impl Session {
         logout
     }
 
-    pub async fn send_logout(&mut self, reason: &str) -> Result<(), Box<dyn Error>> {
+    pub async fn send_logout(&mut self, reason: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
         self.send_logout_in_reply_to(reason, None).await
     }
 
@@ -337,7 +337,7 @@ impl Session {
         &mut self,
         reason: &str,
         in_reply_to: Option<&Message>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
         let logout = self.build_logout(reason);
         self.send_in_reply_to(&logout, in_reply_to).await
     }
@@ -360,8 +360,11 @@ impl Session {
     }
 
     // queue_for_send will validate, persist, and queue the message for send
-    pub async fn queue_for_send(&mut self, msg: &Message) -> Result<(), Box<dyn Error>> {
-        let msg_bytes = self.prep_message_for_send(msg, None)?;
+    pub async fn queue_for_send(
+        &mut self,
+        msg: &Message,
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+        let msg_bytes = self.prep_message_for_send(msg, None).await?;
         let mut to_send = self.to_send.lock().await;
         to_send.push(msg_bytes);
         self.message_event.send(true);
@@ -370,7 +373,7 @@ impl Session {
     }
 
     // send will validate, persist, queue the message. If the session is logged on, send all messages in the queue
-    pub async fn send(&mut self, msg: &Message) -> Result<(), Box<dyn Error>> {
+    pub async fn send(&mut self, msg: &Message) -> Result<(), Box<dyn Error + Send + Sync>> {
         self.send_in_reply_to(msg, None).await
     }
 
@@ -378,12 +381,12 @@ impl Session {
         &mut self,
         msg: &Message,
         in_reply_to: Option<&Message>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
         if !self.sm.is_logged_on() {
             return self.queue_for_send(msg).await;
         }
 
-        let msg_bytes = self.prep_message_for_send(msg, in_reply_to)?;
+        let msg_bytes = self.prep_message_for_send(msg, in_reply_to).await?;
         let mut to_send = self.to_send.lock().await;
         to_send.push(msg_bytes);
 
@@ -391,13 +394,16 @@ impl Session {
     }
 
     // drop_and_reset will drop the send queue and reset the message store
-    pub async fn drop_and_reset(&mut self) -> Result<(), Box<dyn Error>> {
+    pub async fn drop_and_reset(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
         self.drop_queued().await;
-        Ok(self.store.reset()?)
+        Ok(self.store.reset().await?)
     }
 
     // drop_and_send will validate and persist the message, then drops the send queue and sends the message.
-    pub async fn drop_and_send(&mut self, msg: &Message) -> Result<(), Box<dyn Error>> {
+    pub async fn drop_and_send(
+        &mut self,
+        msg: &Message,
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
         self.drop_and_send_in_reply_to(msg, None).await
     }
 
@@ -405,9 +411,9 @@ impl Session {
         &mut self,
         msg: &Message,
         in_reply_to: Option<&Message>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
         {
-            let msg_bytes = self.prep_message_for_send(msg, in_reply_to)?;
+            let msg_bytes = self.prep_message_for_send(msg, in_reply_to).await?;
             let mut to_send = self.to_send.lock().await;
             to_send.clear();
             to_send.push(msg_bytes);
@@ -417,11 +423,11 @@ impl Session {
         Ok(())
     }
 
-    pub fn prep_message_for_send(
+    pub async fn prep_message_for_send(
         &mut self,
         msg: &Message,
         in_reply_to: Option<&Message>,
-    ) -> Result<Vec<u8>, Box<dyn Error>> {
+    ) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
         self.fill_default_header(msg, in_reply_to);
         let seq_num = self.store.next_sender_msg_seq_num();
         msg.header.set_field(TAG_MSG_SEQ_NUM, seq_num as FIXInt);
@@ -443,7 +449,7 @@ impl Session {
                 }
 
                 if reset_seq_num_flag.bool() {
-                    self.store.reset()?;
+                    self.store.reset().await?;
 
                     self.sent_reset = true;
                     let seq_num = self.store.next_sender_msg_seq_num();
@@ -457,17 +463,22 @@ impl Session {
         }
 
         let mut msg_bytes = msg.build();
-        self.persist(seq_num, &mut msg_bytes)?;
+        self.persist(seq_num, &mut msg_bytes).await?;
         Ok(msg_bytes)
     }
 
-    pub fn persist(&mut self, seq_num: isize, msg_bytes: &[u8]) -> Result<(), Box<dyn Error>> {
+    pub async fn persist(
+        &mut self,
+        seq_num: isize,
+        msg_bytes: &[u8],
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
         if !self.iss.disable_message_persist {
             self.store
-                .save_message_and_incr_next_sender_msg_seq_num(seq_num, msg_bytes.to_vec())?;
+                .save_message_and_incr_next_sender_msg_seq_num(seq_num, msg_bytes.to_vec())
+                .await?;
         }
 
-        Ok(self.store.incr_next_sender_msg_seq_num()?)
+        Ok(self.store.incr_next_sender_msg_seq_num().await?)
     }
 
     pub async fn send_queued(&mut self) {
@@ -494,7 +505,7 @@ impl Session {
     pub async fn do_target_too_high(
         &mut self,
         reject: TargetTooHigh,
-    ) -> Result<ResendState, Box<dyn Error>> {
+    ) -> Result<ResendState, Box<dyn Error + Send + Sync>> {
         self.log.on_eventf(
             "MsgSeqNum too high, expecting {{expect}} but received {{received}}",
             hashmap! {
@@ -511,7 +522,7 @@ impl Session {
         &mut self,
         begin_seq: isize,
         end_seq: isize,
-    ) -> Result<ResendState, Box<dyn Error>> {
+    ) -> Result<ResendState, Box<dyn Error + Send + Sync>> {
         let mut next_state = ResendState::default();
         next_state.resend_range_end = end_seq;
 
@@ -553,7 +564,10 @@ impl Session {
         Ok(next_state)
     }
 
-    pub async fn handle_logon(&mut self, msg: &Message) -> Result<(), Box<dyn Error>> {
+    pub async fn handle_logon(
+        &mut self,
+        msg: &Message,
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
         //Grab default app ver id from fixt.1.1 logon
         if self.session_id.begin_string == BEGIN_STRING_FIXT11 {
             let mut target_appl_ver_id = FIXString::new();
@@ -573,7 +587,7 @@ impl Session {
             reset_store = self.iss.reset_on_logon;
 
             if self.iss.refresh_on_logon {
-                self.store.refresh()?;
+                self.store.refresh().await?;
             }
         }
 
@@ -593,7 +607,7 @@ impl Session {
         }
 
         if reset_store {
-            self.store.reset()?;
+            self.store.reset().await?;
         }
 
         self.verify_ignore_seq_num_too_high(msg)
@@ -624,10 +638,13 @@ impl Session {
         self.check_target_too_high(msg)
             .map_err(|err| err.into_error())?;
 
-        Ok(self.store.incr_next_target_msg_seq_num()?)
+        Ok(self.store.incr_next_target_msg_seq_num().await?)
     }
 
-    pub async fn initiate_logout(&mut self, reason: &str) -> Result<(), Box<dyn Error>> {
+    pub async fn initiate_logout(
+        &mut self,
+        reason: &str,
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
         self.initiate_logout_in_reply_to(reason, None).await
     }
 
@@ -635,7 +652,7 @@ impl Session {
         &mut self,
         reason: &str,
         in_reply_to: Option<&Message>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
         self.send_logout_in_reply_to(reason, in_reply_to)
             .await
             .map_err(|err| {
@@ -652,21 +669,15 @@ impl Session {
         Ok(())
     }
 
-    pub fn verify(&self, msg: &Message) -> Result<(), Box<dyn MessageRejectErrorTrait>> {
+    pub fn verify(&self, msg: &Message) -> MessageRejectErrorResult {
         self.verify_select(msg, true, true)
     }
 
-    pub fn verify_ignore_seq_num_too_high(
-        &self,
-        msg: &Message,
-    ) -> Result<(), Box<dyn MessageRejectErrorTrait>> {
+    pub fn verify_ignore_seq_num_too_high(&self, msg: &Message) -> MessageRejectErrorResult {
         self.verify_select(msg, false, true)
     }
 
-    pub fn verify_ignore_seq_num_too_high_or_low(
-        &self,
-        msg: &Message,
-    ) -> Result<(), Box<dyn MessageRejectErrorTrait>> {
+    pub fn verify_ignore_seq_num_too_high_or_low(&self, msg: &Message) -> MessageRejectErrorResult {
         self.verify_select(msg, false, false)
     }
 
@@ -675,7 +686,7 @@ impl Session {
         msg: &Message,
         check_too_high: bool,
         check_too_low: bool,
-    ) -> Result<(), Box<dyn MessageRejectErrorTrait>> {
+    ) -> MessageRejectErrorResult {
         self.check_begin_string(msg)?;
 
         self.check_comp_id(msg)?;
@@ -697,7 +708,7 @@ impl Session {
         self.from_callback(msg)
     }
 
-    pub fn from_callback(&self, msg: &Message) -> Result<(), Box<dyn MessageRejectErrorTrait>> {
+    pub fn from_callback(&self, msg: &Message) -> MessageRejectErrorResult {
         let msg_type = msg.header.get_bytes(TAG_MSG_TYPE)?;
 
         if is_admin_message_type(&msg_type) {
@@ -707,7 +718,7 @@ impl Session {
         self.application.from_app(msg, &self.session_id)
     }
 
-    fn check_target_too_low(&self, msg: &Message) -> Result<(), Box<dyn MessageRejectErrorTrait>> {
+    fn check_target_too_low(&self, msg: &Message) -> MessageRejectErrorResult {
         if !msg.header.has(TAG_MSG_SEQ_NUM) {
             return Err(required_tag_missing(TAG_MSG_SEQ_NUM));
         }
@@ -726,7 +737,7 @@ impl Session {
         Ok(())
     }
 
-    fn check_target_too_high(&self, msg: &Message) -> Result<(), Box<dyn MessageRejectErrorTrait>> {
+    fn check_target_too_high(&self, msg: &Message) -> MessageRejectErrorResult {
         if !msg.header.has(TAG_MSG_SEQ_NUM) {
             return Err(required_tag_missing(TAG_MSG_SEQ_NUM));
         }
@@ -745,7 +756,7 @@ impl Session {
         Ok(())
     }
 
-    fn check_comp_id(&self, msg: &Message) -> Result<(), Box<dyn MessageRejectErrorTrait>> {
+    fn check_comp_id(&self, msg: &Message) -> MessageRejectErrorResult {
         let sender_comp_id = msg
             .header
             .get_bytes(TAG_SENDER_COMP_ID)
@@ -770,7 +781,7 @@ impl Session {
         Ok(())
     }
 
-    fn check_sending_time(&self, msg: &Message) -> Result<(), Box<dyn MessageRejectErrorTrait>> {
+    fn check_sending_time(&self, msg: &Message) -> MessageRejectErrorResult {
         if self.iss.skip_check_latency {
             return Ok(());
         }
@@ -789,7 +800,7 @@ impl Session {
         Ok(())
     }
 
-    fn check_begin_string(&self, msg: &Message) -> Result<(), Box<dyn MessageRejectErrorTrait>> {
+    fn check_begin_string(&self, msg: &Message) -> MessageRejectErrorResult {
         let begin_string = msg
             .header
             .get_bytes(TAG_BEGIN_STRING)
@@ -801,54 +812,58 @@ impl Session {
         Ok(())
     }
 
-    // pub fn do_reject(&self, msg *Message, rej MessageRejectError) error {
-    // 	let reply = msg.reverseRoute()
+    pub async fn do_reject(
+        &mut self,
+        msg: &Message,
+        rej: Box<dyn MessageRejectErrorTrait>,
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+        let reply = msg.reverse_route();
 
-    // 	if self.session_id.begin_string >= begin_stringFIX42 {
+        // 	if self.session_id.begin_string >= begin_stringFIX42 {
 
-    // 		if rej.IsBusinessReject() {
-    // 			reply.header.set_field(TAG_MSG_TYPE, FIXString::from("j"));
-    // 			reply.body.set_field(tagBusinessRejectReason, FIXInt(rej.RejectReason()))
-    // 			if let refID = rej.BusinessRejectRefID(); refID != "" {
-    // 				reply.body.set_field(tagBusinessRejectRefID, FIXString::from(refID));
-    // 			}
-    // 		} else {
-    // 			reply.header.set_field(TAG_MSG_TYPE, FIXString::from("3"));
-    // 			switch {
-    // 			default:
-    // 				reply.body.set_field(tagSessionRejectReason, FIXInt(rej.RejectReason()))
-    // 			case rej.RejectReason() > rejectReasonInvalidMsgType && self.session_id.begin_string == begin_stringFIX42:
-    // 				//fix42 knows up to invalid msg type
-    // 			}
+        // 		if rej.IsBusinessReject() {
+        // 			reply.header.set_field(TAG_MSG_TYPE, FIXString::from("j"));
+        // 			reply.body.set_field(tagBusinessRejectReason, FIXInt(rej.RejectReason()))
+        // 			if let refID = rej.BusinessRejectRefID(); refID != "" {
+        // 				reply.body.set_field(tagBusinessRejectRefID, FIXString::from(refID));
+        // 			}
+        // 		} else {
+        // 			reply.header.set_field(TAG_MSG_TYPE, FIXString::from("3"));
+        // 			switch {
+        // 			default:
+        // 				reply.body.set_field(tagSessionRejectReason, FIXInt(rej.RejectReason()))
+        // 			case rej.RejectReason() > rejectReasonInvalidMsgType && self.session_id.begin_string == begin_stringFIX42:
+        // 				//fix42 knows up to invalid msg type
+        // 			}
 
-    // 			if let refTagID = rej.RefTagID(); refTagID != nil {
-    // 				reply.body.set_field(tagRefTagID, FIXInt(*refTagID))
-    // 			}
-    // 		}
-    // 		reply.body.set_field(TAG_TEXT, FIXString::from(rej.Error()));
+        // 			if let refTagID = rej.RefTagID(); refTagID != nil {
+        // 				reply.body.set_field(tagRefTagID, FIXInt(*refTagID))
+        // 			}
+        // 		}
+        // 		reply.body.set_field(TAG_TEXT, FIXString::from(rej.Error()));
 
-    // 		var msgType FIXString
-    // 		if let err = msg.header.get_field(TAG_MSG_TYPE, &msgType); err == nil {
-    // 			reply.body.set_field(tagRefMsgType, msgType)
-    // 		}
-    // 	} else {
-    // 		reply.header.set_field(TAG_MSG_TYPE, FIXString::from("3"));
+        // 		var msgType FIXString
+        // 		if let err = msg.header.get_field(TAG_MSG_TYPE, &msgType); err == nil {
+        // 			reply.body.set_field(tagRefMsgType, msgType)
+        // 		}
+        // 	} else {
+        // 		reply.header.set_field(TAG_MSG_TYPE, FIXString::from("3"));
 
-    // 		if let refTagID = rej.RefTagID(); refTagID != nil {
-    // 			reply.body.set_field(TAG_TEXT, FIXString::from(fmt.Sprintf("%s (%d)", rej.Error(), *refTagID)));
-    // 		} else {
-    // 			reply.body.set_field(TAG_TEXT, FIXString::from(rej.Error()));
-    // 		}
-    // 	}
+        // 		if let refTagID = rej.RefTagID(); refTagID != nil {
+        // 			reply.body.set_field(TAG_TEXT, FIXString::from(fmt.Sprintf("%s (%d)", rej.Error(), *refTagID)));
+        // 		} else {
+        // 			reply.body.set_field(TAG_TEXT, FIXString::from(rej.Error()));
+        // 		}
+        // 	}
 
-    // 	let seqNum = new(FIXInt)
-    // 	if let err = msg.header.get_field(TAG_MSG_SEQ_NUM, seqNum); err == nil {
-    // 		reply.body.set_field(tagRefSeqNum, seqNum)
-    // 	}
+        // 	let seqNum = new(FIXInt)
+        // 	if let err = msg.header.get_field(TAG_MSG_SEQ_NUM, seqNum); err == nil {
+        // 		reply.body.set_field(tagRefSeqNum, seqNum)
+        // 	}
 
-    // 	self.log.on_eventf("Message Rejected: %v", rej.Error())
-    // 	return self.sendin_reply_to(reply, msg)
-    // }
+        // 	self.log.on_eventf("Message Rejected: %v", rej.Error())
+        self.send_in_reply_to(&reply, Some(msg)).await
+    }
 
     // pub fn on_disconnect(&self, ) {
     // 	self.log.on_event("Disconnected")

@@ -100,7 +100,7 @@ impl LogonState {
         }
 
         if incr_next_target_msg_seq_num {
-            let incr_result = session.store.incr_next_target_msg_seq_num();
+            let incr_result = session.store.incr_next_target_msg_seq_num().await;
             if let Err(err) = incr_result {
                 session.log_error(&err.into());
             }

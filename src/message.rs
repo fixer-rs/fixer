@@ -243,15 +243,15 @@ impl Message {
     }
 
     pub fn parse_message(&mut self, raw_message: &[u8]) -> Result<(), ParseError> {
-        self.parse_message_with_data_dictionary(raw_message, None, None)
+        self.parse_message_with_data_dictionary(raw_message, &None, &None)
     }
 
     // parse_message_with_data_dictionary constructs a Message from a byte slice wrapping a FIX message using an optional session and application DataDictionary for reference.
     pub fn parse_message_with_data_dictionary(
         &mut self,
         raw_message: &[u8],
-        transport_data_dictionary: Option<&DataDictionary>,
-        _application_data_dictionary: Option<&DataDictionary>,
+        transport_data_dictionary: &Option<DataDictionary>,
+        _application_data_dictionary: &Option<DataDictionary>,
     ) -> Result<(), ParseError> {
         self.header.clear();
         self.body.clear();
@@ -400,7 +400,7 @@ impl Message {
     }
 
     // reverseRoute returns a message builder with routing header fields initialized as the reverse of this message.
-    fn reverse_route(&self) -> Message {
+    pub fn reverse_route(&self) -> Message {
         let reverse_msg = Message::default();
 
         let copy = |src: Tag, dest: Tag| {
@@ -472,7 +472,7 @@ impl Error for ParseError {
     }
 }
 
-fn is_header_field(tag: &Tag, data_dict: Option<&DataDictionary>) -> bool {
+fn is_header_field(tag: &Tag, data_dict: &Option<DataDictionary>) -> bool {
     if tag.is_header() {
         return true;
     }
@@ -481,10 +481,10 @@ fn is_header_field(tag: &Tag, data_dict: Option<&DataDictionary>) -> bool {
         return false;
     }
 
-    data_dict.unwrap().header.fields.contains_key(tag)
+    data_dict.as_ref().unwrap().header.fields.contains_key(tag)
 }
 
-fn is_trailer_field(tag: &Tag, data_dict: Option<&DataDictionary>) -> bool {
+fn is_trailer_field(tag: &Tag, data_dict: &Option<DataDictionary>) -> bool {
     if tag.is_trailer() {
         return true;
     }
@@ -493,7 +493,7 @@ fn is_trailer_field(tag: &Tag, data_dict: Option<&DataDictionary>) -> bool {
         return false;
     }
 
-    data_dict.unwrap().trailer.fields.contains_key(tag)
+    data_dict.as_ref().unwrap().trailer.fields.contains_key(tag)
 }
 
 fn extract_specific_field(
@@ -653,7 +653,7 @@ mod tests {
 
         let parse_result =
             s.msg
-                .parse_message_with_data_dictionary(raw_message, Some(&dict), Some(&dict));
+                .parse_message_with_data_dictionary(raw_message, &Some(dict), &Some(dict));
         assert!(parse_result.is_ok());
         s.field_equals(10030 as Tag, Box::new("CUST"), &s.msg.header.field_map);
         s.field_equals(5050 as Tag, Box::new("HELLO"), &s.msg.trailer.field_map);
