@@ -12,9 +12,9 @@ use crate::msg_type::{
     is_admin_message_type, MSG_TYPE_LOGON, MSG_TYPE_LOGOUT, MSG_TYPE_RESEND_REQUEST,
     MSG_TYPE_SEQUENCE_RESET, MSG_TYPE_TEST_REQUEST,
 };
-use crate::session::resend_state::ResendState;
 use crate::session::{
     pending_timeout::PendingTimeout,
+    resend_state::ResendState,
     session_state::{handle_state_error, AfterPendingTimeout, LoggedOn, SessionStateEnum},
     Session,
 };
@@ -49,7 +49,11 @@ impl InSession {
         }
     }
 
-    pub async fn fix_msg_in(self, session: &'_ mut Session, msg: &'_ Message) -> SessionStateEnum {
+    pub async fn fix_msg_in(
+        self,
+        session: &'_ mut Session,
+        msg: &'_ mut Message,
+    ) -> SessionStateEnum {
         let msg_type_result = msg.header.get_bytes(TAG_MSG_TYPE);
         if let Err(err) = msg_type_result {
             return handle_state_error(session, &err.to_string());
@@ -138,7 +142,7 @@ impl InSession {
 }
 
 impl InSession {
-    async fn handle_logout(self, session: &mut Session, msg: &Message) -> SessionStateEnum {
+    async fn handle_logout(self, session: &mut Session, msg: &mut Message) -> SessionStateEnum {
         let verify_result = session.verify_select(msg, false, false);
         if let Err(err) = verify_result {
             return self.process_reject(session, msg, err).await;
@@ -171,7 +175,11 @@ impl InSession {
         SessionStateEnum::new_latent_state()
     }
 
-    async fn handle_test_request(self, session: &mut Session, msg: &Message) -> SessionStateEnum {
+    async fn handle_test_request(
+        self,
+        session: &mut Session,
+        msg: &mut Message,
+    ) -> SessionStateEnum {
         let verify_result = session.verify(msg);
         if let Err(err) = verify_result {
             return self.process_reject(session, msg, err).await;
@@ -201,7 +209,11 @@ impl InSession {
         SessionStateEnum::InSession(self)
     }
 
-    async fn handle_sequence_reset(self, session: &mut Session, msg: &Message) -> SessionStateEnum {
+    async fn handle_sequence_reset(
+        self,
+        session: &mut Session,
+        msg: &mut Message,
+    ) -> SessionStateEnum {
         let mut gap_fill_flag = FIXBoolean::default();
         if msg.body.has(TAG_GAP_FILL_FLAG) {
             let field_result = msg.body.get_field(TAG_GAP_FILL_FLAG, &mut gap_fill_flag);
@@ -243,7 +255,11 @@ impl InSession {
         SessionStateEnum::InSession(self)
     }
 
-    async fn handle_resend_request(self, session: &mut Session, msg: &Message) -> SessionStateEnum {
+    async fn handle_resend_request(
+        self,
+        session: &mut Session,
+        msg: &mut Message,
+    ) -> SessionStateEnum {
         let verify_result = session.verify_ignore_seq_num_too_high_or_low(msg);
         if let Err(err) = verify_result {
             return self.process_reject(session, msg, err).await;
@@ -394,16 +410,16 @@ impl InSession {
     async fn process_reject(
         &self,
         session: &mut Session,
-        msg: &Message,
+        msg: &mut Message,
         rej: MessageRejectErrorEnum,
     ) -> SessionStateEnum {
         match rej {
             MessageRejectErrorEnum::TargetTooHigh(tth) => {
-                let mut next_state = ResendState::default();
-                match session.sm.state {
-                    SessionStateEnum::ResendState(rs) => {
+                match &session.sm.state {
+                    SessionStateEnum::ResendState(ref mut rs) => {
                         msg.keep_message = true;
-                        rs.message_stash.insert(tth.received_target, msg);
+                        let msg_clone = msg.clone();
+                        rs.message_stash.insert(tth.received_target, msg_clone);
                         return SessionStateEnum::ResendState(rs);
                     }
                     SessionStateEnum::PendingTimeout(_) => {}

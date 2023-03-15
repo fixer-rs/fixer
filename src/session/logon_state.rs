@@ -29,7 +29,11 @@ impl LogonState {
         }
     }
 
-    pub async fn fix_msg_in(self, session: &'_ mut Session, msg: &'_ Message) -> SessionStateEnum {
+    pub async fn fix_msg_in(
+        self,
+        session: &'_ mut Session,
+        msg: &'_ mut Message,
+    ) -> SessionStateEnum {
         let message_type_result = msg.header.get_bytes(TAG_MSG_TYPE);
         if let Err(err) = message_type_result {
             return handle_state_error(session, &err.to_string());

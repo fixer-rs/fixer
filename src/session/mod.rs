@@ -560,7 +560,7 @@ impl Session {
 
     pub async fn handle_logon(
         &mut self,
-        msg: &Message,
+        msg: &mut Message,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
         //Grab default app ver id from fixt.1.1 logon
         if self.session_id.begin_string == BEGIN_STRING_FIXT11 {

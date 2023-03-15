@@ -19,7 +19,7 @@ use std::{
     string::ToString,
 };
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Header {
     pub field_map: FieldMap,
 }
@@ -90,7 +90,7 @@ impl Header {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Body {
     pub field_map: FieldMap,
 }
@@ -134,7 +134,7 @@ impl Body {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Trailer {
     pub field_map: FieldMap,
 }
@@ -193,7 +193,7 @@ impl Trailer {
 }
 
 //Message is a FIX Message abstraction.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Message {
     pub header: Header,
     pub trailer: Trailer,

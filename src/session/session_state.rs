@@ -9,6 +9,7 @@ use async_trait::async_trait;
 use delegate::delegate;
 use std::any::Any;
 use subenum::subenum;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 #[subenum(AfterPendingTimeout)]
 pub enum SessionStateEnum {
@@ -99,7 +100,7 @@ impl SessionState for SessionStateEnum {
         }
     }
 
-    async fn fix_msg_in(self, session: &'_ mut Session, msg: &'_ Message) -> SessionStateEnum {
+    async fn fix_msg_in(self, session: &'_ mut Session, msg: &'_ mut Message) -> SessionStateEnum {
         match self {
             Self::InSession(is) => is.fix_msg_in(session, msg).await,
             Self::LatentState(ls) => ls.fix_msg_in(session, msg).await,
@@ -130,6 +131,7 @@ pub struct StateMachine {
     pub state: SessionStateEnum,
     pub pending_stop: bool,
     pub stopped: bool,
+    pub notify_on_in_session_time: bool,
     // 	notifyOnInSessionTime chan interface{}
 }
 
@@ -318,7 +320,7 @@ pub fn handle_state_error(session: &Session, err: &str) -> SessionStateEnum {
 pub trait SessionState: ToString + Any {
     // fix_msg_in is called by the session on incoming messages from the counter party.
     // The return type is the next session state following message processing.
-    async fn fix_msg_in(self, session: &'_ mut Session, msg: &'_ Message) -> SessionStateEnum;
+    async fn fix_msg_in(self, session: &'_ mut Session, msg: &'_ mut Message) -> SessionStateEnum;
 
     // timeout is called by the session on a timeout event.
     async fn timeout(self, session: &mut Session, event: Event) -> SessionStateEnum;

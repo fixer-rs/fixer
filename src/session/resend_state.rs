@@ -37,7 +37,7 @@ impl ResendState {
     pub async fn fix_msg_in(
         mut self,
         session: &'_ mut Session,
-        msg: &'_ Message,
+        msg: &'_ mut Message,
     ) -> SessionStateEnum {
         let mut next_state = InSession::default().fix_msg_in(session, msg).await;
         if let SessionStateEnum::InSession(is) = next_state {

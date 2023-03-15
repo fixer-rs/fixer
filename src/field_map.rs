@@ -15,7 +15,7 @@ use chrono::{DateTime, Utc};
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt;
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 use std::vec;
 
 pub type LocalField = Vec<TagValue>;
@@ -87,10 +87,10 @@ pub struct FieldMapContent {
     tag_sort: TagSort,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 // FieldMap is a collection of fix fields that make up a fix message.
 pub struct FieldMap {
-    rw_lock: RwLock<FieldMapContent>,
+    rw_lock: Arc<RwLock<FieldMapContent>>,
 }
 
 impl Default for FieldMap {
@@ -119,7 +119,7 @@ impl FieldMap {
             tag_sort,
         };
         FieldMap {
-            rw_lock: RwLock::new(field_map_content),
+            rw_lock: RwLock::new(field_map_content).into(),
         }
     }
 

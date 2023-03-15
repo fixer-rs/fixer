@@ -24,7 +24,11 @@ impl LatentState {
         }
     }
 
-    pub async fn fix_msg_in(self, session: &'_ mut Session, msg: &'_ Message) -> SessionStateEnum {
+    pub async fn fix_msg_in(
+        self,
+        session: &'_ mut Session,
+        msg: &'_ mut Message,
+    ) -> SessionStateEnum {
         session.log.on_eventf(
             "Invalid Session State: Unexpected Msg {{msg}} while in Latent state",
             hashmap! {String::from("msg") => format!("{:?}", msg)},

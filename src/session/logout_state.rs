@@ -28,7 +28,11 @@ impl LogoutState {
         }
     }
 
-    pub async fn fix_msg_in(self, session: &'_ mut Session, msg: &'_ Message) -> SessionStateEnum {
+    pub async fn fix_msg_in(
+        self,
+        session: &'_ mut Session,
+        msg: &'_ mut Message,
+    ) -> SessionStateEnum {
         let next_state = InSession::default().fix_msg_in(session, msg).await;
         if let SessionStateEnum::LatentState(ls) = next_state {
             return SessionStateEnum::LatentState(ls);

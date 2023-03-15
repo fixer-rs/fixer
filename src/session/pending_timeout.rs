@@ -30,7 +30,11 @@ impl PendingTimeout {
         }
     }
 
-    pub async fn fix_msg_in(self, session: &'_ mut Session, msg: &'_ Message) -> SessionStateEnum {
+    pub async fn fix_msg_in(
+        self,
+        session: &'_ mut Session,
+        msg: &'_ mut Message,
+    ) -> SessionStateEnum {
         match self.session_state {
             AfterPendingTimeout::InSession(is) => is.fix_msg_in(session, msg).await,
             AfterPendingTimeout::ResendState(rs) => rs.fix_msg_in(session, msg).await,
