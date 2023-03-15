@@ -1,6 +1,6 @@
 use crate::errors::{
     conditionally_required_field_missing, incorrect_data_format_for_value, other_error,
-    MessageRejectError, MessageRejectErrorResult, MessageRejectErrorTrait,
+    MessageRejectError, MessageRejectErrorEnum, MessageRejectErrorResult,
 };
 use crate::field::{
     Field, FieldGroupReader, FieldGroupWriter, FieldValueReader, FieldValueWriter, FieldWriter,
@@ -166,7 +166,7 @@ impl FieldMap {
     }
 
     // get_bytes is a zero-copy get_field wrapper for []bytes fields
-    pub fn get_bytes(&self, tag: Tag) -> Result<Vec<u8>, Box<dyn MessageRejectErrorTrait>> {
+    pub fn get_bytes(&self, tag: Tag) -> Result<Vec<u8>, MessageRejectErrorEnum> {
         let rlock = self.rw_lock.read().map_err(|_| other_error())?;
         let f = rlock
             .tag_lookup
@@ -176,14 +176,14 @@ impl FieldMap {
     }
 
     // get_bool is a get_field wrapper for bool fields
-    pub fn get_bool(&self, tag: Tag) -> Result<bool, Box<dyn MessageRejectErrorTrait>> {
+    pub fn get_bool(&self, tag: Tag) -> Result<bool, MessageRejectErrorEnum> {
         let mut val = FIXBoolean::default();
         self.get_field(tag, &mut val)?;
         Ok(val.bool())
     }
 
     // get_int is a get_field wrapper for int fields
-    pub fn get_int(&self, tag: Tag) -> Result<isize, Box<dyn MessageRejectErrorTrait>> {
+    pub fn get_int(&self, tag: Tag) -> Result<isize, MessageRejectErrorEnum> {
         let mut val = FIXInt::default();
         let bytes = self.get_bytes(tag)?;
 
@@ -194,7 +194,7 @@ impl FieldMap {
     }
 
     // get_time is a get_field wrapper for utc timestamp fields
-    pub fn get_time(&self, tag: Tag) -> Result<DateTime<Utc>, Box<dyn MessageRejectErrorTrait>> {
+    pub fn get_time(&self, tag: Tag) -> Result<DateTime<Utc>, MessageRejectErrorEnum> {
         let mut val = FIXUTCTimestamp::default();
         let bytes = self.get_bytes(tag)?;
 
@@ -205,7 +205,7 @@ impl FieldMap {
     }
 
     // get_string is a get_field wrapper for string fields
-    pub fn get_string(&self, tag: Tag) -> Result<String, Box<dyn MessageRejectErrorTrait>> {
+    pub fn get_string(&self, tag: Tag) -> Result<String, MessageRejectErrorEnum> {
         let mut val = FIXString::default();
         self.get_field(tag, &mut val)?;
         Ok(val)
@@ -222,8 +222,8 @@ impl FieldMap {
             .ok_or_else(|| conditionally_required_field_missing(*tag))?;
 
         parser.read(f).map_err(|err| {
-            if (*err).is::<MessageRejectError>() {
-                return err.downcast::<MessageRejectError>().unwrap().as_trait();
+            if err.is::<MessageRejectError>() {
+                return (*(err.downcast::<MessageRejectError>().unwrap())).into();
             }
             incorrect_data_format_for_value(*tag)
         })?;

@@ -8,7 +8,6 @@ use crate::session::{
 use async_trait::async_trait;
 use delegate::delegate;
 use std::any::Any;
-use std::error::Error;
 use subenum::subenum;
 
 #[subenum(AfterPendingTimeout)]
@@ -308,11 +307,8 @@ impl StateMachine {
     }
 }
 
-pub fn handle_state_error(
-    session: &Session,
-    err: Box<dyn Error + Send + Sync>,
-) -> SessionStateEnum {
-    session.log_error(&err);
+pub fn handle_state_error(session: &Session, err: &str) -> SessionStateEnum {
+    session.log_error(err);
     SessionStateEnum::new_latent_state()
 }
 
@@ -403,14 +399,14 @@ impl LoggedOn {
     pub async fn shutdown_now(&self, session: &mut Session) {
         let logout_result = session.send_logout("").await;
         if let Err(err) = logout_result {
-            session.log_error(&err);
+            session.log_error(&err.to_string());
         }
     }
 
     pub async fn stop(self, session: &mut Session) -> SessionStateEnum {
         let logout_result = session.initiate_logout("").await;
         if let Err(err) = logout_result {
-            handle_state_error(session, err);
+            handle_state_error(session, &err.to_string());
         }
 
         SessionStateEnum::new_logout_state()

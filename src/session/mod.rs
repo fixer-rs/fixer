@@ -4,7 +4,8 @@ use crate::errors::{
     comp_id_problem, required_tag_missing, sending_time_accuracy_problem,
     tag_specified_without_a_value,
 };
-use crate::errors::{MessageRejectErrorResult, MessageRejectErrorTrait};
+use crate::errors::{IncorrectBeginString, TargetTooHigh, TargetTooLow};
+use crate::errors::{MessageRejectErrorEnum, MessageRejectErrorResult};
 use crate::fix_boolean::{FIXBoolean, FixBooleanTrait};
 use crate::fix_int::FIXInt;
 use crate::fix_utc_timestamp::{FIXUTCTimestamp, TimestampPrecision};
@@ -27,10 +28,8 @@ use crate::{fix_string::FIXString, log::Log};
 use crate::{BEGIN_STRING_FIX40, BEGIN_STRING_FIX41};
 use chrono::Duration as ChronoDuration;
 use chrono::{NaiveDateTime, Utc};
-use defer_lite::defer;
 use resend_state::ResendState;
 use session_id::SessionID;
-use session_rejects::{IncorrectBeginString, TargetTooHigh, TargetTooLow};
 use session_state::StateMachine;
 use std::error::Error;
 use std::sync::Arc;
@@ -40,7 +39,6 @@ use tokio::time::{sleep, Duration};
 
 // session main
 pub mod session_id;
-pub mod session_rejects;
 pub mod session_settings;
 pub mod session_state;
 
@@ -137,8 +135,8 @@ struct FixIn {
 }
 
 impl Session {
-    fn log_error(&self, err: &Box<dyn Error + Send + Sync>) {
-        self.log.on_event(&err.to_string());
+    fn log_error(&self, err: &str) {
+        self.log.on_event(err);
     }
 
     // target_default_application_version_id returns the default application version ID for messages received by this version.
@@ -233,7 +231,7 @@ impl Session {
                         msg.header.set_int(TAG_LAST_MSG_SEQ_NUM_PROCESSED, get_int);
                     }
                     Err(err) => {
-                        self.log_error(&err.into_error());
+                        self.log_error(&err.to_string());
                     }
                 }
             } else {
@@ -432,10 +430,7 @@ impl Session {
         let seq_num = self.store.next_sender_msg_seq_num();
         msg.header.set_field(TAG_MSG_SEQ_NUM, seq_num as FIXInt);
 
-        let msg_type = msg
-            .header
-            .get_bytes(TAG_MSG_TYPE)
-            .map_err(|err| err.into_error())?;
+        let msg_type = msg.header.get_bytes(TAG_MSG_TYPE)?;
 
         if is_admin_message_type(&msg_type) {
             self.application.to_admin(msg, &self.session_id);
@@ -444,8 +439,7 @@ impl Session {
                 let mut reset_seq_num_flag = FIXBoolean::default();
                 if msg.body.has(TAG_RESET_SEQ_NUM_FLAG) {
                     msg.body
-                        .get_field(TAG_RESET_SEQ_NUM_FLAG, &mut reset_seq_num_flag)
-                        .map_err(|err| err.into_error())?;
+                        .get_field(TAG_RESET_SEQ_NUM_FLAG, &mut reset_seq_num_flag)?;
                 }
 
                 if reset_seq_num_flag.bool() {
@@ -573,8 +567,7 @@ impl Session {
             let mut target_appl_ver_id = FIXString::new();
 
             msg.body
-                .get_field(TAG_DEFAULT_APPL_VER_ID, &mut target_appl_ver_id)
-                .map_err(|err| err.into_error())?;
+                .get_field(TAG_DEFAULT_APPL_VER_ID, &mut target_appl_ver_id)?;
 
             self.target_default_appl_ver_id = target_appl_ver_id;
         }
@@ -610,8 +603,7 @@ impl Session {
             self.store.reset().await?;
         }
 
-        self.verify_ignore_seq_num_too_high(msg)
-            .map_err(|err| err.into_error())?;
+        self.verify_ignore_seq_num_too_high(msg)?;
 
         if !self.iss.initiate_logon {
             if !self.iss.heart_bt_int_override {
@@ -635,8 +627,7 @@ impl Session {
         self.peer_timer.reset(Duration::from_nanos(duration)).await;
         self.application.on_logon(&self.session_id);
 
-        self.check_target_too_high(msg)
-            .map_err(|err| err.into_error())?;
+        self.check_target_too_high(msg)?;
 
         Ok(self.store.incr_next_target_msg_seq_num().await?)
     }
@@ -656,7 +647,7 @@ impl Session {
         self.send_logout_in_reply_to(reason, in_reply_to)
             .await
             .map_err(|err| {
-                self.log_error(&err);
+                self.log_error(&err.to_string());
                 err
             })?;
 
@@ -727,11 +718,12 @@ impl Session {
 
         let next_target_msg_seq_num = self.store.next_target_msg_seq_num();
         if seq_num < next_target_msg_seq_num {
-            return Err(Box::new(TargetTooLow {
+            return Err(TargetTooLow {
                 received_target: seq_num,
                 expected_target: next_target_msg_seq_num,
                 ..Default::default()
-            }));
+            }
+            .into());
         }
 
         Ok(())
@@ -746,11 +738,12 @@ impl Session {
 
         let next_target_msg_seq_num = self.store.next_target_msg_seq_num();
         if seq_num > next_target_msg_seq_num {
-            return Err(Box::new(TargetTooHigh {
+            return Err(TargetTooHigh {
                 received_target: seq_num,
                 expected_target: next_target_msg_seq_num,
                 ..Default::default()
-            }));
+            }
+            .into());
         }
 
         Ok(())
@@ -806,7 +799,7 @@ impl Session {
             .get_bytes(TAG_BEGIN_STRING)
             .map_err(|_| required_tag_missing(TAG_BEGIN_STRING))?;
         if self.session_id.begin_string.as_bytes() != &begin_string {
-            return Err(Box::new(IncorrectBeginString::default()));
+            return Err(IncorrectBeginString::default().into());
         }
 
         Ok(())
@@ -815,7 +808,7 @@ impl Session {
     pub async fn do_reject(
         &mut self,
         msg: &Message,
-        rej: Box<dyn MessageRejectErrorTrait>,
+        rej: MessageRejectErrorEnum,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
         let reply = msg.reverse_route();
 

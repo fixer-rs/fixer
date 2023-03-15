@@ -32,8 +32,7 @@ impl LogonState {
     pub async fn fix_msg_in(self, session: &'_ mut Session, msg: &'_ Message) -> SessionStateEnum {
         let message_type_result = msg.header.get_bytes(TAG_MSG_TYPE);
         if let Err(err) = message_type_result {
-            let casted_error = err.into_error();
-            return handle_state_error(session, casted_error);
+            return handle_state_error(session, &err.to_string());
         }
 
         let msg_type = message_type_result.unwrap();
@@ -96,13 +95,13 @@ impl LogonState {
 
         let drop_result = session.drop_and_send_in_reply_to(&logout, Some(msg)).await;
         if let Err(err) = drop_result {
-            session.log_error(&err);
+            session.log_error(&err.to_string());
         }
 
         if incr_next_target_msg_seq_num {
             let incr_result = session.store.incr_next_target_msg_seq_num().await;
             if let Err(err) = incr_result {
-                session.log_error(&err.into());
+                session.log_error(&err.to_string());
             }
         }
 

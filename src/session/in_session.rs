@@ -1,6 +1,7 @@
+use crate::errors::TargetTooLow;
 use crate::errors::{
-    required_tag_missing, value_is_incorrect_no_tag, MessageRejectErrorResult,
-    MessageRejectErrorTrait,
+    required_tag_missing, value_is_incorrect_no_tag, MessageRejectErrorEnum,
+    MessageRejectErrorResult,
 };
 use crate::fix_boolean::FIXBoolean;
 use crate::fix_int::FIXInt;
@@ -11,9 +12,9 @@ use crate::msg_type::{
     is_admin_message_type, MSG_TYPE_LOGON, MSG_TYPE_LOGOUT, MSG_TYPE_RESEND_REQUEST,
     MSG_TYPE_SEQUENCE_RESET, MSG_TYPE_TEST_REQUEST,
 };
+use crate::session::resend_state::ResendState;
 use crate::session::{
     pending_timeout::PendingTimeout,
-    session_rejects::TargetTooLow,
     session_state::{handle_state_error, AfterPendingTimeout, LoggedOn, SessionStateEnum},
     Session,
 };
@@ -51,7 +52,7 @@ impl InSession {
     pub async fn fix_msg_in(self, session: &'_ mut Session, msg: &'_ Message) -> SessionStateEnum {
         let msg_type_result = msg.header.get_bytes(TAG_MSG_TYPE);
         if let Err(err) = msg_type_result {
-            return handle_state_error(session, err.into_error());
+            return handle_state_error(session, &err.to_string());
         }
 
         let msg_type = msg_type_result.unwrap();
@@ -61,7 +62,7 @@ impl InSession {
                 if handle_result.is_err() {
                     let logout_result = session.initiate_logout_in_reply_to("", Some(msg)).await;
                     if let Err(err2) = logout_result {
-                        return handle_state_error(session, err2);
+                        return handle_state_error(session, &err2.to_string());
                     }
                     return SessionStateEnum::new_logout_state();
                 }
@@ -82,14 +83,14 @@ impl InSession {
             _ => {
                 let verify_result = session.verify(msg);
                 if let Err(err) = verify_result {
-                    return handle_state_error(session, err.into_error());
+                    return handle_state_error(session, &err.to_string());
                 }
             }
         }
 
         let incr_result = session.store.incr_next_target_msg_seq_num().await;
         if let Err(err) = incr_result {
-            handle_state_error(session, err.into());
+            handle_state_error(session, &err.to_string());
         }
 
         SessionStateEnum::InSession(self)
@@ -103,7 +104,7 @@ impl InSession {
                 .set_field(TAG_MSG_TYPE, FIXString::from("0"));
             let send_result = session.send(&heart_beat).await;
             if let Err(err) = send_result {
-                return handle_state_error(session, err);
+                return handle_state_error(session, &err.to_string());
             }
         } else if event == PEER_TIMEOUT {
             let test_req = Message::new();
@@ -115,7 +116,7 @@ impl InSession {
                 .set_field(TAG_TEST_REQ_ID, FIXString::from("TEST"));
             let send_result = session.send(&test_req).await;
             if let Err(err) = send_result {
-                return handle_state_error(session, err);
+                return handle_state_error(session, &err.to_string());
             }
 
             session.log.on_event("Sent test request TEST");
@@ -140,7 +141,7 @@ impl InSession {
     async fn handle_logout(self, session: &mut Session, msg: &Message) -> SessionStateEnum {
         let verify_result = session.verify_select(msg, false, false);
         if let Err(err) = verify_result {
-            return self.process_reject(session, msg, err);
+            return self.process_reject(session, msg, err).await;
         }
 
         if session.sm.is_logged_on() {
@@ -149,7 +150,7 @@ impl InSession {
 
             let logout_result = session.send_logout_in_reply_to("", Some(msg)).await;
             if let Err(err) = logout_result {
-                session.log_error(&err);
+                session.log_error(&err.to_string());
             }
         } else {
             session.log.on_event("Received logout response");
@@ -157,13 +158,13 @@ impl InSession {
 
         let incr_result = session.store.incr_next_target_msg_seq_num().await;
         if let Err(err) = incr_result {
-            session.log_error(&err.into());
+            session.log_error(&err.to_string());
         }
 
         if session.iss.reset_on_logout {
             let drop_result = session.drop_and_reset().await;
             if let Err(err) = drop_result {
-                session.log_error(&err);
+                session.log_error(&err.to_string());
             }
         }
 
@@ -173,7 +174,7 @@ impl InSession {
     async fn handle_test_request(self, session: &mut Session, msg: &Message) -> SessionStateEnum {
         let verify_result = session.verify(msg);
         if let Err(err) = verify_result {
-            return self.process_reject(session, msg, err);
+            return self.process_reject(session, msg, err).await;
         }
 
         let mut test_req = FIXString::new();
@@ -188,13 +189,13 @@ impl InSession {
             heart_bt.body.set_field(TAG_TEST_REQ_ID, test_req);
             let send_result = session.send_in_reply_to(&heart_bt, Some(msg)).await;
             if let Err(err) = send_result {
-                return handle_state_error(session, err);
+                return handle_state_error(session, &err.to_string());
             }
         }
 
         let incr_result = session.store.incr_next_target_msg_seq_num().await;
         if let Err(err) = incr_result {
-            return handle_state_error(session, err.into());
+            return handle_state_error(session, &err.to_string());
         }
 
         SessionStateEnum::InSession(self)
@@ -205,13 +206,13 @@ impl InSession {
         if msg.body.has(TAG_GAP_FILL_FLAG) {
             let field_result = msg.body.get_field(TAG_GAP_FILL_FLAG, &mut gap_fill_flag);
             if let Err(err) = field_result {
-                return self.process_reject(session, msg, err);
+                return self.process_reject(session, msg, err).await;
             }
         }
 
         let verify_result = session.verify_select(msg, gap_fill_flag, gap_fill_flag);
         if let Err(err) = verify_result {
-            return self.process_reject(session, msg, err);
+            return self.process_reject(session, msg, err).await;
         }
 
         let mut new_seq_no = FIXInt::default();
@@ -229,13 +230,13 @@ impl InSession {
             if new_seq_no > expected_seq_num {
                 let set_result = session.store.set_next_target_msg_seq_num(new_seq_no).await;
                 if let Err(err) = set_result {
-                    return handle_state_error(session, err.into());
+                    return handle_state_error(session, &err.to_string());
                 }
             } else if new_seq_no < expected_seq_num {
                 // FIXME: to be compliant with legacy tests, do not include tag in reftagid? (11c_NewSeqNoLess).
                 let reject_result = session.do_reject(msg, value_is_incorrect_no_tag()).await;
                 if let Err(err) = reject_result {
-                    return handle_state_error(session, err);
+                    return handle_state_error(session, &err.to_string());
                 }
             }
         }
@@ -245,7 +246,7 @@ impl InSession {
     async fn handle_resend_request(self, session: &mut Session, msg: &Message) -> SessionStateEnum {
         let verify_result = session.verify_ignore_seq_num_too_high_or_low(msg);
         if let Err(err) = verify_result {
-            return self.process_reject(session, msg, err);
+            return self.process_reject(session, msg, err).await;
         }
 
         let mut begin_seq_no_field = FIXInt::default();
@@ -253,7 +254,9 @@ impl InSession {
             .body
             .get_field(TAG_BEGIN_SEQ_NO, &mut begin_seq_no_field);
         if field_result.is_err() {
-            return self.process_reject(session, msg, required_tag_missing(TAG_BEGIN_SEQ_NO));
+            return self
+                .process_reject(session, msg, required_tag_missing(TAG_BEGIN_SEQ_NO))
+                .await;
         }
 
         let begin_seq_no = begin_seq_no_field;
@@ -261,7 +264,9 @@ impl InSession {
         let mut end_seq_no_field = FIXInt::default();
         let field_result = msg.body.get_field(TAG_END_SEQ_NO, &mut end_seq_no_field);
         if field_result.is_err() {
-            return self.process_reject(session, msg, required_tag_missing(TAG_END_SEQ_NO));
+            return self
+                .process_reject(session, msg, required_tag_missing(TAG_END_SEQ_NO))
+                .await;
         }
 
         let mut end_seq_no = end_seq_no_field;
@@ -291,7 +296,7 @@ impl InSession {
             .resend_messages(session, begin_seq_no, end_seq_no, msg)
             .await;
         if let Err(err) = resent_result {
-            return handle_state_error(session, err);
+            return handle_state_error(session, &err.to_string());
         }
 
         let check_result = session.check_target_too_low(msg);
@@ -306,7 +311,7 @@ impl InSession {
 
         let incr_result = session.store.incr_next_target_msg_seq_num().await;
         if let Err(err) = incr_result {
-            return handle_state_error(session, err.into());
+            return handle_state_error(session, &err.to_string());
         }
 
         SessionStateEnum::InSession(self)
@@ -320,8 +325,7 @@ impl InSession {
         in_reply_to: &Message,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
         if session.iss.disable_message_persist {
-            self.generate_sequence_reset(session, begin_seq_no, end_seq_no + 1, in_reply_to)
-                .map_err(|err| err.into_error())?;
+            self.generate_sequence_reset(session, begin_seq_no, end_seq_no + 1, in_reply_to)?;
         }
 
         let get_result = session.store.get_messages(begin_seq_no, end_seq_no).await;
@@ -346,15 +350,9 @@ impl InSession {
                 &session.app_data_dictionary,
             )?;
 
-            let msg_type = msg
-                .header
-                .get_bytes(TAG_MSG_TYPE)
-                .map_err(|err| err.into_error())?;
+            let msg_type = msg.header.get_bytes(TAG_MSG_TYPE)?;
 
-            let sent_message_seq_num = msg
-                .header
-                .get_int(TAG_MSG_SEQ_NUM)
-                .map_err(|err| err.into_error())?;
+            let sent_message_seq_num = msg.header.get_int(TAG_MSG_SEQ_NUM)?;
 
             if is_admin_message_type(&msg_type) {
                 next_seq_num = sent_message_seq_num + 1;
@@ -367,8 +365,7 @@ impl InSession {
             }
 
             if seq_num != sent_message_seq_num {
-                self.generate_sequence_reset(session, seq_num, sent_message_seq_num, in_reply_to)
-                    .map_err(|err| err.into_error())?;
+                self.generate_sequence_reset(session, seq_num, sent_message_seq_num, in_reply_to)?;
             }
 
             session.log.on_eventf(
@@ -388,19 +385,43 @@ impl InSession {
 
         if seq_num != next_seq_num {
             // gapfill for catch-up
-            self.generate_sequence_reset(session, seq_num, next_seq_num, in_reply_to)
-                .map_err(|err| err.into_error())?;
+            self.generate_sequence_reset(session, seq_num, next_seq_num, in_reply_to)?;
         }
 
         Ok(())
     }
 
-    fn process_reject(
+    async fn process_reject(
         &self,
-        session: &Session,
+        session: &mut Session,
         msg: &Message,
-        rej: Box<dyn MessageRejectErrorTrait>,
+        rej: MessageRejectErrorEnum,
     ) -> SessionStateEnum {
+        match rej {
+            MessageRejectErrorEnum::TargetTooHigh(tth) => {
+                let mut next_state = ResendState::default();
+                match session.sm.state {
+                    SessionStateEnum::ResendState(rs) => {
+                        msg.keep_message = true;
+                        rs.message_stash.insert(tth.received_target, msg);
+                        return SessionStateEnum::ResendState(rs);
+                    }
+                    SessionStateEnum::PendingTimeout(_) => {}
+                    _ => {}
+                }
+                todo!()
+            }
+            MessageRejectErrorEnum::TargetTooLow(ttl) => {
+                return self.do_target_too_low(session, msg, ttl);
+            }
+            MessageRejectErrorEnum::IncorrectBeginString(_) => {
+                let initiate_result = session.initiate_logout(&rej.to_string()).await;
+                if let Err(err) = initiate_result {
+                    return handle_state_error(session, &err.to_string());
+                }
+            }
+            _ => {}
+        }
         // 	switch TypedError = rej.(type) {
         // 	case targetTooHigh:
 
@@ -459,7 +480,7 @@ impl InSession {
     }
 
     fn do_target_too_low(
-        self,
+        &self,
         session: &Session,
         msg: &Message,
         rej: TargetTooLow,

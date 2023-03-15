@@ -212,7 +212,7 @@ fn validate_walk(
 fn validate_visit_field(
     field_def: &FieldDef,
     fields: &LocalField,
-) -> Result<LocalField, Box<dyn MessageRejectErrorTrait>> {
+) -> Result<LocalField, MessageRejectErrorEnum> {
     if field_def.is_group() {
         let new_fields = validate_visit_group_field(field_def, fields)?;
         return Ok(new_fields);
@@ -224,7 +224,7 @@ fn validate_visit_field(
 fn validate_visit_group_field(
     field_def: &FieldDef,
     field_stack: &LocalField,
-) -> Result<LocalField, Box<dyn MessageRejectErrorTrait>> {
+) -> Result<LocalField, MessageRejectErrorEnum> {
     let first_field_stack = field_stack.get(0).unwrap();
     let num_in_group_tag = first_field_stack.tag;
     let mut num_in_group = FIXInt::default();

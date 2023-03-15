@@ -56,7 +56,7 @@ impl ResendState {
                 )
                 .await;
             match next_resend_state_result {
-                Err(err) => return handle_state_error(session, err),
+                Err(err) => return handle_state_error(session, &err.to_string()),
                 Ok(mut next_resend_state) => {
                     next_resend_state.message_stash = self.message_stash;
                     return SessionStateEnum::ResendState(next_resend_state);
