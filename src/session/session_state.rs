@@ -9,7 +9,6 @@ use async_trait::async_trait;
 use delegate::delegate;
 use std::any::Any;
 use subenum::subenum;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 #[subenum(AfterPendingTimeout)]
 pub enum SessionStateEnum {

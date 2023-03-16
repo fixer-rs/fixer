@@ -290,9 +290,7 @@ impl Session {
         );
 
         if set_reset_seq_num {
-            logon
-                .body
-                .set_field(TAG_RESET_SEQ_NUM_FLAG, true as FIXBoolean);
+            logon.body.set_field(TAG_RESET_SEQ_NUM_FLAG, true);
         }
 
         if self.iss.default_appl_ver_id.len() > 0 {
@@ -341,7 +339,7 @@ impl Session {
     }
 
     pub fn resend(&self, msg: &Message) -> bool {
-        msg.header.set_field(TAG_POSS_DUP_FLAG, true as FIXBoolean);
+        msg.header.set_field(TAG_POSS_DUP_FLAG, true);
 
         let mut orig_sending_time = FIXString::new();
         let get_field_result = msg
@@ -428,7 +426,7 @@ impl Session {
     ) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
         self.fill_default_header(msg, in_reply_to);
         let seq_num = self.store.next_sender_msg_seq_num();
-        msg.header.set_field(TAG_MSG_SEQ_NUM, seq_num as FIXInt);
+        msg.header.set_field(TAG_MSG_SEQ_NUM, seq_num);
 
         let msg_type = msg.header.get_bytes(TAG_MSG_TYPE)?;
 
@@ -447,7 +445,7 @@ impl Session {
 
                     self.sent_reset = true;
                     let seq_num = self.store.next_sender_msg_seq_num();
-                    msg.header.set_field(TAG_MSG_SEQ_NUM, seq_num as FIXInt);
+                    msg.header.set_field(TAG_MSG_SEQ_NUM, seq_num);
                 }
             }
         } else {
@@ -498,7 +496,7 @@ impl Session {
 
     pub async fn do_target_too_high(
         &mut self,
-        reject: TargetTooHigh,
+        reject: &TargetTooHigh,
     ) -> Result<ResendState, Box<dyn Error + Send + Sync>> {
         self.log.on_eventf(
             "MsgSeqNum too high, expecting {{expect}} but received {{received}}",
@@ -524,7 +522,7 @@ impl Session {
         resend
             .header
             .set_bytes(TAG_MSG_TYPE, MSG_TYPE_RESEND_REQUEST);
-        resend.body.set_field(TAG_BEGIN_SEQ_NO, begin_seq as FIXInt);
+        resend.body.set_field(TAG_BEGIN_SEQ_NO, begin_seq);
 
         let mut end_seq_no = if self.iss.resend_request_chunk_size != 0 {
             begin_seq + self.iss.resend_request_chunk_size - 1
@@ -544,7 +542,7 @@ impl Session {
                 end_seq_no = 0;
             }
         }
-        resend.body.set_field(TAG_END_SEQ_NO, end_seq_no as FIXInt);
+        resend.body.set_field(TAG_END_SEQ_NO, end_seq_no);
 
         self.send(&resend).await?;
         self.log.on_eventf(
