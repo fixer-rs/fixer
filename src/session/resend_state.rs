@@ -109,15 +109,6 @@ impl ResendState {
 
 #[cfg(test)]
 mod tests {
-
-    // import (
-    // 	"testing"
-
-    // 	"github.com/stretchr/testify/suite"
-
-    // 	"github.com/quickfixgo/quickfix/internal"
-    // )
-
     // type resendStateTestSuite struct {
     // 	SessionSuiteRig
     // }

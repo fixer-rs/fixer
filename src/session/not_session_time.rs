@@ -5,6 +5,7 @@ use crate::{
 };
 use delegate::delegate;
 
+#[derive(Default)]
 pub struct NotSessionTime {
     pub latent_state: LatentState,
 }

@@ -423,7 +423,7 @@ impl InSession {
         rej: MessageRejectErrorEnum,
     ) -> SessionStateEnum {
         if let MessageRejectErrorEnum::TargetTooHigh(tth) = rej {
-            match session.sm.state {
+            match session.sm.state.as_mut().unwrap() {
                 SessionStateEnum::ResendState(ref mut rs) => {
                     msg.keep_message = true;
                     let msg_clone = msg.clone(); // TODO: optimize this

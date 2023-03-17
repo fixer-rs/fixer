@@ -856,21 +856,21 @@ impl Session {
         self.send_in_reply_to(&reply, Some(msg)).await
     }
 
-    // pub fn on_disconnect(&self, ) {
-    // 	self.log.on_event("Disconnected")
-    // 	if self.ResetOnDisconnect {
-    // 		if let err = self.dropAndReset(); err != nil {
-    // 			self.logError(err)
-    // 		}
-    // 	}
+    pub fn on_disconnect(&self) {
+        // 	self.log.on_event("Disconnected")
+        // 	if self.ResetOnDisconnect {
+        // 		if let err = self.dropAndReset(); err != nil {
+        // 			self.logError(err)
+        // 		}
+        // 	}
 
-    // 	if self.messageOut != nil {
-    // 		close(self.messageOut)
-    // 		self.messageOut = nil
-    // 	}
+        // 	if self.messageOut != nil {
+        // 		close(self.messageOut)
+        // 		self.messageOut = nil
+        // 	}
 
-    // 	self.messageIn = nil
-    // }
+        // 	self.messageIn = nil
+    }
 
     // pub fn on_admin(&self, msg interface{}) {
     // 	switch let msg = msg.(type) {

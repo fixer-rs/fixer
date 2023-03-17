@@ -1,16 +1,18 @@
-use crate::internal::event::{Event, LOGON_TIMEOUT};
-use crate::message::Message;
-use crate::session::{
-    in_session::InSession, latent_state::LatentState, logon_state::LogonState,
-    logout_state::LogoutState, not_session_time::NotSessionTime, pending_timeout::PendingTimeout,
-    resend_state::ResendState, FixIn, Session,
+use crate::{
+    internal::event::{Event, LOGON_TIMEOUT},
+    message::Message,
+    session::{
+        in_session::InSession, latent_state::LatentState, logon_state::LogonState,
+        logout_state::LogoutState, not_session_time::NotSessionTime,
+        pending_timeout::PendingTimeout, resend_state::ResendState, FixIn, Session,
+    },
 };
 use async_trait::async_trait;
 use chrono::{NaiveDateTime, Utc};
 use delegate::delegate;
 use std::any::Any;
 use subenum::subenum;
-use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
 use tokio::time::{sleep, Duration};
 
 #[subenum(AfterPendingTimeout)]
@@ -127,24 +129,29 @@ impl SessionStateEnum {
     pub fn new_logon_state() -> Self {
         Self::LogonState(LogonState::default())
     }
+
+    pub fn new_not_session_time() -> Self {
+        Self::NotSessionTime(NotSessionTime::default())
+    }
 }
 
 pub struct StateMachine {
-    pub state: SessionStateEnum,
+    pub state: Option<SessionStateEnum>,
     pub pending_stop: bool,
     pub stopped: bool,
-    pub notify_on_in_session_time: UnboundedReceiver<()>,
+    pub notify_on_in_session_time: Option<UnboundedReceiver<()>>,
 }
 
 impl StateMachine {
-    fn start(&mut self, s: &Session) {
+    pub async fn start(&mut self, session: &mut Session) {
         self.pending_stop = false;
         self.stopped = false;
-        self.state = SessionStateEnum::new_latent_state();
-        self.check_session_time(s, &Utc::now().naive_utc());
+        self.state = Some(SessionStateEnum::new_latent_state());
+        self.check_session_time(session, &Utc::now().naive_utc())
+            .await;
     }
 
-    async fn connect(&mut self, session: &mut Session) {
+    pub async fn connect(&mut self, session: &mut Session) {
         // No special logon logic needed for FIX Acceptors.
         if !session.iss.initiate_logon {
             self.set_state(session, SessionStateEnum::new_logon_state());
@@ -171,25 +178,25 @@ impl StateMachine {
         session.session_event.send(LOGON_TIMEOUT);
     }
 
-    async fn stop(&mut self, session: &mut Session) {
+    pub async fn stop(&mut self, session: &mut Session) {
         self.pending_stop = true;
-        // let next_state = self.state.stop(session).await;
-        // self.set_state(session, next_state);
-        todo!()
+        let next_state = self.state.take().unwrap().stop(session).await;
+        self.set_state(session, next_state);
     }
 
-    fn stopped(&self) -> bool {
+    pub fn stopped(&self) -> bool {
         self.stopped
     }
 
-    fn disconnected(&mut self, session: &Session) {
+    pub fn disconnected(&mut self, session: &mut Session) {
         if self.is_connected() {
             self.set_state(session, SessionStateEnum::new_latent_state())
         }
     }
 
-    async fn incoming(&self, session: &mut Session, m: &FixIn) {
-        self.check_session_time(session, &Utc::now().naive_utc());
+    pub async fn incoming(&mut self, session: &mut Session, m: &FixIn) {
+        self.check_session_time(session, &Utc::now().naive_utc())
+            .await;
         if !self.is_connected() {
             return;
         }
@@ -212,7 +219,7 @@ impl StateMachine {
             );
         } else {
             msg.receive_time = m.receive_time;
-            self.fix_msg_in(session, &msg);
+            self.fix_msg_in(session, &mut msg).await;
         }
 
         let duration =
@@ -224,62 +231,67 @@ impl StateMachine {
             .await;
     }
 
-    async fn fix_msg_in(&mut self, session: &mut Session, m: &Message) {
-        let mut next_state = self.state.fix_msg_in(session, &mut m).await;
-        // self.set_state(session, self.state.fix_msg_in(session, &mut m).await);
+    async fn fix_msg_in(&mut self, session: &mut Session, m: &mut Message) {
+        let next_state = self.state.take().unwrap().fix_msg_in(session, m).await;
+        self.set_state(session, next_state);
     }
 
-    fn send_app_messages(&self, session: &Session) {
-        // 	self.check_session_time(session, time.Now())
+    pub async fn send_app_messages(&mut self, session: &mut Session) {
+        self.check_session_time(session, &Utc::now().naive_utc())
+            .await;
 
-        // 	session.sendMutex.Lock()
-        // 	defer session.sendMutex.Unlock()
-
-        // 	if session.IsLoggedOn() {
-        // 		session.sendQueued()
-        // 	} else {
-        // 		session.dropQueued()
-        // 	}
+        if session.sm.is_logged_on() {
+            session.send_queued().await;
+        } else {
+            session.drop_queued().await;
+        }
     }
 
-    fn timeout(&self, session: &Session, e: &Event) {
-        // 	self.check_session_time(session, time.Now())
-        // 	self.set_state(session, self.State.Timeout(session, e))
+    pub async fn timeout(&mut self, session: &mut Session, e: Event) {
+        self.check_session_time(session, &Utc::now().naive_utc())
+            .await;
+        let new_state = self.state.take().unwrap().timeout(session, e).await;
+        self.set_state(session, new_state);
     }
 
-    fn check_session_time(&self, session: &Session, now: &NaiveDateTime) {
+    pub async fn check_session_time(&mut self, session: &mut Session, now: &NaiveDateTime) {
         if !session.iss.session_time.is_in_range(now) {
-            if self.is_session_time() {}
-            // 		if self.IsSessionTime() {
-            // 			session.log.on_event("Not in session")
-            // 		}
+            if self.is_session_time() {
+                session.log.on_event("Not in session");
+            }
 
-            // 		self.State.ShutdownNow(session)
-            // 		self.set_state(session, notSessionTime{})
+            self.state.as_ref().unwrap().shutdown_now(session).await;
 
-            // 		if self.notifyOnInSessionTime == nil {
-            // 			self.notifyOnInSessionTime = make(chan interface{})
-            // 		}
-            // 		return
+            self.set_state(session, SessionStateEnum::new_not_session_time());
+
+            if self.notify_on_in_session_time.is_none() {
+                let (_, rx) = unbounded_channel::<()>();
+                self.notify_on_in_session_time = Some(rx);
+            }
         }
 
-        // 	if !self.IsSessionTime() {
-        // 		session.log.on_event("In session")
-        // 		self.notifyInSessionTime()
-        // 		self.set_state(session, latentState{})
-        // 	}
+        if !self.is_session_time() {
+            session.log.on_event("In session");
+            self.notify_in_session_time();
+            self.set_state(session, SessionStateEnum::new_latent_state());
+        }
 
-        // 	if !session.SessionTime.IsInSameRange(session.store.CreationTime(), now) {
-        // 		session.log.on_event("Session reset")
-        // 		self.State.ShutdownNow(session)
-        // 		if err = session.dropAndReset(); err != nil {
-        // 			session.logError(err)
-        // 		}
-        // 		self.set_state(session, latentState{})
-        // 	}
+        if !session
+            .iss
+            .session_time
+            .is_in_same_range(&session.store.creation_time(), now)
+        {
+            session.log.on_event("Session reset");
+            self.state.as_mut().unwrap().shutdown_now(session).await;
+            let drop_result = session.drop_and_reset().await;
+            if let Err(err) = drop_result {
+                session.log_error(&err.to_string());
+            }
+            self.set_state(session, SessionStateEnum::new_latent_state());
+        }
     }
 
-    fn set_state(&mut self, session: &Session, next_state: SessionStateEnum) {
+    fn set_state(&mut self, session: &mut Session, next_state: SessionStateEnum) {
         if !next_state.is_connected() {
             if self.is_connected() {
                 self.handle_disconnect_state(session);
@@ -291,42 +303,43 @@ impl StateMachine {
             }
         }
 
-        self.state = next_state;
+        self.state = Some(next_state);
     }
 
     fn notify_in_session_time(&mut self) {
-        self.notify_on_in_session_time.close()
+        if self.notify_on_in_session_time.is_some() {
+            self.notify_on_in_session_time.as_mut().unwrap().close();
+        }
+        self.notify_on_in_session_time = None;
     }
 
-    fn handle_disconnect_state(&self, s: &Session) {
-        let do_on_logout = s.sm.is_logged_on();
+    fn handle_disconnect_state(&self, session: &mut Session) {
+        let mut do_on_logout = session.sm.is_logged_on();
+        let state = session.sm.state.as_mut().unwrap();
+        if let SessionStateEnum::LogoutState(ls) = state {
+            do_on_logout = true;
+        } else if let SessionStateEnum::LogonState(ls) = state {
+            if session.iss.initiate_logon {
+                do_on_logout = true;
+            }
+        }
 
-        // 	switch s.State.(type) {
-        // 	case logoutState:
-        // 		do_on_logout = true
-        // 	case logonState:
-        // 		if s.InitiateLogon {
-        // 			 do_on_logout = true
-        // 		}
-        // 	}
-
-        // 	if let do_on_logout {
-        // 		s.application.OnLogout(s.sessionID)
-        // 	}
-
-        // 	s.onDisconnect()
+        if do_on_logout {
+            session.application.on_logout(&session.session_id);
+        }
+        session.on_disconnect();
     }
 
     pub fn is_logged_on(&self) -> bool {
-        self.state.is_logged_on()
+        self.state.as_ref().unwrap().is_logged_on()
     }
 
     pub fn is_connected(&self) -> bool {
-        self.state.is_connected()
+        self.state.as_ref().unwrap().is_connected()
     }
 
     pub fn is_session_time(&self) -> bool {
-        self.state.is_session_time()
+        self.state.as_ref().unwrap().is_session_time()
     }
 }
 

@@ -476,7 +476,7 @@ mod tests {
 
     #[test]
     fn test_field_map_typed_set_and_get() {
-        let mut f_map = FieldMap::init();
+        let f_map = FieldMap::init();
 
         f_map.set_string(1, "hello");
         f_map.set_int(2, 256);

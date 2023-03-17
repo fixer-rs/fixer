@@ -59,13 +59,6 @@ impl LatentState {
 
 #[cfg(test)]
 mod tests {
-
-    // import (
-    //     "testing"
-
-    //     "github.com/stretchr/testify/suite"
-    // )
-
     // type LatentStateTestSuite struct {
     //     SessionSuiteRig
     // }
