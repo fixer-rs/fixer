@@ -129,9 +129,9 @@ pub struct Session {
     timestamp_precision: TimestampPrecision,
 }
 
-struct FixIn {
-    bytes: Vec<u8>,
-    receive_time: NaiveDateTime,
+pub struct FixIn {
+    pub bytes: Vec<u8>,
+    pub receive_time: NaiveDateTime,
 }
 
 impl Session {

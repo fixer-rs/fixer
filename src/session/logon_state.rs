@@ -1,11 +1,14 @@
-use crate::internal::event::{Event, LOGOUT_TIMEOUT};
-use crate::message::Message;
-use crate::msg_type::MSG_TYPE_LOGON;
-use crate::session::{
-    session_state::{handle_state_error, ConnectedNotLoggedOn, SessionStateEnum},
-    Session,
+use crate::{
+    errors::MessageRejectErrorEnum,
+    internal::event::{Event, LOGOUT_TIMEOUT},
+    message::Message,
+    msg_type::MSG_TYPE_LOGON,
+    session::{
+        session_state::{handle_state_error, ConnectedNotLoggedOn, SessionStateEnum},
+        Session,
+    },
+    tag::TAG_MSG_TYPE,
 };
-use crate::tag::TAG_MSG_TYPE;
 use delegate::delegate;
 
 #[derive(Default)]
@@ -50,24 +53,38 @@ impl LogonState {
 
         let handle_logon_result = session.handle_logon(msg).await;
         if let Err(err) = handle_logon_result {
-            // 		switch err := err.(type) {
-            // 		case RejectLogon:
-            // 			return shutdownWithReason(session, message, true, err.Error())
-
-            // 		case targetTooLow:
-            // 			return shutdownWithReason(session, message, false, err.Error())
-
-            // 		case targetTooHigh:
-            // 			var tooHighErr error
-            // 			if nextState, tooHighErr = session.doTargetTooHigh(err); tooHighErr != nil {
-            // 				return shutdownWithReason(session, message, false, tooHighErr.Error())
-            // 			}
-
-            // 			return
-
-            // 		default:
-            // 			return handleStateError(session, err)
-            // 		}
+            if let Some(inner_err) = err.downcast_ref::<MessageRejectErrorEnum>() {
+                match inner_err {
+                    &MessageRejectErrorEnum::RejectLogon(_) => {
+                        return self
+                            .shutdown_with_reason(session, msg, true, &inner_err.to_string())
+                            .await;
+                    }
+                    &MessageRejectErrorEnum::TargetTooLow(_) => {
+                        return self
+                            .shutdown_with_reason(session, msg, false, &inner_err.to_string())
+                            .await;
+                    }
+                    &MessageRejectErrorEnum::TargetTooHigh(ref tth) => {
+                        let do_result = session.do_target_too_high(tth).await;
+                        match do_result {
+                            Err(third_err) => {
+                                return self
+                                    .shutdown_with_reason(
+                                        session,
+                                        msg,
+                                        false,
+                                        &third_err.to_string(),
+                                    )
+                                    .await;
+                            }
+                            Ok(rs) => return SessionStateEnum::ResendState(rs),
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            return handle_state_error(session, &err.to_string());
         }
 
         SessionStateEnum::new_in_session()
@@ -85,10 +102,9 @@ impl LogonState {
     pub async fn stop(self, _session: &mut Session) -> SessionStateEnum {
         SessionStateEnum::new_latent_state()
     }
-}
 
-impl LogonState {
     async fn shutdown_with_reason(
+        self,
         session: &mut Session,
         msg: &Message,
         incr_next_target_msg_seq_num: bool,

@@ -1,7 +1,7 @@
-use crate::internal::event::{Event, PEER_TIMEOUT};
-use crate::message::Message;
-use crate::session::{
-    session_state::AfterPendingTimeout, session_state::SessionStateEnum, Session,
+use crate::{
+    internal::event::{Event, PEER_TIMEOUT},
+    message::Message,
+    session::{session_state::AfterPendingTimeout, session_state::SessionStateEnum, Session},
 };
 use delegate::delegate;
 

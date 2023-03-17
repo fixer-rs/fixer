@@ -1,7 +1,8 @@
-use crate::internal::event::Event;
-use crate::message::Message;
-use crate::session::latent_state::LatentState;
-use crate::session::{session_state::SessionStateEnum, Session};
+use crate::{
+    internal::event::Event,
+    message::Message,
+    session::{latent_state::LatentState, session_state::SessionStateEnum, Session},
+};
 use delegate::delegate;
 
 pub struct NotSessionTime {

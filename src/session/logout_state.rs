@@ -1,9 +1,11 @@
-use crate::internal::event::{Event, LOGOUT_TIMEOUT};
-use crate::message::Message;
-use crate::session::{
-    in_session::InSession,
-    session_state::{ConnectedNotLoggedOn, SessionStateEnum},
-    Session,
+use crate::{
+    internal::event::{Event, LOGOUT_TIMEOUT},
+    message::Message,
+    session::{
+        in_session::InSession,
+        session_state::{ConnectedNotLoggedOn, SessionStateEnum},
+        Session,
+    },
 };
 use delegate::delegate;
 

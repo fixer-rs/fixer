@@ -1,14 +1,17 @@
-use crate::internal::event::Event;
+use crate::internal::event::{Event, LOGON_TIMEOUT};
 use crate::message::Message;
 use crate::session::{
     in_session::InSession, latent_state::LatentState, logon_state::LogonState,
     logout_state::LogoutState, not_session_time::NotSessionTime, pending_timeout::PendingTimeout,
-    resend_state::ResendState, Session,
+    resend_state::ResendState, FixIn, Session,
 };
 use async_trait::async_trait;
+use chrono::{NaiveDateTime, Utc};
 use delegate::delegate;
 use std::any::Any;
 use subenum::subenum;
+use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::time::{sleep, Duration};
 
 #[subenum(AfterPendingTimeout)]
 pub enum SessionStateEnum {
@@ -56,10 +59,6 @@ impl SessionState for SessionStateEnum {
             fn is_logged_on(&self) -> bool;
             fn is_connected(&self) -> bool;
             fn is_session_time(&self) -> bool;
-            // async fn timeout(self, session: &mut Session, event: Event) -> SessionStateEnum;
-            // async fn shutdown_now(&self, session: &mut Session);
-            // async fn stop(self, session: &mut Session) -> SessionStateEnum;
-            // async fn fix_msg_in(self, session: &'_ mut Session, msg: &'_ Message) -> SessionStateEnum;
         }
     }
 
@@ -124,176 +123,199 @@ impl SessionStateEnum {
     pub fn new_logout_state() -> Self {
         Self::LogoutState(LogoutState::default())
     }
+
+    pub fn new_logon_state() -> Self {
+        Self::LogonState(LogonState::default())
+    }
 }
 
 pub struct StateMachine {
     pub state: SessionStateEnum,
     pub pending_stop: bool,
     pub stopped: bool,
-    pub notify_on_in_session_time: bool,
-    // 	notifyOnInSessionTime chan interface{}
+    pub notify_on_in_session_time: UnboundedReceiver<()>,
 }
 
 impl StateMachine {
     fn start(&mut self, s: &Session) {
         self.pending_stop = false;
-        self.stopped = false
-
-        // 	sm.State = latentState{}
-        // 	sm.CheckSessionTime(s, time.Now())
+        self.stopped = false;
+        self.state = SessionStateEnum::new_latent_state();
+        self.check_session_time(s, &Utc::now().naive_utc());
     }
 
-    // fn connect(&self, session *session) {
-    // 	// No special logon logic needed for FIX Acceptors.
-    // 	if !session.InitiateLogon {
-    // 		sm.setState(session, logonState{})
-    // 		return
-    // 	}
+    async fn connect(&mut self, session: &mut Session) {
+        // No special logon logic needed for FIX Acceptors.
+        if !session.iss.initiate_logon {
+            self.set_state(session, SessionStateEnum::new_logon_state());
+            return;
+        }
 
-    // 	if session.RefreshOnLogon {
-    // 		if err := session.store.Refresh(); err != nil {
-    // 			session.logError(err)
-    // 			return
-    // 		}
-    // 	}
-    // 	session.log.OnEvent("Sending logon request")
-    // 	if err := session.sendLogon(); err != nil {
-    // 		session.logError(err)
-    // 		return
-    // 	}
+        if session.iss.refresh_on_logon {
+            let refresh_result = session.store.refresh().await;
+            if let Err(err) = refresh_result {
+                session.log_error(&err.to_string());
+                return;
+            }
+        }
+        session.log.on_event("Sending logon request");
+        let logon_result = session.send_logon().await;
+        if let Err(err) = logon_result {
+            session.log_error(&err.to_string());
+            return;
+        }
 
-    // 	sm.setState(session, logonState{})
-    // 	// Fire logon timeout event after the pre-configured delay period.
-    // 	time.AfterFunc(session.LogonTimeout, func() { session.sessionEvent <- internal.LogonTimeout })
-    // }
+        self.set_state(session, SessionStateEnum::new_logon_state());
+        // Fire logon timeout event after the pre-configured delay period.
+        sleep(session.iss.logon_timeout.to_std().unwrap()).await;
+        session.session_event.send(LOGON_TIMEOUT);
+    }
 
-    // fn stop(&self, session *session) {
-    // 	sm.pendingStop = true
-    // 	sm.setState(session, sm.State.Stop(session))
-    // }
+    async fn stop(&mut self, session: &mut Session) {
+        self.pending_stop = true;
+        // let next_state = self.state.stop(session).await;
+        // self.set_state(session, next_state);
+        todo!()
+    }
 
-    // fn stopped(&self, ) bool {
-    // 	return sm.stopped
-    // }
+    fn stopped(&self) -> bool {
+        self.stopped
+    }
 
-    // fn disconnected(&self, session *session) {
-    // 	if sm.IsConnected() {
-    // 		sm.setState(session, latentState{})
-    // 	}
-    // }
+    fn disconnected(&mut self, session: &Session) {
+        if self.is_connected() {
+            self.set_state(session, SessionStateEnum::new_latent_state())
+        }
+    }
 
-    // fn incoming(&self, session *session, m fixIn) {
-    // 	sm.CheckSessionTime(session, time.Now())
-    // 	if !sm.IsConnected() {
-    // 		return
-    // 	}
+    async fn incoming(&self, session: &mut Session, m: &FixIn) {
+        self.check_session_time(session, &Utc::now().naive_utc());
+        if !self.is_connected() {
+            return;
+        }
 
-    // 	session.log.OnIncoming(m.bytes.Bytes())
+        session.log.on_incoming(&m.bytes);
 
-    // 	msg := NewMessage()
-    // 	if err := ParseMessageWithDataDictionary(msg, m.bytes, session.transportDataDictionary, session.appDataDictionary); err != nil {
-    // 		session.log.OnEventf("Msg Parse Error: %v, %q", err.Error(), m.bytes)
-    // 	} else {
-    // 		msg.ReceiveTime = m.receiveTime
-    // 		sm.fixMsgIn(session, msg)
-    // 	}
+        let mut msg = Message::new();
+        let parse_result = msg.parse_message_with_data_dictionary(
+            &m.bytes,
+            &session.transport_data_dictionary,
+            &session.app_data_dictionary,
+        );
+        if let Err(err) = parse_result {
+            session.log.on_eventf(
+                "Msg Parse Error: {{error}}, {{bytes}}",
+                hashmap! {
+                    String::from("error") => err.to_string(),
+                    String::from("bytes") => String::from_utf8_lossy(&m.bytes).to_string(),
+                },
+            );
+        } else {
+            msg.receive_time = m.receive_time;
+            self.fix_msg_in(session, &msg);
+        }
 
-    // 	session.peerTimer.Reset(time.Duration(float64(1.2) * float64(session.HeartBtInt)))
-    // }
+        let duration =
+            (1.2_f64 * (session.iss.heart_bt_int.num_nanoseconds().unwrap() as f64)).round() as u64;
 
-    // fn fix_msg_in(&self, session *session, m *Message) {
-    // 	sm.setState(session, sm.State.FixMsgIn(session, m))
-    // }
+        session
+            .peer_timer
+            .reset(Duration::from_nanos(duration))
+            .await;
+    }
 
-    // fn send_app_messages(&self, session *session) {
-    // 	sm.CheckSessionTime(session, time.Now())
+    async fn fix_msg_in(&mut self, session: &mut Session, m: &Message) {
+        let mut next_state = self.state.fix_msg_in(session, &mut m).await;
+        // self.set_state(session, self.state.fix_msg_in(session, &mut m).await);
+    }
 
-    // 	session.sendMutex.Lock()
-    // 	defer session.sendMutex.Unlock()
+    fn send_app_messages(&self, session: &Session) {
+        // 	self.check_session_time(session, time.Now())
 
-    // 	if session.IsLoggedOn() {
-    // 		session.sendQueued()
-    // 	} else {
-    // 		session.dropQueued()
-    // 	}
-    // }
+        // 	session.sendMutex.Lock()
+        // 	defer session.sendMutex.Unlock()
 
-    // fn timeout(&self, session *session, e internal.Event) {
-    // 	sm.CheckSessionTime(session, time.Now())
-    // 	sm.setState(session, sm.State.Timeout(session, e))
-    // }
+        // 	if session.IsLoggedOn() {
+        // 		session.sendQueued()
+        // 	} else {
+        // 		session.dropQueued()
+        // 	}
+    }
 
-    // fn check_session_time(&self, session *session, now time.Time) {
-    // 	if !session.SessionTime.IsInRange(now) {
-    // 		if sm.IsSessionTime() {
-    // 			session.log.OnEvent("Not in session")
-    // 		}
+    fn timeout(&self, session: &Session, e: &Event) {
+        // 	self.check_session_time(session, time.Now())
+        // 	self.set_state(session, self.State.Timeout(session, e))
+    }
 
-    // 		sm.State.ShutdownNow(session)
-    // 		sm.setState(session, notSessionTime{})
+    fn check_session_time(&self, session: &Session, now: &NaiveDateTime) {
+        if !session.iss.session_time.is_in_range(now) {
+            if self.is_session_time() {}
+            // 		if self.IsSessionTime() {
+            // 			session.log.on_event("Not in session")
+            // 		}
 
-    // 		if sm.notifyOnInSessionTime == nil {
-    // 			sm.notifyOnInSessionTime = make(chan interface{})
-    // 		}
-    // 		return
-    // 	}
+            // 		self.State.ShutdownNow(session)
+            // 		self.set_state(session, notSessionTime{})
 
-    // 	if !sm.IsSessionTime() {
-    // 		session.log.OnEvent("In session")
-    // 		sm.notifyInSessionTime()
-    // 		sm.setState(session, latentState{})
-    // 	}
+            // 		if self.notifyOnInSessionTime == nil {
+            // 			self.notifyOnInSessionTime = make(chan interface{})
+            // 		}
+            // 		return
+        }
 
-    // 	if !session.SessionTime.IsInSameRange(session.store.CreationTime(), now) {
-    // 		session.log.OnEvent("Session reset")
-    // 		sm.State.ShutdownNow(session)
-    // 		if err := session.dropAndReset(); err != nil {
-    // 			session.logError(err)
-    // 		}
-    // 		sm.setState(session, latentState{})
-    // 	}
-    // }
+        // 	if !self.IsSessionTime() {
+        // 		session.log.on_event("In session")
+        // 		self.notifyInSessionTime()
+        // 		self.set_state(session, latentState{})
+        // 	}
 
-    // fn set_state(&self, session *session, nextState sessionState) {
-    // 	if !nextState.IsConnected() {
-    // 		if sm.IsConnected() {
-    // 			sm.handleDisconnectState(session)
-    // 		}
+        // 	if !session.SessionTime.IsInSameRange(session.store.CreationTime(), now) {
+        // 		session.log.on_event("Session reset")
+        // 		self.State.ShutdownNow(session)
+        // 		if err = session.dropAndReset(); err != nil {
+        // 			session.logError(err)
+        // 		}
+        // 		self.set_state(session, latentState{})
+        // 	}
+    }
 
-    // 		if sm.pendingStop {
-    // 			sm.stopped = true
-    // 			sm.notifyInSessionTime()
-    // 		}
-    // 	}
+    fn set_state(&mut self, session: &Session, next_state: SessionStateEnum) {
+        if !next_state.is_connected() {
+            if self.is_connected() {
+                self.handle_disconnect_state(session);
+            }
 
-    // 	sm.State = nextState
-    // }
+            if self.pending_stop {
+                self.stopped = true;
+                self.notify_in_session_time();
+            }
+        }
 
-    // fn notify_in_session_time(&self, ) {
-    // 	if sm.notifyOnInSessionTime != nil {
-    // 		close(sm.notifyOnInSessionTime)
-    // 	}
-    // 	sm.notifyOnInSessionTime = nil
-    // }
+        self.state = next_state;
+    }
 
-    // fn handle_disconnect_state(&self, s *session) {
-    // 	doOnLogout := s.IsLoggedOn()
+    fn notify_in_session_time(&mut self) {
+        self.notify_on_in_session_time.close()
+    }
 
-    // 	switch s.State.(type) {
-    // 	case logoutState:
-    // 		doOnLogout = true
-    // 	case logonState:
-    // 		if s.InitiateLogon {
-    // 			doOnLogout = true
-    // 		}
-    // 	}
+    fn handle_disconnect_state(&self, s: &Session) {
+        let do_on_logout = s.sm.is_logged_on();
 
-    // 	if doOnLogout {
-    // 		s.application.OnLogout(s.sessionID)
-    // 	}
+        // 	switch s.State.(type) {
+        // 	case logoutState:
+        // 		do_on_logout = true
+        // 	case logonState:
+        // 		if s.InitiateLogon {
+        // 			 do_on_logout = true
+        // 		}
+        // 	}
 
-    // 	s.onDisconnect()
-    // }
+        // 	if let do_on_logout {
+        // 		s.application.OnLogout(s.sessionID)
+        // 	}
+
+        // 	s.onDisconnect()
+    }
 
     pub fn is_logged_on(&self) -> bool {
         self.state.is_logged_on()

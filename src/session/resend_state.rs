@@ -40,9 +40,10 @@ impl ResendState {
         msg: &'_ mut Message,
     ) -> SessionStateEnum {
         let mut next_state = InSession::default().fix_msg_in(session, msg).await;
-        if let SessionStateEnum::InSession(is) = next_state {
+
+        if let SessionStateEnum::InSession(ref is) = next_state {
             if is.is_logged_on() {
-                return SessionStateEnum::InSession(is);
+                return next_state;
             }
         }
 
@@ -80,14 +81,14 @@ impl ResendState {
             self.message_stash.remove(&target_seq_num);
 
             next_state = InSession::default().fix_msg_in(session, msg).await;
-            if let SessionStateEnum::InSession(is) = next_state {
+            if let SessionStateEnum::InSession(ref is) = next_state {
                 if !is.is_logged_on() {
-                    return SessionStateEnum::InSession(is);
+                    return next_state;
                 }
             }
         }
 
-        todo!()
+        next_state
     }
 
     pub async fn timeout(self, session: &mut Session, event: Event) -> SessionStateEnum {

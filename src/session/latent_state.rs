@@ -1,9 +1,11 @@
-// import "github.com/quickfixgo/quickfix/internal"
-
-use crate::internal::event::Event;
-use crate::message::Message;
-use crate::session::session_state::{InSessionTime, SessionStateEnum};
-use crate::session::Session;
+use crate::{
+    internal::event::Event,
+    message::Message,
+    session::{
+        session_state::{InSessionTime, SessionStateEnum},
+        Session,
+    },
+};
 use delegate::delegate;
 
 #[derive(Default)]
