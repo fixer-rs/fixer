@@ -1,40 +1,43 @@
-use crate::application::Application;
-use crate::datadictionary::DataDictionary;
-use crate::errors::{
-    comp_id_problem, required_tag_missing, sending_time_accuracy_problem,
-    tag_specified_without_a_value,
+use crate::{
+    application::Application,
+    datadictionary::DataDictionary,
+    errors::{
+        comp_id_problem, required_tag_missing, sending_time_accuracy_problem,
+        tag_specified_without_a_value,
+    },
+    errors::{IncorrectBeginString, TargetTooHigh, TargetTooLow},
+    errors::{MessageRejectErrorEnum, MessageRejectErrorResult},
+    fix_boolean::{FIXBoolean, FixBooleanTrait},
+    fix_int::FIXInt,
+    fix_string::FIXString,
+    fix_utc_timestamp::{FIXUTCTimestamp, TimestampPrecision},
+    internal::event::{Event, LOGOUT_TIMEOUT},
+    internal::event_timer::EventTimer,
+    internal::session_settings::SessionSettings,
+    log::{Log, LogEnum},
+    message::Message,
+    msg_type::{is_admin_message_type, MSG_TYPE_LOGON, MSG_TYPE_RESEND_REQUEST},
+    store::MessageStore,
+    tag::{
+        Tag, TAG_BEGIN_SEQ_NO, TAG_BEGIN_STRING, TAG_DEFAULT_APPL_VER_ID, TAG_ENCRYPT_METHOD,
+        TAG_END_SEQ_NO, TAG_HEART_BT_INT, TAG_LAST_MSG_SEQ_NUM_PROCESSED, TAG_MSG_SEQ_NUM,
+        TAG_MSG_TYPE, TAG_ORIG_SENDING_TIME, TAG_POSS_DUP_FLAG, TAG_RESET_SEQ_NUM_FLAG,
+        TAG_SENDER_COMP_ID, TAG_SENDER_LOCATION_ID, TAG_SENDER_SUB_ID, TAG_SENDING_TIME,
+        TAG_TARGET_COMP_ID, TAG_TARGET_LOCATION_ID, TAG_TARGET_SUB_ID, TAG_TEXT,
+    },
+    validation::Validator,
+    BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIXT11,
 };
-use crate::errors::{IncorrectBeginString, TargetTooHigh, TargetTooLow};
-use crate::errors::{MessageRejectErrorEnum, MessageRejectErrorResult};
-use crate::fix_boolean::{FIXBoolean, FixBooleanTrait};
-use crate::fix_int::FIXInt;
-use crate::fix_utc_timestamp::{FIXUTCTimestamp, TimestampPrecision};
-use crate::internal::event::{Event, LOGOUT_TIMEOUT};
-use crate::internal::event_timer::EventTimer;
-use crate::internal::session_settings::SessionSettings;
-use crate::message::Message;
-use crate::msg_type::{is_admin_message_type, MSG_TYPE_LOGON, MSG_TYPE_RESEND_REQUEST};
-use crate::store::MessageStore;
-use crate::tag::{
-    Tag, TAG_BEGIN_SEQ_NO, TAG_BEGIN_STRING, TAG_DEFAULT_APPL_VER_ID, TAG_ENCRYPT_METHOD,
-    TAG_END_SEQ_NO, TAG_HEART_BT_INT, TAG_LAST_MSG_SEQ_NUM_PROCESSED, TAG_MSG_SEQ_NUM,
-    TAG_MSG_TYPE, TAG_ORIG_SENDING_TIME, TAG_POSS_DUP_FLAG, TAG_RESET_SEQ_NUM_FLAG,
-    TAG_SENDER_COMP_ID, TAG_SENDER_LOCATION_ID, TAG_SENDER_SUB_ID, TAG_SENDING_TIME,
-    TAG_TARGET_COMP_ID, TAG_TARGET_LOCATION_ID, TAG_TARGET_SUB_ID, TAG_TEXT,
-};
-use crate::validation::Validator;
-use crate::BEGIN_STRING_FIXT11;
-use crate::{fix_string::FIXString, log::Log};
-use crate::{BEGIN_STRING_FIX40, BEGIN_STRING_FIX41};
 use chrono::Duration as ChronoDuration;
 use chrono::{NaiveDateTime, Utc};
 use resend_state::ResendState;
 use session_id::SessionID;
 use session_state::StateMachine;
+use simple_error::SimpleError;
 use std::error::Error;
 use std::sync::Arc;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
-use tokio::sync::Mutex;
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+use tokio::sync::{Mutex, OnceCell};
 use tokio::time::{sleep, Duration};
 
 // session main
@@ -85,32 +88,35 @@ struct SessionEvent {
     rx: UnboundedReceiver<Event>,
 }
 
-impl SessionEvent {
-    fn send(&self, event: Event) {
-        self.tx.send(event);
-    }
-}
-
 struct Connect {
-    // 	messageOut chan<- []byte
-    // 	messageIn  <-chan fixIn
-    // 	err        chan<- error
+    message_out: UnboundedSender<Vec<u8>>,
+    message_in: UnboundedReceiver<FixIn>,
+    err: Option<UnboundedSender<SimpleError>>,
 }
 
 struct Admin {
-    tx: UnboundedSender<bool>,
-    rx: UnboundedReceiver<bool>,
+    tx: UnboundedSender<AdminEnum>,
+    rx: UnboundedReceiver<AdminEnum>,
+}
+
+enum AdminEnum {
+    Connect(Connect),
+    StopReq(StopReq),
+    WaitForInSessionReq(WaitForInSessionReq),
 }
 
 // Session is the primary FIX abstraction for message communication
 pub struct Session {
     store: Box<dyn MessageStore>,
-    log: Box<dyn Log>,
+
+    log: LogEnum,
     session_id: SessionID,
-    message_out: UnboundedSender<Vec<u8>>,
-    message_in: UnboundedReceiver<FixIn>,
+
+    message_out: Option<UnboundedSender<Vec<u8>>>,
+    message_in: Option<UnboundedReceiver<FixIn>>,
 
     // application messages are queued up for send here
+    // wrapped in Mutex for access to to_send.
     to_send: Arc<Mutex<Vec<Vec<u8>>>>,
     session_event: SessionEvent,
     message_event: MessageEvent,
@@ -120,9 +126,10 @@ pub struct Session {
     state_timer: EventTimer,
     peer_timer: EventTimer,
     sent_reset: bool,
+    stop_once: OnceCell<()>,
     target_default_appl_ver_id: String,
 
-    // 	admin chan interface{}
+    admin: Admin,
     iss: SessionSettings,
     transport_data_dictionary: Option<DataDictionary>,
     app_data_dictionary: Option<DataDictionary>,
@@ -132,6 +139,20 @@ pub struct Session {
 pub struct FixIn {
     pub bytes: Vec<u8>,
     pub receive_time: NaiveDateTime,
+}
+
+struct StopReq;
+
+type WaitChan = UnboundedReceiver<()>;
+
+struct WaitForInSessionReq {
+    rep: UnboundedSender<WaitChan>,
+}
+
+impl SessionEvent {
+    fn send(&self, event: Event) {
+        self.tx.send(event);
+    }
 }
 
 impl Session {
@@ -145,34 +166,44 @@ impl Session {
         self.target_default_appl_ver_id.clone()
     }
 
-    // pub fn connect(&self, msgIn <-chan fixIn, msgOut chan<- []byte) error {
-    // 	let rep = make(chan error)
-    // 	self.admin <- connect{
-    // 		messageOut: msgOut,
-    // 		messageIn:  msgIn,
-    // 		err:        rep,
-    // 	}
+    async fn connect(
+        &self,
+        message_in: UnboundedReceiver<FixIn>,
+        message_out: UnboundedSender<Vec<u8>>,
+    ) -> SimpleError {
+        let (tx, mut rx) = unbounded_channel::<SimpleError>();
+        let _ = self.admin.tx.send(AdminEnum::Connect(Connect {
+            message_out,
+            message_in,
+            err: Some(tx),
+        }));
 
-    // 	return <-rep
-    // }
+        rx.recv().await.unwrap()
+    }
 
-    // type stopReq struct{}
+    async fn send_stop_req(&self) {
+        let _ = self.admin.tx.send(AdminEnum::StopReq(StopReq));
+    }
 
-    // pub fn stop(&self, ) {
-    // 	self.admin <- stopReq{}
-    // }
+    async fn stop(&self) {
+        self.stop_once.get_or_init(|| self.send_stop_req()).await;
+    }
 
-    // type waitChan <-chan interface{}
+    async fn wait_for_in_session_time(&self) {
+        let (tx, mut rx) = unbounded_channel::<WaitChan>();
 
-    // type waitForInSessionReq struct{ rep chan<- waitChan }
+        let _ = self
+            .admin
+            .tx
+            .send(AdminEnum::WaitForInSessionReq(WaitForInSessionReq {
+                rep: tx,
+            }));
 
-    // pub fn wait_for_in_session_time(&self, ) {
-    // 	let rep = make(chan waitChan)
-    // 	self.admin <- waitForInSessionReq{rep}
-    // 	if wait, let ok = <-rep; ok {
-    // 		<-wait
-    // 	}
-    // }
+        let wait_result = rx.recv().await;
+        if let Some(mut wait) = wait_result {
+            wait.recv().await;
+        }
+    }
 
     pub fn insert_sending_time(&self, msg: &Message) {
         let sending_time = Utc::now().naive_utc();
@@ -477,7 +508,7 @@ impl Session {
         for msg_bytes in self.to_send.lock().await.iter_mut() {
             self.log.on_outgoing(msg_bytes);
             // TODO: check this error
-            self.message_out.send(msg_bytes.to_vec());
+            let _ = self.message_out.as_mut().unwrap().send(msg_bytes.to_vec());
             self.state_timer
                 .reset(self.iss.heart_bt_int.to_std().unwrap())
                 .await;
@@ -810,42 +841,44 @@ impl Session {
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
         let reply = msg.reverse_route();
 
-        // 	if self.session_id.begin_string >= begin_stringFIX42 {
+        if !matches!(
+            self.session_id.begin_string.as_str(),
+            BEGIN_STRING_FIX40 | BEGIN_STRING_FIX41
+        ) {
+            // 		if rej.IsBusinessReject() {
+            // 			reply.header.set_field(TAG_MSG_TYPE, FIXString::from("j"));
+            // 			reply.body.set_field(tagBusinessRejectReason, FIXInt(rej.RejectReason()))
+            // 			if let refID = rej.BusinessRejectRefID(); refID != "" {
+            // 				reply.body.set_field(tagBusinessRejectRefID, FIXString::from(refID));
+            // 			}
+            // 		} else {
+            // 			reply.header.set_field(TAG_MSG_TYPE, FIXString::from("3"));
+            // 			switch {
+            // 			default:
+            // 				reply.body.set_field(tagSessionRejectReason, FIXInt(rej.RejectReason()))
+            // 			case rej.RejectReason() > rejectReasonInvalidMsgType && self.session_id.begin_string == begin_stringFIX42:
+            // 				//fix42 knows up to invalid msg type
+            // 			}
 
-        // 		if rej.IsBusinessReject() {
-        // 			reply.header.set_field(TAG_MSG_TYPE, FIXString::from("j"));
-        // 			reply.body.set_field(tagBusinessRejectReason, FIXInt(rej.RejectReason()))
-        // 			if let refID = rej.BusinessRejectRefID(); refID != "" {
-        // 				reply.body.set_field(tagBusinessRejectRefID, FIXString::from(refID));
-        // 			}
-        // 		} else {
-        // 			reply.header.set_field(TAG_MSG_TYPE, FIXString::from("3"));
-        // 			switch {
-        // 			default:
-        // 				reply.body.set_field(tagSessionRejectReason, FIXInt(rej.RejectReason()))
-        // 			case rej.RejectReason() > rejectReasonInvalidMsgType && self.session_id.begin_string == begin_stringFIX42:
-        // 				//fix42 knows up to invalid msg type
-        // 			}
+            // 			if let refTagID = rej.RefTagID(); refTagID != nil {
+            // 				reply.body.set_field(tagRefTagID, FIXInt(*refTagID))
+            // 			}
+            // 		}
+            // 		reply.body.set_field(TAG_TEXT, FIXString::from(rej.Error()));
 
-        // 			if let refTagID = rej.RefTagID(); refTagID != nil {
-        // 				reply.body.set_field(tagRefTagID, FIXInt(*refTagID))
-        // 			}
-        // 		}
-        // 		reply.body.set_field(TAG_TEXT, FIXString::from(rej.Error()));
+            // 		var msgType FIXString
+            // 		if let err = msg.header.get_field(TAG_MSG_TYPE, &msgType); err == nil {
+            // 			reply.body.set_field(tagRefMsgType, msgType)
+            // 		}
+        } else {
+            // 		reply.header.set_field(TAG_MSG_TYPE, FIXString::from("3"));
 
-        // 		var msgType FIXString
-        // 		if let err = msg.header.get_field(TAG_MSG_TYPE, &msgType); err == nil {
-        // 			reply.body.set_field(tagRefMsgType, msgType)
-        // 		}
-        // 	} else {
-        // 		reply.header.set_field(TAG_MSG_TYPE, FIXString::from("3"));
-
-        // 		if let refTagID = rej.RefTagID(); refTagID != nil {
-        // 			reply.body.set_field(TAG_TEXT, FIXString::from(fmt.Sprintf("%s (%d)", rej.Error(), *refTagID)));
-        // 		} else {
-        // 			reply.body.set_field(TAG_TEXT, FIXString::from(rej.Error()));
-        // 		}
-        // 	}
+            // 		if let refTagID = rej.RefTagID(); refTagID != nil {
+            // 			reply.body.set_field(TAG_TEXT, FIXString::from(fmt.Sprintf("%s (%d)", rej.Error(), *refTagID)));
+            // 		} else {
+            // 			reply.body.set_field(TAG_TEXT, FIXString::from(rej.Error()));
+            // 		}
+        }
 
         // 	let seqNum = new(FIXInt)
         // 	if let err = msg.header.get_field(TAG_MSG_SEQ_NUM, seqNum); err == nil {
@@ -856,18 +889,20 @@ impl Session {
         self.send_in_reply_to(&reply, Some(msg)).await
     }
 
-    pub fn on_disconnect(&self) {
-        // 	self.log.on_event("Disconnected")
-        // 	if self.ResetOnDisconnect {
-        // 		if let err = self.dropAndReset(); err != nil {
-        // 			self.logError(err)
-        // 		}
-        // 	}
+    pub async fn on_disconnect(&mut self) {
+        self.log.on_event("Disconnected");
+        if self.iss.reset_on_disconnect {
+            let drop_result = self.drop_and_reset().await;
+            if let Err(err) = drop_result {
+                self.log_error(&err.to_string());
+            }
+        }
 
-        // 	if self.messageOut != nil {
-        // 		close(self.messageOut)
-        // 		self.messageOut = nil
-        // 	}
+        if let Some(ref mut message_out) = self.message_out {
+            // message_out.c
+            // 		close(self.messageOut)
+            // 		self.messageOut = nil
+        }
 
         // 	self.messageIn = nil
     }
@@ -915,43 +950,43 @@ impl Session {
     // 	}
     // }
 
-    // pub fn run(&self, ) {
-    // 	self.Start(s)
+    pub async fn run(&mut self) {
+        // self.sm.start(self).await;
 
-    // 	self.stateTimer = internal.NewEventTimer(func() { self.sessionEvent <- internal.NeedHeartbeat })
-    // 	self.peerTimer = internal.NewEventTimer(func() { self.sessionEvent <- internal.PeerTimeout })
-    // 	let ticker = time.NewTicker(time.Second)
+        // 	self.stateTimer = internal.NewEventTimer(func() { self.sessionEvent <- internal.NeedHeartbeat })
+        // 	self.peerTimer = internal.NewEventTimer(func() { self.sessionEvent <- internal.PeerTimeout })
+        // 	let ticker = time.NewTicker(time.Second)
 
-    // 	defer func() {
-    // 		self.stateTimer.Stop()
-    // 		self.peerTimer.Stop()
-    // 		ticker.Stop()
-    // 	}()
+        // 	defer func() {
+        // 		self.stateTimer.Stop()
+        // 		self.peerTimer.Stop()
+        // 		ticker.Stop()
+        // 	}()
 
-    // 	for !self.Stopped() {
-    // 		select {
+        // 	for !self.Stopped() {
+        // 		select {
 
-    // 		case let msg = <-self.admin:
-    // 			self.onAdmin(msg)
+        // 		case let msg = <-self.admin:
+        // 			self.onAdmin(msg)
 
-    // 		case <-self.messageEvent:
-    // 			self.SendAppMessages(s)
+        // 		case <-self.messageEvent:
+        // 			self.SendAppMessages(s)
 
-    // 		case fixIn, let ok = <-self.messageIn:
-    // 			if !ok {
-    // 				self.Disconnected(s)
-    // 			} else {
-    // 				self.Incoming(s, fixIn)
-    // 			}
+        // 		case fixIn, let ok = <-self.messageIn:
+        // 			if !ok {
+        // 				self.Disconnected(s)
+        // 			} else {
+        // 				self.Incoming(s, fixIn)
+        // 			}
 
-    // 		case let evt = <-self.sessionEvent:
-    // 			self.Timeout(s, evt)
+        // 		case let evt = <-self.sessionEvent:
+        // 			self.Timeout(s, evt)
 
-    // 		case let now = <-ticker.C:
-    // 			self.CheckSessionTime(s, now)
-    // 		}
-    // 	}
-    // }
+        // 		case let now = <-ticker.C:
+        // 			self.CheckSessionTime(s, now)
+        // 		}
+        // 	}
+    }
 }
 
 fn optionally_set_id(msg: &Message, tag: Tag, value: &str) {

@@ -1,5 +1,6 @@
 use crate::{
     internal::event::{Event, LOGOUT_TIMEOUT},
+    log::Log,
     message::Message,
     session::{
         in_session::InSession,

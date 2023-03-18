@@ -1,5 +1,6 @@
 use crate::{
     internal::event::{Event, PEER_TIMEOUT},
+    log::Log,
     message::Message,
     session::{session_state::AfterPendingTimeout, session_state::SessionStateEnum, Session},
 };

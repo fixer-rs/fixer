@@ -1,5 +1,6 @@
 use crate::{
     internal::event::{Event, LOGON_TIMEOUT},
+    log::Log,
     message::Message,
     session::{
         in_session::InSession, latent_state::LatentState, logon_state::LogonState,
@@ -154,7 +155,8 @@ impl StateMachine {
     pub async fn connect(&mut self, session: &mut Session) {
         // No special logon logic needed for FIX Acceptors.
         if !session.iss.initiate_logon {
-            self.set_state(session, SessionStateEnum::new_logon_state());
+            self.set_state(session, SessionStateEnum::new_logon_state())
+                .await;
             return;
         }
 
@@ -172,7 +174,8 @@ impl StateMachine {
             return;
         }
 
-        self.set_state(session, SessionStateEnum::new_logon_state());
+        self.set_state(session, SessionStateEnum::new_logon_state())
+            .await;
         // Fire logon timeout event after the pre-configured delay period.
         sleep(session.iss.logon_timeout.to_std().unwrap()).await;
         session.session_event.send(LOGON_TIMEOUT);
@@ -181,16 +184,17 @@ impl StateMachine {
     pub async fn stop(&mut self, session: &mut Session) {
         self.pending_stop = true;
         let next_state = self.state.take().unwrap().stop(session).await;
-        self.set_state(session, next_state);
+        self.set_state(session, next_state).await;
     }
 
     pub fn stopped(&self) -> bool {
         self.stopped
     }
 
-    pub fn disconnected(&mut self, session: &mut Session) {
+    pub async fn disconnected(&mut self, session: &mut Session) {
         if self.is_connected() {
             self.set_state(session, SessionStateEnum::new_latent_state())
+                .await;
         }
     }
 
@@ -233,7 +237,7 @@ impl StateMachine {
 
     async fn fix_msg_in(&mut self, session: &mut Session, m: &mut Message) {
         let next_state = self.state.take().unwrap().fix_msg_in(session, m).await;
-        self.set_state(session, next_state);
+        self.set_state(session, next_state).await;
     }
 
     pub async fn send_app_messages(&mut self, session: &mut Session) {
@@ -251,7 +255,7 @@ impl StateMachine {
         self.check_session_time(session, &Utc::now().naive_utc())
             .await;
         let new_state = self.state.take().unwrap().timeout(session, e).await;
-        self.set_state(session, new_state);
+        self.set_state(session, new_state).await;
     }
 
     pub async fn check_session_time(&mut self, session: &mut Session, now: &NaiveDateTime) {
@@ -262,7 +266,8 @@ impl StateMachine {
 
             self.state.as_ref().unwrap().shutdown_now(session).await;
 
-            self.set_state(session, SessionStateEnum::new_not_session_time());
+            self.set_state(session, SessionStateEnum::new_not_session_time())
+                .await;
 
             if self.notify_on_in_session_time.is_none() {
                 let (_, rx) = unbounded_channel::<()>();
@@ -273,7 +278,8 @@ impl StateMachine {
         if !self.is_session_time() {
             session.log.on_event("In session");
             self.notify_in_session_time();
-            self.set_state(session, SessionStateEnum::new_latent_state());
+            self.set_state(session, SessionStateEnum::new_latent_state())
+                .await;
         }
 
         if !session
@@ -287,14 +293,15 @@ impl StateMachine {
             if let Err(err) = drop_result {
                 session.log_error(&err.to_string());
             }
-            self.set_state(session, SessionStateEnum::new_latent_state());
+            self.set_state(session, SessionStateEnum::new_latent_state())
+                .await;
         }
     }
 
-    fn set_state(&mut self, session: &mut Session, next_state: SessionStateEnum) {
+    async fn set_state(&mut self, session: &mut Session, next_state: SessionStateEnum) {
         if !next_state.is_connected() {
             if self.is_connected() {
-                self.handle_disconnect_state(session);
+                self.handle_disconnect_state(session).await;
             }
 
             if self.pending_stop {
@@ -313,12 +320,12 @@ impl StateMachine {
         self.notify_on_in_session_time = None;
     }
 
-    fn handle_disconnect_state(&self, session: &mut Session) {
+    async fn handle_disconnect_state(&self, session: &mut Session) {
         let mut do_on_logout = session.sm.is_logged_on();
         let state = session.sm.state.as_mut().unwrap();
-        if let SessionStateEnum::LogoutState(ls) = state {
+        if let SessionStateEnum::LogoutState(_) = state {
             do_on_logout = true;
-        } else if let SessionStateEnum::LogonState(ls) = state {
+        } else if let SessionStateEnum::LogonState(_) = state {
             if session.iss.initiate_logon {
                 do_on_logout = true;
             }
@@ -327,7 +334,7 @@ impl StateMachine {
         if do_on_logout {
             session.application.on_logout(&session.session_id);
         }
-        session.on_disconnect();
+        session.on_disconnect().await;
     }
 
     pub fn is_logged_on(&self) -> bool {

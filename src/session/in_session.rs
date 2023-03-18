@@ -9,6 +9,7 @@ use crate::{
     fix_string::FIXString,
     fix_utc_timestamp::FIXUTCTimestamp,
     internal::event::{Event, NEED_HEARTBEAT, PEER_TIMEOUT},
+    log::Log,
     message::Message,
     msg_type::{
         is_admin_message_type, MSG_TYPE_LOGON, MSG_TYPE_LOGOUT, MSG_TYPE_RESEND_REQUEST,

@@ -1,10 +1,12 @@
-use crate::internal::event::Event;
-use crate::message::Message;
-use crate::session::{
-    in_session::InSession,
-    pending_timeout::PendingTimeout,
-    session_state::{handle_state_error, AfterPendingTimeout, LoggedOn, SessionStateEnum},
-    Session,
+use crate::{
+    internal::event::Event,
+    message::Message,
+    session::{
+        in_session::InSession,
+        pending_timeout::PendingTimeout,
+        session_state::{handle_state_error, AfterPendingTimeout, LoggedOn, SessionStateEnum},
+        Session,
+    },
 };
 use delegate::delegate;
 use std::collections::HashMap;

@@ -1,4 +1,4 @@
-use crate::log::{Log, LogFactory};
+use crate::log::{Log, LogEnum, LogFactory};
 use crate::session::session_id::SessionID;
 use chrono::Utc;
 use flexi_logger::{Logger, LoggerHandle, WriteMode};
@@ -53,20 +53,20 @@ impl Log for ScreenLog {
     }
 }
 
-pub struct ScreenLogFactory {}
+pub struct ScreenLogFactory;
 
 impl LogFactory for ScreenLogFactory {
-    fn create(&self) -> Result<Box<dyn Log>, String> {
+    fn create(&self) -> Result<LogEnum, String> {
         let logger = start("Failed to create ScreenLogger")?;
-        Ok(Box::new(ScreenLog {
+        Ok(LogEnum::ScreenLog(ScreenLog {
             prefix: String::from("GLOBAL"),
             logger,
         }))
     }
 
-    fn create_session_log(&self, session_id: SessionID) -> Result<Box<dyn Log>, String> {
+    fn create_session_log(&self, session_id: SessionID) -> Result<LogEnum, String> {
         let logger = start("Failed to create_session_log ScreenLogger")?;
-        Ok(Box::new(ScreenLog {
+        Ok(LogEnum::ScreenLog(ScreenLog {
             prefix: session_id.to_string(),
             logger,
         }))
@@ -85,6 +85,6 @@ fn start(err: &str) -> Result<LoggerHandle, String> {
 impl ScreenLogFactory {
     // new creates an instance of LogFactory that writes messages and events to stdout.
     pub fn new() -> Box<dyn LogFactory> {
-        Box::new(ScreenLogFactory {})
+        Box::new(ScreenLogFactory)
     }
 }

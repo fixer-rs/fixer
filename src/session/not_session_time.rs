@@ -1,5 +1,6 @@
 use crate::{
     internal::event::Event,
+    log::Log,
     message::Message,
     session::{latent_state::LatentState, session_state::SessionStateEnum, Session},
 };

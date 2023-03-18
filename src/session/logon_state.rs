@@ -1,6 +1,7 @@
 use crate::{
     errors::MessageRejectErrorEnum,
     internal::event::{Event, LOGOUT_TIMEOUT},
+    log::Log,
     message::Message,
     msg_type::MSG_TYPE_LOGON,
     session::{
