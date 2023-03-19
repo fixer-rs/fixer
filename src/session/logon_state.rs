@@ -1,13 +1,14 @@
 use crate::{
     errors::MessageRejectErrorEnum,
     internal::event::{Event, LOGOUT_TIMEOUT},
-    log::Log,
+    log::LogTrait,
     message::Message,
     msg_type::MSG_TYPE_LOGON,
     session::{
         session_state::{handle_state_error, ConnectedNotLoggedOn, SessionStateEnum},
         Session,
     },
+    store::MessageStoreTrait,
     tag::TAG_MSG_TYPE,
 };
 use delegate::delegate;

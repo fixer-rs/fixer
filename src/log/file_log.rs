@@ -1,4 +1,4 @@
-use crate::log::{Log, LogFactory};
+use crate::log::{LogFactoryTrait, LogTrait};
 use flexi_logger::LoggerHandle;
 use log::info;
 use ramhorns::Template;
@@ -9,7 +9,7 @@ pub struct FileLog {
     message_logger: LoggerHandle,
 }
 
-impl Log for FileLog {
+impl LogTrait for FileLog {
     fn on_incoming(&self, data: &[u8]) {
         info!(
             target: "message_logger",

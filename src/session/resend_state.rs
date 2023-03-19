@@ -7,6 +7,7 @@ use crate::{
         session_state::{handle_state_error, AfterPendingTimeout, LoggedOn, SessionStateEnum},
         Session,
     },
+    store::MessageStoreTrait,
 };
 use delegate::delegate;
 use std::collections::HashMap;

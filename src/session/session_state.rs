@@ -1,12 +1,13 @@
 use crate::{
     internal::event::{Event, LOGON_TIMEOUT},
-    log::Log,
+    log::LogTrait,
     message::Message,
     session::{
         in_session::InSession, latent_state::LatentState, logon_state::LogonState,
         logout_state::LogoutState, not_session_time::NotSessionTime,
         pending_timeout::PendingTimeout, resend_state::ResendState, FixIn, Session,
     },
+    store::MessageStoreTrait,
 };
 use async_trait::async_trait;
 use chrono::{NaiveDateTime, Utc};
@@ -39,7 +40,6 @@ impl ToString for SessionStateEnum {
             Self::NotSessionTime(nst) => nst,
             Self::ResendState(rs) => rs,
             Self::PendingTimeout(ps) => ps,
-
         } {
             fn to_string(&self) -> String;
         }
@@ -58,7 +58,6 @@ impl SessionState for SessionStateEnum {
             Self::ResendState(rs) => rs,
             Self::PendingTimeout(ps) => ps,
         } {
-
             fn is_logged_on(&self) -> bool;
             fn is_connected(&self) -> bool;
             fn is_session_time(&self) -> bool;

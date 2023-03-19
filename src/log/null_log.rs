@@ -1,22 +1,19 @@
-use crate::log::{Log, LogEnum, LogFactory};
+use crate::log::{LogEnum, LogFactoryEnum, LogFactoryTrait, LogTrait};
 use crate::session::session_id::SessionID;
 use std::collections::HashMap;
 
 pub struct NullLog;
 
-impl Log for NullLog {
+impl LogTrait for NullLog {
     fn on_incoming(&self, _data: &[u8]) {}
-
     fn on_outgoing(&self, _data: &[u8]) {}
-
     fn on_event(&self, _data: &str) {}
-
     fn on_eventf(&self, _format: &str, _params: HashMap<String, String>) {}
 }
 
 pub struct NullLogFactory;
 
-impl LogFactory for NullLogFactory {
+impl LogFactoryTrait for NullLogFactory {
     fn create(&self) -> Result<LogEnum, String> {
         Ok(LogEnum::NullLog(NullLog))
     }
@@ -28,7 +25,7 @@ impl LogFactory for NullLogFactory {
 
 impl NullLogFactory {
     // new creates an instance of LogFactory that returns no-op loggers.
-    pub fn new() -> Box<dyn LogFactory> {
-        Box::new(NullLogFactory)
+    pub fn new() -> LogFactoryEnum {
+        LogFactoryEnum::NullLogFactory(NullLogFactory)
     }
 }

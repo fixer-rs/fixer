@@ -14,10 +14,10 @@ use crate::{
     internal::event::{Event, LOGOUT_TIMEOUT},
     internal::event_timer::EventTimer,
     internal::session_settings::SessionSettings,
-    log::{Log, LogEnum},
+    log::{LogEnum, LogTrait},
     message::Message,
     msg_type::{is_admin_message_type, MSG_TYPE_LOGON, MSG_TYPE_RESEND_REQUEST},
-    store::MessageStore,
+    store::{MessageStoreEnum, MessageStoreTrait},
     tag::{
         Tag, TAG_BEGIN_SEQ_NO, TAG_BEGIN_STRING, TAG_DEFAULT_APPL_VER_ID, TAG_ENCRYPT_METHOD,
         TAG_END_SEQ_NO, TAG_HEART_BT_INT, TAG_LAST_MSG_SEQ_NUM_PROCESSED, TAG_MSG_SEQ_NUM,
@@ -107,7 +107,7 @@ enum AdminEnum {
 
 // Session is the primary FIX abstraction for message communication
 pub struct Session {
-    store: Box<dyn MessageStore>,
+    store: MessageStoreEnum,
 
     log: LogEnum,
     session_id: SessionID,

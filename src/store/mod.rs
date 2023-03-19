@@ -3,11 +3,13 @@ use async_trait::async_trait;
 use chrono::NaiveDateTime;
 use chrono::Utc;
 use dashmap::DashMap;
+use enum_dispatch::enum_dispatch;
 use simple_error::SimpleResult;
 
 //The MessageStore interface provides methods to record and retrieve messages for resend purposes
 #[async_trait]
-pub trait MessageStore: Send + Sync {
+#[enum_dispatch]
+pub trait MessageStoreTrait {
     fn next_sender_msg_seq_num(&self) -> isize;
     fn next_target_msg_seq_num(&self) -> isize;
     async fn incr_next_sender_msg_seq_num(&mut self) -> SimpleResult<()>;
@@ -33,8 +35,19 @@ pub trait MessageStore: Send + Sync {
 
 //The MessageStoreFactory interface is used by session to create a session specific message store
 #[async_trait]
-pub trait MessageStoreFactory {
-    async fn create(&self, session_id: SessionID) -> SimpleResult<Box<dyn MessageStore>>;
+#[enum_dispatch]
+pub trait MessageStoreFactoryTrait {
+    async fn create(&self, session_id: SessionID) -> SimpleResult<MessageStoreEnum>;
+}
+
+#[enum_dispatch(MessageStoreTrait)]
+pub enum MessageStoreEnum {
+    MemoryStore,
+}
+
+#[enum_dispatch(MessageStoreFactoryTrait)]
+pub enum MessageStoreFactoryEnum {
+    MemoryStoreFactory,
 }
 
 #[derive(Default)]
@@ -46,7 +59,7 @@ pub struct MemoryStore {
 }
 
 #[async_trait]
-impl MessageStore for MemoryStore {
+impl MessageStoreTrait for MemoryStore {
     fn next_sender_msg_seq_num(&self) -> isize {
         self.sender_msg_seq_num + 1
     }
@@ -132,20 +145,20 @@ impl MessageStore for MemoryStore {
 pub struct MemoryStoreFactory;
 
 #[async_trait]
-impl MessageStoreFactory for MemoryStoreFactory {
-    async fn create(&self, _session_id: SessionID) -> SimpleResult<Box<dyn MessageStore>> {
+impl MessageStoreFactoryTrait for MemoryStoreFactory {
+    async fn create(&self, _session_id: SessionID) -> SimpleResult<MessageStoreEnum> {
         let mut m = MemoryStore::default();
         let result = m.reset().await;
         if result.is_err() {
             return Err(simple_error!("reset: {}", result.unwrap_err()));
         }
-        Ok(Box::new(m))
+        Ok(MessageStoreEnum::MemoryStore(m))
     }
 }
 
 impl MemoryStoreFactory {
     // new returns a MessageStoreFactory instance that created in-memory MessageStores
-    pub fn new() -> Box<dyn MessageStoreFactory> {
-        Box::new(MemoryStoreFactory {})
+    pub fn new() -> MessageStoreFactoryEnum {
+        MessageStoreFactoryEnum::MemoryStoreFactory(MemoryStoreFactory)
     }
 }

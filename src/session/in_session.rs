@@ -9,7 +9,7 @@ use crate::{
     fix_string::FIXString,
     fix_utc_timestamp::FIXUTCTimestamp,
     internal::event::{Event, NEED_HEARTBEAT, PEER_TIMEOUT},
-    log::Log,
+    log::LogTrait,
     message::Message,
     msg_type::{
         is_admin_message_type, MSG_TYPE_LOGON, MSG_TYPE_LOGOUT, MSG_TYPE_RESEND_REQUEST,
@@ -21,6 +21,7 @@ use crate::{
         session_state::{handle_state_error, AfterPendingTimeout, LoggedOn, SessionStateEnum},
         Session,
     },
+    store::MessageStoreTrait,
     tag::{
         TAG_BEGIN_SEQ_NO, TAG_END_SEQ_NO, TAG_GAP_FILL_FLAG, TAG_MSG_SEQ_NUM, TAG_MSG_TYPE,
         TAG_NEW_SEQ_NO, TAG_ORIG_SENDING_TIME, TAG_POSS_DUP_FLAG, TAG_SENDING_TIME,
