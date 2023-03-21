@@ -3,36 +3,51 @@ use crate::{
     datadictionary::DataDictionary,
     errors::{
         comp_id_problem, required_tag_missing, sending_time_accuracy_problem,
-        tag_specified_without_a_value,
+        tag_specified_without_a_value, value_is_incorrect_no_tag, IncorrectBeginString,
+        MessageRejectErrorEnum, MessageRejectErrorResult, MessageRejectErrorTrait, TargetTooHigh,
+        TargetTooLow, REJECT_REASON_COMP_ID_PROBLEM, REJECT_REASON_SENDING_TIME_ACCURACY_PROBLEM,
     },
-    errors::{IncorrectBeginString, TargetTooHigh, TargetTooLow},
-    errors::{MessageRejectErrorEnum, MessageRejectErrorResult},
     fix_boolean::{FIXBoolean, FixBooleanTrait},
     fix_int::FIXInt,
     fix_string::FIXString,
     fix_utc_timestamp::{FIXUTCTimestamp, TimestampPrecision},
-    internal::event::{Event, LOGOUT_TIMEOUT},
+    internal::event::{Event, LOGON_TIMEOUT, LOGOUT_TIMEOUT, NEED_HEARTBEAT, PEER_TIMEOUT},
     internal::event_timer::EventTimer,
     internal::session_settings::SessionSettings,
     log::{LogEnum, LogTrait},
     message::Message,
-    msg_type::{is_admin_message_type, MSG_TYPE_LOGON, MSG_TYPE_RESEND_REQUEST},
+    msg_type::{
+        is_admin_message_type, MSG_TYPE_LOGON, MSG_TYPE_LOGOUT, MSG_TYPE_RESEND_REQUEST,
+        MSG_TYPE_SEQUENCE_RESET, MSG_TYPE_TEST_REQUEST,
+    },
+    session::{
+        in_session::InSession,
+        latent_state::LatentState,
+        logon_state::LogonState,
+        logout_state::LogoutState,
+        not_session_time::NotSessionTime,
+        pending_timeout::PendingTimeout,
+        resend_state::ResendState,
+        session_id::SessionID,
+        session_state::{
+            AfterPendingTimeout, LoggedOn, SessionState, SessionStateEnum, StateMachine,
+        },
+    },
     store::{MessageStoreEnum, MessageStoreTrait},
     tag::{
         Tag, TAG_BEGIN_SEQ_NO, TAG_BEGIN_STRING, TAG_DEFAULT_APPL_VER_ID, TAG_ENCRYPT_METHOD,
-        TAG_END_SEQ_NO, TAG_HEART_BT_INT, TAG_LAST_MSG_SEQ_NUM_PROCESSED, TAG_MSG_SEQ_NUM,
-        TAG_MSG_TYPE, TAG_ORIG_SENDING_TIME, TAG_POSS_DUP_FLAG, TAG_RESET_SEQ_NUM_FLAG,
-        TAG_SENDER_COMP_ID, TAG_SENDER_LOCATION_ID, TAG_SENDER_SUB_ID, TAG_SENDING_TIME,
-        TAG_TARGET_COMP_ID, TAG_TARGET_LOCATION_ID, TAG_TARGET_SUB_ID, TAG_TEXT,
+        TAG_END_SEQ_NO, TAG_GAP_FILL_FLAG, TAG_HEART_BT_INT, TAG_LAST_MSG_SEQ_NUM_PROCESSED,
+        TAG_MSG_SEQ_NUM, TAG_MSG_TYPE, TAG_NEW_SEQ_NO, TAG_ORIG_SENDING_TIME, TAG_POSS_DUP_FLAG,
+        TAG_RESET_SEQ_NUM_FLAG, TAG_SENDER_COMP_ID, TAG_SENDER_LOCATION_ID, TAG_SENDER_SUB_ID,
+        TAG_SENDING_TIME, TAG_TARGET_COMP_ID, TAG_TARGET_LOCATION_ID, TAG_TARGET_SUB_ID,
+        TAG_TEST_REQ_ID, TAG_TEXT,
     },
     validation::Validator,
-    BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIXT11,
+    BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIX42, BEGIN_STRING_FIXT11,
 };
+use async_recursion::async_recursion;
 use chrono::Duration as ChronoDuration;
 use chrono::{NaiveDateTime, Utc};
-use resend_state::ResendState;
-use session_id::SessionID;
-use session_state::StateMachine;
 use simple_error::SimpleError;
 use std::error::Error;
 use std::sync::Arc;
@@ -986,6 +1001,1017 @@ impl Session {
         // 			self.CheckSessionTime(s, now)
         // 		}
         // 	}
+    }
+
+    fn handle_state_error(&mut self, err: &str) -> SessionStateEnum {
+        self.log_error(err);
+        SessionStateEnum::new_latent_state()
+    }
+
+    //  session state part
+    pub async fn sm_start(&mut self) {
+        self.sm.pending_stop = false;
+        self.sm.stopped = false;
+        self.sm.state = Some(SessionStateEnum::new_latent_state());
+        self.sm_check_session_time(&Utc::now().naive_utc()).await;
+    }
+
+    pub async fn sm_connect(&mut self) {
+        // No special logon logic needed for FIX Acceptors.
+        if !self.iss.initiate_logon {
+            self.sm_set_state(SessionStateEnum::new_logon_state()).await;
+            return;
+        }
+
+        if self.iss.refresh_on_logon {
+            let refresh_result = self.store.refresh().await;
+            if let Err(err) = refresh_result {
+                self.log_error(&err.to_string());
+                return;
+            }
+        }
+        self.log.on_event("Sending logon request");
+        let logon_result = self.send_logon().await;
+        if let Err(err) = logon_result {
+            self.log_error(&err.to_string());
+            return;
+        }
+
+        self.sm_set_state(SessionStateEnum::new_logon_state()).await;
+        // Fire logon timeout event after the pre-configured delay period.
+        sleep(self.iss.logon_timeout.to_std().unwrap()).await;
+        self.session_event.send(LOGON_TIMEOUT);
+    }
+
+    pub async fn sm_stop(&mut self) {
+        self.sm.pending_stop = true;
+
+        let state = self.sm.state.take().unwrap();
+        let next_state = match state {
+            SessionStateEnum::InSession(_) => self.logged_on_stop().await,
+            SessionStateEnum::LatentState(ls) => SessionStateEnum::LatentState(ls),
+            SessionStateEnum::LogonState(_) => SessionStateEnum::new_latent_state(),
+            SessionStateEnum::LogoutState(ls) => SessionStateEnum::LogoutState(ls),
+            SessionStateEnum::NotSessionTime(nst) => SessionStateEnum::NotSessionTime(nst),
+            SessionStateEnum::ResendState(_) => self.logged_on_stop().await,
+            SessionStateEnum::PendingTimeout(_) => self.logged_on_stop().await,
+        };
+        self.sm_set_state(next_state).await;
+    }
+
+    pub fn sm_stopped(&self) -> bool {
+        self.sm.stopped
+    }
+
+    pub async fn sm_disconnected(&mut self) {
+        if self.sm_is_connected() {
+            self.sm_set_state(SessionStateEnum::new_latent_state())
+                .await;
+        }
+    }
+
+    pub async fn sm_incoming(&mut self, fix_in: &FixIn) {
+        self.sm_check_session_time(&Utc::now().naive_utc()).await;
+        if !self.sm_is_connected() {
+            return;
+        }
+
+        self.log.on_incoming(&fix_in.bytes);
+
+        let mut msg = Message::new();
+        let parse_result = msg.parse_message_with_data_dictionary(
+            &fix_in.bytes,
+            &self.transport_data_dictionary,
+            &self.app_data_dictionary,
+        );
+        if let Err(err) = parse_result {
+            self.log.on_eventf(
+                "Msg Parse Error: {{error}}, {{bytes}}",
+                hashmap! {
+                    String::from("error") => err.to_string(),
+                    String::from("bytes") => String::from_utf8_lossy(&fix_in.bytes).to_string(),
+                },
+            );
+        } else {
+            msg.receive_time = fix_in.receive_time;
+            self.sm_fix_msg_in(&mut msg).await;
+        }
+
+        let duration =
+            (1.2_f64 * (self.iss.heart_bt_int.num_nanoseconds().unwrap() as f64)).round() as u64;
+
+        self.peer_timer.reset(Duration::from_nanos(duration)).await;
+    }
+
+    // sm_fix_msg_in is called by the session on incoming messages from the counter party.
+    // The return type is the next session state following message processing.
+    async fn sm_fix_msg_in(&mut self, msg: &mut Message) {
+        let state = self.sm.state.take().unwrap();
+        let next_state = match state {
+            SessionStateEnum::InSession(is) => self.in_session_fix_msg_in(msg, is).await,
+            SessionStateEnum::LatentState(ls) => self.latent_state_fix_msg_in(msg, ls),
+            SessionStateEnum::LogonState(_) => self.logon_fix_msg_in(msg).await,
+            SessionStateEnum::LogoutState(ls) => self.logout_fix_msg_in(msg, ls).await,
+            SessionStateEnum::NotSessionTime(nst) => self.not_session_time_fix_msg_in(msg, nst),
+            SessionStateEnum::ResendState(rs) => self.resend_state_fix_msg_in(msg, rs).await,
+            SessionStateEnum::PendingTimeout(pt) => self.pending_timeout_fix_msg_in(msg, pt).await,
+        };
+        self.sm_set_state(next_state).await;
+    }
+
+    pub async fn sm_send_app_messages(&mut self) {
+        self.sm_check_session_time(&Utc::now().naive_utc()).await;
+
+        if self.sm.is_logged_on() {
+            self.send_queued().await;
+        } else {
+            self.drop_queued().await;
+        }
+    }
+
+    // timeout is called by the session on a timeout event.
+    pub async fn sm_timeout(&mut self, event: Event) {
+        self.sm_check_session_time(&Utc::now().naive_utc()).await;
+
+        let state = self.sm.state.take().unwrap();
+        let next_state = match state {
+            SessionStateEnum::InSession(is) => self.in_session_timeout(event, is).await,
+            SessionStateEnum::LatentState(ls) => SessionStateEnum::LatentState(ls),
+            SessionStateEnum::LogonState(ls) => self.logon_timeout(event, ls),
+            SessionStateEnum::LogoutState(ls) => self.logout_timeout(event, ls),
+            SessionStateEnum::NotSessionTime(nst) => SessionStateEnum::NotSessionTime(nst),
+            SessionStateEnum::ResendState(rs) => self.resend_state_timeout(event, rs).await,
+            SessionStateEnum::PendingTimeout(pt) => self.pending_timeout_timeout(event, pt),
+        };
+        self.sm_set_state(next_state).await;
+    }
+
+    pub async fn sm_check_session_time(&mut self, now: &NaiveDateTime) {
+        if !self.iss.session_time.is_in_range(now) {
+            if self.sm_is_session_time() {
+                self.log.on_event("Not in session");
+            }
+
+            self.state_shutdown_now().await;
+
+            self.sm_set_state(SessionStateEnum::new_not_session_time())
+                .await;
+
+            if self.sm.notify_on_in_session_time.is_none() {
+                let (_, rx) = unbounded_channel::<()>();
+                self.sm.notify_on_in_session_time = Some(rx);
+            }
+        }
+
+        if !self.sm.is_session_time() {
+            self.log.on_event("In session");
+            self.sm_notify_in_session_time();
+            self.sm_set_state(SessionStateEnum::new_latent_state())
+                .await;
+        }
+
+        if !self
+            .iss
+            .session_time
+            .is_in_same_range(&self.store.creation_time(), now)
+        {
+            self.log.on_event("Session reset");
+            self.state_shutdown_now().await;
+            let drop_result = self.drop_and_reset().await;
+            if let Err(err) = drop_result {
+                self.log_error(&err.to_string());
+            }
+            self.sm_set_state(SessionStateEnum::new_latent_state())
+                .await;
+        }
+    }
+
+    async fn sm_set_state(&mut self, next_state: SessionStateEnum) {
+        if !next_state.is_connected() {
+            if self.sm_is_connected() {
+                self.sm_handle_disconnect_state().await;
+            }
+
+            if self.sm.pending_stop {
+                self.sm.stopped = true;
+                self.sm_notify_in_session_time();
+            }
+        }
+
+        self.sm.state = Some(next_state);
+    }
+
+    fn sm_notify_in_session_time(&mut self) {
+        if self.sm.notify_on_in_session_time.is_some() {
+            self.sm.notify_on_in_session_time.as_mut().unwrap().close();
+        }
+        self.sm.notify_on_in_session_time = None;
+    }
+
+    async fn sm_handle_disconnect_state(&mut self) {
+        let mut do_on_logout = self.sm.is_logged_on();
+        if let Some(SessionStateEnum::LogoutState(_)) = self.sm.state {
+            do_on_logout = true;
+        } else if let Some(SessionStateEnum::LogonState(_)) = self.sm.state {
+            if self.iss.initiate_logon {
+                do_on_logout = true;
+            }
+        }
+
+        if do_on_logout {
+            self.application.on_logout(&self.session_id);
+        }
+        self.on_disconnect().await;
+    }
+
+    pub fn sm_is_logged_on(&self) -> bool {
+        self.sm.is_logged_on()
+    }
+
+    pub fn sm_is_connected(&self) -> bool {
+        self.sm.is_connected()
+    }
+
+    pub fn sm_is_session_time(&self) -> bool {
+        self.sm.is_session_time()
+    }
+
+    // states
+
+    // shutdown_now terminates the session state immediately.
+    async fn state_shutdown_now(&mut self) {
+        match self.sm.state.as_mut().unwrap() {
+            SessionStateEnum::InSession(_) => self.logged_on_shutdown_now().await,
+            SessionStateEnum::LatentState(_) => (),
+            SessionStateEnum::LogonState(_) => (),
+            SessionStateEnum::LogoutState(_) => (),
+            SessionStateEnum::NotSessionTime(_) => (),
+            SessionStateEnum::ResendState(_) => self.logged_on_shutdown_now().await,
+            SessionStateEnum::PendingTimeout(_) => self.logged_on_shutdown_now().await,
+        };
+    }
+
+    // individual state methods
+
+    // logged on
+    pub async fn logged_on_shutdown_now(&mut self) {
+        let logout_result = self.send_logout("").await;
+        if let Err(err) = logout_result {
+            self.log_error(&err.to_string());
+        }
+    }
+
+    pub async fn logged_on_stop(&mut self) -> SessionStateEnum {
+        let logout_result = self.initiate_logout("").await;
+        if let Err(err) = logout_result {
+            self.handle_state_error(&err.to_string());
+        }
+
+        SessionStateEnum::new_logout_state()
+    }
+
+    // in session
+
+    async fn in_session_handle_logout(
+        &mut self,
+        msg: &mut Message,
+        is: InSession,
+    ) -> SessionStateEnum {
+        let verify_result = self.verify_select(msg, false, false);
+        if let Err(err) = verify_result {
+            return self.in_session_process_reject(msg, err, is).await;
+        }
+
+        if self.sm.is_logged_on() {
+            self.log.on_event("Received logout request");
+            self.log.on_event("Sending logout response");
+
+            let logout_result = self.send_logout_in_reply_to("", Some(msg)).await;
+            if let Err(err) = logout_result {
+                self.log_error(&err.to_string());
+            }
+        } else {
+            self.log.on_event("Received logout response");
+        }
+
+        let incr_result = self.store.incr_next_target_msg_seq_num().await;
+        if let Err(err) = incr_result {
+            self.log_error(&err.to_string());
+        }
+
+        if self.iss.reset_on_logout {
+            let drop_result = self.drop_and_reset().await;
+            if let Err(err) = drop_result {
+                self.log_error(&err.to_string());
+            }
+        }
+
+        SessionStateEnum::new_latent_state()
+    }
+
+    async fn in_session_handle_test_request(
+        &mut self,
+        msg: &mut Message,
+        is: InSession,
+    ) -> SessionStateEnum {
+        let verify_result = self.verify(msg);
+        if let Err(err) = verify_result {
+            return self.in_session_process_reject(msg, err, is).await;
+        }
+
+        let mut test_req = FIXString::new();
+        let field_result = msg.body.get_field(TAG_TEST_REQ_ID, &mut test_req);
+        if field_result.is_err() {
+            self.log.on_event("Test Request with no testRequestID");
+        } else {
+            let heart_bt = Message::new();
+            heart_bt
+                .header
+                .set_field(TAG_MSG_TYPE, FIXString::from("0"));
+            heart_bt.body.set_field(TAG_TEST_REQ_ID, test_req);
+            let send_result = self.send_in_reply_to(&heart_bt, Some(msg)).await;
+            if let Err(err) = send_result {
+                return self.handle_state_error(&err.to_string());
+            }
+        }
+
+        let incr_result = self.store.incr_next_target_msg_seq_num().await;
+        if let Err(err) = incr_result {
+            return self.handle_state_error(&err.to_string());
+        }
+
+        SessionStateEnum::InSession(is)
+    }
+
+    async fn in_session_handle_sequence_reset(
+        &mut self,
+        msg: &mut Message,
+        is: InSession,
+    ) -> SessionStateEnum {
+        let mut gap_fill_flag = FIXBoolean::default();
+        if msg.body.has(TAG_GAP_FILL_FLAG) {
+            let field_result = msg.body.get_field(TAG_GAP_FILL_FLAG, &mut gap_fill_flag);
+            if let Err(err) = field_result {
+                return self.in_session_process_reject(msg, err, is).await;
+            }
+        }
+
+        let verify_result = self.verify_select(msg, gap_fill_flag, gap_fill_flag);
+        if let Err(err) = verify_result {
+            return self.in_session_process_reject(msg, err, is).await;
+        }
+
+        let mut new_seq_no = FIXInt::default();
+        let field_result = msg.body.get_field(TAG_NEW_SEQ_NO, &mut new_seq_no);
+        if field_result.is_ok() {
+            let expected_seq_num = self.store.next_target_msg_seq_num();
+            self.log.on_eventf(
+                "MsReceived SequenceReset FROM: {{from}} TO: {{to}}",
+                hashmap! {
+                    String::from("from") => format!("{}", expected_seq_num),
+                    String::from("to") => format!("{}", new_seq_no),
+                },
+            );
+
+            if new_seq_no > expected_seq_num {
+                let set_result = self.store.set_next_target_msg_seq_num(new_seq_no).await;
+                if let Err(err) = set_result {
+                    return self.handle_state_error(&err.to_string());
+                }
+            } else if new_seq_no < expected_seq_num {
+                // FIXME: to be compliant with legacy tests, do not include tag in reftagid? (11c_NewSeqNoLess).
+                let reject_result = self.do_reject(msg, value_is_incorrect_no_tag()).await;
+                if let Err(err) = reject_result {
+                    return self.handle_state_error(&err.to_string());
+                }
+            }
+        }
+        SessionStateEnum::InSession(is)
+    }
+
+    async fn in_session_handle_resend_request(
+        &mut self,
+        msg: &mut Message,
+        is: InSession,
+    ) -> SessionStateEnum {
+        let verify_result = self.verify_ignore_seq_num_too_high_or_low(msg);
+        if let Err(err) = verify_result {
+            return self.in_session_process_reject(msg, err, is).await;
+        }
+
+        let mut begin_seq_no_field = FIXInt::default();
+        let field_result = msg
+            .body
+            .get_field(TAG_BEGIN_SEQ_NO, &mut begin_seq_no_field);
+        if field_result.is_err() {
+            return self
+                .in_session_process_reject(msg, required_tag_missing(TAG_BEGIN_SEQ_NO), is)
+                .await;
+        }
+
+        let begin_seq_no = begin_seq_no_field;
+
+        let mut end_seq_no_field = FIXInt::default();
+        let field_result = msg.body.get_field(TAG_END_SEQ_NO, &mut end_seq_no_field);
+        if field_result.is_err() {
+            return self
+                .in_session_process_reject(msg, required_tag_missing(TAG_END_SEQ_NO), is)
+                .await;
+        }
+
+        let mut end_seq_no = end_seq_no_field;
+        self.log.on_eventf(
+            "Received ResendRequest FROM: {{from}} TO: {{to}}",
+            hashmap! {
+                String::from("from") => format!("{}", begin_seq_no),
+                String::from("to") => format!("{}", end_seq_no),
+            },
+        );
+
+        let expected_seq_num = self.store.next_sender_msg_seq_num();
+        if (!matches!(
+            self.session_id.begin_string.as_str(),
+            BEGIN_STRING_FIX40 | BEGIN_STRING_FIX41
+        ) && end_seq_no == 0)
+            || (matches!(
+                self.session_id.begin_string.as_str(),
+                BEGIN_STRING_FIX40 | BEGIN_STRING_FIX41 | BEGIN_STRING_FIX42
+            ) && end_seq_no == 999_999)
+            || (end_seq_no >= expected_seq_num)
+        {
+            end_seq_no = expected_seq_num - 1;
+        }
+
+        let resent_result = self
+            .in_session_resend_messages(begin_seq_no, end_seq_no, msg)
+            .await;
+        if let Err(err) = resent_result {
+            return self.handle_state_error(&err.to_string());
+        }
+
+        let check_result = self.check_target_too_low(msg);
+        if check_result.is_err() {
+            return SessionStateEnum::InSession(is);
+        }
+
+        let check_result = self.check_target_too_high(msg);
+        if check_result.is_err() {
+            return SessionStateEnum::InSession(is);
+        }
+
+        let incr_result = self.store.incr_next_target_msg_seq_num().await;
+        if let Err(err) = incr_result {
+            return self.handle_state_error(&err.to_string());
+        }
+
+        SessionStateEnum::InSession(is)
+    }
+
+    async fn in_session_resend_messages(
+        &mut self,
+        begin_seq_no: isize,
+        end_seq_no: isize,
+        in_reply_to: &Message,
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+        if self.iss.disable_message_persist {
+            self.in_session_generate_sequence_reset(begin_seq_no, end_seq_no + 1, in_reply_to)
+                .await?;
+        }
+
+        let get_result = self.store.get_messages(begin_seq_no, end_seq_no).await;
+        if let Err(err) = get_result {
+            self.log.on_eventf(
+                "error retrieving messages from store: {{err}}",
+                hashmap! {
+                    String::from("err") => err.to_string(),
+                },
+            );
+            return Err(err.into());
+        }
+        let msgs = get_result.unwrap();
+        let mut seq_num = begin_seq_no;
+        let mut next_seq_num = seq_num;
+        let mut msg = Message::new();
+        for msg_bytes in msgs.iter() {
+            Message::parse_message_with_data_dictionary(
+                &mut msg,
+                msg_bytes,
+                &self.transport_data_dictionary,
+                &self.app_data_dictionary,
+            )?;
+
+            let msg_type = msg.header.get_bytes(TAG_MSG_TYPE)?;
+
+            let sent_message_seq_num = msg.header.get_int(TAG_MSG_SEQ_NUM)?;
+
+            if is_admin_message_type(&msg_type) {
+                next_seq_num = sent_message_seq_num + 1;
+                continue;
+            }
+
+            if !self.resend(&msg) {
+                next_seq_num = sent_message_seq_num + 1;
+                continue;
+            }
+
+            if seq_num != sent_message_seq_num {
+                self.in_session_generate_sequence_reset(seq_num, sent_message_seq_num, in_reply_to)
+                    .await?;
+            }
+
+            self.log.on_eventf(
+                "Resending Message: {{msg}}",
+                hashmap! {
+                    String::from("msg") => format!("{}", sent_message_seq_num),
+                },
+            );
+
+            let inner_msg_bytes = msg.build();
+
+            self.enqueue_bytes_and_send(&inner_msg_bytes).await;
+
+            seq_num = sent_message_seq_num + 1;
+            next_seq_num = seq_num;
+        }
+
+        if seq_num != next_seq_num {
+            // gapfill for catch-up
+            self.in_session_generate_sequence_reset(seq_num, next_seq_num, in_reply_to)
+                .await?;
+        }
+
+        Ok(())
+    }
+
+    #[async_recursion]
+    async fn in_session_process_reject(
+        &mut self,
+        msg: &mut Message,
+        rej: MessageRejectErrorEnum,
+        is: InSession,
+    ) -> SessionStateEnum {
+        if let MessageRejectErrorEnum::TargetTooHigh(tth) = rej {
+            match self.sm.state {
+                Some(SessionStateEnum::ResendState(ref mut rs)) => {
+                    msg.keep_message = true;
+                    let msg_clone = msg.clone(); // TODO: optimize this
+                    rs.message_stash.insert(tth.received_target, msg_clone);
+                    let next_state = ResendState {
+                        message_stash: rs.message_stash.clone(), // TODO: optimize this
+                        current_resend_range_end: rs.current_resend_range_end,
+                        resend_range_end: rs.resend_range_end,
+                        ..Default::default()
+                    };
+
+                    return SessionStateEnum::ResendState(next_state);
+                }
+                _ => {
+                    let next_state_result = self.do_target_too_high(&tth).await;
+                    if let Err(err) = next_state_result {
+                        return self.handle_state_error(&err.to_string());
+                    }
+                    let mut next_state = next_state_result.unwrap();
+                    msg.keep_message = true;
+                    let msg_clone = msg.clone(); // TODO: optimize this
+                    next_state
+                        .message_stash
+                        .insert(tth.received_target, msg_clone);
+                    return SessionStateEnum::ResendState(next_state);
+                }
+            }
+        } else if let MessageRejectErrorEnum::TargetTooLow(ttl) = rej {
+            return self.in_session_do_target_too_low(msg, ttl, is).await;
+        } else if let MessageRejectErrorEnum::IncorrectBeginString(_) = rej {
+            let initiate_result = self.initiate_logout(&rej.to_string()).await;
+            if let Err(err) = initiate_result {
+                return self.handle_state_error(&err.to_string());
+            }
+        }
+
+        match rej.reject_reason() {
+            REJECT_REASON_COMP_ID_PROBLEM | REJECT_REASON_SENDING_TIME_ACCURACY_PROBLEM => {
+                if let Err(err) = self.do_reject(msg, rej).await {
+                    return self.handle_state_error(&err.to_string());
+                }
+
+                if let Err(err) = self.initiate_logout("").await {
+                    return self.handle_state_error(&err.to_string());
+                }
+                return SessionStateEnum::new_logout_state();
+            }
+            _ => {
+                if let Err(err) = self.do_reject(msg, rej).await {
+                    return self.handle_state_error(&err.to_string());
+                }
+
+                if let Err(err) = self.store.incr_next_target_msg_seq_num().await {
+                    return self.handle_state_error(&err.to_string());
+                }
+                return SessionStateEnum::new_logout_state();
+            }
+        }
+    }
+
+    #[async_recursion]
+    async fn in_session_do_target_too_low(
+        &mut self,
+        msg: &mut Message,
+        rej: TargetTooLow,
+        is: InSession,
+    ) -> SessionStateEnum {
+        let mut pos_dup_flag = FIXBoolean::default();
+        let rej_string = rej.to_string();
+        if msg.header.has(TAG_POSS_DUP_FLAG) {
+            if msg
+                .header
+                .get_field(TAG_POSS_DUP_FLAG, &mut pos_dup_flag)
+                .is_err()
+            {
+                if let Err(err) = self
+                    .do_reject(msg, MessageRejectErrorEnum::TargetTooLow(rej))
+                    .await
+                {
+                    return self.handle_state_error(&err.to_string());
+                }
+            }
+        }
+
+        if !pos_dup_flag {
+            if let Err(err) = self.initiate_logout(&rej_string).await {
+                return self.handle_state_error(&err.to_string());
+            }
+            return SessionStateEnum::new_logout_state();
+        }
+
+        if !msg.header.has(TAG_ORIG_SENDING_TIME) {
+            if let Err(err) = self
+                .do_reject(msg, required_tag_missing(TAG_ORIG_SENDING_TIME))
+                .await
+            {
+                return self.handle_state_error(&err.to_string());
+            }
+        }
+
+        let mut orig_sending_time = FIXUTCTimestamp::default();
+        if let Err(err) = msg
+            .header
+            .get_field(TAG_ORIG_SENDING_TIME, &mut orig_sending_time)
+        {
+            if let Err(rej_err) = self.do_reject(msg, err).await {
+                return self.handle_state_error(&rej_err.to_string());
+            }
+        }
+
+        let mut sending_time = FIXUTCTimestamp::default();
+        if let Err(err) = msg.header.get_field(TAG_SENDING_TIME, &mut sending_time) {
+            return self.in_session_process_reject(msg, err, is).await;
+        }
+
+        if sending_time.time < orig_sending_time.time {
+            if let Err(err) = self.do_reject(msg, sending_time_accuracy_problem()).await {
+                return self.handle_state_error(&err.to_string());
+            }
+
+            if let Err(err) = self.initiate_logout("").await {
+                return self.handle_state_error(&err.to_string());
+            }
+            return SessionStateEnum::new_logout_state();
+        }
+        SessionStateEnum::InSession(is)
+    }
+
+    async fn in_session_generate_sequence_reset(
+        &mut self,
+        begin_seq_no: isize,
+        end_seq_no: isize,
+        in_reply_to: &Message,
+    ) -> MessageRejectErrorResult {
+        let sequence_reset = Message::new();
+        self.fill_default_header(&sequence_reset, Some(in_reply_to));
+
+        sequence_reset
+            .header
+            .set_field(TAG_MSG_TYPE, FIXString::from("4"));
+        sequence_reset
+            .header
+            .set_field(TAG_MSG_SEQ_NUM, begin_seq_no);
+        sequence_reset.header.set_field(TAG_POSS_DUP_FLAG, true);
+        sequence_reset.body.set_field(TAG_NEW_SEQ_NO, end_seq_no);
+        sequence_reset.body.set_field(TAG_GAP_FILL_FLAG, true);
+
+        let mut orig_sending_time = FIXString::new();
+        if sequence_reset
+            .header
+            .get_field(TAG_SENDING_TIME, &mut orig_sending_time)
+            .is_err()
+        {
+            sequence_reset
+                .header
+                .set_field(TAG_ORIG_SENDING_TIME, orig_sending_time);
+        }
+
+        self.application.to_admin(&sequence_reset, &self.session_id);
+
+        let msg_bytes = sequence_reset.build();
+
+        self.enqueue_bytes_and_send(&msg_bytes).await;
+        self.log.on_eventf(
+            "Sent SequenceReset TO: {{to}}",
+            hashmap! {
+                 String::from("to") => format!("{}", end_seq_no),
+            },
+        );
+        Ok(())
+    }
+
+    async fn in_session_timeout(&mut self, event: Event, is: InSession) -> SessionStateEnum {
+        if event == NEED_HEARTBEAT {
+            let heart_beat = Message::new();
+            heart_beat
+                .header
+                .set_field(TAG_MSG_TYPE, FIXString::from("0"));
+            let send_result = self.send(&heart_beat).await;
+            if let Err(err) = send_result {
+                return self.handle_state_error(&err.to_string());
+            }
+        } else if event == PEER_TIMEOUT {
+            let test_req = Message::new();
+            test_req
+                .header
+                .set_field(TAG_MSG_TYPE, FIXString::from("1"));
+            test_req
+                .body
+                .set_field(TAG_TEST_REQ_ID, FIXString::from("TEST"));
+            let send_result = self.send(&test_req).await;
+            if let Err(err) = send_result {
+                return self.handle_state_error(&err.to_string());
+            }
+
+            self.log.on_event("Sent test request TEST");
+            let duration = (1.2_f64 * (self.iss.heart_bt_int.num_nanoseconds().unwrap() as f64))
+                .round() as u64;
+
+            self.peer_timer.reset(Duration::from_nanos(duration)).await;
+
+            return SessionStateEnum::PendingTimeout(PendingTimeout {
+                session_state: AfterPendingTimeout::InSession(is),
+            });
+        }
+        SessionStateEnum::InSession(is)
+    }
+
+    async fn in_session_fix_msg_in(
+        &mut self,
+        msg: &mut Message,
+        is: InSession,
+    ) -> SessionStateEnum {
+        let msg_type_result = msg.header.get_bytes(TAG_MSG_TYPE);
+        if let Err(err) = msg_type_result {
+            return self.handle_state_error(&err.to_string());
+        }
+
+        let msg_type = msg_type_result.unwrap();
+        match msg_type.as_ref() {
+            MSG_TYPE_LOGON => {
+                let handle_result = self.handle_logon(msg).await;
+                if handle_result.is_err() {
+                    let logout_result = self.initiate_logout_in_reply_to("", Some(msg)).await;
+                    if let Err(err2) = logout_result {
+                        return self.handle_state_error(&err2.to_string());
+                    }
+                    return SessionStateEnum::new_logout_state();
+                }
+                return SessionStateEnum::InSession(is);
+            }
+            MSG_TYPE_LOGOUT => {
+                return self.in_session_handle_logout(msg, is).await;
+            }
+            MSG_TYPE_RESEND_REQUEST => {
+                return self.in_session_handle_resend_request(msg, is).await;
+            }
+            MSG_TYPE_SEQUENCE_RESET => {
+                return self.in_session_handle_sequence_reset(msg, is).await;
+            }
+            MSG_TYPE_TEST_REQUEST => {
+                return self.in_session_handle_test_request(msg, is).await;
+            }
+            _ => {
+                let verify_result = self.verify(msg);
+                if let Err(err) = verify_result {
+                    return self.handle_state_error(&err.to_string());
+                }
+            }
+        }
+
+        let incr_result = self.store.incr_next_target_msg_seq_num().await;
+        if let Err(err) = incr_result {
+            self.handle_state_error(&err.to_string());
+        }
+
+        SessionStateEnum::InSession(is)
+    }
+
+    async fn logon_shutdown_with_reason(
+        &mut self,
+        msg: &Message,
+        incr_next_target_msg_seq_num: bool,
+        reason: &str,
+    ) -> SessionStateEnum {
+        self.log.on_event(reason);
+        let logout = self.build_logout(reason);
+
+        let drop_result = self.drop_and_send_in_reply_to(&logout, Some(msg)).await;
+        if let Err(err) = drop_result {
+            self.log_error(&err.to_string());
+        }
+
+        if incr_next_target_msg_seq_num {
+            let incr_result = self.store.incr_next_target_msg_seq_num().await;
+            if let Err(err) = incr_result {
+                self.log_error(&err.to_string());
+            }
+        }
+
+        SessionStateEnum::new_latent_state()
+    }
+
+    async fn logon_fix_msg_in(&mut self, msg: &mut Message) -> SessionStateEnum {
+        let message_type_result = msg.header.get_bytes(TAG_MSG_TYPE);
+        if let Err(err) = message_type_result {
+            return self.handle_state_error(&err.to_string());
+        }
+
+        let msg_type = message_type_result.unwrap();
+        if msg_type != MSG_TYPE_LOGON {
+            self.log.on_eventf(
+                "Invalid Session State: Received Msg {{msg}} while waiting for Logon",
+                hashmap! {String::from("msg") => format!("{:?}", msg)},
+            );
+            return SessionStateEnum::new_latent_state();
+        }
+
+        let handle_logon_result = self.handle_logon(msg).await;
+        if let Err(err) = handle_logon_result {
+            if let Some(inner_err) = err.downcast_ref::<MessageRejectErrorEnum>() {
+                match inner_err {
+                    &MessageRejectErrorEnum::RejectLogon(_) => {
+                        return self
+                            .logon_shutdown_with_reason(msg, true, &inner_err.to_string())
+                            .await;
+                    }
+                    &MessageRejectErrorEnum::TargetTooLow(_) => {
+                        return self
+                            .logon_shutdown_with_reason(msg, false, &inner_err.to_string())
+                            .await;
+                    }
+                    &MessageRejectErrorEnum::TargetTooHigh(ref tth) => {
+                        let do_result = self.do_target_too_high(tth).await;
+                        match do_result {
+                            Err(third_err) => {
+                                return self
+                                    .logon_shutdown_with_reason(msg, false, &third_err.to_string())
+                                    .await;
+                            }
+                            Ok(rs) => return SessionStateEnum::ResendState(rs),
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            return self.handle_state_error(&err.to_string());
+        }
+
+        SessionStateEnum::new_in_session()
+    }
+
+    fn logon_timeout(&self, event: Event, ls: LogonState) -> SessionStateEnum {
+        if event == LOGON_TIMEOUT {
+            self.log.on_event("Timed out waiting for logon response");
+            return SessionStateEnum::new_latent_state();
+        }
+
+        SessionStateEnum::LogonState(ls)
+    }
+
+    fn logout_timeout(&mut self, event: Event, ls: LogoutState) -> SessionStateEnum {
+        if event == LOGOUT_TIMEOUT {
+            self.log.on_event("Timed out waiting for logout response");
+            return SessionStateEnum::new_latent_state();
+        }
+
+        SessionStateEnum::LogoutState(ls)
+    }
+
+    async fn logout_fix_msg_in(&mut self, msg: &mut Message, ls: LogoutState) -> SessionStateEnum {
+        let next_state = self.in_session_fix_msg_in(msg, InSession::default()).await;
+        if let SessionStateEnum::LatentState(ls) = next_state {
+            return SessionStateEnum::LatentState(ls);
+        }
+        SessionStateEnum::LogoutState(ls)
+    }
+
+    fn pending_timeout_timeout(&self, event: Event, pt: PendingTimeout) -> SessionStateEnum {
+        if event == PEER_TIMEOUT {
+            self.log.on_event("Session Timeout");
+            return SessionStateEnum::new_latent_state();
+        }
+        SessionStateEnum::PendingTimeout(pt)
+    }
+
+    async fn pending_timeout_fix_msg_in(
+        &mut self,
+        msg: &mut Message,
+        pt: PendingTimeout,
+    ) -> SessionStateEnum {
+        match pt.session_state {
+            AfterPendingTimeout::InSession(is) => self.in_session_fix_msg_in(msg, is).await,
+            AfterPendingTimeout::ResendState(rs) => self.resend_state_fix_msg_in(msg, rs).await,
+        }
+    }
+
+    fn latent_state_fix_msg_in(&self, msg: &Message, ls: LatentState) -> SessionStateEnum {
+        self.log.on_eventf(
+            "Invalid Session State: Unexpected Msg {{msg}} while in Latent state",
+            hashmap! {String::from("msg") => format!("{:?}", msg)},
+        );
+        SessionStateEnum::LatentState(ls)
+    }
+
+    fn not_session_time_fix_msg_in(&self, msg: &Message, nst: NotSessionTime) -> SessionStateEnum {
+        self.log.on_eventf(
+            "Invalid Session State: Unexpected Msg {{msg}} while in Latent state",
+            hashmap! {String::from("msg") => format!("{:?}", msg)},
+        );
+        SessionStateEnum::NotSessionTime(nst)
+    }
+
+    async fn resend_state_timeout(&mut self, event: Event, rs: ResendState) -> SessionStateEnum {
+        let next_state = self.in_session_timeout(event, InSession::default()).await;
+        if let SessionStateEnum::InSession(_) = next_state {
+            return SessionStateEnum::ResendState(rs);
+        }
+        if let SessionStateEnum::PendingTimeout(_) = next_state {
+            // Wrap pendingTimeout in resend. prevents us falling back to inSession if recovering
+            // from pendingTimeout.
+            return SessionStateEnum::PendingTimeout(PendingTimeout {
+                session_state: AfterPendingTimeout::ResendState(rs),
+            });
+        }
+        next_state
+    }
+
+    async fn resend_state_fix_msg_in(
+        &mut self,
+        msg: &mut Message,
+        mut rs: ResendState,
+    ) -> SessionStateEnum {
+        let mut next_state = self.in_session_fix_msg_in(msg, InSession::default()).await;
+
+        if let SessionStateEnum::InSession(ref is) = next_state {
+            if is.is_logged_on() {
+                return next_state;
+            }
+        }
+
+        if rs.current_resend_range_end != 0
+            && rs.current_resend_range_end < self.store.next_target_msg_seq_num()
+        {
+            let next_resend_state_result = self
+                .send_resend_request(self.store.next_target_msg_seq_num(), rs.resend_range_end)
+                .await;
+            match next_resend_state_result {
+                Err(err) => return self.handle_state_error(&err.to_string()),
+                Ok(mut next_resend_state) => {
+                    next_resend_state.message_stash = rs.message_stash;
+                    return SessionStateEnum::ResendState(next_resend_state);
+                }
+            }
+        }
+
+        if rs.resend_range_end >= self.store.next_target_msg_seq_num() {
+            return SessionStateEnum::ResendState(rs);
+        }
+
+        loop {
+            if rs.message_stash.is_empty() {
+                break;
+            }
+            let target_seq_num = self.store.next_target_msg_seq_num();
+            let msg_option = rs.message_stash.get(&target_seq_num);
+            if msg_option.is_none() {
+                break;
+            }
+            rs.message_stash.remove(&target_seq_num);
+
+            next_state = self.in_session_fix_msg_in(msg, InSession::default()).await;
+            if let SessionStateEnum::InSession(ref is) = next_state {
+                if !is.is_logged_on() {
+                    return next_state;
+                }
+            }
+        }
+
+        next_state
     }
 }
 

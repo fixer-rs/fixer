@@ -1,14 +1,4 @@
-use crate::{
-    internal::event::Event,
-    message::Message,
-    session::{
-        in_session::InSession,
-        pending_timeout::PendingTimeout,
-        session_state::{handle_state_error, AfterPendingTimeout, LoggedOn, SessionStateEnum},
-        Session,
-    },
-    store::MessageStoreTrait,
-};
+use crate::{message::Message, session::session_state::LoggedOn};
 use delegate::delegate;
 use std::collections::HashMap;
 
@@ -32,81 +22,7 @@ impl ResendState {
             pub fn is_connected(&self) -> bool;
             pub fn is_session_time(&self) -> bool;
             pub fn is_logged_on(&self) -> bool;
-            pub async fn shutdown_now(&self, _session: &mut Session);
-            pub async fn stop(self, _session: &mut Session) -> SessionStateEnum;
         }
-    }
-
-    pub async fn fix_msg_in(
-        mut self,
-        session: &'_ mut Session,
-        msg: &'_ mut Message,
-    ) -> SessionStateEnum {
-        let mut next_state = InSession::default().fix_msg_in(session, msg).await;
-
-        if let SessionStateEnum::InSession(ref is) = next_state {
-            if is.is_logged_on() {
-                return next_state;
-            }
-        }
-
-        if self.current_resend_range_end != 0
-            && self.current_resend_range_end < session.store.next_target_msg_seq_num()
-        {
-            let next_resend_state_result = session
-                .send_resend_request(
-                    session.store.next_target_msg_seq_num(),
-                    self.resend_range_end,
-                )
-                .await;
-            match next_resend_state_result {
-                Err(err) => return handle_state_error(session, &err.to_string()),
-                Ok(mut next_resend_state) => {
-                    next_resend_state.message_stash = self.message_stash;
-                    return SessionStateEnum::ResendState(next_resend_state);
-                }
-            }
-        }
-
-        if self.resend_range_end >= session.store.next_target_msg_seq_num() {
-            return SessionStateEnum::ResendState(self);
-        }
-
-        loop {
-            if self.message_stash.is_empty() {
-                break;
-            }
-            let target_seq_num = session.store.next_target_msg_seq_num();
-            let msg_option = self.message_stash.get(&target_seq_num);
-            if msg_option.is_none() {
-                break;
-            }
-            self.message_stash.remove(&target_seq_num);
-
-            next_state = InSession::default().fix_msg_in(session, msg).await;
-            if let SessionStateEnum::InSession(ref is) = next_state {
-                if !is.is_logged_on() {
-                    return next_state;
-                }
-            }
-        }
-
-        next_state
-    }
-
-    pub async fn timeout(self, session: &mut Session, event: Event) -> SessionStateEnum {
-        let next_state = InSession::default().timeout(session, event).await;
-        if let SessionStateEnum::InSession(_) = next_state {
-            return SessionStateEnum::ResendState(self);
-        }
-        if let SessionStateEnum::PendingTimeout(_) = next_state {
-            // Wrap pendingTimeout in resend. prevents us falling back to inSession if recovering
-            // from pendingTimeout.
-            return SessionStateEnum::PendingTimeout(PendingTimeout {
-                session_state: AfterPendingTimeout::ResendState(self),
-            });
-        }
-        next_state
     }
 }
 

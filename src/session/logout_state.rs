@@ -1,13 +1,4 @@
-use crate::{
-    internal::event::{Event, LOGOUT_TIMEOUT},
-    log::LogTrait,
-    message::Message,
-    session::{
-        in_session::InSession,
-        session_state::{ConnectedNotLoggedOn, SessionStateEnum},
-        Session,
-    },
-};
+use crate::session::session_state::ConnectedNotLoggedOn;
 use delegate::delegate;
 
 #[derive(Default)]
@@ -27,35 +18,7 @@ impl LogoutState {
             pub fn is_connected(&self) -> bool;
             pub fn is_session_time(&self) -> bool;
             pub fn is_logged_on(&self) -> bool;
-            pub async fn shutdown_now(&self, _session: &Session);
         }
-    }
-
-    pub async fn fix_msg_in(
-        self,
-        session: &'_ mut Session,
-        msg: &'_ mut Message,
-    ) -> SessionStateEnum {
-        let next_state = InSession::default().fix_msg_in(session, msg).await;
-        if let SessionStateEnum::LatentState(ls) = next_state {
-            return SessionStateEnum::LatentState(ls);
-        }
-        SessionStateEnum::LogoutState(self)
-    }
-
-    pub async fn timeout(self, session: &mut Session, event: Event) -> SessionStateEnum {
-        if event == LOGOUT_TIMEOUT {
-            session
-                .log
-                .on_event("Timed out waiting for logout response");
-            return SessionStateEnum::new_latent_state();
-        }
-
-        SessionStateEnum::LogoutState(self)
-    }
-
-    pub async fn stop(self, _session: &mut Session) -> SessionStateEnum {
-        SessionStateEnum::LogoutState(self)
     }
 }
 

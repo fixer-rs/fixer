@@ -1,12 +1,4 @@
-use crate::{
-    internal::event::Event,
-    log::LogTrait,
-    message::Message,
-    session::{
-        session_state::{InSessionTime, SessionStateEnum},
-        Session,
-    },
-};
+use crate::session::session_state::InSessionTime;
 use delegate::delegate;
 
 #[derive(Default)]
@@ -27,34 +19,12 @@ impl LatentState {
         }
     }
 
-    pub async fn fix_msg_in(
-        self,
-        session: &'_ mut Session,
-        msg: &'_ mut Message,
-    ) -> SessionStateEnum {
-        session.log.on_eventf(
-            "Invalid Session State: Unexpected Msg {{msg}} while in Latent state",
-            hashmap! {String::from("msg") => format!("{:?}", msg)},
-        );
-        SessionStateEnum::LatentState(self)
-    }
-
-    pub async fn timeout(self, _session: &mut Session, _event: Event) -> SessionStateEnum {
-        SessionStateEnum::LatentState(self)
-    }
-
     pub fn is_logged_on(&self) -> bool {
         false
     }
 
     pub fn is_connected(&self) -> bool {
         false
-    }
-
-    pub async fn shutdown_now(&self, _session: &mut Session) {}
-
-    pub async fn stop(self, _session: &mut Session) -> SessionStateEnum {
-        SessionStateEnum::LatentState(self)
     }
 }
 

@@ -1,16 +1,4 @@
-use crate::{
-    errors::MessageRejectErrorEnum,
-    internal::event::{Event, LOGOUT_TIMEOUT},
-    log::LogTrait,
-    message::Message,
-    msg_type::MSG_TYPE_LOGON,
-    session::{
-        session_state::{handle_state_error, ConnectedNotLoggedOn, SessionStateEnum},
-        Session,
-    },
-    store::MessageStoreTrait,
-    tag::TAG_MSG_TYPE,
-};
+use crate::session::session_state::ConnectedNotLoggedOn;
 use delegate::delegate;
 
 #[derive(Default)]
@@ -30,104 +18,7 @@ impl LogonState {
             pub fn is_connected(&self) -> bool;
             pub fn is_session_time(&self) -> bool;
             pub fn is_logged_on(&self) -> bool;
-            pub async fn shutdown_now(&self, _session: &Session);
         }
-    }
-
-    pub async fn fix_msg_in(
-        self,
-        session: &'_ mut Session,
-        msg: &'_ mut Message,
-    ) -> SessionStateEnum {
-        let message_type_result = msg.header.get_bytes(TAG_MSG_TYPE);
-        if let Err(err) = message_type_result {
-            return handle_state_error(session, &err.to_string());
-        }
-
-        let msg_type = message_type_result.unwrap();
-        if msg_type != MSG_TYPE_LOGON {
-            session.log.on_eventf(
-                "Invalid Session State: Received Msg {{msg}} while waiting for Logon",
-                hashmap! {String::from("msg") => format!("{:?}", msg)},
-            );
-            return SessionStateEnum::new_latent_state();
-        }
-
-        let handle_logon_result = session.handle_logon(msg).await;
-        if let Err(err) = handle_logon_result {
-            if let Some(inner_err) = err.downcast_ref::<MessageRejectErrorEnum>() {
-                match inner_err {
-                    &MessageRejectErrorEnum::RejectLogon(_) => {
-                        return self
-                            .shutdown_with_reason(session, msg, true, &inner_err.to_string())
-                            .await;
-                    }
-                    &MessageRejectErrorEnum::TargetTooLow(_) => {
-                        return self
-                            .shutdown_with_reason(session, msg, false, &inner_err.to_string())
-                            .await;
-                    }
-                    &MessageRejectErrorEnum::TargetTooHigh(ref tth) => {
-                        let do_result = session.do_target_too_high(tth).await;
-                        match do_result {
-                            Err(third_err) => {
-                                return self
-                                    .shutdown_with_reason(
-                                        session,
-                                        msg,
-                                        false,
-                                        &third_err.to_string(),
-                                    )
-                                    .await;
-                            }
-                            Ok(rs) => return SessionStateEnum::ResendState(rs),
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            return handle_state_error(session, &err.to_string());
-        }
-
-        SessionStateEnum::new_in_session()
-    }
-
-    pub async fn timeout(self, session: &mut Session, event: Event) -> SessionStateEnum {
-        if event == LOGOUT_TIMEOUT {
-            session.log.on_event("Timed out waiting for logon response");
-            return SessionStateEnum::new_latent_state();
-        }
-
-        SessionStateEnum::LogonState(self)
-    }
-
-    pub async fn stop(self, _session: &mut Session) -> SessionStateEnum {
-        SessionStateEnum::new_latent_state()
-    }
-
-    async fn shutdown_with_reason(
-        self,
-        session: &mut Session,
-        msg: &Message,
-        incr_next_target_msg_seq_num: bool,
-        reason: &str,
-    ) -> SessionStateEnum {
-        session.log.on_event(reason);
-        let logout = session.build_logout(reason);
-
-        let drop_result = session.drop_and_send_in_reply_to(&logout, Some(msg)).await;
-        if let Err(err) = drop_result {
-            session.log_error(&err.to_string());
-        }
-
-        if incr_next_target_msg_seq_num {
-            let incr_result = session.store.incr_next_target_msg_seq_num().await;
-            if let Err(err) = incr_result {
-                session.log_error(&err.to_string());
-            }
-        }
-
-        SessionStateEnum::new_latent_state()
     }
 }
 

@@ -1,9 +1,4 @@
-use crate::{
-    internal::event::{Event, PEER_TIMEOUT},
-    log::LogTrait,
-    message::Message,
-    session::{session_state::AfterPendingTimeout, session_state::SessionStateEnum, Session},
-};
+use crate::session::session_state::AfterPendingTimeout;
 use delegate::delegate;
 
 pub struct PendingTimeout {
@@ -19,42 +14,8 @@ impl PendingTimeout {
             pub fn to_string(&self) -> String;
             pub fn is_connected(&self) -> bool;
             pub fn is_logged_on(&self) -> bool;
-
             pub fn is_session_time(&self) -> bool ;
         }
-    }
-
-    pub async fn shutdown_now(&self, session: &mut Session) {
-        match &self.session_state {
-            AfterPendingTimeout::InSession(is) => is.shutdown_now(session).await,
-            AfterPendingTimeout::ResendState(rs) => rs.shutdown_now(session).await,
-        }
-    }
-
-    pub async fn fix_msg_in(
-        self,
-        session: &'_ mut Session,
-        msg: &'_ mut Message,
-    ) -> SessionStateEnum {
-        match self.session_state {
-            AfterPendingTimeout::InSession(is) => is.fix_msg_in(session, msg).await,
-            AfterPendingTimeout::ResendState(rs) => rs.fix_msg_in(session, msg).await,
-        }
-    }
-
-    pub async fn stop(self, session: &mut Session) -> SessionStateEnum {
-        match self.session_state {
-            AfterPendingTimeout::InSession(is) => is.stop(session).await,
-            AfterPendingTimeout::ResendState(rs) => rs.stop(session).await,
-        }
-    }
-
-    pub async fn timeout(self, session: &mut Session, event: Event) -> SessionStateEnum {
-        if event == PEER_TIMEOUT {
-            session.log.on_event("Session Timeout");
-            return SessionStateEnum::new_latent_state();
-        }
-        SessionStateEnum::PendingTimeout(self)
     }
 }
 
