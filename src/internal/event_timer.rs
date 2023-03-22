@@ -4,17 +4,15 @@ use tokio::sync::mpsc;
 use tokio::time::Duration;
 use wg::AsyncWaitGroup;
 
-type EventTimerFunc = fn();
-
 pub struct EventTimer {
-    f: EventTimerFunc,
+    f: Box<dyn Fn() -> ()>,
     timer: ASwitchingSleep,
     done: mpsc::UnboundedSender<()>,
     wg: AsyncWaitGroup,
 }
 
 impl EventTimer {
-    pub fn new(task: EventTimerFunc) -> Self {
+    pub fn new(task: Box<dyn Fn() -> ()>) -> Self {
         let (tx, mut rx) = mpsc::unbounded_channel();
 
         let t = EventTimer {

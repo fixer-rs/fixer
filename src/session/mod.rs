@@ -5,7 +5,8 @@ use crate::{
         comp_id_problem, required_tag_missing, sending_time_accuracy_problem,
         tag_specified_without_a_value, value_is_incorrect_no_tag, IncorrectBeginString,
         MessageRejectErrorEnum, MessageRejectErrorResult, MessageRejectErrorTrait, TargetTooHigh,
-        TargetTooLow, REJECT_REASON_COMP_ID_PROBLEM, REJECT_REASON_SENDING_TIME_ACCURACY_PROBLEM,
+        TargetTooLow, REJECT_REASON_COMP_ID_PROBLEM, REJECT_REASON_INVALID_MSG_TYPE,
+        REJECT_REASON_SENDING_TIME_ACCURACY_PROBLEM,
     },
     fix_boolean::{FIXBoolean, FixBooleanTrait},
     fix_int::FIXInt,
@@ -35,12 +36,13 @@ use crate::{
     },
     store::{MessageStoreEnum, MessageStoreTrait},
     tag::{
-        Tag, TAG_BEGIN_SEQ_NO, TAG_BEGIN_STRING, TAG_DEFAULT_APPL_VER_ID, TAG_ENCRYPT_METHOD,
-        TAG_END_SEQ_NO, TAG_GAP_FILL_FLAG, TAG_HEART_BT_INT, TAG_LAST_MSG_SEQ_NUM_PROCESSED,
-        TAG_MSG_SEQ_NUM, TAG_MSG_TYPE, TAG_NEW_SEQ_NO, TAG_ORIG_SENDING_TIME, TAG_POSS_DUP_FLAG,
-        TAG_RESET_SEQ_NUM_FLAG, TAG_SENDER_COMP_ID, TAG_SENDER_LOCATION_ID, TAG_SENDER_SUB_ID,
-        TAG_SENDING_TIME, TAG_TARGET_COMP_ID, TAG_TARGET_LOCATION_ID, TAG_TARGET_SUB_ID,
-        TAG_TEST_REQ_ID, TAG_TEXT,
+        Tag, TAG_BEGIN_SEQ_NO, TAG_BEGIN_STRING, TAG_BUSINESS_REJECT_REASON,
+        TAG_BUSINESS_REJECT_REF_ID, TAG_DEFAULT_APPL_VER_ID, TAG_ENCRYPT_METHOD, TAG_END_SEQ_NO,
+        TAG_GAP_FILL_FLAG, TAG_HEART_BT_INT, TAG_LAST_MSG_SEQ_NUM_PROCESSED, TAG_MSG_SEQ_NUM,
+        TAG_MSG_TYPE, TAG_NEW_SEQ_NO, TAG_ORIG_SENDING_TIME, TAG_POSS_DUP_FLAG, TAG_REF_MSG_TYPE,
+        TAG_REF_TAG_ID, TAG_RESET_SEQ_NUM_FLAG, TAG_SENDER_COMP_ID, TAG_SENDER_LOCATION_ID,
+        TAG_SENDER_SUB_ID, TAG_SENDING_TIME, TAG_SESSION_REJECT_REASON, TAG_TARGET_COMP_ID,
+        TAG_TARGET_LOCATION_ID, TAG_TARGET_SUB_ID, TAG_TEST_REQ_ID, TAG_TEXT,
     },
     validation::Validator,
     BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIX42, BEGIN_STRING_FIXT11,
@@ -860,47 +862,63 @@ impl Session {
             self.session_id.begin_string.as_str(),
             BEGIN_STRING_FIX40 | BEGIN_STRING_FIX41
         ) {
-            // 		if rej.IsBusinessReject() {
-            // 			reply.header.set_field(TAG_MSG_TYPE, FIXString::from("j"));
-            // 			reply.body.set_field(tagBusinessRejectReason, FIXInt(rej.RejectReason()))
-            // 			if let refID = rej.BusinessRejectRefID(); refID != "" {
-            // 				reply.body.set_field(tagBusinessRejectRefID, FIXString::from(refID));
-            // 			}
-            // 		} else {
-            // 			reply.header.set_field(TAG_MSG_TYPE, FIXString::from("3"));
-            // 			switch {
-            // 			default:
-            // 				reply.body.set_field(tagSessionRejectReason, FIXInt(rej.RejectReason()))
-            // 			case rej.RejectReason() > rejectReasonInvalidMsgType && self.session_id.begin_string == begin_stringFIX42:
-            // 				//fix42 knows up to invalid msg type
-            // 			}
+            if rej.is_business_reject() {
+                reply.header.set_field(TAG_MSG_TYPE, FIXString::from("j"));
+                reply
+                    .body
+                    .set_field(TAG_BUSINESS_REJECT_REASON, rej.reject_reason());
+                let ref_id = rej.business_reject_ref_id();
+                if ref_id != "" {
+                    reply
+                        .body
+                        .set_field(TAG_BUSINESS_REJECT_REF_ID, FIXString::from(ref_id));
+                }
+            } else {
+                reply.header.set_field(TAG_MSG_TYPE, FIXString::from("3"));
+                //fix42 knows up to invalid msg type
+                if !(rej.reject_reason() > REJECT_REASON_INVALID_MSG_TYPE
+                    && self.session_id.begin_string == BEGIN_STRING_FIX42)
+                {
+                    reply
+                        .body
+                        .set_field(TAG_SESSION_REJECT_REASON, rej.reject_reason());
+                }
 
-            // 			if let refTagID = rej.RefTagID(); refTagID != nil {
-            // 				reply.body.set_field(tagRefTagID, FIXInt(*refTagID))
-            // 			}
-            // 		}
-            // 		reply.body.set_field(TAG_TEXT, FIXString::from(rej.Error()));
+                let ref_tag_id_option = rej.ref_tag_id();
+                if let Some(ref_tag_id) = ref_tag_id_option {
+                    reply.body.set_field(TAG_REF_TAG_ID, ref_tag_id);
+                }
+            }
+            reply
+                .body
+                .set_field(TAG_TEXT, FIXString::from(rej.to_string()));
 
-            // 		var msgType FIXString
-            // 		if let err = msg.header.get_field(TAG_MSG_TYPE, &msgType); err == nil {
-            // 			reply.body.set_field(tagRefMsgType, msgType)
-            // 		}
+            let mut msg_type = FIXString::new();
+            if msg.header.get_field(TAG_MSG_TYPE, &mut msg_type).is_err() {
+                reply.body.set_field(TAG_REF_MSG_TYPE, msg_type);
+            }
         } else {
-            // 		reply.header.set_field(TAG_MSG_TYPE, FIXString::from("3"));
+            reply.header.set_field(TAG_MSG_TYPE, FIXString::from("3"));
 
-            // 		if let refTagID = rej.RefTagID(); refTagID != nil {
-            // 			reply.body.set_field(TAG_TEXT, FIXString::from(fmt.Sprintf("%s (%d)", rej.Error(), *refTagID)));
-            // 		} else {
-            // 			reply.body.set_field(TAG_TEXT, FIXString::from(rej.Error()));
-            // 		}
+            let ref_tag_id_result = rej.ref_tag_id();
+            if let Some(ref_tag_id) = ref_tag_id_result {
+                reply.body.set_field(
+                    TAG_TEXT,
+                    FIXString::from(format!("{} ({})", rej.to_string(), ref_tag_id)),
+                );
+            } else {
+                reply
+                    .body
+                    .set_field(TAG_TEXT, FIXString::from(rej.to_string()));
+            }
         }
 
-        // 	let seqNum = new(FIXInt)
-        // 	if let err = msg.header.get_field(TAG_MSG_SEQ_NUM, seqNum); err == nil {
-        // 		reply.body.set_field(tagRefSeqNum, seqNum)
-        // 	}
-
-        // 	self.log.on_eventf("Message Rejected: %v", rej.Error())
+        self.log.on_eventf(
+            "Message Rejected: {{error}}",
+            hashmap! {
+                String::from("error") => rej.to_string(),
+            },
+        );
         self.send_in_reply_to(&reply, Some(msg)).await
     }
 
@@ -966,7 +984,12 @@ impl Session {
     // }
 
     pub async fn run(&mut self) {
-        // self.sm.start(self).await;
+        self.sm_start().await;
+        // let send_heartbeat = || {
+        //     self.session_event.tx.send(NEED_HEARTBEAT);
+        // };
+        // // let send_heartbeat =
+        // self.state_timer = EventTimer::new(send_heartbeat);
 
         // 	self.stateTimer = internal.NewEventTimer(func() { self.sessionEvent <- internal.NeedHeartbeat })
         // 	self.peerTimer = internal.NewEventTimer(func() { self.sessionEvent <- internal.PeerTimeout })
