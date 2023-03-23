@@ -187,7 +187,7 @@ impl Session {
         &self,
         message_in: Receiver<FixIn>,
         message_out: Sender<Vec<u8>>,
-    ) -> SimpleError {
+    ) -> Result<(), SimpleError> {
         let (tx, mut rx) = channel::<SimpleError>(1);
         let _ = self.admin.tx.send(AdminEnum::Connect(Connect {
             message_out,
@@ -195,9 +195,11 @@ impl Session {
             err: tx,
         }));
 
-        rx.recv().await.unwrap()
-
-        // TODO: close rx
+        if let Some(err) = rx.recv().await {
+            return Err(err);
+        };
+        rx.close();
+        Ok(())
     }
 
     async fn send_stop_req(&self) {
