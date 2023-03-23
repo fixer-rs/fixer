@@ -30,9 +30,7 @@ use crate::{
         pending_timeout::PendingTimeout,
         resend_state::ResendState,
         session_id::SessionID,
-        session_state::{
-            AfterPendingTimeout, LoggedOn, SessionState, SessionStateEnum, StateMachine,
-        },
+        session_state::{AfterPendingTimeout, SessionState, SessionStateEnum, StateMachine},
     },
     store::{MessageStoreEnum, MessageStoreTrait},
     tag::{
@@ -53,8 +51,10 @@ use chrono::{NaiveDateTime, Utc};
 use simple_error::SimpleError;
 use std::error::Error;
 use std::sync::Arc;
-use tokio::sync::mpsc::{channel, Receiver, Sender};
-use tokio::sync::{Mutex, OnceCell};
+use tokio::sync::{
+    mpsc::{channel, Receiver, Sender, UnboundedReceiver, UnboundedSender},
+    Mutex, OnceCell,
+};
 use tokio::time::{interval, sleep, Duration};
 
 // session main
@@ -71,44 +71,26 @@ pub mod not_session_time;
 pub mod pending_timeout;
 pub mod resend_state;
 
-// #[derive(Default)]
-// struct ToSend(Arc<Mutex<Vec<Vec<u8>>>>);
-
-// impl ToSend {
-//     async fn drop_queued(&mut self) {
-//         let mut to_send = self.0.lock().await;
-//         to_send.clear();
-//     }
-
-//     async fn send_queued(&mut self, f: &dyn Fn(&[u8])) {
-//         for msg_bytes in self.0.lock().await.iter() {
-//             f(msg_bytes);
-//         }
-
-//         self.drop_queued().await;
-//     }
-// }
-
 struct MessageEvent {
     tx: Sender<bool>,
     rx: Receiver<bool>,
 }
 
 impl MessageEvent {
-    fn send(&self, event: bool) {
-        self.tx.send(event);
+    async fn send(&self, event: bool) {
+        self.tx.send(event).await;
     }
 }
 
 struct SessionEvent {
-    tx: Sender<Event>,
-    rx: Receiver<Event>,
+    tx: UnboundedSender<Event>,
+    rx: UnboundedReceiver<Event>,
 }
 
 struct Connect {
     message_out: Sender<Vec<u8>>,
     message_in: Receiver<FixIn>,
-    err: Sender<SimpleError>,
+    err: Sender<Result<(), SimpleError>>,
 }
 
 struct Admin {
@@ -168,7 +150,7 @@ struct WaitForInSessionReq {
 
 impl SessionEvent {
     async fn send(&self, event: Event) {
-        self.tx.send(event).await;
+        self.tx.send(event);
     }
 }
 
@@ -188,17 +170,18 @@ impl Session {
         message_in: Receiver<FixIn>,
         message_out: Sender<Vec<u8>>,
     ) -> Result<(), SimpleError> {
-        let (tx, mut rx) = channel::<SimpleError>(1);
+        let (tx, mut rx) = channel::<Result<(), SimpleError>>(1);
         let _ = self.admin.tx.send(AdminEnum::Connect(Connect {
             message_out,
             message_in,
             err: tx,
         }));
 
-        if let Some(err) = rx.recv().await {
-            return Err(err);
+        if let Some(result) = rx.recv().await {
+            rx.close();
+            return result;
         };
-        rx.close();
+
         Ok(())
     }
 
@@ -412,7 +395,7 @@ impl Session {
         let msg_bytes = self.prep_message_for_send(msg, None).await?;
         let mut to_send = self.to_send.lock().await;
         to_send.push(msg_bytes);
-        self.message_event.send(true);
+        self.message_event.send(true).await;
 
         Ok(())
     }
@@ -523,7 +506,7 @@ impl Session {
         for msg_bytes in self.to_send.lock().await.iter_mut() {
             self.log.on_outgoing(msg_bytes);
             // TODO: check this error
-            let _ = self.message_out.send(msg_bytes.to_vec());
+            let _ = self.message_out.send(msg_bytes.to_vec()).await;
             self.state_timer
                 .reset(self.iss.heart_bt_int.to_std().unwrap())
                 .await;
@@ -932,8 +915,10 @@ impl Session {
             AdminEnum::Connect(connect) => {
                 if self.sm_is_connected() {
                     if !connect.err.is_closed() {
-                        let _ = connect.err.send(simple_error!("Already connected")).await;
-                        // close(msg.err)
+                        let _ = connect
+                            .err
+                            .send(Err(simple_error!("Already connected")))
+                            .await;
                     }
 
                     return;
@@ -944,15 +929,12 @@ impl Session {
                     if !connect.err.is_closed() {
                         let _ = connect
                             .err
-                            .send(simple_error!("Connection outside of session time"))
+                            .send(Err(simple_error!("Connection outside of session time")))
                             .await;
-                        // close(msg.err)
                     }
                     return;
                 }
-                if !connect.err.is_closed() {
-                    // close(msg.err)
-                }
+                if !connect.err.is_closed() {}
 
                 self.message_in = connect.message_in;
                 self.message_out = connect.message_out;
@@ -969,6 +951,7 @@ impl Session {
                     let notify = self.sm.notify_on_in_session_time.take();
                     let _ = wfisr.rep.send(notify.unwrap()).await;
                 }
+                // TODO: close
                 // close(wfisr.rep)
             }
         }
@@ -979,16 +962,17 @@ impl Session {
         let tx = self.session_event.tx.clone();
 
         let send_heartbeat = Arc::new(move || {
-            tx.send(NEED_HEARTBEAT);
+            let _ = tx.send(NEED_HEARTBEAT);
         });
         self.state_timer = EventTimer::new(send_heartbeat);
 
         let tx = self.session_event.tx.clone();
 
         let peer_timeout = Arc::new(move || {
-            tx.send(PEER_TIMEOUT);
+            let _ = tx.send(PEER_TIMEOUT);
         });
 
+        // TODO: await
         self.peer_timer = EventTimer::new(peer_timeout);
 
         let mut ticker = interval(Duration::from_secs(1));

@@ -14,7 +14,7 @@ pub struct EventTimer {
 }
 
 impl EventTimer {
-    pub fn new(task: Arc<dyn Fn() -> () + Send + Sync>) -> Self {
+    pub fn new(task: EventTimerFunc) -> Self {
         let (tx, mut rx) = mpsc::unbounded_channel();
 
         let t = EventTimer {
@@ -36,7 +36,9 @@ impl EventTimer {
                         timer.stop().await;
                         return
                     }
-                    () = &mut timer => {task()}
+                    () = &mut timer => {
+                        task();
+                    }
                 }
             }
         });
