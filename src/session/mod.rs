@@ -53,9 +53,9 @@ use chrono::{NaiveDateTime, Utc};
 use simple_error::SimpleError;
 use std::error::Error;
 use std::sync::Arc;
-use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::sync::{Mutex, OnceCell};
-use tokio::time::{sleep, Duration};
+use tokio::time::{interval, sleep, Duration};
 
 // session main
 pub mod session_id;
@@ -90,8 +90,8 @@ pub mod resend_state;
 // }
 
 struct MessageEvent {
-    tx: UnboundedSender<bool>,
-    rx: UnboundedReceiver<bool>,
+    tx: Sender<bool>,
+    rx: Receiver<bool>,
 }
 
 impl MessageEvent {
@@ -101,19 +101,19 @@ impl MessageEvent {
 }
 
 struct SessionEvent {
-    tx: UnboundedSender<Event>,
-    rx: UnboundedReceiver<Event>,
+    tx: Sender<Event>,
+    rx: Receiver<Event>,
 }
 
 struct Connect {
-    message_out: UnboundedSender<Vec<u8>>,
-    message_in: UnboundedReceiver<FixIn>,
-    err: Option<UnboundedSender<SimpleError>>,
+    message_out: Sender<Vec<u8>>,
+    message_in: Receiver<FixIn>,
+    err: Sender<SimpleError>,
 }
 
 struct Admin {
-    tx: UnboundedSender<AdminEnum>,
-    rx: UnboundedReceiver<AdminEnum>,
+    tx: Sender<AdminEnum>,
+    rx: Receiver<AdminEnum>,
 }
 
 enum AdminEnum {
@@ -129,8 +129,8 @@ pub struct Session {
     log: LogEnum,
     session_id: SessionID,
 
-    message_out: Option<UnboundedSender<Vec<u8>>>,
-    message_in: Option<UnboundedReceiver<FixIn>>,
+    message_out: Sender<Vec<u8>>,
+    message_in: Receiver<FixIn>,
 
     // application messages are queued up for send here
     // wrapped in Mutex for access to to_send.
@@ -160,15 +160,15 @@ pub struct FixIn {
 
 struct StopReq;
 
-type WaitChan = UnboundedReceiver<()>;
+type WaitChan = Receiver<()>;
 
 struct WaitForInSessionReq {
-    rep: UnboundedSender<WaitChan>,
+    rep: Sender<WaitChan>,
 }
 
 impl SessionEvent {
-    fn send(&self, event: Event) {
-        self.tx.send(event);
+    async fn send(&self, event: Event) {
+        self.tx.send(event).await;
     }
 }
 
@@ -185,17 +185,19 @@ impl Session {
 
     async fn connect(
         &self,
-        message_in: UnboundedReceiver<FixIn>,
-        message_out: UnboundedSender<Vec<u8>>,
+        message_in: Receiver<FixIn>,
+        message_out: Sender<Vec<u8>>,
     ) -> SimpleError {
-        let (tx, mut rx) = unbounded_channel::<SimpleError>();
+        let (tx, mut rx) = channel::<SimpleError>(1);
         let _ = self.admin.tx.send(AdminEnum::Connect(Connect {
             message_out,
             message_in,
-            err: Some(tx),
+            err: tx,
         }));
 
         rx.recv().await.unwrap()
+
+        // TODO: close rx
     }
 
     async fn send_stop_req(&self) {
@@ -207,7 +209,7 @@ impl Session {
     }
 
     async fn wait_for_in_session_time(&self) {
-        let (tx, mut rx) = unbounded_channel::<WaitChan>();
+        let (tx, mut rx) = channel::<WaitChan>(1);
 
         let _ = self
             .admin
@@ -222,7 +224,7 @@ impl Session {
         }
     }
 
-    pub fn insert_sending_time(&self, msg: &Message) {
+    fn insert_sending_time(&self, msg: &Message) {
         let sending_time = Utc::now().naive_utc();
 
         if matches!(
@@ -247,7 +249,7 @@ impl Session {
         }
     }
 
-    pub fn fill_default_header(&self, msg: &Message, in_reply_to: Option<&Message>) {
+    fn fill_default_header(&self, msg: &Message, in_reply_to: Option<&Message>) {
         msg.header
             .set_string(TAG_BEGIN_STRING, &self.session_id.begin_string);
         msg.header
@@ -291,7 +293,7 @@ impl Session {
         }
     }
 
-    pub fn should_send_reset(&self) -> bool {
+    fn should_send_reset(&self) -> bool {
         if self.session_id.begin_string == BEGIN_STRING_FIX40 {
             return false;
         }
@@ -305,12 +307,12 @@ impl Session {
             && self.store.next_sender_msg_seq_num() == 1;
     }
 
-    pub async fn send_logon(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
+    async fn send_logon(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
         self.send_logon_in_reply_to(self.should_send_reset(), None)
             .await
     }
 
-    pub async fn send_logon_in_reply_to(
+    async fn send_logon_in_reply_to(
         &mut self,
         set_reset_seq_num: bool,
         in_reply_to: Option<&Message>,
@@ -351,7 +353,7 @@ impl Session {
         Ok(self.drop_and_send_in_reply_to(&logon, in_reply_to).await?)
     }
 
-    pub fn build_logout(&self, reason: &str) -> Message {
+    fn build_logout(&self, reason: &str) -> Message {
         let logout = Message::new();
         logout.header.set_field(TAG_MSG_TYPE, FIXString::from("5"));
         logout.header.set_field(
@@ -373,11 +375,11 @@ impl Session {
         logout
     }
 
-    pub async fn send_logout(&mut self, reason: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
+    async fn send_logout(&mut self, reason: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
         self.send_logout_in_reply_to(reason, None).await
     }
 
-    pub async fn send_logout_in_reply_to(
+    async fn send_logout_in_reply_to(
         &mut self,
         reason: &str,
         in_reply_to: Option<&Message>,
@@ -386,7 +388,7 @@ impl Session {
         self.send_in_reply_to(&logout, in_reply_to).await
     }
 
-    pub fn resend(&self, msg: &Message) -> bool {
+    fn resend(&self, msg: &Message) -> bool {
         msg.header.set_field(TAG_POSS_DUP_FLAG, true);
 
         let mut orig_sending_time = FIXString::new();
@@ -404,10 +406,7 @@ impl Session {
     }
 
     // queue_for_send will validate, persist, and queue the message for send
-    pub async fn queue_for_send(
-        &mut self,
-        msg: &Message,
-    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+    async fn queue_for_send(&mut self, msg: &Message) -> Result<(), Box<dyn Error + Send + Sync>> {
         let msg_bytes = self.prep_message_for_send(msg, None).await?;
         let mut to_send = self.to_send.lock().await;
         to_send.push(msg_bytes);
@@ -417,11 +416,11 @@ impl Session {
     }
 
     // send will validate, persist, queue the message. If the session is logged on, send all messages in the queue
-    pub async fn send(&mut self, msg: &Message) -> Result<(), Box<dyn Error + Send + Sync>> {
+    async fn send(&mut self, msg: &Message) -> Result<(), Box<dyn Error + Send + Sync>> {
         self.send_in_reply_to(msg, None).await
     }
 
-    pub async fn send_in_reply_to(
+    async fn send_in_reply_to(
         &mut self,
         msg: &Message,
         in_reply_to: Option<&Message>,
@@ -438,20 +437,17 @@ impl Session {
     }
 
     // drop_and_reset will drop the send queue and reset the message store
-    pub async fn drop_and_reset(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
+    async fn drop_and_reset(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
         self.drop_queued().await;
         Ok(self.store.reset().await?)
     }
 
     // drop_and_send will validate and persist the message, then drops the send queue and sends the message.
-    pub async fn drop_and_send(
-        &mut self,
-        msg: &Message,
-    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+    async fn drop_and_send(&mut self, msg: &Message) -> Result<(), Box<dyn Error + Send + Sync>> {
         self.drop_and_send_in_reply_to(msg, None).await
     }
 
-    pub async fn drop_and_send_in_reply_to(
+    async fn drop_and_send_in_reply_to(
         &mut self,
         msg: &Message,
         in_reply_to: Option<&Message>,
@@ -467,7 +463,7 @@ impl Session {
         Ok(())
     }
 
-    pub async fn prep_message_for_send(
+    async fn prep_message_for_send(
         &mut self,
         msg: &Message,
         in_reply_to: Option<&Message>,
@@ -507,7 +503,7 @@ impl Session {
         Ok(msg_bytes)
     }
 
-    pub async fn persist(
+    async fn persist(
         &mut self,
         seq_num: isize,
         msg_bytes: &[u8],
@@ -521,11 +517,11 @@ impl Session {
         Ok(self.store.incr_next_sender_msg_seq_num().await?)
     }
 
-    pub async fn send_queued(&mut self) {
+    async fn send_queued(&mut self) {
         for msg_bytes in self.to_send.lock().await.iter_mut() {
             self.log.on_outgoing(msg_bytes);
             // TODO: check this error
-            let _ = self.message_out.as_mut().unwrap().send(msg_bytes.to_vec());
+            let _ = self.message_out.send(msg_bytes.to_vec());
             self.state_timer
                 .reset(self.iss.heart_bt_int.to_std().unwrap())
                 .await;
@@ -533,7 +529,7 @@ impl Session {
         self.drop_queued().await;
     }
 
-    pub async fn drop_queued(&mut self) {
+    async fn drop_queued(&mut self) {
         self.to_send.lock().await.clear();
     }
 
@@ -542,7 +538,7 @@ impl Session {
         self.send_queued().await;
     }
 
-    pub async fn do_target_too_high(
+    async fn do_target_too_high(
         &mut self,
         reject: &TargetTooHigh,
     ) -> Result<ResendState, Box<dyn Error + Send + Sync>> {
@@ -558,7 +554,7 @@ impl Session {
             .await
     }
 
-    pub async fn send_resend_request(
+    async fn send_resend_request(
         &mut self,
         begin_seq: isize,
         end_seq: isize,
@@ -604,7 +600,7 @@ impl Session {
         Ok(next_state)
     }
 
-    pub async fn handle_logon(
+    async fn handle_logon(
         &mut self,
         msg: &mut Message,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
@@ -678,14 +674,11 @@ impl Session {
         Ok(self.store.incr_next_target_msg_seq_num().await?)
     }
 
-    pub async fn initiate_logout(
-        &mut self,
-        reason: &str,
-    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+    async fn initiate_logout(&mut self, reason: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
         self.initiate_logout_in_reply_to(reason, None).await
     }
 
-    pub async fn initiate_logout_in_reply_to(
+    async fn initiate_logout_in_reply_to(
         &mut self,
         reason: &str,
         in_reply_to: Option<&Message>,
@@ -698,23 +691,21 @@ impl Session {
             })?;
 
         self.log.on_event("Inititated logout request");
-        async {
-            sleep(self.iss.logout_timeout.to_std().unwrap()).await;
-            self.session_event.send(LOGOUT_TIMEOUT);
-        }
-        .await;
+
+        sleep(self.iss.logout_timeout.to_std().unwrap()).await;
+        self.session_event.send(LOGOUT_TIMEOUT).await;
         Ok(())
     }
 
-    pub fn verify(&self, msg: &Message) -> MessageRejectErrorResult {
+    fn verify(&self, msg: &Message) -> MessageRejectErrorResult {
         self.verify_select(msg, true, true)
     }
 
-    pub fn verify_ignore_seq_num_too_high(&self, msg: &Message) -> MessageRejectErrorResult {
+    fn verify_ignore_seq_num_too_high(&self, msg: &Message) -> MessageRejectErrorResult {
         self.verify_select(msg, false, true)
     }
 
-    pub fn verify_ignore_seq_num_too_high_or_low(&self, msg: &Message) -> MessageRejectErrorResult {
+    fn verify_ignore_seq_num_too_high_or_low(&self, msg: &Message) -> MessageRejectErrorResult {
         self.verify_select(msg, false, false)
     }
 
@@ -745,7 +736,7 @@ impl Session {
         self.from_callback(msg)
     }
 
-    pub fn from_callback(&self, msg: &Message) -> MessageRejectErrorResult {
+    fn from_callback(&self, msg: &Message) -> MessageRejectErrorResult {
         let msg_type = msg.header.get_bytes(TAG_MSG_TYPE)?;
 
         if is_admin_message_type(&msg_type) {
@@ -851,7 +842,7 @@ impl Session {
         Ok(())
     }
 
-    pub async fn do_reject(
+    async fn do_reject(
         &mut self,
         msg: &Message,
         rej: MessageRejectErrorEnum,
@@ -922,7 +913,7 @@ impl Session {
         self.send_in_reply_to(&reply, Some(msg)).await
     }
 
-    pub async fn on_disconnect(&mut self) {
+    async fn on_disconnect(&mut self) {
         self.log.on_event("Disconnected");
         if self.iss.reset_on_disconnect {
             let drop_result = self.drop_and_reset().await;
@@ -931,99 +922,104 @@ impl Session {
             }
         }
 
-        if let Some(ref mut message_out) = self.message_out {
-            // message_out.c
-            // 		close(self.messageOut)
-            // 		self.messageOut = nil
-        }
-
-        // 	self.messageIn = nil
+        self.message_in.close();
     }
 
-    // pub fn on_admin(&self, msg interface{}) {
-    // 	switch let msg = msg.(type) {
+    async fn on_admin(&mut self, msg: AdminEnum) {
+        match msg {
+            AdminEnum::Connect(connect) => {
+                if self.sm_is_connected() {
+                    if !connect.err.is_closed() {
+                        let _ = connect.err.send(simple_error!("Already connected")).await;
+                        // close(msg.err)
+                    }
 
-    // 	case connect:
+                    return;
+                }
 
-    // 		if self.IsConnected() {
-    // 			if msg.err != nil {
-    // 				msg.err <- errorself.New("Already connected")
-    // 				close(msg.err)
-    // 			}
-    // 			return
-    // 		}
+                if !self.sm_is_session_time() {
+                    self.sm_handle_disconnect_state().await;
+                    if !connect.err.is_closed() {
+                        let _ = connect
+                            .err
+                            .send(simple_error!("Connection outside of session time"))
+                            .await;
+                        // close(msg.err)
+                    }
+                    return;
+                }
+                if !connect.err.is_closed() {
+                    // close(msg.err)
+                }
 
-    // 		if !self.IsSessionTime() {
-    // 			self.handleDisconnectState(s)
-    // 			if msg.err != nil {
-    // 				msg.err <- errorself.New("Connection outside of session time")
-    // 				close(msg.err)
-    // 			}
-    // 			return
-    // 		}
+                self.message_in = connect.message_in;
+                self.message_out = connect.message_out;
+                self.sent_reset = false;
+                self.sm_connect().await;
 
-    // 		if msg.err != nil {
-    // 			close(msg.err)
-    // 		}
+                // close connect?
+            }
+            AdminEnum::StopReq(_) => {
+                self.sm_stop().await;
+            }
+            AdminEnum::WaitForInSessionReq(wfisr) => {
+                if !self.sm_is_session_time() {
+                    let notify = self.sm.notify_on_in_session_time.take();
+                    let _ = wfisr.rep.send(notify.unwrap()).await;
+                }
+                // close(wfisr.rep)
+            }
+        }
+    }
 
-    // 		self.messageIn = msg.messageIn
-    // 		self.messageOut = msg.messageOut
-    // 		self.sentReset = false
-
-    // 		self.Connect(s)
-
-    // 	case stopReq:
-    // 		self.Stop(s)
-
-    // 	case waitForInSessionReq:
-    // 		if !self.IsSessionTime() {
-    // 			msg.rep <- self.stateMachine.notifyOnInSessionTime
-    // 		}
-    // 		close(msg.rep)
-    // 	}
-    // }
-
-    pub async fn run(&mut self) {
+    async fn run(&mut self) {
         self.sm_start().await;
-        // let send_heartbeat = || {
-        //     self.session_event.tx.send(NEED_HEARTBEAT);
-        // };
-        // // let send_heartbeat =
-        // self.state_timer = EventTimer::new(send_heartbeat);
+        let tx = self.session_event.tx.clone();
 
-        // 	self.stateTimer = internal.NewEventTimer(func() { self.sessionEvent <- internal.NeedHeartbeat })
-        // 	self.peerTimer = internal.NewEventTimer(func() { self.sessionEvent <- internal.PeerTimeout })
-        // 	let ticker = time.NewTicker(time.Second)
+        let send_heartbeat = Arc::new(move || {
+            tx.send(NEED_HEARTBEAT);
+        });
+        self.state_timer = EventTimer::new(send_heartbeat);
 
-        // 	defer func() {
-        // 		self.stateTimer.Stop()
-        // 		self.peerTimer.Stop()
-        // 		ticker.Stop()
-        // 	}()
+        let tx = self.session_event.tx.clone();
 
-        // 	for !self.Stopped() {
-        // 		select {
+        let peer_timeout = Arc::new(move || {
+            tx.send(PEER_TIMEOUT);
+        });
 
-        // 		case let msg = <-self.admin:
-        // 			self.onAdmin(msg)
+        self.peer_timer = EventTimer::new(peer_timeout);
 
-        // 		case <-self.messageEvent:
-        // 			self.SendAppMessages(s)
+        let mut ticker = interval(Duration::from_secs(1));
 
-        // 		case fixIn, let ok = <-self.messageIn:
-        // 			if !ok {
-        // 				self.Disconnected(s)
-        // 			} else {
-        // 				self.Incoming(s, fixIn)
-        // 			}
+        while !self.sm_stopped() {
+            tokio::select! {
+                Some(msg) = self.admin.rx.recv() => {
+                    self.on_admin(msg).await;
+                },
+                Some(_) = self.message_event.rx.recv() => {
+                    self.sm_send_app_messages().await;
+                }
+                fix_in_option = self.message_in.recv() => {
+                    match fix_in_option {
+                        Some(fix_in) => {
+                            self.sm_incoming(&fix_in).await;
+                        }
+                        None => {
+                            self.sm_disconnected().await;
+                        }
+                    }
+                }
+                Some(event) = self.session_event.rx.recv() => {
+                    self.sm_timeout(event).await;
+                },
+                _ = ticker.tick() => {
+                    self.sm_check_session_time(&Utc::now().naive_utc()).await;
+                },
+            }
+        }
 
-        // 		case let evt = <-self.sessionEvent:
-        // 			self.Timeout(s, evt)
-
-        // 		case let now = <-ticker.C:
-        // 			self.CheckSessionTime(s, now)
-        // 		}
-        // 	}
+        self.state_timer.stop().await;
+        self.peer_timer.stop().await;
     }
 
     fn handle_state_error(&mut self, err: &str) -> SessionStateEnum {
@@ -1063,10 +1059,10 @@ impl Session {
         self.sm_set_state(SessionStateEnum::new_logon_state()).await;
         // Fire logon timeout event after the pre-configured delay period.
         sleep(self.iss.logon_timeout.to_std().unwrap()).await;
-        self.session_event.send(LOGON_TIMEOUT);
+        self.session_event.send(LOGON_TIMEOUT).await;
     }
 
-    pub async fn sm_stop(&mut self) {
+    async fn sm_stop(&mut self) {
         self.sm.pending_stop = true;
 
         let state = self.sm.state.take().unwrap();
@@ -1082,18 +1078,18 @@ impl Session {
         self.sm_set_state(next_state).await;
     }
 
-    pub fn sm_stopped(&self) -> bool {
+    fn sm_stopped(&self) -> bool {
         self.sm.stopped
     }
 
-    pub async fn sm_disconnected(&mut self) {
+    async fn sm_disconnected(&mut self) {
         if self.sm_is_connected() {
             self.sm_set_state(SessionStateEnum::new_latent_state())
                 .await;
         }
     }
 
-    pub async fn sm_incoming(&mut self, fix_in: &FixIn) {
+    async fn sm_incoming(&mut self, fix_in: &FixIn) {
         self.sm_check_session_time(&Utc::now().naive_utc()).await;
         if !self.sm_is_connected() {
             return;
@@ -1142,7 +1138,7 @@ impl Session {
         self.sm_set_state(next_state).await;
     }
 
-    pub async fn sm_send_app_messages(&mut self) {
+    async fn sm_send_app_messages(&mut self) {
         self.sm_check_session_time(&Utc::now().naive_utc()).await;
 
         if self.sm.is_logged_on() {
@@ -1153,7 +1149,7 @@ impl Session {
     }
 
     // timeout is called by the session on a timeout event.
-    pub async fn sm_timeout(&mut self, event: Event) {
+    async fn sm_timeout(&mut self, event: Event) {
         self.sm_check_session_time(&Utc::now().naive_utc()).await;
 
         let state = self.sm.state.take().unwrap();
@@ -1169,7 +1165,7 @@ impl Session {
         self.sm_set_state(next_state).await;
     }
 
-    pub async fn sm_check_session_time(&mut self, now: &NaiveDateTime) {
+    async fn sm_check_session_time(&mut self, now: &NaiveDateTime) {
         if !self.iss.session_time.is_in_range(now) {
             if self.sm_is_session_time() {
                 self.log.on_event("Not in session");
@@ -1181,7 +1177,7 @@ impl Session {
                 .await;
 
             if self.sm.notify_on_in_session_time.is_none() {
-                let (_, rx) = unbounded_channel::<()>();
+                let (_, rx) = channel::<()>(1);
                 self.sm.notify_on_in_session_time = Some(rx);
             }
         }
@@ -1247,15 +1243,15 @@ impl Session {
         self.on_disconnect().await;
     }
 
-    pub fn sm_is_logged_on(&self) -> bool {
+    fn sm_is_logged_on(&self) -> bool {
         self.sm.is_logged_on()
     }
 
-    pub fn sm_is_connected(&self) -> bool {
+    fn sm_is_connected(&self) -> bool {
         self.sm.is_connected()
     }
 
-    pub fn sm_is_session_time(&self) -> bool {
+    fn sm_is_session_time(&self) -> bool {
         self.sm.is_session_time()
     }
 
@@ -1277,14 +1273,14 @@ impl Session {
     // individual state methods
 
     // logged on
-    pub async fn logged_on_shutdown_now(&mut self) {
+    async fn logged_on_shutdown_now(&mut self) {
         let logout_result = self.send_logout("").await;
         if let Err(err) = logout_result {
             self.log_error(&err.to_string());
         }
     }
 
-    pub async fn logged_on_stop(&mut self) -> SessionStateEnum {
+    async fn logged_on_stop(&mut self) -> SessionStateEnum {
         let logout_result = self.initiate_logout("").await;
         if let Err(err) = logout_result {
             self.handle_state_error(&err.to_string());
