@@ -121,7 +121,7 @@ pub struct Session {
     message_event: MessageEvent,
     application: Box<dyn Application>,
     validator: Option<Box<dyn Validator>>,
-    sm: StateMachine,
+    pub sm: StateMachine,
     state_timer: EventTimer,
     peer_timer: EventTimer,
     sent_reset: bool,
