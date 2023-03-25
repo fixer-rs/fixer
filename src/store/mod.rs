@@ -10,13 +10,13 @@ use simple_error::SimpleResult;
 #[async_trait]
 #[enum_dispatch]
 pub trait MessageStoreTrait {
-    fn next_sender_msg_seq_num(&self) -> isize;
-    fn next_target_msg_seq_num(&self) -> isize;
+    async fn next_sender_msg_seq_num(&mut self) -> isize;
+    async fn next_target_msg_seq_num(&mut self) -> isize;
     async fn incr_next_sender_msg_seq_num(&mut self) -> SimpleResult<()>;
     async fn incr_next_target_msg_seq_num(&mut self) -> SimpleResult<()>;
     async fn set_next_sender_msg_seq_num(&mut self, next_seq_num: isize) -> SimpleResult<()>;
     async fn set_next_target_msg_seq_num(&mut self, next_seq_num: isize) -> SimpleResult<()>;
-    fn creation_time(&self) -> NaiveDateTime;
+    async fn creation_time(&self) -> NaiveDateTime;
     async fn save_message(&mut self, seq_num: isize, msg: Vec<u8>) -> SimpleResult<()>;
     async fn save_message_and_incr_next_sender_msg_seq_num(
         &mut self,
@@ -28,9 +28,9 @@ pub trait MessageStoreTrait {
         begin_seq_num: isize,
         end_seq_num: isize,
     ) -> SimpleResult<Vec<Vec<u8>>>;
-    async fn refresh(&self) -> SimpleResult<()>;
+    async fn refresh(&mut self) -> SimpleResult<()>;
     async fn reset(&mut self) -> SimpleResult<()>;
-    async fn close(&self) -> SimpleResult<()>;
+    async fn close(&mut self) -> SimpleResult<()>;
 }
 
 //The MessageStoreFactory interface is used by session to create a session specific message store
@@ -43,6 +43,14 @@ pub trait MessageStoreFactoryTrait {
 #[enum_dispatch(MessageStoreTrait)]
 pub enum MessageStoreEnum {
     MemoryStore,
+    #[cfg(test)]
+    MockMemoryStore(crate::fixer_test::MockStoreShared),
+}
+
+impl Default for MessageStoreEnum {
+    fn default() -> Self {
+        Self::MemoryStore(MemoryStore::default())
+    }
 }
 
 #[enum_dispatch(MessageStoreFactoryTrait)]
@@ -60,11 +68,11 @@ pub struct MemoryStore {
 
 #[async_trait]
 impl MessageStoreTrait for MemoryStore {
-    fn next_sender_msg_seq_num(&self) -> isize {
+    async fn next_sender_msg_seq_num(&mut self) -> isize {
         self.sender_msg_seq_num + 1
     }
 
-    fn next_target_msg_seq_num(&self) -> isize {
+    async fn next_target_msg_seq_num(&mut self) -> isize {
         self.target_msg_seq_num + 1
     }
 
@@ -88,7 +96,7 @@ impl MessageStoreTrait for MemoryStore {
         Ok(())
     }
 
-    fn creation_time(&self) -> NaiveDateTime {
+    async fn creation_time(&self) -> NaiveDateTime {
         self.creation_time
     }
 
@@ -123,7 +131,7 @@ impl MessageStoreTrait for MemoryStore {
         Ok(msgs)
     }
 
-    async fn refresh(&self) -> SimpleResult<()> {
+    async fn refresh(&mut self) -> SimpleResult<()> {
         // nop, nothing to refresh
         Ok(())
     }
@@ -136,7 +144,7 @@ impl MessageStoreTrait for MemoryStore {
         Ok(())
     }
 
-    async fn close(&self) -> SimpleResult<()> {
+    async fn close(&mut self) -> SimpleResult<()> {
         // nop, nothing to close
         Ok(())
     }

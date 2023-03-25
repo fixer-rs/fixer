@@ -46,14 +46,12 @@ use crate::{
     BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIX42, BEGIN_STRING_FIXT11,
 };
 use async_recursion::async_recursion;
-use chrono::Duration as ChronoDuration;
-use chrono::{NaiveDateTime, Utc};
+use chrono::{Duration as ChronoDuration, NaiveDateTime, Utc};
 use simple_error::SimpleError;
-use std::error::Error;
-use std::sync::Arc;
+use std::{error::Error, sync::Arc};
 use tokio::sync::{
     mpsc::{channel, Receiver, Sender, UnboundedReceiver, UnboundedSender},
-    Mutex, OnceCell,
+    Mutex, OnceCell, RwLock,
 };
 use tokio::time::{interval, sleep, Duration};
 
@@ -71,34 +69,34 @@ pub mod not_session_time;
 pub mod pending_timeout;
 pub mod resend_state;
 
-struct MessageEvent {
-    tx: Sender<bool>,
-    rx: Receiver<bool>,
+pub struct MessageEvent {
+    pub tx: Sender<bool>,
+    pub rx: Receiver<bool>,
 }
 
 impl MessageEvent {
     async fn send(&self, event: bool) {
-        self.tx.send(event).await;
+        let _ = self.tx.send(event).await;
     }
 }
 
-struct SessionEvent {
-    tx: UnboundedSender<Event>,
-    rx: UnboundedReceiver<Event>,
+pub struct SessionEvent {
+    pub tx: UnboundedSender<Event>,
+    pub rx: UnboundedReceiver<Event>,
 }
 
-struct Connect {
-    message_out: Sender<Vec<u8>>,
-    message_in: Receiver<FixIn>,
-    err: Sender<Result<(), SimpleError>>,
+pub struct Connect {
+    pub message_out: Sender<Vec<u8>>,
+    pub message_in: Receiver<FixIn>,
+    pub err: Sender<Result<(), SimpleError>>,
 }
 
-struct Admin {
-    tx: Sender<AdminEnum>,
-    rx: Receiver<AdminEnum>,
+pub struct Admin {
+    pub tx: Sender<AdminEnum>,
+    pub rx: Receiver<AdminEnum>,
 }
 
-enum AdminEnum {
+pub enum AdminEnum {
     Connect(Connect),
     StopReq(StopReq),
     WaitForInSessionReq(WaitForInSessionReq),
@@ -106,51 +104,52 @@ enum AdminEnum {
 
 // Session is the primary FIX abstraction for message communication
 pub struct Session {
-    store: MessageStoreEnum,
+    pub store: MessageStoreEnum,
 
-    log: LogEnum,
-    session_id: SessionID,
+    pub log: LogEnum,
+    pub session_id: SessionID,
 
-    message_out: Sender<Vec<u8>>,
-    message_in: Receiver<FixIn>,
+    pub message_out: Sender<Vec<u8>>,
+    pub message_in: Receiver<FixIn>,
 
     // application messages are queued up for send here
     // wrapped in Mutex for access to to_send.
-    to_send: Arc<Mutex<Vec<Vec<u8>>>>,
-    session_event: SessionEvent,
-    message_event: MessageEvent,
-    application: Box<dyn Application>,
-    validator: Option<Box<dyn Validator>>,
+    pub to_send: Arc<Mutex<Vec<Vec<u8>>>>,
+    pub session_event: SessionEvent,
+    pub message_event: MessageEvent,
+    pub application: Arc<RwLock<dyn Application>>,
+    pub validator: Option<Box<dyn Validator>>,
     pub sm: StateMachine,
-    state_timer: EventTimer,
-    peer_timer: EventTimer,
-    sent_reset: bool,
-    stop_once: OnceCell<()>,
-    target_default_appl_ver_id: String,
+    pub state_timer: EventTimer,
+    pub peer_timer: EventTimer,
+    pub sent_reset: bool,
+    pub stop_once: OnceCell<()>,
+    pub target_default_appl_ver_id: String,
 
-    admin: Admin,
-    iss: SessionSettings,
-    transport_data_dictionary: Option<DataDictionary>,
-    app_data_dictionary: Option<DataDictionary>,
-    timestamp_precision: TimestampPrecision,
+    pub admin: Admin,
+    pub iss: SessionSettings,
+    pub transport_data_dictionary: Option<DataDictionary>,
+    pub app_data_dictionary: Option<DataDictionary>,
+    pub timestamp_precision: TimestampPrecision,
 }
 
+#[derive(Default)]
 pub struct FixIn {
     pub bytes: Vec<u8>,
     pub receive_time: NaiveDateTime,
 }
 
-struct StopReq;
+pub struct StopReq;
 
 type WaitChan = Receiver<()>;
 
-struct WaitForInSessionReq {
-    rep: Sender<WaitChan>,
+pub struct WaitForInSessionReq {
+    pub rep: Sender<WaitChan>,
 }
 
 impl SessionEvent {
     async fn send(&self, event: Event) {
-        self.tx.send(event);
+        let _ = self.tx.send(event);
     }
 }
 
@@ -234,7 +233,7 @@ impl Session {
         }
     }
 
-    fn fill_default_header(&self, msg: &Message, in_reply_to: Option<&Message>) {
+    async fn fill_default_header(&mut self, msg: &Message, in_reply_to: Option<&Message>) {
         msg.header
             .set_string(TAG_BEGIN_STRING, &self.session_id.begin_string);
         msg.header
@@ -272,13 +271,13 @@ impl Session {
             } else {
                 msg.header.set_int(
                     TAG_LAST_MSG_SEQ_NUM_PROCESSED,
-                    self.store.next_target_msg_seq_num() - 1,
+                    self.store.next_target_msg_seq_num().await - 1,
                 );
             }
         }
     }
 
-    fn should_send_reset(&self) -> bool {
+    async fn should_send_reset(&mut self) -> bool {
         if self.session_id.begin_string == BEGIN_STRING_FIX40 {
             return false;
         }
@@ -288,13 +287,13 @@ impl Session {
         return (self.iss.reset_on_logon
             || self.iss.reset_on_disconnect
             || self.iss.reset_on_logout)
-            && self.store.next_target_msg_seq_num() == 1
-            && self.store.next_sender_msg_seq_num() == 1;
+            && self.store.next_target_msg_seq_num().await == 1
+            && self.store.next_sender_msg_seq_num().await == 1;
     }
 
     async fn send_logon(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
-        self.send_logon_in_reply_to(self.should_send_reset(), None)
-            .await
+        let set_request = self.should_send_reset().await;
+        self.send_logon_in_reply_to(set_request, None).await
     }
 
     async fn send_logon_in_reply_to(
@@ -373,7 +372,7 @@ impl Session {
         self.send_in_reply_to(&logout, in_reply_to).await
     }
 
-    fn resend(&self, msg: &Message) -> bool {
+    async fn resend(&mut self, msg: &Message) -> bool {
         msg.header.set_field(TAG_POSS_DUP_FLAG, true);
 
         let mut orig_sending_time = FIXString::new();
@@ -387,7 +386,11 @@ impl Session {
 
         self.insert_sending_time(msg);
 
-        self.application.to_app(msg, &self.session_id).is_ok()
+        self.application
+            .write()
+            .await
+            .to_app(msg, &self.session_id)
+            .is_ok()
     }
 
     // queue_for_send will validate, persist, and queue the message for send
@@ -453,14 +456,17 @@ impl Session {
         msg: &Message,
         in_reply_to: Option<&Message>,
     ) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
-        self.fill_default_header(msg, in_reply_to);
-        let seq_num = self.store.next_sender_msg_seq_num();
+        self.fill_default_header(msg, in_reply_to).await;
+        let seq_num = self.store.next_sender_msg_seq_num().await;
         msg.header.set_field(TAG_MSG_SEQ_NUM, seq_num);
 
         let msg_type = msg.header.get_bytes(TAG_MSG_TYPE)?;
 
         if is_admin_message_type(&msg_type) {
-            self.application.to_admin(msg, &self.session_id);
+            self.application
+                .write()
+                .await
+                .to_admin(msg, &self.session_id);
 
             if msg_type == MSG_TYPE_LOGON {
                 let mut reset_seq_num_flag = FIXBoolean::default();
@@ -473,12 +479,12 @@ impl Session {
                     self.store.reset().await?;
 
                     self.sent_reset = true;
-                    let seq_num = self.store.next_sender_msg_seq_num();
+                    let seq_num = self.store.next_sender_msg_seq_num().await;
                     msg.header.set_field(TAG_MSG_SEQ_NUM, seq_num);
                 }
             }
         } else {
-            if let Err(err) = self.application.to_app(msg, &self.session_id) {
+            if let Err(err) = self.application.write().await.to_app(msg, &self.session_id) {
                 return Err(Box::new(err));
             }
         }
@@ -630,7 +636,7 @@ impl Session {
             self.store.reset().await?;
         }
 
-        self.verify_ignore_seq_num_too_high(msg)?;
+        self.verify_ignore_seq_num_too_high(msg).await?;
 
         if !self.iss.initiate_logon {
             if !self.iss.heart_bt_int_override {
@@ -652,9 +658,9 @@ impl Session {
             (1.2_f64 * (self.iss.heart_bt_int.num_nanoseconds().unwrap() as f64)).round() as u64;
 
         self.peer_timer.reset(Duration::from_nanos(duration)).await;
-        self.application.on_logon(&self.session_id);
+        self.application.write().await.on_logon(&self.session_id);
 
-        self.check_target_too_high(msg)?;
+        self.check_target_too_high(msg).await?;
 
         Ok(self.store.incr_next_target_msg_seq_num().await?)
     }
@@ -682,20 +688,23 @@ impl Session {
         Ok(())
     }
 
-    fn verify(&self, msg: &Message) -> MessageRejectErrorResult {
-        self.verify_select(msg, true, true)
+    async fn verify(&mut self, msg: &Message) -> MessageRejectErrorResult {
+        self.verify_select(msg, true, true).await
     }
 
-    fn verify_ignore_seq_num_too_high(&self, msg: &Message) -> MessageRejectErrorResult {
-        self.verify_select(msg, false, true)
+    async fn verify_ignore_seq_num_too_high(&mut self, msg: &Message) -> MessageRejectErrorResult {
+        self.verify_select(msg, false, true).await
     }
 
-    fn verify_ignore_seq_num_too_high_or_low(&self, msg: &Message) -> MessageRejectErrorResult {
-        self.verify_select(msg, false, false)
+    async fn verify_ignore_seq_num_too_high_or_low(
+        &mut self,
+        msg: &Message,
+    ) -> MessageRejectErrorResult {
+        self.verify_select(msg, false, false).await
     }
 
-    fn verify_select(
-        &self,
+    async fn verify_select(
+        &mut self,
         msg: &Message,
         check_too_high: bool,
         check_too_low: bool,
@@ -707,38 +716,45 @@ impl Session {
         self.check_sending_time(msg)?;
 
         if check_too_low {
-            self.check_target_too_low(msg)?;
+            self.check_target_too_low(msg).await?;
         }
 
         if check_too_high {
-            self.check_target_too_high(msg)?;
+            self.check_target_too_high(msg).await?;
         }
 
         if let Some(validator) = &self.validator {
             validator.validate(msg)?;
         }
 
-        self.from_callback(msg)
+        self.from_callback(msg).await
     }
 
-    fn from_callback(&self, msg: &Message) -> MessageRejectErrorResult {
+    async fn from_callback(&mut self, msg: &Message) -> MessageRejectErrorResult {
         let msg_type = msg.header.get_bytes(TAG_MSG_TYPE)?;
 
         if is_admin_message_type(&msg_type) {
-            return self.application.from_admin(msg, &self.session_id);
+            return self
+                .application
+                .write()
+                .await
+                .from_admin(msg, &self.session_id);
         }
 
-        self.application.from_app(msg, &self.session_id)
+        self.application
+            .write()
+            .await
+            .from_app(msg, &self.session_id)
     }
 
-    fn check_target_too_low(&self, msg: &Message) -> MessageRejectErrorResult {
+    async fn check_target_too_low(&mut self, msg: &Message) -> MessageRejectErrorResult {
         if !msg.header.has(TAG_MSG_SEQ_NUM) {
             return Err(required_tag_missing(TAG_MSG_SEQ_NUM));
         }
 
         let seq_num = msg.header.get_int(TAG_MSG_SEQ_NUM)?;
 
-        let next_target_msg_seq_num = self.store.next_target_msg_seq_num();
+        let next_target_msg_seq_num = self.store.next_target_msg_seq_num().await;
         if seq_num < next_target_msg_seq_num {
             return Err(TargetTooLow {
                 received_target: seq_num,
@@ -751,14 +767,14 @@ impl Session {
         Ok(())
     }
 
-    fn check_target_too_high(&self, msg: &Message) -> MessageRejectErrorResult {
+    async fn check_target_too_high(&mut self, msg: &Message) -> MessageRejectErrorResult {
         if !msg.header.has(TAG_MSG_SEQ_NUM) {
             return Err(required_tag_missing(TAG_MSG_SEQ_NUM));
         }
 
         let seq_num = msg.header.get_int(TAG_MSG_SEQ_NUM)?;
 
-        let next_target_msg_seq_num = self.store.next_target_msg_seq_num();
+        let next_target_msg_seq_num = self.store.next_target_msg_seq_num().await;
         if seq_num > next_target_msg_seq_num {
             return Err(TargetTooHigh {
                 received_target: seq_num,
@@ -1064,7 +1080,7 @@ impl Session {
         self.sm_set_state(next_state).await;
     }
 
-    fn sm_stopped(&self) -> bool {
+    pub fn sm_stopped(&self) -> bool {
         self.sm.stopped
     }
 
@@ -1178,7 +1194,7 @@ impl Session {
         if !self
             .iss
             .session_time
-            .is_in_same_range(&self.store.creation_time(), now)
+            .is_in_same_range(&self.store.creation_time().await, now)
         {
             self.log.on_event("Session reset");
             self.state_shutdown_now().await;
@@ -1224,7 +1240,7 @@ impl Session {
         }
 
         if do_on_logout {
-            self.application.on_logout(&self.session_id);
+            self.application.write().await.on_logout(&self.session_id);
         }
         self.on_disconnect().await;
     }
@@ -1282,7 +1298,7 @@ impl Session {
         msg: &mut Message,
         is: InSession,
     ) -> SessionStateEnum {
-        let verify_result = self.verify_select(msg, false, false);
+        let verify_result = self.verify_select(msg, false, false).await;
         if let Err(err) = verify_result {
             return self.in_session_process_reject(msg, err, is).await;
         }
@@ -1319,7 +1335,7 @@ impl Session {
         msg: &mut Message,
         is: InSession,
     ) -> SessionStateEnum {
-        let verify_result = self.verify(msg);
+        let verify_result = self.verify(msg).await;
         if let Err(err) = verify_result {
             return self.in_session_process_reject(msg, err, is).await;
         }
@@ -1361,7 +1377,7 @@ impl Session {
             }
         }
 
-        let verify_result = self.verify_select(msg, gap_fill_flag, gap_fill_flag);
+        let verify_result = self.verify_select(msg, gap_fill_flag, gap_fill_flag).await;
         if let Err(err) = verify_result {
             return self.in_session_process_reject(msg, err, is).await;
         }
@@ -1369,7 +1385,7 @@ impl Session {
         let mut new_seq_no = FIXInt::default();
         let field_result = msg.body.get_field(TAG_NEW_SEQ_NO, &mut new_seq_no);
         if field_result.is_ok() {
-            let expected_seq_num = self.store.next_target_msg_seq_num();
+            let expected_seq_num = self.store.next_target_msg_seq_num().await;
             self.log.on_eventf(
                 "MsReceived SequenceReset FROM: {{from}} TO: {{to}}",
                 hashmap! {
@@ -1399,7 +1415,7 @@ impl Session {
         msg: &mut Message,
         is: InSession,
     ) -> SessionStateEnum {
-        let verify_result = self.verify_ignore_seq_num_too_high_or_low(msg);
+        let verify_result = self.verify_ignore_seq_num_too_high_or_low(msg).await;
         if let Err(err) = verify_result {
             return self.in_session_process_reject(msg, err, is).await;
         }
@@ -1433,7 +1449,7 @@ impl Session {
             },
         );
 
-        let expected_seq_num = self.store.next_sender_msg_seq_num();
+        let expected_seq_num = self.store.next_sender_msg_seq_num().await;
         if (!matches!(
             self.session_id.begin_string.as_str(),
             BEGIN_STRING_FIX40 | BEGIN_STRING_FIX41
@@ -1454,12 +1470,12 @@ impl Session {
             return self.handle_state_error(&err.to_string());
         }
 
-        let check_result = self.check_target_too_low(msg);
+        let check_result = self.check_target_too_low(msg).await;
         if check_result.is_err() {
             return SessionStateEnum::InSession(is);
         }
 
-        let check_result = self.check_target_too_high(msg);
+        let check_result = self.check_target_too_high(msg).await;
         if check_result.is_err() {
             return SessionStateEnum::InSession(is);
         }
@@ -1514,7 +1530,7 @@ impl Session {
                 continue;
             }
 
-            if !self.resend(&msg) {
+            if !self.resend(&msg).await {
                 next_seq_num = sent_message_seq_num + 1;
                 continue;
             }
@@ -1692,7 +1708,8 @@ impl Session {
         in_reply_to: &Message,
     ) -> MessageRejectErrorResult {
         let sequence_reset = Message::new();
-        self.fill_default_header(&sequence_reset, Some(in_reply_to));
+        self.fill_default_header(&sequence_reset, Some(in_reply_to))
+            .await;
 
         sequence_reset
             .header
@@ -1715,7 +1732,10 @@ impl Session {
                 .set_field(TAG_ORIG_SENDING_TIME, orig_sending_time);
         }
 
-        self.application.to_admin(&sequence_reset, &self.session_id);
+        self.application
+            .write()
+            .await
+            .to_admin(&sequence_reset, &self.session_id);
 
         let msg_bytes = sequence_reset.build();
 
@@ -1801,7 +1821,7 @@ impl Session {
                 return self.in_session_handle_test_request(msg, is).await;
             }
             _ => {
-                let verify_result = self.verify(msg);
+                let verify_result = self.verify(msg).await;
                 if let Err(err) = verify_result {
                     return self.handle_state_error(&err.to_string());
                 }
@@ -1979,10 +1999,11 @@ impl Session {
         }
 
         if rs.current_resend_range_end != 0
-            && rs.current_resend_range_end < self.store.next_target_msg_seq_num()
+            && rs.current_resend_range_end < self.store.next_target_msg_seq_num().await
         {
+            let begin_seq = self.store.next_target_msg_seq_num().await;
             let next_resend_state_result = self
-                .send_resend_request(self.store.next_target_msg_seq_num(), rs.resend_range_end)
+                .send_resend_request(begin_seq, rs.resend_range_end)
                 .await;
             match next_resend_state_result {
                 Err(err) => return self.handle_state_error(&err.to_string()),
@@ -1993,7 +2014,7 @@ impl Session {
             }
         }
 
-        if rs.resend_range_end >= self.store.next_target_msg_seq_num() {
+        if rs.resend_range_end >= self.store.next_target_msg_seq_num().await {
             return SessionStateEnum::ResendState(rs);
         }
 
@@ -2001,7 +2022,7 @@ impl Session {
             if rs.message_stash.is_empty() {
                 break;
             }
-            let target_seq_num = self.store.next_target_msg_seq_num();
+            let target_seq_num = self.store.next_target_msg_seq_num().await;
             let msg_option = rs.message_stash.get(&target_seq_num);
             if msg_option.is_none() {
                 break;
