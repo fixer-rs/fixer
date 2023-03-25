@@ -2049,7 +2049,10 @@ fn optionally_set_id(msg: &Message, tag: Tag, value: &str) {
 
 #[cfg(test)]
 mod tests {
-    use crate::{fix_string::FIXString, fixer_test::SessionSuiteRig};
+    use crate::{
+        fix_string::FIXString,
+        fixer_test::{FixerSuite, MessageFactory, SessionSuiteRig},
+    };
 
     fn new_fix_string(val: &str) -> FIXString {
         FIXString::from(val)
@@ -2061,10 +2064,11 @@ mod tests {
 
     impl SessionSuite {
         fn setup_test() -> Self {
-            // 	s.Init()
+            SessionSuite {
+                ssr: SessionSuiteRig::init(),
+            }
             // 	s.Require().Nil(s.session.store.Reset())
             // 	s.session.State = latentState{}
-            todo!()
         }
     }
 
@@ -2845,14 +2849,16 @@ mod tests {
 
     impl SessionSendTestSuite {
         fn setup_test() -> Self {
-            // 	suite.Init()
+            SessionSendTestSuite {
+                ssr: SessionSuiteRig::init(),
+            }
             // 	suite.session.State = inSession{}
-            todo!()
         }
     }
 
     #[tokio::test]
     async fn test_queue_for_send_app_message() {
+        let mut suite = SessionSendTestSuite::setup_test();
         // 	suite.MockApp.On("ToApp").Return(nil)
         // 	require.Nil(suite.T(), suite.queue_for_send(suite.NewOrderSingle()))
 
@@ -2865,6 +2871,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_queue_for_send_do_not_send_app_message() {
+        let mut suite = SessionSendTestSuite::setup_test();
         // 	suite.MockApp.On("ToApp").Return(ErrDoNotSend)
         // 	suite.Equal(ErrDoNotSend, suite.queue_for_send(suite.NewOrderSingle()))
 
@@ -2884,6 +2891,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_queue_for_send_admin_message() {
+        let mut suite = SessionSendTestSuite::setup_test();
         // 	suite.MockApp.On("ToAdmin")
         // 	require.Nil(suite.T(), suite.queue_for_send(suite.Heartbeat()))
 
@@ -2895,6 +2903,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_send_app_message() {
+        let mut suite = SessionSendTestSuite::setup_test();
         // 	suite.MockApp.On("ToApp").Return(nil)
         // 	require.Nil(suite.T(), suite.send(suite.NewOrderSingle()))
 
@@ -2906,6 +2915,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_send_app_do_not_send_message() {
+        let mut suite = SessionSendTestSuite::setup_test();
         // 	suite.MockApp.On("ToApp").Return(ErrDoNotSend)
         // 	suite.Equal(ErrDoNotSend, suite.send(suite.NewOrderSingle()))
 
@@ -2916,6 +2926,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_send_admin_message() {
+        let mut suite = SessionSendTestSuite::setup_test();
         // 	suite.MockApp.On("ToAdmin")
         // 	require.Nil(suite.T(), suite.send(suite.Heartbeat()))
         // 	suite.MockApp.AssertExpectations(suite.T())
@@ -2926,6 +2937,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_send_flushes_queue() {
+        let mut suite = SessionSendTestSuite::setup_test();
         // 	suite.MockApp.On("ToApp").Return(nil)
         // 	suite.MockApp.On("ToAdmin")
         // 	require.Nil(suite.T(), suite.queue_for_send(suite.NewOrderSingle()))
@@ -2949,6 +2961,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_send_not_logged_on() {
+        let mut suite = SessionSendTestSuite::setup_test();
         // 	suite.MockApp.On("ToApp").Return(nil)
         // 	suite.MockApp.On("ToAdmin")
         // 	require.Nil(suite.T(), suite.queue_for_send(suite.NewOrderSingle()))
@@ -2970,6 +2983,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_send_enable_last_msg_seq_num_processed() {
+        let mut suite = SessionSendTestSuite::setup_test();
         // 	suite.session.State = inSession{}
         // 	suite.session.EnableLastMsgSeqNumProcessed = true
 
@@ -2985,6 +2999,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_send_disable_message_persist() {
+        let mut suite = SessionSendTestSuite::setup_test();
         // 	suite.session.State = inSession{}
         // 	suite.session.DisableMessagePersist = true
 
@@ -2998,6 +3013,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_drop_and_send_admin_message() {
+        let mut suite = SessionSendTestSuite::setup_test();
         // 	suite.MockApp.On("ToAdmin")
         // 	suite.Require().Nil(suite.dropAndSend(suite.Heartbeat()))
         // 	suite.MockApp.AssertExpectations(suite.T())
@@ -3008,6 +3024,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_drop_and_send_drops_queue() {
+        let mut suite = SessionSendTestSuite::setup_test();
         // 	suite.MockApp.On("ToApp").Return(nil)
         // 	suite.MockApp.On("ToAdmin")
         // 	require.Nil(suite.T(), suite.queue_for_send(suite.NewOrderSingle()))
@@ -3031,6 +3048,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_drop_and_send_drops_queue_with_reset() {
+        let mut suite = SessionSendTestSuite::setup_test();
         // 	suite.MockApp.On("ToApp").Return(nil)
         // 	suite.MockApp.On("ToAdmin")
         // 	require.Nil(suite.T(), suite.queue_for_send(suite.NewOrderSingle()))

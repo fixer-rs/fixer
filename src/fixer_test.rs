@@ -494,19 +494,18 @@ pub struct SessionSuiteRig {
     pub session: Session,
     pub receiver: MockSessionReceiver,
 }
+
 impl SessionSuiteRig {
-    pub fn init(&mut self) {
+    pub fn init() -> Self {
         let mock_app_shared = Arc::new(RwLock::new(MockAppExtended {
             mock_app: MockApp::default(),
             decorate_to_admin: None,
             last_to_admin: None,
             last_to_app: None,
         }));
-        self.mock_app = mock_app_shared.clone();
+
         let mock_store_shared = MockStoreShared::default();
-        self.mock_store = MessageStoreEnum::MockMemoryStore(mock_store_shared.clone());
-        self.message_factory = MessageFactory::default();
-        self.receiver = MockSessionReceiver::new();
+
         let (_, message_in_rx) = channel::<FixIn>(1);
         let (session_event_tx, session_event_rx) = unbounded_channel::<Event>();
         let (message_event_tx, message_event_rx) = channel::<bool>(1);
@@ -542,7 +541,9 @@ impl SessionSuiteRig {
             disable_message_persist: false,
         };
 
-        self.session = Session {
+        let receiver = MockSessionReceiver::new();
+
+        let session = Session {
             store: MessageStoreEnum::MockMemoryStore(mock_store_shared.clone()),
             log: LogEnum::NullLog(NullLog),
             session_id: SessionID {
@@ -551,7 +552,7 @@ impl SessionSuiteRig {
                 sender_comp_id: String::from("ISLD"),
                 ..Default::default()
             },
-            message_out: self.receiver.send_channel.tx.clone(),
+            message_out: receiver.send_channel.tx.clone(),
             message_in: message_in_rx,
             to_send: Default::default(),
             session_event: SessionEvent {
@@ -585,7 +586,14 @@ impl SessionSuiteRig {
             timestamp_precision: Default::default(),
         };
 
-        self.session.iss.max_latency = Duration::seconds(120);
+        SessionSuiteRig {
+            suite: FixerSuite::default(),
+            message_factory: MessageFactory::default(),
+            mock_app: mock_app_shared.clone(),
+            mock_store: MessageStoreEnum::MockMemoryStore(mock_store_shared.clone()),
+            session,
+            receiver,
+        }
     }
 
     pub fn state(&self, cur_state: SessionStateEnum) -> bool {
