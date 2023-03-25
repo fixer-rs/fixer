@@ -100,7 +100,6 @@ impl StateMachine {
 
 // sessionState is the current state of the session state machine. The session state determines how the session responds to
 // incoming messages, timeouts, and requests to send application messages.
-// #[async_trait]
 pub trait SessionState: ToString + Any {
     // fix_msg_in is called by the session on incoming messages from the counter party.
     // The return type is the next session state following message processing.
