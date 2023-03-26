@@ -1,7 +1,7 @@
 use crate::session::latent_state::LatentState;
 use delegate::delegate;
 
-#[derive(Default)]
+#[derive(Default, Debug, Clone)]
 pub struct NotSessionTime {
     pub latent_state: LatentState,
 }

@@ -86,6 +86,15 @@ impl FieldValueWriter for FIXUTCTimestamp {
 
 impl FieldValue for FIXUTCTimestamp {}
 
+impl FIXUTCTimestamp {
+    pub fn from_time(time: DateTime<Utc>) -> Self {
+        FIXUTCTimestamp {
+            time,
+            precision: TimestampPrecision::default(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

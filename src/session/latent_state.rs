@@ -1,7 +1,7 @@
 use crate::session::session_state::InSessionTime;
 use delegate::delegate;
 
-#[derive(Default)]
+#[derive(Default, Debug, Clone)]
 pub struct LatentState {
     pub in_session_time: InSessionTime,
 }

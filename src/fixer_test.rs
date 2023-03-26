@@ -3,11 +3,10 @@ use crate::errors::MessageRejectErrorResult;
 use crate::field_map::FieldMap;
 use crate::fix_boolean::FIXBoolean;
 use crate::fix_string::FIXString;
-use crate::fix_utc_timestamp::{FIXUTCTimestamp, TimestampPrecision};
+use crate::fix_utc_timestamp::FIXUTCTimestamp;
 use crate::internal::event::Event;
 use crate::internal::event_timer::EventTimer;
 use crate::internal::session_settings::SessionSettings;
-use crate::internal::time_range::{TimeOfDay, TimeRange};
 use crate::log::null_log::NullLog;
 use crate::log::LogEnum;
 use crate::message::Message;
@@ -25,7 +24,8 @@ use crate::tag::{
 };
 use crate::BEGIN_STRING_FIX42;
 use async_trait::async_trait;
-use chrono::{Duration, NaiveDateTime, Utc, Weekday};
+use chrono::{Duration, NaiveDateTime, Utc};
+use dashmap::DashMap;
 use mockall::predicate::*;
 use mockall::*;
 use simple_error::SimpleResult;
@@ -146,13 +146,13 @@ impl MessageStoreTrait for Store {
     }
 }
 
-pub struct MemoryStoreExtended {
+pub struct MockStoreExtended {
     pub mock: MockStore,
     pub ms: MemoryStore,
 }
 
 #[async_trait]
-impl MessageStoreTrait for MemoryStoreExtended {
+impl MessageStoreTrait for MockStoreExtended {
     async fn next_sender_msg_seq_num(&mut self) -> isize {
         self.ms.next_sender_msg_seq_num().await
     }
@@ -216,7 +216,7 @@ impl MessageStoreTrait for MemoryStoreExtended {
     }
 }
 
-pub type MockStoreShared = Arc<RwLock<MockStore>>;
+pub type MockStoreShared = Arc<RwLock<MockStoreExtended>>;
 
 #[async_trait]
 impl MessageStoreTrait for MockStoreShared {
@@ -290,6 +290,16 @@ impl MessageStoreTrait for MockStoreShared {
 
     async fn close(&mut self) -> SimpleResult<()> {
         self.write().await.close().await
+    }
+}
+
+pub trait NewMockMemory {
+    fn new_mock_store(mock_store_extended: MockStoreExtended) -> Self;
+}
+
+impl NewMockMemory for MockStoreShared {
+    fn new_mock_store(mock_store_extended: MockStoreExtended) -> Self {
+        Arc::new(RwLock::new(mock_store_extended))
     }
 }
 
@@ -414,10 +424,7 @@ impl MessageFactory {
             .set_field(TAG_TARGET_COMP_ID, FIXString::from("ISLD"));
         msg.header.set_field(
             TAG_SENDING_TIME,
-            FIXUTCTimestamp {
-                time: Utc::now().naive_utc(),
-                precision: TimestampPrecision::default(),
-            },
+            FIXUTCTimestamp::from_time(Utc::now().naive_utc()),
         );
         msg.header.set_field(TAG_MSG_SEQ_NUM, self.seq_num);
         msg.header
@@ -504,7 +511,17 @@ impl SessionSuiteRig {
             last_to_app: None,
         }));
 
-        let mock_store_shared = MockStoreShared::default();
+        let mock_store_extended = MockStoreExtended {
+            mock: MockStore::default(),
+            ms: MemoryStore {
+                sender_msg_seq_num: 0,
+                target_msg_seq_num: 0,
+                creation_time: Utc::now().naive_utc(),
+                message_map: DashMap::new(),
+            },
+        };
+
+        let mock_store_shared = MockStoreShared::new_mock_store(mock_store_extended);
 
         let (_, message_in_rx) = channel::<FixIn>(1);
         let (session_event_tx, session_event_rx) = unbounded_channel::<Event>();
@@ -517,12 +534,7 @@ impl SessionSuiteRig {
         let session_settings = SessionSettings {
             max_latency: duration,
             heart_bt_int: duration,
-            session_time: TimeRange::new_utc_week_range(
-                TimeOfDay::new(9, 0, 0),
-                TimeOfDay::new(16, 0, 0),
-                Weekday::Mon,
-                Weekday::Fri,
-            ),
+            session_time: None,
             resend_request_chunk_size: 0,
 
             default_appl_ver_id: String::from("1"),

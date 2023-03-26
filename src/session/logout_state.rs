@@ -1,7 +1,7 @@
 use crate::session::session_state::ConnectedNotLoggedOn;
 use delegate::delegate;
 
-#[derive(Default)]
+#[derive(Default, Debug, Clone)]
 pub struct LogoutState {
     connected_not_logged_on: ConnectedNotLoggedOn,
 }

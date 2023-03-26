@@ -9,7 +9,7 @@ pub struct SessionSettings {
     pub reset_on_disconnect: bool,
     pub heart_bt_int: Duration,
     pub heart_bt_int_override: bool,
-    pub session_time: TimeRange,
+    pub session_time: Option<TimeRange>,
     pub initiate_logon: bool,
     pub resend_request_chunk_size: isize,
     pub enable_last_msg_seq_num_processed: bool,

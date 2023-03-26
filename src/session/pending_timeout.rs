@@ -1,6 +1,7 @@
 use crate::session::session_state::AfterPendingTimeout;
 use delegate::delegate;
 
+#[derive(Debug, Clone)]
 pub struct PendingTimeout {
     pub session_state: AfterPendingTimeout,
 }

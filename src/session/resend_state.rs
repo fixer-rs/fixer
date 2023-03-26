@@ -2,7 +2,7 @@ use crate::{message::Message, session::session_state::LoggedOn};
 use delegate::delegate;
 use std::collections::HashMap;
 
-#[derive(Default)]
+#[derive(Default, Debug, Clone)]
 pub struct ResendState {
     pub logged_on: LoggedOn,
     pub message_stash: HashMap<isize, Message>,

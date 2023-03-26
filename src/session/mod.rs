@@ -219,7 +219,7 @@ impl Session {
                 TAG_SENDING_TIME,
                 FIXUTCTimestamp {
                     time: sending_time,
-                    precision: self.timestamp_precision,
+                    precision: TimestampPrecision::Seconds,
                 },
             );
         } else {
@@ -227,7 +227,7 @@ impl Session {
                 TAG_SENDING_TIME,
                 FIXUTCTimestamp {
                     time: sending_time,
-                    precision: TimestampPrecision::Seconds,
+                    precision: self.timestamp_precision,
                 },
             );
         }
@@ -929,7 +929,7 @@ impl Session {
     async fn on_admin(&mut self, msg: AdminEnum) {
         match msg {
             AdminEnum::Connect(connect) => {
-                if self.sm_is_connected() {
+                if self.sm.is_connected() {
                     if !connect.err.is_closed() {
                         let _ = connect
                             .err
@@ -940,7 +940,7 @@ impl Session {
                     return;
                 }
 
-                if !self.sm_is_session_time() {
+                if !self.sm.is_session_time() {
                     self.sm_handle_disconnect_state().await;
                     if !connect.err.is_closed() {
                         let _ = connect
@@ -963,7 +963,7 @@ impl Session {
                 self.sm_stop().await;
             }
             AdminEnum::WaitForInSessionReq(wfisr) => {
-                if !self.sm_is_session_time() {
+                if !self.sm.is_session_time() {
                     let notify = self.sm.notify_on_in_session_time.take();
                     let _ = wfisr.rep.send(notify.unwrap()).await;
                 }
@@ -1085,7 +1085,7 @@ impl Session {
     }
 
     async fn sm_disconnected(&mut self) {
-        if self.sm_is_connected() {
+        if self.sm.is_connected() {
             self.sm_set_state(SessionStateEnum::new_latent_state())
                 .await;
         }
@@ -1093,7 +1093,7 @@ impl Session {
 
     async fn sm_incoming(&mut self, fix_in: &FixIn) {
         self.sm_check_session_time(&Utc::now().naive_utc()).await;
-        if !self.sm_is_connected() {
+        if !self.sm.is_connected() {
             return;
         }
 
@@ -1168,8 +1168,18 @@ impl Session {
     }
 
     async fn sm_check_session_time(&mut self, now: &NaiveDateTime) {
-        if !self.iss.session_time.is_in_range(now) {
-            if self.sm_is_session_time() {
+        let mut check_first = false;
+        if self.iss.session_time.is_some() {
+            let session_time = self.iss.session_time.as_ref().unwrap();
+            if !session_time.is_in_range(now) {
+                check_first = true;
+            }
+        } else {
+            check_first = true;
+        }
+
+        if check_first {
+            if self.sm.is_session_time() {
                 self.log.on_event("Not in session");
             }
 
@@ -1185,17 +1195,24 @@ impl Session {
         }
 
         if !self.sm.is_session_time() {
+            println!("--------------------------- maji2");
             self.log.on_event("In session");
             self.sm_notify_in_session_time();
             self.sm_set_state(SessionStateEnum::new_latent_state())
                 .await;
         }
 
-        if !self
-            .iss
-            .session_time
-            .is_in_same_range(&self.store.creation_time().await, now)
-        {
+        let mut check_third = false;
+        if self.iss.session_time.is_some() {
+            let session_time = self.iss.session_time.as_ref().unwrap();
+            if session_time.is_in_same_range(&self.store.creation_time().await, now) {
+                check_third = true;
+            }
+        } else {
+            check_third = true;
+        }
+
+        if check_third {
             self.log.on_event("Session reset");
             self.state_shutdown_now().await;
             let drop_result = self.drop_and_reset().await;
@@ -1209,7 +1226,7 @@ impl Session {
 
     async fn sm_set_state(&mut self, next_state: SessionStateEnum) {
         if !next_state.is_connected() {
-            if self.sm_is_connected() {
+            if self.sm.is_connected() {
                 self.sm_handle_disconnect_state().await;
             }
 
@@ -2049,383 +2066,838 @@ fn optionally_set_id(msg: &Message, tag: Tag, value: &str) {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        fix_string::FIXString,
-        fixer_test::{FixerSuite, MessageFactory, SessionSuiteRig},
-    };
+    use std::{any::Any, sync::Arc};
 
-    fn new_fix_string(val: &str) -> FIXString {
-        FIXString::from(val)
-    }
+    use crate::{
+        errors::{
+            MessageRejectErrorEnum, MessageRejectErrorTrait, REJECT_REASON_COMP_ID_PROBLEM,
+            REJECT_REASON_REQUIRED_TAG_MISSING, REJECT_REASON_SENDING_TIME_ACCURACY_PROBLEM,
+        },
+        field_map::FieldMap,
+        fix_string::FIXString,
+        fix_utc_timestamp::{FIXUTCTimestamp, TimestampPrecision},
+        fixer_test::{
+            FixerSuite, MessageFactory, MockStore, MockStoreExtended, MockStoreShared,
+            SessionSuiteRig,
+        },
+        internal::time_range::{TimeOfDay, TimeRange},
+        message::Message,
+        session::{
+            in_session::InSession,
+            pending_timeout::PendingTimeout,
+            resend_state::ResendState,
+            session_state::{AfterPendingTimeout, SessionState, SessionStateEnum},
+        },
+        store::{MemoryStore, MessageStoreEnum, MessageStoreTrait},
+        tag::{
+            Tag, TAG_BEGIN_STRING, TAG_MSG_SEQ_NUM, TAG_SENDER_COMP_ID, TAG_SENDER_LOCATION_ID,
+            TAG_SENDER_SUB_ID, TAG_SENDING_TIME, TAG_TARGET_COMP_ID, TAG_TARGET_LOCATION_ID,
+            TAG_TARGET_SUB_ID,
+        },
+        BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIX42, BEGIN_STRING_FIX43,
+        BEGIN_STRING_FIX44, BEGIN_STRING_FIXT11,
+    };
+    use chrono::{Duration, Timelike, Utc};
+    use dashmap::DashMap;
+    use delegate::delegate;
+    use tokio::sync::RwLock;
 
     struct SessionSuite {
         ssr: SessionSuiteRig,
     }
 
     impl SessionSuite {
-        fn setup_test() -> Self {
-            SessionSuite {
+        async fn setup_test() -> Self {
+            let mut s = SessionSuite {
                 ssr: SessionSuiteRig::init(),
+            };
+            assert!(s.ssr.session.store.reset().await.is_ok());
+            s.ssr.session.sm.state = Some(SessionStateEnum::new_latent_state());
+            s
+        }
+
+        delegate! {
+            to self.ssr.suite {
+                pub fn message_type(&self, msg_type: String, msg: &Message);
+                pub fn field_equals(&self, tag: Tag, expected_value: Box<dyn Any>, field_map: &FieldMap);
+                pub fn message_equals_bytes(&self, expected_bytes: &[u8], msg: &Message) ;
             }
-            // 	s.Require().Nil(s.session.store.Reset())
-            // 	s.session.State = latentState{}
         }
     }
 
     #[tokio::test]
     async fn test_fill_default_header() {
-        let mut s = SessionSuite::setup_test();
-        // 	s.session.sessionID.BeginString = "FIX.4.2"
-        // 	s.session.sessionID.TargetCompID = "TAR"
-        // 	s.session.sessionID.SenderCompID = "SND"
+        let mut s = SessionSuite::setup_test().await;
+        s.ssr.session.session_id.begin_string = FIXString::from("FIX.4.2");
+        s.ssr.session.session_id.target_comp_id = FIXString::from("TAR");
+        s.ssr.session.session_id.sender_comp_id = FIXString::from("SND");
 
-        // 	msg := NewMessage()
-        // 	s.session.fillDefaultHeader(msg, nil)
-        // 	s.FieldEquals(tagBeginString, "FIX.4.2", msg.Header)
-        // 	s.FieldEquals(tagTargetCompID, "TAR", msg.Header)
-        // 	s.FieldEquals(tagSenderCompID, "SND", msg.Header)
-        // 	s.False(msg.Header.Has(tagSenderSubID))
-        // 	s.False(msg.Header.Has(tagSenderLocationID))
-        // 	s.False(msg.Header.Has(tagTargetSubID))
-        // 	s.False(msg.Header.Has(tagTargetLocationID))
+        let mut msg = Message::new();
+        s.ssr.session.fill_default_header(&msg, None).await;
+        s.field_equals(TAG_BEGIN_STRING, Box::new("FIX.4.2"), &msg.header.field_map);
+        s.field_equals(TAG_TARGET_COMP_ID, Box::new("TAR"), &msg.header.field_map);
+        s.field_equals(TAG_SENDER_COMP_ID, Box::new("SND"), &msg.header.field_map);
+        assert!(!msg.header.has(TAG_SENDER_SUB_ID));
+        assert!(!msg.header.has(TAG_SENDER_LOCATION_ID));
+        assert!(!msg.header.has(TAG_TARGET_SUB_ID));
+        assert!(!msg.header.has(TAG_TARGET_LOCATION_ID));
 
-        // 	s.session.sessionID.BeginString = "FIX.4.3"
-        // 	s.session.sessionID.TargetCompID = "TAR"
-        // 	s.session.sessionID.TargetSubID = "TARS"
-        // 	s.session.sessionID.TargetLocationID = "TARL"
-        // 	s.session.sessionID.SenderCompID = "SND"
-        // 	s.session.sessionID.SenderSubID = "SNDS"
-        // 	s.session.sessionID.SenderLocationID = "SNDL"
+        s.ssr.session.session_id.begin_string = String::from("FIX.4.3");
+        s.ssr.session.session_id.target_comp_id = String::from("TAR");
+        s.ssr.session.session_id.target_sub_id = String::from("TARS");
+        s.ssr.session.session_id.target_location_id = String::from("TARL");
+        s.ssr.session.session_id.sender_comp_id = String::from("SND");
+        s.ssr.session.session_id.sender_sub_id = String::from("SNDS");
+        s.ssr.session.session_id.sender_location_id = String::from("SNDL");
 
-        // 	msg = NewMessage()
-        // 	s.session.fillDefaultHeader(msg, nil)
-        // 	s.FieldEquals(tagBeginString, "FIX.4.3", msg.Header)
-        // 	s.FieldEquals(tagTargetCompID, "TAR", msg.Header)
-        // 	s.FieldEquals(tagTargetSubID, "TARS", msg.Header)
-        // 	s.FieldEquals(tagTargetLocationID, "TARL", msg.Header)
-        // 	s.FieldEquals(tagSenderCompID, "SND", msg.Header)
-        // 	s.FieldEquals(tagSenderSubID, "SNDS", msg.Header)
-        // 	s.FieldEquals(tagSenderLocationID, "SNDL", msg.Header)
+        msg = Message::new();
+        s.ssr.session.fill_default_header(&msg, None).await;
+        s.field_equals(TAG_BEGIN_STRING, Box::new("FIX.4.3"), &msg.header.field_map);
+        s.field_equals(TAG_TARGET_COMP_ID, Box::new("TAR"), &msg.header.field_map);
+        s.field_equals(TAG_TARGET_SUB_ID, Box::new("TARS"), &msg.header.field_map);
+        s.field_equals(
+            TAG_TARGET_LOCATION_ID,
+            Box::new("TARL"),
+            &msg.header.field_map,
+        );
+        s.field_equals(TAG_SENDER_COMP_ID, Box::new("SND"), &msg.header.field_map);
+        s.field_equals(TAG_SENDER_SUB_ID, Box::new("SNDS"), &msg.header.field_map);
+        s.field_equals(
+            TAG_SENDER_LOCATION_ID,
+            Box::new("SNDL"),
+            &msg.header.field_map,
+        );
     }
 
     #[tokio::test]
     async fn test_insert_sending_time() {
-        let mut s = SessionSuite::setup_test();
-        // 	var tests = []struct {
-        // 		BeginString       string
-        // 		Precision         TimestampPrecision
-        // 		ExpectedPrecision TimestampPrecision
-        // 	}{
-        // 		{BeginStringFIX40, Millis, Seconds}, // Config is ignored for fix < 4.2.
-        // 		{BeginStringFIX41, Millis, Seconds},
+        let mut s = SessionSuite::setup_test().await;
+        struct TestCase<'a> {
+            begin_string: &'a str,
+            precision: TimestampPrecision,
+            expected_precision: TimestampPrecision,
+        }
 
-        // 		{BeginStringFIX42, Millis, Millis},
-        // 		{BeginStringFIX42, Micros, Micros},
-        // 		{BeginStringFIX42, Nanos, Nanos},
+        let tests = vec![
+            TestCase {
+                begin_string: BEGIN_STRING_FIX40,
+                precision: TimestampPrecision::Millis,
+                expected_precision: TimestampPrecision::Seconds,
+            }, // Config is ignored for fix < 4.2.
+            TestCase {
+                begin_string: BEGIN_STRING_FIX41,
+                precision: TimestampPrecision::Millis,
+                expected_precision: TimestampPrecision::Seconds,
+            }, // Config is ignored for fix < 4.2.
+            TestCase {
+                begin_string: BEGIN_STRING_FIX42,
+                precision: TimestampPrecision::Millis,
+                expected_precision: TimestampPrecision::Millis,
+            },
+            TestCase {
+                begin_string: BEGIN_STRING_FIX42,
+                precision: TimestampPrecision::Micros,
+                expected_precision: TimestampPrecision::Micros,
+            },
+            TestCase {
+                begin_string: BEGIN_STRING_FIX42,
+                precision: TimestampPrecision::Nanos,
+                expected_precision: TimestampPrecision::Nanos,
+            },
+            TestCase {
+                begin_string: BEGIN_STRING_FIX43,
+                precision: TimestampPrecision::Nanos,
+                expected_precision: TimestampPrecision::Nanos,
+            },
+            TestCase {
+                begin_string: BEGIN_STRING_FIX44,
+                precision: TimestampPrecision::Nanos,
+                expected_precision: TimestampPrecision::Nanos,
+            },
+            TestCase {
+                begin_string: BEGIN_STRING_FIXT11,
+                precision: TimestampPrecision::Nanos,
+                expected_precision: TimestampPrecision::Nanos,
+            },
+        ];
 
-        // 		{BeginStringFIX43, Nanos, Nanos},
-        // 		{BeginStringFIX44, Nanos, Nanos},
-        // 		{BeginStringFIXT11, Nanos, Nanos},
-        // 	}
+        for test in tests.iter() {
+            s.ssr.session.session_id.begin_string = test.begin_string.to_string();
+            s.ssr.session.timestamp_precision = test.precision;
 
-        // 	for _, test := range tests {
-        // 		s.session.sessionID.BeginString = test.BeginString
-        // 		s.timestampPrecision = test.Precision
+            let msg = Message::new();
+            s.ssr.session.insert_sending_time(&msg);
 
-        // 		msg := NewMessage()
-        // 		s.session.insertSendingTime(msg)
-
-        // 		var f FIXUTCTimestamp
-        // 		s.Nil(msg.Header.GetField(tagSendingTime, &f))
-        // 		s.Equal(f.Precision, test.ExpectedPrecision)
-        // 	}
+            let mut f = FIXUTCTimestamp::default();
+            assert!(msg.header.get_field(TAG_SENDING_TIME, &mut f).is_ok());
+            assert_eq!(f.precision, test.expected_precision);
+        }
     }
 
     #[tokio::test]
     async fn test_check_correct_comp_id() {
-        let mut s = SessionSuite::setup_test();
-        // 	s.session.sessionID.TargetCompID = "TAR"
-        // 	s.session.sessionID.SenderCompID = "SND"
+        let mut s = SessionSuite::setup_test().await;
+        s.ssr.session.session_id.target_comp_id = String::from("TAR");
+        s.ssr.session.session_id.sender_comp_id = String::from("SND");
+        struct TestCase {
+            sender_comp_id: Option<FIXString>,
+            target_comp_id: Option<FIXString>,
+            returns_error: bool,
+            reject_reason: isize,
+        }
 
-        // 	var testCases = []struct {
-        // 		senderCompID *FIXString
-        // 		targetCompID *FIXString
-        // 		returnsError bool
-        // 		rejectReason int
-        // 	}{
-        // 		{returnsError: true, rejectReason: rejectReasonRequiredTagMissing},
-        // 		{senderCompID: newFIXString("TAR"),
-        // 			returnsError: true,
-        // 			rejectReason: rejectReasonRequiredTagMissing},
-        // 		{senderCompID: newFIXString("TAR"),
-        // 			targetCompID: newFIXString("JCD"),
-        // 			returnsError: true,
-        // 			rejectReason: rejectReasonCompIDProblem},
-        // 		{senderCompID: newFIXString("JCD"),
-        // 			targetCompID: newFIXString("SND"),
-        // 			returnsError: true,
-        // 			rejectReason: rejectReasonCompIDProblem},
-        // 		{senderCompID: newFIXString("TAR"),
-        // 			targetCompID: newFIXString("SND"),
-        // 			returnsError: false},
-        // 	}
+        let mut tests = vec![
+            TestCase {
+                returns_error: true,
+                reject_reason: REJECT_REASON_REQUIRED_TAG_MISSING,
+                sender_comp_id: None,
+                target_comp_id: None,
+            },
+            TestCase {
+                returns_error: true,
+                reject_reason: REJECT_REASON_REQUIRED_TAG_MISSING,
+                sender_comp_id: Some(FIXString::from("TAR")),
+                target_comp_id: None,
+            },
+            TestCase {
+                returns_error: true,
+                reject_reason: REJECT_REASON_COMP_ID_PROBLEM,
+                sender_comp_id: Some(FIXString::from("TAR")),
+                target_comp_id: Some(FIXString::from("JCD")),
+            },
+            TestCase {
+                returns_error: true,
+                reject_reason: REJECT_REASON_COMP_ID_PROBLEM,
+                sender_comp_id: Some(FIXString::from("JCD")),
+                target_comp_id: Some(FIXString::from("SND")),
+            },
+            TestCase {
+                returns_error: false,
+                reject_reason: 0,
+                sender_comp_id: Some(FIXString::from("TAR")),
+                target_comp_id: Some(FIXString::from("SND")),
+            },
+        ];
 
-        // 	for _, tc := range testCases {
-        // 		msg := NewMessage()
+        for test in tests.iter_mut() {
+            let msg = Message::new();
+            if test.sender_comp_id.is_some() {
+                let sender_comp_id = test.sender_comp_id.take().unwrap();
+                msg.header.set_field(TAG_SENDER_COMP_ID, sender_comp_id);
+            }
 
-        // 		if tc.senderCompID != nil {
-        // 			msg.Header.SetField(tagSenderCompID, tc.senderCompID)
-        // 		}
+            if test.target_comp_id.is_some() {
+                let target_comp_id = test.target_comp_id.take().unwrap();
+                msg.header.set_field(TAG_TARGET_COMP_ID, target_comp_id);
+            }
 
-        // 		if tc.targetCompID != nil {
-        // 			msg.Header.SetField(tagTargetCompID, tc.targetCompID)
-        // 		}
+            let rej = s.ssr.session.check_comp_id(&msg);
 
-        // 		rej := s.session.checkCompID(msg)
-
-        // 		if !tc.returnsError {
-        // 			s.Require().Nil(rej)
-        // 			continue
-        // 		}
-
-        // 		s.NotNil(rej)
-        // 		s.Equal(tc.rejectReason, rej.RejectReason())
-        // 	}
+            if !test.returns_error {
+                assert!(rej.is_ok());
+                continue;
+            }
+            assert!(rej.is_err());
+            assert_eq!(test.reject_reason, rej.unwrap_err().reject_reason());
+        }
     }
+
     #[tokio::test]
     async fn test_check_begin_string() {
-        let mut s = SessionSuite::setup_test();
-        // 	msg := NewMessage()
+        let s = SessionSuite::setup_test().await;
+        let msg = Message::new();
 
-        // 	msg.Header.SetField(tagBeginString, FIXString("FIX.4.4"))
-        // 	err := s.session.checkBeginString(msg)
-        // 	s.Require().NotNil(err, "wrong begin string should return error")
-        // 	s.IsType(incorrectBeginString{}, err)
+        msg.header
+            .set_field(TAG_BEGIN_STRING, FIXString::from("FIX.4.4"));
+        let check_result = s.ssr.session.check_begin_string(&msg);
+        assert!(
+            check_result.is_err(),
+            "wrong begin string should return error"
+        );
+        let mut is_type = false;
+        if let MessageRejectErrorEnum::IncorrectBeginString(_) = check_result.unwrap_err() {
+            is_type = true;
+        }
+        assert!(is_type);
 
-        // 	msg.Header.SetField(tagBeginString, FIXString(s.session.sessionID.BeginString))
-        // 	s.Nil(s.session.checkBeginString(msg))
+        msg.header.set_field(
+            TAG_BEGIN_STRING,
+            FIXString::from(s.ssr.session.session_id.begin_string.clone()),
+        );
+        assert!(s.ssr.session.check_begin_string(&msg).is_ok());
     }
 
     #[tokio::test]
     async fn test_check_target_too_high() {
-        let mut s = SessionSuite::setup_test();
-        // 	msg := NewMessage()
-        // 	s.Require().Nil(s.session.store.SetNextTargetMsgSeqNum(45))
+        let mut s = SessionSuite::setup_test().await;
+        let msg = Message::new();
+        assert!(s
+            .ssr
+            .session
+            .store
+            .set_next_target_msg_seq_num(45)
+            .await
+            .is_ok());
 
-        // 	err := s.session.checkTargetTooHigh(msg)
-        // 	s.Require().NotNil(err, "missing sequence number should return error")
-        // 	s.Equal(rejectReasonRequiredTagMissing, err.RejectReason())
+        let mut check_result = s.ssr.session.check_target_too_high(&msg).await;
+        assert!(
+            check_result.is_err(),
+            "missing sequence number should return error"
+        );
+        assert_eq!(
+            REJECT_REASON_REQUIRED_TAG_MISSING,
+            check_result.unwrap_err().reject_reason()
+        );
 
-        // 	msg.Header.SetField(TAG_MSG_SEQ_NUM, FIXInt(47))
-        // 	err = s.session.checkTargetTooHigh(msg)
-        // 	s.Require().NotNil(err, "sequence number too high should return an error")
-        // 	s.IsType(targetTooHigh{}, err)
+        msg.header.set_field(TAG_MSG_SEQ_NUM, 47);
+        check_result = s.ssr.session.check_target_too_high(&msg).await;
+        assert!(
+            check_result.is_err(),
+            "sequence number too high should return an error"
+        );
+        let mut is_type = false;
+        if let MessageRejectErrorEnum::TargetTooHigh(_) = check_result.unwrap_err() {
+            is_type = true;
+        }
+        assert!(is_type);
 
-        // 	// Spot on.
-        // 	msg.Header.SetField(TAG_MSG_SEQ_NUM, FIXInt(45))
-        // 	s.Nil(s.session.checkTargetTooHigh(msg))
+        // Spot on.
+        msg.header.set_field(TAG_MSG_SEQ_NUM, 45);
+        assert!(s.ssr.session.check_target_too_high(&msg).await.is_ok());
     }
 
     #[tokio::test]
     async fn test_check_sending_time() {
-        let mut s = SessionSuite::setup_test();
-        // 	s.session.MaxLatency = time.Duration(120) * time.Second
-        // 	msg := NewMessage()
+        let mut s = SessionSuite::setup_test().await;
+        s.ssr.session.iss.max_latency = Duration::seconds(120);
+        let msg = Message::new();
 
-        // 	err := s.session.checkSendingTime(msg)
-        // 	s.Require().NotNil(err, "sending time is a required field")
-        // 	s.Equal(rejectReasonRequiredTagMissing, err.RejectReason())
+        let mut check_result = s.ssr.session.check_sending_time(&msg);
+        assert!(check_result.is_err(), "sending time is a required field");
+        assert_eq!(
+            REJECT_REASON_REQUIRED_TAG_MISSING,
+            check_result.unwrap_err().reject_reason()
+        );
 
-        // 	sendingTime := time.Now().Add(time.Duration(-200) * time.Second)
-        // 	msg.Header.SetField(tagSendingTime, FIXUTCTimestamp{Time: sendingTime})
+        let mut sending_time = Utc::now().naive_utc() - Duration::seconds(200);
+        msg.header
+            .set_field(TAG_SENDING_TIME, FIXUTCTimestamp::from_time(sending_time));
 
-        // 	err = s.session.checkSendingTime(msg)
-        // 	s.Require().NotNil(err, "sending time too late should give error")
-        // 	s.Equal(rejectReasonSendingTimeAccuracyProblem, err.RejectReason())
+        check_result = s.ssr.session.check_sending_time(&msg);
+        assert!(
+            check_result.is_err(),
+            "sending time too late should give error"
+        );
+        assert_eq!(
+            REJECT_REASON_SENDING_TIME_ACCURACY_PROBLEM,
+            check_result.unwrap_err().reject_reason()
+        );
 
-        // 	sendingTime = time.Now().Add(time.Duration(200) * time.Second)
-        // 	msg.Header.SetField(tagSendingTime, FIXUTCTimestamp{Time: sendingTime})
+        sending_time = Utc::now().naive_utc() + Duration::seconds(200);
+        msg.header
+            .set_field(TAG_SENDING_TIME, FIXUTCTimestamp::from_time(sending_time));
 
-        // 	err = s.session.checkSendingTime(msg)
-        // 	s.Require().NotNil(err, "future sending time should give error")
-        // 	s.Equal(rejectReasonSendingTimeAccuracyProblem, err.RejectReason())
+        check_result = s.ssr.session.check_sending_time(&msg);
+        assert!(
+            check_result.is_err(),
+            "future sending time should give error"
+        );
+        assert_eq!(
+            REJECT_REASON_SENDING_TIME_ACCURACY_PROBLEM,
+            check_result.unwrap_err().reject_reason()
+        );
 
-        // 	sendingTime = time.Now()
-        // 	msg.Header.SetField(tagSendingTime, FIXUTCTimestamp{Time: sendingTime})
+        sending_time = Utc::now().naive_utc();
+        msg.header
+            .set_field(TAG_SENDING_TIME, FIXUTCTimestamp::from_time(sending_time));
+        check_result = s.ssr.session.check_sending_time(&msg);
+        assert!(check_result.is_ok(), "sending time should be ok");
 
-        // 	s.Nil(s.session.checkSendingTime(msg), "sending time should be ok")
+        s.ssr.session.iss.skip_check_latency = true;
+        sending_time = Utc::now().naive_utc() - Duration::seconds(200);
+        msg.header
+            .set_field(TAG_SENDING_TIME, FIXUTCTimestamp::from_time(sending_time));
 
-        // 	s.session.SkipCheckLatency = true
-        // 	sendingTime = time.Now().Add(time.Duration(-200) * time.Second)
-        // 	msg.Header.SetField(tagSendingTime, FIXUTCTimestamp{Time: sendingTime})
-        // 	err = s.session.checkSendingTime(msg)
-        // 	s.Require().Nil(err, "should skip latency check")
+        check_result = s.ssr.session.check_sending_time(&msg);
+        assert!(check_result.is_ok(), "should skip latency check");
     }
 
     #[tokio::test]
     async fn test_check_target_too_low() {
-        let mut s = SessionSuite::setup_test();
-        // 	msg := NewMessage()
-        // 	s.Require().Nil(s.session.store.SetNextTargetMsgSeqNum(45))
+        let mut s = SessionSuite::setup_test().await;
+        let msg = Message::new();
+        assert!(s
+            .ssr
+            .session
+            .store
+            .set_next_target_msg_seq_num(45)
+            .await
+            .is_ok());
 
-        // 	err := s.session.checkTargetTooLow(msg)
-        // 	s.Require().NotNil(err, "sequence number is required")
-        // 	s.Equal(rejectReasonRequiredTagMissing, err.RejectReason())
+        let mut check_result = s.ssr.session.check_target_too_low(&msg).await;
+        assert!(check_result.is_err(), "sequence number is required");
+        assert_eq!(
+            REJECT_REASON_REQUIRED_TAG_MISSING,
+            check_result.unwrap_err().reject_reason()
+        );
 
-        // 	// Too low.
-        // 	msg.Header.SetField(TAG_MSG_SEQ_NUM, FIXInt(43))
-        // 	err = s.session.checkTargetTooLow(msg)
-        // 	s.NotNil(err, "sequence number too low should return error")
-        // 	s.IsType(targetTooLow{}, err)
+        // Too low.
+        msg.header.set_field(TAG_MSG_SEQ_NUM, 43);
+        check_result = s.ssr.session.check_target_too_low(&msg).await;
+        assert!(
+            check_result.is_err(),
+            "sequence number too low should return error"
+        );
+        let mut is_type = false;
+        if let MessageRejectErrorEnum::TargetTooLow(_) = check_result.unwrap_err() {
+            is_type = true;
+        }
+        assert!(is_type);
 
-        // 	// Spot on.
-        // 	msg.Header.SetField(TAG_MSG_SEQ_NUM, FIXInt(45))
-        // 	s.Nil(s.session.checkTargetTooLow(msg))
+        // Spot on.
+        msg.header.set_field(TAG_MSG_SEQ_NUM, 45);
+        assert!(s.ssr.session.check_target_too_low(&msg).await.is_ok());
     }
 
     #[tokio::test]
     async fn test_should_send_reset() {
-        let mut s = SessionSuite::setup_test();
-        // 	var tests = []struct {
-        // 		BeginString         string
-        // 		ResetOnLogon        bool
-        // 		ResetOnDisconnect   bool
-        // 		ResetOnLogout       bool
-        // 		NextSenderMsgSeqNum int
-        // 		NextTargetMsgSeqNum int
-        // 		Expected            bool
-        // 	}{
-        // 		{BeginStringFIX40, true, false, false, 1, 1, false}, // ResetSeqNumFlag not available < fix41.
+        let mut s = SessionSuite::setup_test().await;
+        struct TestCase<'a> {
+            begin_string: &'a str,
+            reset_on_logon: bool,
+            reset_on_disconnect: bool,
+            reset_on_logout: bool,
+            next_sender_msg_seq_num: isize,
+            next_target_msg_seq_num: isize,
+            expected: bool,
+        }
 
-        // 		{BeginStringFIX41, true, false, false, 1, 1, true}, // Session must be configured to reset on logon.
-        // 		{BeginStringFIX42, true, false, false, 1, 1, true},
-        // 		{BeginStringFIX43, true, false, false, 1, 1, true},
-        // 		{BeginStringFIX44, true, false, false, 1, 1, true},
-        // 		{BeginStringFIXT11, true, false, false, 1, 1, true},
+        let mut tests = vec![
+            TestCase {
+                begin_string: BEGIN_STRING_FIX40,
+                reset_on_logon: true,
+                reset_on_disconnect: false,
+                reset_on_logout: false,
+                next_sender_msg_seq_num: 1,
+                next_target_msg_seq_num: 1,
+                expected: false,
+            }, // ResetSeqNumFlag not available < fix41.
+            TestCase {
+                begin_string: BEGIN_STRING_FIX41,
+                reset_on_logon: true,
+                reset_on_disconnect: false,
+                reset_on_logout: false,
+                next_sender_msg_seq_num: 1,
+                next_target_msg_seq_num: 1,
+                expected: true,
+            }, // Session must be configured to reset on logon.
+            TestCase {
+                begin_string: BEGIN_STRING_FIX42,
+                reset_on_logon: true,
+                reset_on_disconnect: false,
+                reset_on_logout: false,
+                next_sender_msg_seq_num: 1,
+                next_target_msg_seq_num: 1,
+                expected: true,
+            },
+            TestCase {
+                begin_string: BEGIN_STRING_FIX43,
+                reset_on_logon: true,
+                reset_on_disconnect: false,
+                reset_on_logout: false,
+                next_sender_msg_seq_num: 1,
+                next_target_msg_seq_num: 1,
+                expected: true,
+            },
+            TestCase {
+                begin_string: BEGIN_STRING_FIX44,
+                reset_on_logon: true,
+                reset_on_disconnect: false,
+                reset_on_logout: false,
+                next_sender_msg_seq_num: 1,
+                next_target_msg_seq_num: 1,
+                expected: true,
+            },
+            TestCase {
+                begin_string: BEGIN_STRING_FIXT11,
+                reset_on_logon: true,
+                reset_on_disconnect: false,
+                reset_on_logout: false,
+                next_sender_msg_seq_num: 1,
+                next_target_msg_seq_num: 1,
+                expected: true,
+            },
+            TestCase {
+                begin_string: BEGIN_STRING_FIX41,
+                reset_on_logon: false,
+                reset_on_disconnect: true,
+                reset_on_logout: false,
+                next_sender_msg_seq_num: 1,
+                next_target_msg_seq_num: 1,
+                expected: true,
+            }, // Or disconnect.
+            TestCase {
+                begin_string: BEGIN_STRING_FIX42,
+                reset_on_logon: false,
+                reset_on_disconnect: true,
+                reset_on_logout: false,
+                next_sender_msg_seq_num: 1,
+                next_target_msg_seq_num: 1,
+                expected: true,
+            },
+            TestCase {
+                begin_string: BEGIN_STRING_FIX43,
+                reset_on_logon: false,
+                reset_on_disconnect: true,
+                reset_on_logout: false,
+                next_sender_msg_seq_num: 1,
+                next_target_msg_seq_num: 1,
+                expected: true,
+            },
+            TestCase {
+                begin_string: BEGIN_STRING_FIX44,
+                reset_on_logon: false,
+                reset_on_disconnect: true,
+                reset_on_logout: false,
+                next_sender_msg_seq_num: 1,
+                next_target_msg_seq_num: 1,
+                expected: true,
+            },
+            TestCase {
+                begin_string: BEGIN_STRING_FIXT11,
+                reset_on_logon: false,
+                reset_on_disconnect: true,
+                reset_on_logout: false,
+                next_sender_msg_seq_num: 1,
+                next_target_msg_seq_num: 1,
+                expected: true,
+            },
+            TestCase {
+                begin_string: BEGIN_STRING_FIX41,
+                reset_on_logon: false,
+                reset_on_disconnect: false,
+                reset_on_logout: true,
+                next_sender_msg_seq_num: 1,
+                next_target_msg_seq_num: 1,
+                expected: true,
+            }, // Or logout.
+            TestCase {
+                begin_string: BEGIN_STRING_FIX42,
+                reset_on_logon: false,
+                reset_on_disconnect: false,
+                reset_on_logout: true,
+                next_sender_msg_seq_num: 1,
+                next_target_msg_seq_num: 1,
+                expected: true,
+            },
+            TestCase {
+                begin_string: BEGIN_STRING_FIX43,
+                reset_on_logon: false,
+                reset_on_disconnect: false,
+                reset_on_logout: true,
+                next_sender_msg_seq_num: 1,
+                next_target_msg_seq_num: 1,
+                expected: true,
+            },
+            TestCase {
+                begin_string: BEGIN_STRING_FIX44,
+                reset_on_logon: false,
+                reset_on_disconnect: false,
+                reset_on_logout: true,
+                next_sender_msg_seq_num: 1,
+                next_target_msg_seq_num: 1,
+                expected: true,
+            },
+            TestCase {
+                begin_string: BEGIN_STRING_FIXT11,
+                reset_on_logon: false,
+                reset_on_disconnect: false,
+                reset_on_logout: true,
+                next_sender_msg_seq_num: 1,
+                next_target_msg_seq_num: 1,
+                expected: true,
+            },
+            TestCase {
+                begin_string: BEGIN_STRING_FIX41,
+                reset_on_logon: true,
+                reset_on_disconnect: true,
+                reset_on_logout: false,
+                next_sender_msg_seq_num: 1,
+                next_target_msg_seq_num: 1,
+                expected: true,
+            }, // Or combo.
+            TestCase {
+                begin_string: BEGIN_STRING_FIX42,
+                reset_on_logon: false,
+                reset_on_disconnect: true,
+                reset_on_logout: true,
+                next_sender_msg_seq_num: 1,
+                next_target_msg_seq_num: 1,
+                expected: true,
+            },
+            TestCase {
+                begin_string: BEGIN_STRING_FIX43,
+                reset_on_logon: true,
+                reset_on_disconnect: false,
+                reset_on_logout: true,
+                next_sender_msg_seq_num: 1,
+                next_target_msg_seq_num: 1,
+                expected: true,
+            },
+            TestCase {
+                begin_string: BEGIN_STRING_FIX44,
+                reset_on_logon: true,
+                reset_on_disconnect: true,
+                reset_on_logout: true,
+                next_sender_msg_seq_num: 1,
+                next_target_msg_seq_num: 1,
+                expected: true,
+            },
+            TestCase {
+                begin_string: BEGIN_STRING_FIX41,
+                reset_on_logon: false,
+                reset_on_disconnect: false,
+                reset_on_logout: false,
+                next_sender_msg_seq_num: 1,
+                next_target_msg_seq_num: 1,
+                expected: false,
+            }, // Or will not be set.
+            TestCase {
+                begin_string: BEGIN_STRING_FIX41,
+                reset_on_logon: true,
+                reset_on_disconnect: false,
+                reset_on_logout: false,
+                next_sender_msg_seq_num: 1,
+                next_target_msg_seq_num: 10,
+                expected: false,
+            }, // Session seq numbers should be reset at the time of check.
+            TestCase {
+                begin_string: BEGIN_STRING_FIX42,
+                reset_on_logon: true,
+                reset_on_disconnect: false,
+                reset_on_logout: false,
+                next_sender_msg_seq_num: 2,
+                next_target_msg_seq_num: 1,
+                expected: false,
+            },
+            TestCase {
+                begin_string: BEGIN_STRING_FIX43,
+                reset_on_logon: true,
+                reset_on_disconnect: false,
+                reset_on_logout: false,
+                next_sender_msg_seq_num: 14,
+                next_target_msg_seq_num: 100,
+                expected: false,
+            },
+        ];
 
-        // 		{BeginStringFIX41, false, true, false, 1, 1, true}, // Or disconnect.
-        // 		{BeginStringFIX42, false, true, false, 1, 1, true},
-        // 		{BeginStringFIX43, false, true, false, 1, 1, true},
-        // 		{BeginStringFIX44, false, true, false, 1, 1, true},
-        // 		{BeginStringFIXT11, false, true, false, 1, 1, true},
+        for test in tests.iter_mut() {
+            s.ssr.session.session_id.begin_string = String::from(test.begin_string);
+            s.ssr.session.iss.reset_on_logon = test.reset_on_logon;
+            s.ssr.session.iss.reset_on_disconnect = test.reset_on_disconnect;
+            s.ssr.session.iss.reset_on_logout = test.reset_on_logout;
 
-        // 		{BeginStringFIX41, false, false, true, 1, 1, true}, // Or logout.
-        // 		{BeginStringFIX42, false, false, true, 1, 1, true},
-        // 		{BeginStringFIX43, false, false, true, 1, 1, true},
-        // 		{BeginStringFIX44, false, false, true, 1, 1, true},
-        // 		{BeginStringFIXT11, false, false, true, 1, 1, true},
-
-        // 		{BeginStringFIX41, true, true, false, 1, 1, true}, // Or combo.
-        // 		{BeginStringFIX42, false, true, true, 1, 1, true},
-        // 		{BeginStringFIX43, true, false, true, 1, 1, true},
-        // 		{BeginStringFIX44, true, true, true, 1, 1, true},
-
-        // 		{BeginStringFIX41, false, false, false, 1, 1, false}, // Or will not be set.
-
-        // 		{BeginStringFIX41, true, false, false, 1, 10, false}, // Session seq numbers should be reset at the time of check.
-        // 		{BeginStringFIX42, true, false, false, 2, 1, false},
-        // 		{BeginStringFIX43, true, false, false, 14, 100, false},
-        // 	}
-
-        // 	for _, test := range tests {
-        // 		s.session.sessionID.BeginString = test.BeginString
-        // 		s.session.ResetOnLogon = test.ResetOnLogon
-        // 		s.session.ResetOnDisconnect = test.ResetOnDisconnect
-        // 		s.session.ResetOnLogout = test.ResetOnLogout
-
-        // 		s.Require().Nil(s.MockStore.SetNextSenderMsgSeqNum(test.NextSenderMsgSeqNum))
-        // 		s.Require().Nil(s.MockStore.SetNextTargetMsgSeqNum(test.NextTargetMsgSeqNum))
-
-        // 		s.Equal(s.shouldSendReset(), test.Expected)
-        // 	}
+            assert!(s
+                .ssr
+                .mock_store
+                .set_next_sender_msg_seq_num(test.next_sender_msg_seq_num)
+                .await
+                .is_ok());
+            assert!(s
+                .ssr
+                .mock_store
+                .set_next_target_msg_seq_num(test.next_target_msg_seq_num)
+                .await
+                .is_ok());
+            assert_eq!(s.ssr.session.should_send_reset().await, test.expected);
+        }
     }
 
     #[tokio::test]
     async fn test_check_session_time_no_start_time_end_time() {
-        let mut s = SessionSuite::setup_test();
-        // 	var tests = []struct {
-        // 		before, after sessionState
-        // 	}{
-        // 		{before: latentState{}},
-        // 		{before: logonState{}},
-        // 		{before: logoutState{}},
-        // 		{before: inSession{}},
-        // 		{before: resendState{}},
-        // 		{before: pendingTimeout{resendState{}}},
-        // 		{before: pendingTimeout{inSession{}}},
-        // 		{before: notSessionTime{}, after: latentState{}},
-        // 	}
+        struct TestCase {
+            before: Option<SessionStateEnum>,
+            after: Option<SessionStateEnum>,
+        }
 
-        // 	for _, test := range tests {
-        // 		s.SetupTest()
-        // 		s.session.SessionTime = nil
-        // 		s.session.State = test.before
+        let mut tests = vec![
+            TestCase {
+                before: Some(SessionStateEnum::new_latent_state()),
+                after: None,
+            },
+            TestCase {
+                before: Some(SessionStateEnum::new_logon_state()),
+                after: None,
+            },
+            TestCase {
+                before: Some(SessionStateEnum::new_logout_state()),
+                after: None,
+            },
+            TestCase {
+                before: Some(SessionStateEnum::new_in_session()),
+                after: None,
+            },
+            TestCase {
+                before: Some(SessionStateEnum::ResendState(ResendState::default())),
+                after: None,
+            },
+            TestCase {
+                before: Some(SessionStateEnum::PendingTimeout(PendingTimeout {
+                    session_state: AfterPendingTimeout::ResendState(ResendState::default()),
+                })),
+                after: None,
+            },
+            TestCase {
+                before: Some(SessionStateEnum::PendingTimeout(PendingTimeout {
+                    session_state: AfterPendingTimeout::InSession(InSession::default()),
+                })),
+                after: None,
+            },
+            TestCase {
+                before: Some(SessionStateEnum::new_not_session_time()),
+                after: Some(SessionStateEnum::new_latent_state()),
+            },
+        ];
 
-        // 		s.session.CheckSessionTime(s.session, time.Now())
-        // 		if test.after != nil {
-        // 			s.State(test.after)
-        // 		} else {
-        // 			s.State(test.before)
-        // 		}
-        // 	}
+        for test in tests.iter_mut() {
+            let mut s = SessionSuite::setup_test().await;
+            s.ssr.session.iss.session_time = None;
+            let before = test.before.take().unwrap();
+            s.ssr.session.sm.state = Some(before.clone());
+
+            s.ssr
+                .session
+                .sm_check_session_time(&Utc::now().naive_utc())
+                .await;
+            if test.after.is_some() {
+                s.ssr.state(test.after.take().unwrap());
+            } else {
+                s.ssr.state(before.clone());
+            }
+        }
     }
 
     #[tokio::test]
     async fn test_check_session_time_in_range() {
-        let mut s = SessionSuite::setup_test();
-        // 	var tests = []struct {
-        // 		before, after sessionState
-        // 		expectReset   bool
-        // 	}{
-        // 		{before: latentState{}},
-        // 		{before: logonState{}},
-        // 		{before: logoutState{}},
-        // 		{before: inSession{}},
-        // 		{before: resendState{}},
-        // 		{before: pendingTimeout{resendState{}}},
-        // 		{before: pendingTimeout{inSession{}}},
-        // 		{before: notSessionTime{}, after: latentState{}, expectReset: true},
-        // 	}
+        struct TestCase {
+            before: Option<SessionStateEnum>,
+            after: Option<SessionStateEnum>,
+            expect_reset: bool,
+        }
 
-        // 	for _, test := range tests {
-        // 		s.SetupTest()
-        // 		s.session.State = test.before
+        let mut tests = vec![
+            TestCase {
+                before: Some(SessionStateEnum::new_latent_state()),
+                after: None,
+                expect_reset: false,
+            },
+            // TestCase {
+            //     before: Some(SessionStateEnum::new_logon_state()),
+            //     after: None,
+            //     expect_reset: false,
+            // },
+            // TestCase {
+            //     before: Some(SessionStateEnum::new_logout_state()),
+            //     after: None,
+            //     expect_reset: false,
+            // },
+            // TestCase {
+            //     before: Some(SessionStateEnum::new_in_session()),
+            //     after: None,
+            //     expect_reset: false,
+            // },
+            // TestCase {
+            //     before: Some(SessionStateEnum::ResendState(ResendState::default())),
+            //     after: None,
+            //     expect_reset: false,
+            // },
+            // TestCase {
+            //     before: Some(SessionStateEnum::PendingTimeout(PendingTimeout {
+            //         session_state: AfterPendingTimeout::ResendState(ResendState::default()),
+            //     })),
+            //     after: None,
+            //     expect_reset: false,
+            // },
+            // TestCase {
+            //     before: Some(SessionStateEnum::PendingTimeout(PendingTimeout {
+            //         session_state: AfterPendingTimeout::InSession(InSession::default()),
+            //     })),
+            //     after: None,
+            //     expect_reset: false,
+            // },
+            // TestCase {
+            //     before: Some(SessionStateEnum::new_not_session_time()),
+            //     after: Some(SessionStateEnum::new_latent_state()),
+            //     expect_reset: true,
+            // },
+        ];
 
-        // 		now := time.Now().UTC()
-        // 		store := new(memoryStore)
-        // 		if test.before.IsSessionTime() {
-        // 			s.Require().Nil(store.Reset())
-        // 		} else {
-        // 			store.creationTime = now.Add(time.Duration(-1) * time.Minute)
-        // 		}
-        // 		s.session.store = store
-        // 		s.IncrNextSenderMsgSeqNum()
-        // 		s.IncrNextTargetMsgSeqNum()
+        for test in tests.iter_mut() {
+            let mut s = SessionSuite::setup_test().await;
+            let before = test.before.take().unwrap();
+            s.ssr.session.sm.state = Some(before.clone());
 
-        // 		s.session.SessionTime = internal.NewUTCTimeRange(
-        // 			internal.NewTimeOfDay(now.Clock()),
-        // 			internal.NewTimeOfDay(now.Add(time.Hour).Clock()),
-        // 		)
+            let now = Utc::now().naive_utc();
+            let mut store = MemoryStore {
+                sender_msg_seq_num: 0,
+                target_msg_seq_num: 0,
+                creation_time: Utc::now().naive_utc(),
+                message_map: DashMap::new(),
+            };
 
-        // 		s.session.CheckSessionTime(s.session, now)
-        // 		if test.after != nil {
-        // 			s.State(test.after)
-        // 		} else {
-        // 			s.State(test.before)
-        // 		}
+            if before.is_session_time() {
+                assert!(store.reset().await.is_ok());
+            } else {
+                store.creation_time = now - Duration::minutes(1);
+            }
 
-        // 		if test.expectReset {
-        // 			s.ExpectStoreReset()
-        // 		} else {
-        // 			s.NextSenderMsgSeqNum(2)
-        // 			s.NextSenderMsgSeqNum(2)
-        // 		}
-        // 	}
+            let mock_store_extended = MockStoreExtended {
+                mock: MockStore::default(),
+                ms: store,
+            };
+
+            let mock_store_shared = Arc::new(RwLock::new(mock_store_extended));
+
+            s.ssr.mock_store = MessageStoreEnum::MockMemoryStore(mock_store_shared.clone());
+            s.ssr.session.store = MessageStoreEnum::MockMemoryStore(mock_store_shared.clone());
+
+            s.ssr.incr_next_sender_msg_seq_num().await;
+            s.ssr.incr_next_target_msg_seq_num().await;
+
+            let one_hour_from_now = now + Duration::hours(1);
+
+            s.ssr.session.iss.session_time = Some(TimeRange::new_utc(
+                TimeOfDay::new(
+                    now.hour() as isize,
+                    now.minute() as isize,
+                    now.second() as isize,
+                ),
+                TimeOfDay::new(
+                    one_hour_from_now.hour() as isize,
+                    one_hour_from_now.minute() as isize,
+                    one_hour_from_now.second() as isize,
+                ),
+            ));
+
+            s.ssr.session.sm_check_session_time(&now).await;
+            if test.after.is_some() {
+                s.ssr.state(test.after.take().unwrap());
+            } else {
+                s.ssr.state(before);
+            }
+
+            if test.expect_reset {
+                s.ssr.expect_store_reset().await;
+            } else {
+                s.ssr.next_sender_msg_seq_num(2).await;
+                s.ssr.next_sender_msg_seq_num(2).await;
+            }
+        }
     }
 
     #[tokio::test]
     async fn test_check_session_time_not_in_range() {
-        let mut s = SessionSuite::setup_test();
+        let mut s = SessionSuite::setup_test().await;
         // 	var tests = []struct {
         // 		before           sessionState
         // 		initiateLogon    bool
@@ -2445,13 +2917,13 @@ mod tests {
 
         // 	for _, test := range tests {
         // 		s.SetupTest()
-        // 		s.session.State = test.before
-        // 		s.session.InitiateLogon = test.initiateLogon
-        // 		s.IncrNextSenderMsgSeqNum()
-        // 		s.IncrNextTargetMsgSeqNum()
+        // 		s.ssr.session.sm.state = test.before
+        // 		s.ssr.session.InitiateLogon = test.initiateLogon
+        // 		s.ssr.incr_next_sender_msg_seq_num();
+        // 		s.ssr.incr_next_target_msg_seq_num();
 
         // 		now := time.Now().UTC()
-        // 		s.session.SessionTime = internal.NewUTCTimeRange(
+        // 		s.ssr.session.SessionTime = internal.NewUTCTimeRange(
         // 			internal.NewTimeOfDay(now.Add(time.Hour).Clock()),
         // 			internal.NewTimeOfDay(now.Add(time.Duration(2)*time.Hour).Clock()),
         // 		)
@@ -2462,7 +2934,7 @@ mod tests {
         // 		if test.expectSendLogout {
         // 			s.MockApp.On("ToAdmin")
         // 		}
-        // 		s.session.CheckSessionTime(s.session, now)
+        // 		s.ssr.session.CheckSessionTime(s.ssr.session, now)
 
         // 		s.MockApp.AssertExpectations(s.T())
         // 		s.State(notSessionTime{})
@@ -2480,7 +2952,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_session_time_in_range_but_not_same_range_as_store() {
-        let mut s = SessionSuite::setup_test();
+        let mut s = SessionSuite::setup_test().await;
         // 	var tests = []struct {
         // 		before           sessionState
         // 		initiateLogon    bool
@@ -2500,14 +2972,14 @@ mod tests {
 
         // 	for _, test := range tests {
         // 		s.SetupTest()
-        // 		s.session.State = test.before
-        // 		s.session.InitiateLogon = test.initiateLogon
+        // 		s.ssr.session.sm.state = test.before
+        // 		s.ssr.session.InitiateLogon = test.initiateLogon
         // 		s.Require().Nil(s.store.Reset())
-        // 		s.IncrNextSenderMsgSeqNum()
-        // 		s.IncrNextTargetMsgSeqNum()
+        // 		s.ssr.incr_next_sender_msg_seq_num();
+        // 		s.ssr.incr_next_target_msg_seq_num();
 
         // 		now := time.Now().UTC()
-        // 		s.session.SessionTime = internal.NewUTCTimeRange(
+        // 		s.ssr.session.SessionTime = internal.NewUTCTimeRange(
         // 			internal.NewTimeOfDay(now.Add(time.Duration(-1)*time.Hour).Clock()),
         // 			internal.NewTimeOfDay(now.Add(time.Hour).Clock()),
         // 		)
@@ -2518,7 +2990,7 @@ mod tests {
         // 		if test.expectSendLogout {
         // 			s.MockApp.On("ToAdmin")
         // 		}
-        // 		s.session.CheckSessionTime(s.session, now.AddDate(0, 0, 1))
+        // 		s.ssr.session.CheckSessionTime(s.ssr.session, now.AddDate(0, 0, 1))
 
         // 		s.MockApp.AssertExpectations(s.T())
         // 		s.State(latentState{})
@@ -2533,7 +3005,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_incoming_not_in_session_time() {
-        let mut s = SessionSuite::setup_test();
+        let mut s = SessionSuite::setup_test().await;
         // 	var tests = []struct {
         // 		before           sessionState
         // 		initiateLogon    bool
@@ -2552,13 +3024,13 @@ mod tests {
         // 	for _, test := range tests {
         // 		s.SetupTest()
 
-        // 		s.session.State = test.before
-        // 		s.session.InitiateLogon = test.initiateLogon
-        // 		s.IncrNextSenderMsgSeqNum()
-        // 		s.IncrNextTargetMsgSeqNum()
+        // 		s.ssr.session.sm.state = test.before
+        // 		s.ssr.session.InitiateLogon = test.initiateLogon
+        // 		s.ssr.incr_next_sender_msg_seq_num();
+        // 		s.ssr.incr_next_target_msg_seq_num();
 
         // 		now := time.Now().UTC()
-        // 		s.session.SessionTime = internal.NewUTCTimeRange(
+        // 		s.ssr.session.SessionTime = internal.NewUTCTimeRange(
         // 			internal.NewTimeOfDay(now.Add(time.Hour).Clock()),
         // 			internal.NewTimeOfDay(now.Add(time.Duration(2)*time.Hour).Clock()),
         // 		)
@@ -2572,7 +3044,7 @@ mod tests {
         // 		msg := s.NewOrderSingle()
         // 		msgBytes := msg.build()
 
-        // 		s.session.Incoming(s.session, fixIn{bytes: bytes.NewBuffer(msgBytes)})
+        // 		s.ssr.session.Incoming(s.ssr.session, fixIn{bytes: bytes.NewBuffer(msgBytes)})
         // 		s.MockApp.AssertExpectations(s.T())
         // 		s.State(notSessionTime{})
         // 	}
@@ -2580,7 +3052,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_send_app_messages_not_in_session_time() {
-        let mut s = SessionSuite::setup_test();
+        let mut s = SessionSuite::setup_test().await;
         // 	var tests = []struct {
         // 		before           sessionState
         // 		initiateLogon    bool
@@ -2599,17 +3071,17 @@ mod tests {
         // 	for _, test := range tests {
         // 		s.SetupTest()
 
-        // 		s.session.State = test.before
-        // 		s.session.InitiateLogon = test.initiateLogon
-        // 		s.IncrNextSenderMsgSeqNum()
-        // 		s.IncrNextTargetMsgSeqNum()
+        // 		s.ssr.session.sm.state = test.before
+        // 		s.ssr.session.InitiateLogon = test.initiateLogon
+        // 		s.ssr.incr_next_sender_msg_seq_num();
+        // 		s.ssr.incr_next_target_msg_seq_num();
 
         // 		s.MockApp.On("ToApp").Return(nil)
         // 		s.Require().Nil(s.queue_for_send(s.NewOrderSingle()))
         // 		s.MockApp.AssertExpectations(s.T())
 
         // 		now := time.Now().UTC()
-        // 		s.session.SessionTime = internal.NewUTCTimeRange(
+        // 		s.ssr.session.SessionTime = internal.NewUTCTimeRange(
         // 			internal.NewTimeOfDay(now.Add(time.Hour).Clock()),
         // 			internal.NewTimeOfDay(now.Add(time.Duration(2)*time.Hour).Clock()),
         // 		)
@@ -2620,7 +3092,7 @@ mod tests {
         // 			s.MockApp.On("ToAdmin")
         // 		}
 
-        // 		s.session.SendAppMessages(s.session)
+        // 		s.ssr.session.SendAppMessages(s.ssr.session)
         // 		s.MockApp.AssertExpectations(s.T())
         // 		s.State(notSessionTime{})
         // 	}
@@ -2628,7 +3100,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_timeout_not_in_session_time() {
-        let mut s = SessionSuite::setup_test();
+        let mut s = SessionSuite::setup_test().await;
         // 	var tests = []struct {
         // 		before           sessionState
         // 		initiateLogon    bool
@@ -2650,13 +3122,13 @@ mod tests {
         // 		for _, event := range events {
         // 			s.SetupTest()
 
-        // 			s.session.State = test.before
-        // 			s.session.InitiateLogon = test.initiateLogon
-        // 			s.IncrNextSenderMsgSeqNum()
-        // 			s.IncrNextTargetMsgSeqNum()
+        // 			s.ssr.session.sm.state = test.before
+        // 			s.ssr.session.InitiateLogon = test.initiateLogon
+        // 			s.ssr.incr_next_sender_msg_seq_num();
+        // 			s.ssr.incr_next_target_msg_seq_num();
 
         // 			now := time.Now().UTC()
-        // 			s.session.SessionTime = internal.NewUTCTimeRange(
+        // 			s.ssr.session.SessionTime = internal.NewUTCTimeRange(
         // 				internal.NewTimeOfDay(now.Add(time.Hour).Clock()),
         // 				internal.NewTimeOfDay(now.Add(time.Duration(2)*time.Hour).Clock()),
         // 			)
@@ -2667,7 +3139,7 @@ mod tests {
         // 				s.MockApp.On("ToAdmin")
         // 			}
 
-        // 			s.session.Timeout(s.session, event)
+        // 			s.ssr.session.Timeout(s.ssr.session, event)
         // 			s.MockApp.AssertExpectations(s.T())
         // 			s.State(notSessionTime{})
         // 		}
@@ -2676,20 +3148,20 @@ mod tests {
 
     #[tokio::test]
     async fn test_on_admin_connect_initiate_logon() {
-        let mut s = SessionSuite::setup_test();
+        let mut s = SessionSuite::setup_test().await;
         // 	adminMsg := connect{
         // 		messageOut: s.Receiver.sendChannel,
         // 	}
-        // 	s.session.State = latentState{}
-        // 	s.session.HeartBtInt = time.Duration(45) * time.Second
-        // 	s.IncrNextSenderMsgSeqNum()
-        // 	s.session.InitiateLogon = true
+        // 	s.ssr.session.sm.state = latentState{}
+        // 	s.ssr.session.HeartBtInt = time.Duration(45) * time.Second
+        // 	s.ssr.incr_next_sender_msg_seq_num();
+        // 	s.ssr.session.InitiateLogon = true
 
         // 	s.MockApp.On("ToAdmin")
-        // 	s.session.onAdmin(adminMsg)
+        // 	s.ssr.session.onAdmin(adminMsg)
 
         // 	s.MockApp.AssertExpectations(s.T())
-        // 	s.True(s.session.InitiateLogon)
+        // 	s.True(s.ssr.session.InitiateLogon)
         // 	s.False(s.sentReset)
         // 	s.State(logonState{})
         // 	s.LastToAdminMessageSent()
@@ -2701,24 +3173,24 @@ mod tests {
 
     #[tokio::test]
     async fn test_initiate_logon_reset_seq_num_flag() {
-        let mut s = SessionSuite::setup_test();
+        let mut s = SessionSuite::setup_test().await;
         // 	adminMsg := connect{
         // 		messageOut: s.Receiver.sendChannel,
         // 	}
-        // 	s.session.State = latentState{}
-        // 	s.session.HeartBtInt = time.Duration(45) * time.Second
-        // 	s.IncrNextTargetMsgSeqNum()
-        // 	s.IncrNextSenderMsgSeqNum()
-        // 	s.session.InitiateLogon = true
+        // 	s.ssr.session.sm.state = latentState{}
+        // 	s.ssr.session.HeartBtInt = time.Duration(45) * time.Second
+        // 	s.ssr.incr_next_target_msg_seq_num();
+        // 	s.ssr.incr_next_sender_msg_seq_num();
+        // 	s.ssr.session.InitiateLogon = true
 
         // 	s.MockApp.On("ToAdmin")
         // 	s.MockApp.decorateToAdmin = fn(msg *Message) {
         // 		msg.body.SetField(TAG_RESET_SEQ_NUM_FLAG, FIXBoolean(true))
         // 	}
-        // 	s.session.onAdmin(adminMsg)
+        // 	s.ssr.session.onAdmin(adminMsg)
 
         // 	s.MockApp.AssertExpectations(s.T())
-        // 	s.True(s.session.InitiateLogon)
+        // 	s.True(s.ssr.session.InitiateLogon)
         // 	s.True(s.sentReset)
         // 	s.State(logonState{})
         // 	s.LastToAdminMessageSent()
@@ -2731,21 +3203,21 @@ mod tests {
 
     #[tokio::test]
     async fn test_on_admin_connect_initiate_logon_fixt11() {
-        let mut s = SessionSuite::setup_test();
-        // 	s.session.sessionID.BeginString = string(BeginStringFIXT11)
-        // 	s.session.DefaultApplVerID = "8"
-        // 	s.session.InitiateLogon = true
+        let mut s = SessionSuite::setup_test().await;
+        // 	s.ssr.session.sessionID.BeginString = string(BeginStringFIXT11)
+        // 	s.ssr.session.DefaultApplVerID = "8"
+        // 	s.ssr.session.InitiateLogon = true
 
         // 	adminMsg := connect{
         // 		messageOut: s.Receiver.sendChannel,
         // 	}
-        // 	s.session.State = latentState{}
+        // 	s.ssr.session.sm.state = latentState{}
 
         // 	s.MockApp.On("ToAdmin")
-        // 	s.session.onAdmin(adminMsg)
+        // 	s.ssr.session.onAdmin(adminMsg)
 
         // 	s.MockApp.AssertExpectations(s.T())
-        // 	s.True(s.session.InitiateLogon)
+        // 	s.True(s.ssr.session.InitiateLogon)
         // 	s.State(logonState{})
         // 	s.LastToAdminMessageSent()
         // 	s.MessageType(string(msgTypeLogon), s.MockApp.lastToAdmin)
@@ -2754,40 +3226,40 @@ mod tests {
 
     #[tokio::test]
     async fn test_on_admin_connect_refresh_on_logon() {
-        let mut s = SessionSuite::setup_test();
+        let mut s = SessionSuite::setup_test().await;
         // 	var tests = []bool{true, false}
 
         // 	for _, doRefresh := range tests {
         // 		s.SetupTest()
-        // 		s.session.RefreshOnLogon = doRefresh
+        // 		s.ssr.session.RefreshOnLogon = doRefresh
 
         // 		adminMsg := connect{
         // 			messageOut: s.Receiver.sendChannel,
         // 		}
-        // 		s.session.State = latentState{}
-        // 		s.session.InitiateLogon = true
+        // 		s.ssr.session.sm.state = latentState{}
+        // 		s.ssr.session.InitiateLogon = true
 
         // 		if doRefresh {
-        // 			s.MockStore.On("Refresh").Return(nil)
+        // 			s.ssr.mock_store.On("Refresh").Return(nil)
         // 		}
         // 		s.MockApp.On("ToAdmin")
-        // 		s.session.onAdmin(adminMsg)
+        // 		s.ssr.session.onAdmin(adminMsg)
 
-        // 		s.MockStore.AssertExpectations(s.T())
+        // 		s.ssr.mock_store.AssertExpectations(s.T())
         // 	}
     }
 
     #[tokio::test]
     async fn test_on_admin_connect_accept() {
-        let mut s = SessionSuite::setup_test();
+        let mut s = SessionSuite::setup_test().await;
         // 	adminMsg := connect{
         // 		messageOut: s.Receiver.sendChannel,
         // 	}
-        // 	s.session.State = latentState{}
-        // 	s.IncrNextSenderMsgSeqNum()
+        // 	s.ssr.session.sm.state = latentState{}
+        // 	s.ssr.incr_next_sender_msg_seq_num();
 
-        // 	s.session.onAdmin(adminMsg)
-        // 	s.False(s.session.InitiateLogon)
+        // 	s.ssr.session.onAdmin(adminMsg)
+        // 	s.False(s.ssr.session.InitiateLogon)
         // 	s.State(logonState{})
         // 	s.NoMessageSent()
         // 	s.NextSenderMsgSeqNum(2)
@@ -2795,20 +3267,20 @@ mod tests {
 
     #[tokio::test]
     async fn test_on_admin_connect_not_in_session() {
-        let mut s = SessionSuite::setup_test();
+        let mut s = SessionSuite::setup_test().await;
         // 	var tests = []bool{true, false}
 
         // 	for _, doInitiateLogon := range tests {
         // 		s.SetupTest()
-        // 		s.session.State = notSessionTime{}
-        // 		s.IncrNextSenderMsgSeqNum()
-        // 		s.session.InitiateLogon = doInitiateLogon
+        // 		s.ssr.session.sm.state = notSessionTime{}
+        // 		s.ssr.incr_next_sender_msg_seq_num();
+        // 		s.ssr.session.InitiateLogon = doInitiateLogon
 
         // 		adminMsg := connect{
         // 			messageOut: s.Receiver.sendChannel,
         // 		}
 
-        // 		s.session.onAdmin(adminMsg)
+        // 		s.ssr.session.onAdmin(adminMsg)
 
         // 		s.State(notSessionTime{})
         // 		s.NoMessageSent()
@@ -2819,27 +3291,27 @@ mod tests {
 
     #[tokio::test]
     async fn test_on_admin_stop() {
-        let mut s = SessionSuite::setup_test();
-        // 	s.session.State = logonState{}
+        let mut s = SessionSuite::setup_test().await;
+        // 	s.ssr.session.sm.state = logonState{}
 
-        // 	s.session.onAdmin(stopReq{})
+        // 	s.ssr.session.onAdmin(stopReq{})
         // 	s.Disconnected()
         // 	s.Stopped()
     }
 
     #[tokio::test]
     async fn test_reset_on_disconnect() {
-        let mut s = SessionSuite::setup_test();
-        // 	s.IncrNextSenderMsgSeqNum()
-        // 	s.IncrNextTargetMsgSeqNum()
+        let mut s = SessionSuite::setup_test().await;
+        // 	s.ssr.incr_next_sender_msg_seq_num();
+        // 	s.ssr.incr_next_target_msg_seq_num();
 
-        // 	s.session.ResetOnDisconnect = false
-        // 	s.session.onDisconnect()
+        // 	s.ssr.session.reset_on_disconnect = false
+        // 	s.ssr.session.onDisconnect()
         // 	s.NextSenderMsgSeqNum(2)
         // 	s.NextTargetMsgSeqNum(2)
 
-        // 	s.session.ResetOnDisconnect = true
-        // 	s.session.onDisconnect()
+        // 	s.ssr.session.reset_on_disconnect = true
+        // 	s.ssr.session.onDisconnect()
         // 	s.ExpectStoreReset()
     }
 
@@ -2852,7 +3324,7 @@ mod tests {
             SessionSendTestSuite {
                 ssr: SessionSuiteRig::init(),
             }
-            // 	suite.session.State = inSession{}
+            // 	suite.session.sm.state = inSession{}
         }
     }
 
@@ -2974,7 +3446,7 @@ mod tests {
 
         // 	for _, test := range tests {
         // 		suite.MockApp.On("ToApp").Return(nil)
-        // 		suite.session.State = test
+        // 		suite.session.sm.state = test
         // 		require.Nil(suite.T(), suite.send(suite.NewOrderSingle()))
         // 		suite.MockApp.AssertExpectations(suite.T())
         // 		suite.NoMessageSent()
@@ -2984,10 +3456,10 @@ mod tests {
     #[tokio::test]
     async fn test_send_enable_last_msg_seq_num_processed() {
         let mut suite = SessionSendTestSuite::setup_test();
-        // 	suite.session.State = inSession{}
+        // 	suite.session.sm.state = inSession{}
         // 	suite.session.EnableLastMsgSeqNumProcessed = true
 
-        // 	suite.Require().Nil(suite.session.store.SetNextTargetMsgSeqNum(45))
+        // 	suite.Require().Nil(suite.session.store.set_next_target_msg_seq_num(45))
 
         // 	suite.MockApp.On("ToApp").Return(nil)
         // 	require.Nil(suite.T(), suite.send(suite.NewOrderSingle()))
@@ -3000,7 +3472,7 @@ mod tests {
     #[tokio::test]
     async fn test_send_disable_message_persist() {
         let mut suite = SessionSendTestSuite::setup_test();
-        // 	suite.session.State = inSession{}
+        // 	suite.session.sm.state = inSession{}
         // 	suite.session.DisableMessagePersist = true
 
         // 	suite.MockApp.On("ToApp").Return(nil)

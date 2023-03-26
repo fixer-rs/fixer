@@ -415,7 +415,6 @@ fn validate_field(
 mod tests {
     use super::*;
     use crate::datadictionary::parse;
-    use crate::fix_utc_timestamp::TimestampPrecision;
     use chrono::Utc;
 
     struct ValidateTest {
@@ -524,13 +523,8 @@ mod tests {
         msg.header
             .set_field(TAG_TARGET_COMP_ID, FIXString::from("0"));
         msg.header.set_field(TAG_MSG_SEQ_NUM, FIXString::from("0"));
-        msg.header.set_field(
-            TAG_SENDING_TIME,
-            FIXUTCTimestamp {
-                time: now,
-                precision: TimestampPrecision::default(),
-            },
-        );
+        msg.header
+            .set_field(TAG_SENDING_TIME, FIXUTCTimestamp::from_time(now));
 
         msg.body.set_field(11, FIXString::from("A"));
         msg.body.set_field(21, FIXString::from("1"));
@@ -557,13 +551,8 @@ mod tests {
         msg.header
             .set_field(TAG_TARGET_COMP_ID, FIXString::from("0"));
         msg.header.set_field(TAG_MSG_SEQ_NUM, FIXString::from("0"));
-        msg.header.set_field(
-            TAG_SENDING_TIME,
-            FIXUTCTimestamp {
-                time: now.clone(),
-                precision: TimestampPrecision::default(),
-            },
-        );
+        msg.header
+            .set_field(TAG_SENDING_TIME, FIXUTCTimestamp::from_time(now));
 
         msg.body.set_field(11, FIXString::from("A"));
         msg.body.set_field(21, FIXString::from("1"));
@@ -571,13 +560,7 @@ mod tests {
         msg.body.set_field(54, FIXString::from("1"));
         msg.body.set_field(38, 5 as FIXInt);
         msg.body.set_field(40, FIXString::from("1"));
-        msg.body.set_field(
-            60,
-            FIXUTCTimestamp {
-                time: now,
-                precision: TimestampPrecision::default(),
-            },
-        );
+        msg.body.set_field(60, FIXUTCTimestamp::from_time(now));
 
         msg.trailer.set_field(TAG_CHECK_SUM, FIXString::from("000"));
 
@@ -702,13 +685,9 @@ mod tests {
         invalid_msg1
             .header
             .set_field(TAG_MSG_SEQ_NUM, FIXString::from("0"));
-        invalid_msg1.header.set_field(
-            TAG_SENDING_TIME,
-            FIXUTCTimestamp {
-                time: Utc::now(),
-                precision: TimestampPrecision::default(),
-            },
-        );
+        invalid_msg1
+            .header
+            .set_field(TAG_SENDING_TIME, FIXUTCTimestamp::from_time(Utc::now()));
 
         invalid_msg1
             .trailer

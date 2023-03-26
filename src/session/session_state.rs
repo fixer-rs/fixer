@@ -9,6 +9,7 @@ use subenum::subenum;
 use tokio::sync::mpsc::Receiver;
 
 #[subenum(AfterPendingTimeout)]
+#[derive(Debug, Clone)]
 pub enum SessionStateEnum {
     #[subenum(AfterPendingTimeout)]
     InSession(InSession),
@@ -94,7 +95,9 @@ impl StateMachine {
     }
 
     pub fn is_session_time(&self) -> bool {
-        self.state.as_ref().unwrap().is_session_time()
+        let st = self.state.as_ref().unwrap().is_session_time();
+        println!("-------------------------------------st{}\n", st);
+        st
     }
 }
 
@@ -124,7 +127,7 @@ pub trait SessionState: ToString + Any {
     // async fn stop(self, session: &mut Session) -> SessionStateEnum;
 }
 
-#[derive(Default)]
+#[derive(Default, Debug, Clone)]
 pub struct InSessionTime;
 
 impl InSessionTime {
@@ -133,7 +136,7 @@ impl InSessionTime {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug, Clone)]
 pub struct Connected;
 
 impl Connected {
@@ -145,7 +148,7 @@ impl Connected {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug, Clone)]
 pub struct ConnectedNotLoggedOn {
     pub connected: Connected,
 }
@@ -165,7 +168,7 @@ impl ConnectedNotLoggedOn {
     pub async fn shutdown_now(&self) {}
 }
 
-#[derive(Default)]
+#[derive(Default, Debug, Clone)]
 pub struct LoggedOn {
     pub connected: Connected,
 }

@@ -1,7 +1,7 @@
 use crate::session::session_state::LoggedOn;
 use delegate::delegate;
 
-#[derive(Default)]
+#[derive(Default, Debug, Clone)]
 pub struct InSession {
     pub logged_on: LoggedOn,
 }
