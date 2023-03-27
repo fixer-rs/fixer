@@ -1,4 +1,6 @@
-use chrono::{DateTime, Datelike, Duration, FixedOffset, NaiveTime, TimeZone, Timelike, Weekday};
+use chrono::{
+    DateTime, Datelike, Duration, FixedOffset, Local, NaiveTime, TimeZone, Timelike, Weekday,
+};
 use simple_error::SimpleResult;
 use std::{cmp::Ordering, ops::Add};
 
@@ -15,6 +17,11 @@ const SHORT_FORM: &str = "%H:%M:%S";
 
 pub fn utc() -> FixedOffset {
     FixedOffset::east_opt(0).unwrap()
+}
+
+pub fn now() -> DateTime<FixedOffset> {
+    let now = Local::now();
+    now.with_timezone(now.offset())
 }
 
 impl TimeOfDay {

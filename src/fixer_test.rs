@@ -7,6 +7,7 @@ use crate::fix_utc_timestamp::FIXUTCTimestamp;
 use crate::internal::event::Event;
 use crate::internal::event_timer::EventTimer;
 use crate::internal::session_settings::SessionSettings;
+use crate::internal::time_range::now;
 use crate::log::null_log::NullLog;
 use crate::log::LogEnum;
 use crate::message::Message;
@@ -24,7 +25,7 @@ use crate::tag::{
 };
 use crate::BEGIN_STRING_FIX42;
 use async_trait::async_trait;
-use chrono::{Duration, NaiveDateTime, Utc};
+use chrono::{DateTime, Duration, FixedOffset, NaiveDateTime, Utc};
 use dashmap::DashMap;
 use mockall::predicate::*;
 use mockall::*;
@@ -111,8 +112,8 @@ impl MessageStoreTrait for Store {
         Ok(())
     }
 
-    async fn creation_time(&self) -> NaiveDateTime {
-        Utc::now().naive_utc()
+    async fn creation_time(&self) -> DateTime<FixedOffset> {
+        now()
     }
 
     async fn save_message(&mut self, _seq_num: isize, _msg: Vec<u8>) -> SimpleResult<()> {
@@ -177,7 +178,7 @@ impl MessageStoreTrait for MockStoreExtended {
         self.ms.set_next_target_msg_seq_num(next_seq_num).await
     }
 
-    async fn creation_time(&self) -> NaiveDateTime {
+    async fn creation_time(&self) -> DateTime<FixedOffset> {
         self.ms.creation_time().await
     }
 
@@ -250,7 +251,7 @@ impl MessageStoreTrait for MockStoreShared {
             .await
     }
 
-    async fn creation_time(&self) -> NaiveDateTime {
+    async fn creation_time(&self) -> DateTime<FixedOffset> {
         self.write().await.creation_time().await
     }
 
@@ -521,7 +522,7 @@ impl SessionSuiteRig {
             ms: MemoryStore {
                 sender_msg_seq_num: 0,
                 target_msg_seq_num: 0,
-                creation_time: Utc::now().naive_utc(),
+                creation_time: now(),
                 message_map: DashMap::new(),
             },
         };

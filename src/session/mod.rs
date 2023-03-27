@@ -14,7 +14,7 @@ use crate::{
     fix_utc_timestamp::{FIXUTCTimestamp, TimestampPrecision},
     internal::event::{Event, LOGON_TIMEOUT, LOGOUT_TIMEOUT, NEED_HEARTBEAT, PEER_TIMEOUT},
     internal::event_timer::EventTimer,
-    internal::session_settings::SessionSettings,
+    internal::{session_settings::SessionSettings, time_range::now},
     log::{LogEnum, LogTrait},
     message::Message,
     msg_type::{
@@ -46,7 +46,7 @@ use crate::{
     BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIX42, BEGIN_STRING_FIXT11,
 };
 use async_recursion::async_recursion;
-use chrono::{Duration as ChronoDuration, NaiveDateTime, Utc};
+use chrono::{DateTime, Duration as ChronoDuration, FixedOffset, NaiveDateTime, Utc};
 use simple_error::SimpleError;
 use std::{error::Error, sync::Arc};
 use tokio::sync::{
@@ -1015,7 +1015,7 @@ impl Session {
                     self.sm_timeout(event).await;
                 },
                 _ = ticker.tick() => {
-                    self.sm_check_session_time(&Utc::now().naive_utc()).await;
+                    self.sm_check_session_time(&now()).await;
                 },
             }
         }
@@ -1034,7 +1034,7 @@ impl Session {
         self.sm.pending_stop = false;
         self.sm.stopped = false;
         self.sm.state = Some(SessionStateEnum::new_latent_state());
-        self.sm_check_session_time(&Utc::now().naive_utc()).await;
+        self.sm_check_session_time(&now()).await;
     }
 
     pub async fn sm_connect(&mut self) {
@@ -1092,7 +1092,7 @@ impl Session {
     }
 
     async fn sm_incoming(&mut self, fix_in: &FixIn) {
-        self.sm_check_session_time(&Utc::now().naive_utc()).await;
+        self.sm_check_session_time(&now()).await;
         if !self.sm.is_connected() {
             return;
         }
@@ -1141,7 +1141,7 @@ impl Session {
     }
 
     async fn sm_send_app_messages(&mut self) {
-        self.sm_check_session_time(&Utc::now().naive_utc()).await;
+        self.sm_check_session_time(&now()).await;
 
         if self.sm.is_logged_on() {
             self.send_queued().await;
@@ -1152,7 +1152,7 @@ impl Session {
 
     // timeout is called by the session on a timeout event.
     async fn sm_timeout(&mut self, event: Event) {
-        self.sm_check_session_time(&Utc::now().naive_utc()).await;
+        self.sm_check_session_time(&now()).await;
 
         let state = self.sm.state.take().unwrap();
         let next_state = match state {
@@ -1167,7 +1167,7 @@ impl Session {
         self.sm_set_state(next_state).await;
     }
 
-    async fn sm_check_session_time(&mut self, now: &NaiveDateTime) {
+    async fn sm_check_session_time(&mut self, now: &DateTime<FixedOffset>) {
         let mut check_first = false;
         if self.iss.session_time.is_some() {
             println!("--------- maji -1");
@@ -1205,7 +1205,8 @@ impl Session {
         let mut check_third = false;
         if self.iss.session_time.is_some() {
             let session_time = self.iss.session_time.as_ref().unwrap();
-            if !session_time.is_in_same_range(&self.store.creation_time().await, now) {
+            let creation_time = &self.store.creation_time().await;
+            if !session_time.is_in_same_range(creation_time, now) {
                 check_third = true;
             }
         }
@@ -2081,7 +2082,7 @@ mod tests {
             FixerSuite, MessageFactory, MockStore, MockStoreExtended, MockStoreShared,
             SessionSuiteRig,
         },
-        internal::time_range::{TimeOfDay, TimeRange},
+        internal::time_range::{now as gen_now, TimeOfDay, TimeRange},
         message::Message,
         session::{
             in_session::InSession,
@@ -2766,10 +2767,7 @@ mod tests {
             s.ssr.session.iss.session_time = None;
             s.ssr.session.sm.state = Some(test.before.clone());
 
-            s.ssr
-                .session
-                .sm_check_session_time(&Utc::now().naive_utc())
-                .await;
+            s.ssr.session.sm_check_session_time(&gen_now()).await;
             if test.after.is_some() {
                 s.ssr.state(test.after.take().unwrap());
             } else {
@@ -2837,11 +2835,11 @@ mod tests {
             let mut s = SessionSuite::setup_test().await;
             s.ssr.session.sm.state = Some(test.before.clone());
 
-            let now = Utc::now().naive_utc();
+            let now = gen_now();
             let mut store = MemoryStore {
                 sender_msg_seq_num: 0,
                 target_msg_seq_num: 0,
-                creation_time: Utc::now().naive_utc(),
+                creation_time: now,
                 message_map: DashMap::new(),
             };
 
@@ -2973,7 +2971,7 @@ mod tests {
             s.ssr.incr_next_sender_msg_seq_num().await;
             s.ssr.incr_next_target_msg_seq_num().await;
 
-            let now = Utc::now().naive_utc();
+            let now = gen_now();
 
             let two_hour_from_now = now + Duration::hours(2);
 
