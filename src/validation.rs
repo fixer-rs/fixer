@@ -514,7 +514,7 @@ mod tests {
 
     fn create_fix40_new_order_single() -> Message {
         let msg = Message::new();
-        let now = Utc::now().naive_utc();
+        let now = Utc::now();
         msg.header.set_field(TAG_MSG_TYPE, FIXString::from("D"));
         msg.header
             .set_field(TAG_BEGIN_STRING, FIXString::from("FIX.4.0"));
@@ -547,7 +547,7 @@ mod tests {
 
     fn create_fix43_new_order_single() -> Message {
         let msg = Message::new();
-        let now = Utc::now().naive_utc();
+        let now = Utc::now();
         msg.header.set_field(TAG_MSG_TYPE, FIXString::from("D"));
         msg.header
             .set_field(TAG_BEGIN_STRING, FIXString::from("FIX.4.3"));
@@ -705,7 +705,7 @@ mod tests {
         invalid_msg1.header.set_field(
             TAG_SENDING_TIME,
             FIXUTCTimestamp {
-                time: Utc::now().naive_utc(),
+                time: Utc::now(),
                 precision: TimestampPrecision::default(),
             },
         );
