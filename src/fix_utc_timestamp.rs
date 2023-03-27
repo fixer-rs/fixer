@@ -89,7 +89,10 @@ mod tests {
 
     #[test]
     fn test_fixutc_timestamp_write() {
-        let ts = NaiveDate::from_ymd(2016, 2, 8).and_hms_nano(22, 7, 16, 954_123_123);
+        let ts = NaiveDate::from_ymd_opt(2016, 2, 8)
+            .unwrap()
+            .and_hms_nano_opt(22, 7, 16, 954_123_123)
+            .unwrap();
 
         struct TestCase<'a> {
             precision: TimestampPrecision,
@@ -135,22 +138,34 @@ mod tests {
         let tests = vec![
             TestCase {
                 time_str: "20160208-22:07:16.310",
-                expected_time: NaiveDate::from_ymd(2016, 2, 8).and_hms_nano(22, 7, 16, 310_000_000),
+                expected_time: NaiveDate::from_ymd_opt(2016, 2, 8)
+                    .unwrap()
+                    .and_hms_nano_opt(22, 7, 16, 310_000_000)
+                    .unwrap(),
                 expected_precision: TimestampPrecision::Millis,
             },
             TestCase {
                 time_str: "20160208-22:07:16",
-                expected_time: NaiveDate::from_ymd(2016, 2, 8).and_hms_nano(22, 7, 16, 0),
+                expected_time: NaiveDate::from_ymd_opt(2016, 2, 8)
+                    .unwrap()
+                    .and_hms_nano_opt(22, 7, 16, 0)
+                    .unwrap(),
                 expected_precision: TimestampPrecision::Seconds,
             },
             TestCase {
                 time_str: "20160208-22:07:16.123455",
-                expected_time: NaiveDate::from_ymd(2016, 2, 8).and_hms_nano(22, 7, 16, 123_455_000),
+                expected_time: NaiveDate::from_ymd_opt(2016, 2, 8)
+                    .unwrap()
+                    .and_hms_nano_opt(22, 7, 16, 123_455_000)
+                    .unwrap(),
                 expected_precision: TimestampPrecision::Micros,
             },
             TestCase {
                 time_str: "20160208-22:07:16.954123123",
-                expected_time: NaiveDate::from_ymd(2016, 2, 8).and_hms_nano(22, 7, 16, 954_123_123),
+                expected_time: NaiveDate::from_ymd_opt(2016, 2, 8)
+                    .unwrap()
+                    .and_hms_nano_opt(22, 7, 16, 954_123_123)
+                    .unwrap(),
                 expected_precision: TimestampPrecision::Nanos,
             },
         ];
