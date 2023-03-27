@@ -428,10 +428,8 @@ impl MessageFactory {
             .set_field(TAG_SENDER_COMP_ID, FIXString::from("TW"));
         msg.header
             .set_field(TAG_TARGET_COMP_ID, FIXString::from("ISLD"));
-        msg.header.set_field(
-            TAG_SENDING_TIME,
-            FIXUTCTimestamp::from_time(Utc::now().naive_utc()),
-        );
+        msg.header
+            .set_field(TAG_SENDING_TIME, FIXUTCTimestamp::from_time(Utc::now()));
         msg.header.set_field(TAG_MSG_SEQ_NUM, self.seq_num);
         msg.header
             .set_field(TAG_MSG_TYPE, FIXString::from(msg_type));

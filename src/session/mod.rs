@@ -136,7 +136,7 @@ pub struct Session {
 #[derive(Default)]
 pub struct FixIn {
     pub bytes: Vec<u8>,
-    pub receive_time: NaiveDateTime,
+    pub receive_time: DateTime<Utc>,
 }
 
 pub struct StopReq;
@@ -209,7 +209,7 @@ impl Session {
     }
 
     fn insert_sending_time(&self, msg: &Message) {
-        let sending_time = Utc::now().naive_utc();
+        let sending_time = Utc::now();
 
         if matches!(
             self.session_id.begin_string.as_str(),
@@ -823,7 +823,7 @@ impl Session {
 
         let sending_time = msg.header.get_time(TAG_SENDING_TIME)?;
 
-        let delta = Utc::now().naive_utc().signed_duration_since(sending_time);
+        let delta = Utc::now().signed_duration_since(sending_time);
         if delta <= -self.iss.max_latency || delta >= self.iss.max_latency {
             return Err(sending_time_accuracy_problem());
         }
@@ -2382,7 +2382,7 @@ mod tests {
             check_result.unwrap_err().reject_reason()
         );
 
-        let mut sending_time = Utc::now().naive_utc() - Duration::seconds(200);
+        let mut sending_time = Utc::now() - Duration::seconds(200);
         msg.header
             .set_field(TAG_SENDING_TIME, FIXUTCTimestamp::from_time(sending_time));
 
@@ -2396,7 +2396,7 @@ mod tests {
             check_result.unwrap_err().reject_reason()
         );
 
-        sending_time = Utc::now().naive_utc() + Duration::seconds(200);
+        sending_time = Utc::now() + Duration::seconds(200);
         msg.header
             .set_field(TAG_SENDING_TIME, FIXUTCTimestamp::from_time(sending_time));
 
@@ -2410,14 +2410,14 @@ mod tests {
             check_result.unwrap_err().reject_reason()
         );
 
-        sending_time = Utc::now().naive_utc();
+        sending_time = Utc::now();
         msg.header
             .set_field(TAG_SENDING_TIME, FIXUTCTimestamp::from_time(sending_time));
         check_result = s.ssr.session.check_sending_time(&msg);
         assert!(check_result.is_ok(), "sending time should be ok");
 
         s.ssr.session.iss.skip_check_latency = true;
-        sending_time = Utc::now().naive_utc() - Duration::seconds(200);
+        sending_time = Utc::now() - Duration::seconds(200);
         msg.header
             .set_field(TAG_SENDING_TIME, FIXUTCTimestamp::from_time(sending_time));
 
