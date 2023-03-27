@@ -11,7 +11,7 @@ use crate::fix_string::FIXString;
 use crate::fix_utc_timestamp::FIXUTCTimestamp;
 use crate::tag::{Tag, TAG_BEGIN_STRING, TAG_BODY_LENGTH, TAG_CHECK_SUM};
 use crate::tag_value::TagValue;
-use chrono::naive::NaiveDateTime;
+use chrono::{DateTime, Utc};
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt;
@@ -194,7 +194,7 @@ impl FieldMap {
     }
 
     // get_time is a get_field wrapper for utc timestamp fields
-    pub fn get_time(&self, tag: Tag) -> Result<NaiveDateTime, Box<dyn MessageRejectErrorTrait>> {
+    pub fn get_time(&self, tag: Tag) -> Result<DateTime<Utc>, Box<dyn MessageRejectErrorTrait>> {
         let mut val = FIXUTCTimestamp::default();
         let bytes = self.get_bytes(tag)?;
 

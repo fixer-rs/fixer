@@ -10,7 +10,7 @@ use crate::{
     tag_value::TagValue,
     BEGIN_STRING_FIX40,
 };
-use chrono::NaiveDateTime;
+use chrono::{DateTime, Utc};
 use delegate::delegate;
 use std::{
     cmp::Ordering,
@@ -70,7 +70,7 @@ impl Header {
             pub fn get_bytes(&self, tag: Tag) -> Result<Vec<u8>, Box<dyn MessageRejectErrorTrait>>;
             pub fn get_bool(&self, tag: Tag) -> Result<bool, Box<dyn MessageRejectErrorTrait>>;
             pub fn get_int(&self, tag: Tag) -> Result<isize, Box<dyn MessageRejectErrorTrait>>;
-            pub fn get_time(&self, tag: Tag) -> Result<NaiveDateTime, Box<dyn MessageRejectErrorTrait>>;
+            pub fn get_time(&self, tag: Tag) -> Result<DateTime<Utc>, Box<dyn MessageRejectErrorTrait>>;
             pub fn get_string(&self, tag: Tag) -> Result<String, Box<dyn MessageRejectErrorTrait>>;
             pub fn get_group<P: FieldGroupReader>(&self, parser: P) -> MessageRejectErrorResult;
             pub fn set_field<F: FieldValueWriter>(&self, tag: Tag, field: F) -> &FieldMap;
@@ -114,7 +114,7 @@ impl Body {
             pub fn get_bytes(&self, tag: Tag) -> Result<Vec<u8>, Box<dyn MessageRejectErrorTrait>>;
             pub fn get_bool(&self, tag: Tag) -> Result<bool, Box<dyn MessageRejectErrorTrait>>;
             pub fn get_int(&self, tag: Tag) -> Result<isize, Box<dyn MessageRejectErrorTrait>>;
-            pub fn get_time(&self, tag: Tag) -> Result<NaiveDateTime, Box<dyn MessageRejectErrorTrait>>;
+            pub fn get_time(&self, tag: Tag) -> Result<DateTime<Utc>, Box<dyn MessageRejectErrorTrait>>;
             pub fn get_string(&self, tag: Tag) -> Result<String, Box<dyn MessageRejectErrorTrait>>;
             pub fn get_group<P: FieldGroupReader>(&self, parser: P) -> MessageRejectErrorResult;
             pub fn set_field<F: FieldValueWriter>(&self, tag: Tag, field: F) -> &FieldMap;
@@ -172,7 +172,7 @@ impl Trailer {
             pub fn get_bytes(&self, tag: Tag) -> Result<Vec<u8>, Box<dyn MessageRejectErrorTrait>>;
             pub fn get_bool(&self, tag: Tag) -> Result<bool, Box<dyn MessageRejectErrorTrait>>;
             pub fn get_int(&self, tag: Tag) -> Result<isize, Box<dyn MessageRejectErrorTrait>>;
-            pub fn get_time(&self, tag: Tag) -> Result<NaiveDateTime, Box<dyn MessageRejectErrorTrait>>;
+            pub fn get_time(&self, tag: Tag) -> Result<DateTime<Utc>, Box<dyn MessageRejectErrorTrait>>;
             pub fn get_string(&self, tag: Tag) -> Result<String, Box<dyn MessageRejectErrorTrait>>;
             pub fn get_group<P: FieldGroupReader>(&self, parser: P) -> MessageRejectErrorResult;
             pub fn set_field<F: FieldValueWriter>(&self, tag: Tag, field: F) -> &FieldMap;
@@ -199,7 +199,7 @@ pub struct Message {
     pub trailer: Trailer,
     pub body: Body,
     // receive_time is the time that this message was read from the socket connection
-    pub receive_time: NaiveDateTime,
+    pub receive_time: DateTime<Utc>,
     raw_message: Vec<u8>,
     // slice of Bytes corresponding to the message body
     body_bytes: Vec<u8>,
