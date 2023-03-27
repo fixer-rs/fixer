@@ -339,16 +339,21 @@ pub struct MockAppExtended {
 impl Application for MockAppExtended {
     fn on_create(&mut self, _session_id: &SessionID) {}
 
-    fn on_logon(&mut self, session_id: &SessionID) {
-        self.mock_app.expect_on_logon().call(session_id)
+    fn on_logon(&mut self, _session_id: &SessionID) {
+        self.mock_app.expect_on_logon().times(1).return_const(());
     }
 
-    fn on_logout(&mut self, session_id: &SessionID) {
-        self.mock_app.expect_on_logon().call(session_id)
+    fn on_logout(&mut self, _session_id: &SessionID) {
+        self.mock_app.expect_on_logout().times(1).return_const(());
     }
 
     fn from_admin(&mut self, msg: &Message, session_id: &SessionID) -> MessageRejectErrorResult {
-        self.mock_app.expect_from_admin().call(msg, session_id)
+        let result = self
+            .mock_app
+            .expect_from_admin()
+            .times(1)
+            .call(msg, session_id);
+        result
     }
 
     fn to_admin(&mut self, msg: &Message, session_id: &SessionID) {

@@ -95,9 +95,7 @@ impl StateMachine {
     }
 
     pub fn is_session_time(&self) -> bool {
-        let st = self.state.as_ref().unwrap().is_session_time();
-        println!("-------------------------------------st{}\n", st);
-        st
+        self.state.as_ref().unwrap().is_session_time()
     }
 }
 
