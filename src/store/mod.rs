@@ -1,6 +1,6 @@
-use crate::{internal::time_range::now, session::session_id::SessionID};
+use crate::session::session_id::SessionID;
 use async_trait::async_trait;
-use chrono::{DateTime, FixedOffset};
+use chrono::{DateTime, Local, Utc};
 use dashmap::DashMap;
 use enum_dispatch::enum_dispatch;
 use simple_error::SimpleResult;
@@ -15,7 +15,7 @@ pub trait MessageStoreTrait {
     async fn incr_next_target_msg_seq_num(&mut self) -> SimpleResult<()>;
     async fn set_next_sender_msg_seq_num(&mut self, next_seq_num: isize) -> SimpleResult<()>;
     async fn set_next_target_msg_seq_num(&mut self, next_seq_num: isize) -> SimpleResult<()>;
-    async fn creation_time(&self) -> DateTime<FixedOffset>;
+    async fn creation_time(&self) -> DateTime<Utc>;
     async fn save_message(&mut self, seq_num: isize, msg: Vec<u8>) -> SimpleResult<()>;
     async fn save_message_and_incr_next_sender_msg_seq_num(
         &mut self,
@@ -61,7 +61,7 @@ pub enum MessageStoreFactoryEnum {
 pub struct MemoryStore {
     pub sender_msg_seq_num: isize,
     pub target_msg_seq_num: isize,
-    pub creation_time: DateTime<FixedOffset>,
+    pub creation_time: DateTime<Utc>,
     pub message_map: DashMap<isize, Vec<u8>>,
 }
 
@@ -95,7 +95,7 @@ impl MessageStoreTrait for MemoryStore {
         Ok(())
     }
 
-    async fn creation_time(&self) -> DateTime<FixedOffset> {
+    async fn creation_time(&self) -> DateTime<Utc> {
         self.creation_time
     }
 
@@ -138,7 +138,7 @@ impl MessageStoreTrait for MemoryStore {
     async fn reset(&mut self) -> SimpleResult<()> {
         self.sender_msg_seq_num = 0;
         self.target_msg_seq_num = 0;
-        self.creation_time = now();
+        self.creation_time = Local::now().into();
         self.message_map.clear();
         Ok(())
     }

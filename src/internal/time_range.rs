@@ -19,7 +19,7 @@ pub fn utc() -> FixedOffset {
     FixedOffset::east_opt(0).unwrap()
 }
 
-pub fn now() -> DateTime<FixedOffset> {
+pub fn gen_now() -> DateTime<FixedOffset> {
     let now = Local::now();
     now.with_timezone(now.offset())
 }
@@ -112,9 +112,6 @@ impl TimeRange {
             new_t.second() as isize,
         )
         .d;
-
-        println!("--------------- t {:?}", new_t);
-        println!("--------------- self {:?}", self);
 
         if self.start_time.d < self.end_time.d {
             return self.start_time.d <= ts && ts <= self.end_time.d;

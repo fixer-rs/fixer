@@ -1,5 +1,5 @@
 use crate::field::{FieldValue, FieldValueReader, FieldValueWriter};
-use chrono::{naive::NaiveDateTime, DateTime, TimeZone, Utc};
+use chrono::{DateTime, TimeZone, Utc};
 
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TimestampPrecision {
@@ -11,7 +11,7 @@ pub enum TimestampPrecision {
 }
 
 pub const UTC_TIMESTAMP_SECONDS_FORMAT: &str = "%Y%m%d-%H:%M:%S";
-pub const UTC_TIMESTAMP_MILLIS_FORMAT: &str = "%Y%m%d-%H:%M:%S%.3f";
+pub const UTC_TIMESTAMP_MILLIS_FORMAT: &str = "%Y%m%d-%H :%M:%S%.3f";
 pub const UTC_TIMESTAMP_MICROS_FORMAT: &str = "%Y%m%d-%H:%M:%S%.6f";
 pub const UTC_TIMESTAMP_NANOS_FORMAT: &str = "%Y%m%d-%H:%M:%S%.9f";
 

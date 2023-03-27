@@ -14,7 +14,10 @@ use crate::{
     fix_utc_timestamp::{FIXUTCTimestamp, TimestampPrecision},
     internal::event::{Event, LOGON_TIMEOUT, LOGOUT_TIMEOUT, NEED_HEARTBEAT, PEER_TIMEOUT},
     internal::event_timer::EventTimer,
-    internal::{session_settings::SessionSettings, time_range::now},
+    internal::{
+        session_settings::SessionSettings,
+        time_range::{gen_now, utc},
+    },
     log::{LogEnum, LogTrait},
     message::Message,
     msg_type::{
@@ -1015,7 +1018,7 @@ impl Session {
                     self.sm_timeout(event).await;
                 },
                 _ = ticker.tick() => {
-                    self.sm_check_session_time(&now()).await;
+                    self.sm_check_session_time(&gen_now()).await;
                 },
             }
         }
@@ -1034,7 +1037,7 @@ impl Session {
         self.sm.pending_stop = false;
         self.sm.stopped = false;
         self.sm.state = Some(SessionStateEnum::new_latent_state());
-        self.sm_check_session_time(&now()).await;
+        self.sm_check_session_time(&gen_now()).await;
     }
 
     pub async fn sm_connect(&mut self) {
@@ -1092,7 +1095,7 @@ impl Session {
     }
 
     async fn sm_incoming(&mut self, fix_in: &FixIn) {
-        self.sm_check_session_time(&now()).await;
+        self.sm_check_session_time(&gen_now()).await;
         if !self.sm.is_connected() {
             return;
         }
@@ -1141,7 +1144,7 @@ impl Session {
     }
 
     async fn sm_send_app_messages(&mut self) {
-        self.sm_check_session_time(&now()).await;
+        self.sm_check_session_time(&gen_now()).await;
 
         if self.sm.is_logged_on() {
             self.send_queued().await;
@@ -1152,7 +1155,7 @@ impl Session {
 
     // timeout is called by the session on a timeout event.
     async fn sm_timeout(&mut self, event: Event) {
-        self.sm_check_session_time(&now()).await;
+        self.sm_check_session_time(&gen_now()).await;
 
         let state = self.sm.state.take().unwrap();
         let next_state = match state {
@@ -1170,18 +1173,13 @@ impl Session {
     async fn sm_check_session_time(&mut self, now: &DateTime<FixedOffset>) {
         let mut check_first = false;
         if self.iss.session_time.is_some() {
-            println!("--------- maji -1");
             let session_time = self.iss.session_time.as_ref().unwrap();
-            println!("----------- session time {:?}", session_time);
-            println!("----------- now {:?}", now);
             if !session_time.is_in_range(now) {
-                println!("--------- maji0");
                 check_first = true;
             }
         }
 
         if check_first {
-            println!("--------- maji1");
             if self.sm.is_session_time() {
                 self.log.on_event("Not in session");
             }
@@ -1192,10 +1190,10 @@ impl Session {
                 let (_, rx) = channel::<()>(1);
                 self.sm.notify_on_in_session_time = Some(rx);
             }
+            return;
         }
 
         if !self.sm.is_session_time() {
-            println!("--------- maji2");
             self.log.on_event("In session");
             self.sm_notify_in_session_time();
             self.sm_set_state(SessionStateEnum::new_latent_state())
@@ -1205,14 +1203,14 @@ impl Session {
         let mut check_third = false;
         if self.iss.session_time.is_some() {
             let session_time = self.iss.session_time.as_ref().unwrap();
-            let creation_time = &self.store.creation_time().await;
-            if !session_time.is_in_same_range(creation_time, now) {
+            let creation_time = self.store.creation_time().await;
+            let creation_time_fixed_offset: DateTime<FixedOffset> = creation_time.into();
+            if !session_time.is_in_same_range(&creation_time_fixed_offset, now) {
                 check_third = true;
             }
         }
 
         if check_third {
-            println!("--------- maji3");
             self.log.on_event("Session reset");
             self.state_shutdown_now().await;
             let drop_result = self.drop_and_reset().await;
@@ -1227,7 +1225,6 @@ impl Session {
     async fn sm_set_state(&mut self, next_state: SessionStateEnum) {
         if !next_state.is_connected() {
             if self.sm.is_connected() {
-                println!("-------------- logout");
                 self.sm_handle_disconnect_state().await;
             }
 
@@ -2078,12 +2075,10 @@ mod tests {
         field_map::FieldMap,
         fix_string::FIXString,
         fix_utc_timestamp::{FIXUTCTimestamp, TimestampPrecision},
-        fixer_test::{
-            FixerSuite, MessageFactory, MockStore, MockStoreExtended, MockStoreShared,
-            SessionSuiteRig,
-        },
-        internal::time_range::{now as gen_now, TimeOfDay, TimeRange},
+        fixer_test::{MockStore, MockStoreExtended, SessionSuiteRig},
+        internal::time_range::{gen_now, TimeOfDay, TimeRange},
         message::Message,
+        msg_type::MSG_TYPE_LOGOUT,
         session::{
             in_session::InSession,
             pending_timeout::PendingTimeout,
@@ -2100,7 +2095,7 @@ mod tests {
         BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIX42, BEGIN_STRING_FIX43,
         BEGIN_STRING_FIX44, BEGIN_STRING_FIXT11,
     };
-    use chrono::{Duration, Timelike, Utc};
+    use chrono::{DateTime, Duration, FixedOffset, Timelike, Utc};
     use dashmap::DashMap;
     use delegate::delegate;
     use tokio::sync::RwLock;
@@ -2835,7 +2830,7 @@ mod tests {
             let mut s = SessionSuite::setup_test().await;
             s.ssr.session.sm.state = Some(test.before.clone());
 
-            let now = gen_now();
+            let now = Utc::now();
             let mut store = MemoryStore {
                 sender_msg_seq_num: 0,
                 target_msg_seq_num: 0,
@@ -2877,7 +2872,7 @@ mod tests {
                 ),
             ));
 
-            s.ssr.session.sm_check_session_time(&now).await;
+            s.ssr.session.sm_check_session_time(&gen_now()).await;
             if test.after.is_some() {
                 s.ssr.state(test.after.take().unwrap());
             } else {
@@ -2903,36 +2898,36 @@ mod tests {
         }
 
         let mut tests = vec![
-            // TestCase {
-            //     before: SessionStateEnum::new_latent_state(),
-            //     initiate_logon: false,
-            //     expect_on_logout: false,
-            //     expect_send_logout: false,
-            // },
-            // TestCase {
-            //     before: SessionStateEnum::new_logon_state(),
-            //     initiate_logon: false,
-            //     expect_on_logout: false,
-            //     expect_send_logout: false,
-            // },
-            // TestCase {
-            //     before: SessionStateEnum::new_logon_state(),
-            //     initiate_logon: true,
-            //     expect_on_logout: true,
-            //     expect_send_logout: false,
-            // },
+            TestCase {
+                before: SessionStateEnum::new_latent_state(),
+                initiate_logon: false,
+                expect_on_logout: false,
+                expect_send_logout: false,
+            },
+            TestCase {
+                before: SessionStateEnum::new_logon_state(),
+                initiate_logon: false,
+                expect_on_logout: false,
+                expect_send_logout: false,
+            },
+            TestCase {
+                before: SessionStateEnum::new_logon_state(),
+                initiate_logon: true,
+                expect_on_logout: true,
+                expect_send_logout: false,
+            },
             TestCase {
                 before: SessionStateEnum::new_logout_state(),
                 initiate_logon: false,
                 expect_on_logout: true,
                 expect_send_logout: false,
             },
-            // TestCase {
-            //     before: SessionStateEnum::new_in_session(),
-            //     initiate_logon: false,
-            //     expect_on_logout: true,
-            //     expect_send_logout: true,
-            // },
+            TestCase {
+                before: SessionStateEnum::new_in_session(),
+                initiate_logon: false,
+                expect_on_logout: true,
+                expect_send_logout: true,
+            },
             // TestCase {
             //     before: SessionStateEnum::ResendState(ResendState::default()),
             //     initiate_logon: false,
@@ -2971,15 +2966,15 @@ mod tests {
             s.ssr.incr_next_sender_msg_seq_num().await;
             s.ssr.incr_next_target_msg_seq_num().await;
 
-            let now = gen_now();
-
+            let now = Utc::now();
+            let one_hour_from_now = now + Duration::hours(1);
             let two_hour_from_now = now + Duration::hours(2);
 
             s.ssr.session.iss.session_time = Some(TimeRange::new_utc(
                 TimeOfDay::new(
-                    now.hour() as isize,
-                    now.minute() as isize,
-                    now.second() as isize,
+                    one_hour_from_now.hour() as isize,
+                    one_hour_from_now.minute() as isize,
+                    one_hour_from_now.second() as isize,
                 ),
                 TimeOfDay::new(
                     two_hour_from_now.hour() as isize,
@@ -2996,19 +2991,22 @@ mod tests {
                     .mock_app
                     .to_admin(&Message::default(), &SessionID::default());
             }
-            s.ssr.session.sm_check_session_time(&now).await;
+            s.ssr.session.sm_check_session_time(&now.into()).await;
             s.ssr.mock_app.write().await.mock_app.checkpoint();
 
-            // 		s.State(notSessionTime{})
+            s.ssr.state(SessionStateEnum::new_not_session_time());
+            s.ssr.next_target_msg_seq_num(2).await;
 
-            // 		s.NextTargetMsgSeqNum(2)
-            // 		if test.expectSendLogout {
-            // 			s.LastToAdminMessageSent()
-            // 			s.MessageType(string(msgTypeLogout), s.MockApp.lastToAdmin)
-            // 			s.NextSenderMsgSeqNum(3)
-            // 		} else {
-            // 			s.NextSenderMsgSeqNum(2)
-            // 		}
+            if test.expect_send_logout {
+                s.ssr.last_to_admin_message_sent().await;
+                s.ssr.suite.message_type(
+                    String::from_utf8_lossy(MSG_TYPE_LOGOUT).to_string(),
+                    s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap(),
+                );
+                s.ssr.next_sender_msg_seq_num(3).await;
+            } else {
+                s.ssr.next_sender_msg_seq_num(2).await
+            }
         }
     }
 
@@ -3017,25 +3015,25 @@ mod tests {
         let mut s = SessionSuite::setup_test().await;
         // 	var tests = []struct {
         // 		before           sessionState
-        // 		initiateLogon    bool
-        // 		expectOnLogout   bool
-        // 		expectSendLogout bool
+        // 		initiate_logon    bool
+        // 		expect_on_logout   bool
+        // 		expect_send_logout bool
         // 	}{
         // 		{before: latentState{}},
         // 		{before: logonState{}},
-        // 		{before: logonState{}, initiateLogon: true, expectOnLogout: true},
-        // 		{before: logoutState{}, expectOnLogout: true},
-        // 		{before: inSession{}, expectOnLogout: true, expectSendLogout: true},
-        // 		{before: resendState{}, expectOnLogout: true, expectSendLogout: true},
-        // 		{before: pendingTimeout{resendState{}}, expectOnLogout: true, expectSendLogout: true},
-        // 		{before: pendingTimeout{inSession{}}, expectOnLogout: true, expectSendLogout: true},
+        // 		{before: logonState{}, initiate_logon: true, expect_on_logout: true},
+        // 		{before: logoutState{}, expect_on_logout: true},
+        // 		{before: inSession{}, expect_on_logout: true, expect_send_logout: true},
+        // 		{before: resendState{}, expect_on_logout: true, expect_send_logout: true},
+        // 		{before: pendingTimeout{resendState{}}, expect_on_logout: true, expect_send_logout: true},
+        // 		{before: pendingTimeout{inSession{}}, expect_on_logout: true, expect_send_logout: true},
         // 		{before: notSessionTime{}},
         // 	}
 
         // 	for _, test := range tests {
         // 		s.SetupTest()
         // 		s.ssr.session.sm.state = test.before
-        // 		s.ssr.session.InitiateLogon = test.initiateLogon
+        // 		s.ssr.session.initiate_logon = test.initiate_logon
         // 		s.Require().Nil(s.store.Reset())
         // 		s.ssr.incr_next_sender_msg_seq_num();
         // 		s.ssr.incr_next_target_msg_seq_num();
@@ -3046,17 +3044,17 @@ mod tests {
         // 			internal.NewTimeOfDay(now.Add(time.Hour).Clock()),
         // 		)
 
-        // 		if test.expectOnLogout {
+        // 		if test.expect_on_logout {
         // 			s.MockApp.On("OnLogout")
         // 		}
-        // 		if test.expectSendLogout {
+        // 		if test.expect_send_logout {
         // 			s.MockApp.On("ToAdmin")
         // 		}
         // 		s.ssr.session.CheckSessionTime(s.ssr.session, now.AddDate(0, 0, 1))
 
         // 		s.MockApp.AssertExpectations(s.T())
         // 		s.State(latentState{})
-        // 		if test.expectSendLogout {
+        // 		if test.expect_send_logout {
         // 			s.LastToAdminMessageSent()
         // 			s.MessageType(string(msgTypeLogout), s.MockApp.lastToAdmin)
         // 			s.FieldEquals(TAG_MSG_SEQ_NUM, 2, s.MockApp.lastToAdmin.Header)

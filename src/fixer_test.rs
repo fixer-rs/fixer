@@ -7,7 +7,6 @@ use crate::fix_utc_timestamp::FIXUTCTimestamp;
 use crate::internal::event::Event;
 use crate::internal::event_timer::EventTimer;
 use crate::internal::session_settings::SessionSettings;
-use crate::internal::time_range::now;
 use crate::log::null_log::NullLog;
 use crate::log::LogEnum;
 use crate::message::Message;
@@ -25,8 +24,7 @@ use crate::tag::{
 };
 use crate::BEGIN_STRING_FIX42;
 use async_trait::async_trait;
-use chrono::{DateTime, Duration, FixedOffset, NaiveDateTime, Utc};
-use dashmap::DashMap;
+use chrono::{DateTime, Duration, Utc};
 use mockall::predicate::*;
 use mockall::*;
 use simple_error::SimpleResult;
@@ -112,8 +110,8 @@ impl MessageStoreTrait for Store {
         Ok(())
     }
 
-    async fn creation_time(&self) -> DateTime<FixedOffset> {
-        now()
+    async fn creation_time(&self) -> DateTime<Utc> {
+        Utc::now()
     }
 
     async fn save_message(&mut self, _seq_num: isize, _msg: Vec<u8>) -> SimpleResult<()> {
@@ -178,7 +176,7 @@ impl MessageStoreTrait for MockStoreExtended {
         self.ms.set_next_target_msg_seq_num(next_seq_num).await
     }
 
-    async fn creation_time(&self) -> DateTime<FixedOffset> {
+    async fn creation_time(&self) -> DateTime<Utc> {
         self.ms.creation_time().await
     }
 
@@ -251,7 +249,7 @@ impl MessageStoreTrait for MockStoreShared {
             .await
     }
 
-    async fn creation_time(&self) -> DateTime<FixedOffset> {
+    async fn creation_time(&self) -> DateTime<Utc> {
         self.write().await.creation_time().await
     }
 
@@ -340,12 +338,20 @@ pub struct MockAppExtended {
 impl Application for MockAppExtended {
     fn on_create(&mut self, _session_id: &SessionID) {}
 
-    fn on_logon(&mut self, _session_id: &SessionID) {
-        self.mock_app.expect_on_logon().times(1).return_const(());
+    fn on_logon(&mut self, session_id: &SessionID) {
+        self.mock_app
+            .expect_on_logon()
+            .times(1)
+            .return_const(())
+            .call(session_id);
     }
 
-    fn on_logout(&mut self, _session_id: &SessionID) {
-        self.mock_app.expect_on_logout().times(1).return_const(());
+    fn on_logout(&mut self, session_id: &SessionID) {
+        self.mock_app
+            .expect_on_logout()
+            .times(1)
+            .return_const(())
+            .call(session_id)
     }
 
     fn from_admin(&mut self, msg: &Message, session_id: &SessionID) -> MessageRejectErrorResult {
@@ -358,7 +364,11 @@ impl Application for MockAppExtended {
     }
 
     fn to_admin(&mut self, msg: &Message, session_id: &SessionID) {
-        self.mock_app.expect_to_admin().call(msg, session_id);
+        self.mock_app
+            .expect_to_admin()
+            .times(1)
+            .return_const(())
+            .call(msg, session_id);
 
         if let Some(decorate_to_admin) = self.decorate_to_admin {
             decorate_to_admin(msg.clone());
@@ -517,12 +527,7 @@ impl SessionSuiteRig {
 
         let mock_store_extended = MockStoreExtended {
             mock: MockStore::default(),
-            ms: MemoryStore {
-                sender_msg_seq_num: 0,
-                target_msg_seq_num: 0,
-                creation_time: now(),
-                message_map: DashMap::new(),
-            },
+            ms: MemoryStore::default(),
         };
 
         let mock_store_shared = MockStoreShared::new_mock_store(mock_store_extended);
