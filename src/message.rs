@@ -558,11 +558,10 @@ fn format_check_sum(value: isize) -> String {
 mod tests {
     use super::*;
     use crate::datadictionary::{DataDictionary, FieldDef, MessageDef};
-    use crate::fixer_test::FixerSuite;
+    use crate::fixer_test::{FieldEqual, FixerSuite};
     use crate::tag::Tag;
     use crate::BEGIN_STRING_FIX44;
     use delegate::delegate;
-    use std::any::Any;
     use std::collections::HashMap;
 
     struct MessageSuite {
@@ -580,7 +579,7 @@ mod tests {
     impl MessageSuite {
         delegate! {
             to self.suite {
-                fn field_equals(&self, tag: Tag, expected_value: Box<dyn Any>, field_map: &FieldMap) ;
+                fn field_equals<'a>(&self, tag: Tag, expected_value: FieldEqual<'a>, field_map: &FieldMap) ;
             }
         }
     }
@@ -657,8 +656,16 @@ mod tests {
             s.msg
                 .parse_message_with_data_dictionary(raw_message, dict_ref, dict_ref);
         assert!(parse_result.is_ok());
-        s.field_equals(10030 as Tag, Box::new("CUST"), &s.msg.header.field_map);
-        s.field_equals(5050 as Tag, Box::new("HELLO"), &s.msg.trailer.field_map);
+        s.field_equals(
+            10030 as Tag,
+            FieldEqual::Str("CUST"),
+            &s.msg.header.field_map,
+        );
+        s.field_equals(
+            5050 as Tag,
+            FieldEqual::Str("HELLO"),
+            &s.msg.trailer.field_map,
+        );
     }
 
     #[test]

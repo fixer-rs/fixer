@@ -419,10 +419,12 @@ impl Session {
         if !self.sm.is_logged_on() {
             return self.queue_for_send(msg).await;
         }
-
-        let msg_bytes = self.prep_message_for_send(msg, in_reply_to).await?;
-        let mut to_send = self.to_send.lock().await;
-        to_send.push(msg_bytes);
+        {
+            let msg_bytes = self.prep_message_for_send(msg, in_reply_to).await?;
+            let mut to_send = self.to_send.lock().await;
+            to_send.push(msg_bytes);
+        }
+        self.send_queued().await;
 
         Ok(())
     }
@@ -503,9 +505,14 @@ impl Session {
         msg_bytes: &[u8],
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
         if !self.iss.disable_message_persist {
-            self.store
+            let result = self
+                .store
                 .save_message_and_incr_next_sender_msg_seq_num(seq_num, msg_bytes.to_vec())
-                .await?;
+                .await;
+            if let Err(err) = result {
+                return Err(err.into());
+            }
+            return Ok(());
         }
 
         Ok(self.store.incr_next_sender_msg_seq_num().await?)
@@ -2064,8 +2071,6 @@ fn optionally_set_id(msg: &Message, tag: Tag, value: &str) {
 
 #[cfg(test)]
 mod tests {
-    use std::{any::Any, sync::Arc};
-
     use crate::{
         application::Application,
         errors::{
@@ -2075,7 +2080,7 @@ mod tests {
         field_map::FieldMap,
         fix_string::FIXString,
         fix_utc_timestamp::{FIXUTCTimestamp, TimestampPrecision},
-        fixer_test::{MockStore, MockStoreExtended, SessionSuiteRig},
+        fixer_test::{FieldEqual, MockStore, MockStoreExtended, SessionSuiteRig},
         internal::time_range::{gen_now, TimeOfDay, TimeRange},
         message::Message,
         msg_type::MSG_TYPE_LOGOUT,
@@ -2095,9 +2100,10 @@ mod tests {
         BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIX42, BEGIN_STRING_FIX43,
         BEGIN_STRING_FIX44, BEGIN_STRING_FIXT11,
     };
-    use chrono::{DateTime, Duration, FixedOffset, Timelike, Utc};
+    use chrono::{Duration, Timelike, Utc};
     use dashmap::DashMap;
     use delegate::delegate;
+    use std::sync::Arc;
     use tokio::sync::RwLock;
 
     struct SessionSuite {
@@ -2117,7 +2123,7 @@ mod tests {
         delegate! {
             to self.ssr.suite {
                 pub fn message_type(&self, msg_type: String, msg: &Message);
-                pub fn field_equals(&self, tag: Tag, expected_value: Box<dyn Any>, field_map: &FieldMap);
+                pub fn field_equals<'a>(&self, tag: Tag, expected_value: FieldEqual<'a>, field_map: &FieldMap);
                 pub fn message_equals_bytes(&self, expected_bytes: &[u8], msg: &Message) ;
             }
         }
@@ -2132,9 +2138,21 @@ mod tests {
 
         let mut msg = Message::new();
         s.ssr.session.fill_default_header(&msg, None).await;
-        s.field_equals(TAG_BEGIN_STRING, Box::new("FIX.4.2"), &msg.header.field_map);
-        s.field_equals(TAG_TARGET_COMP_ID, Box::new("TAR"), &msg.header.field_map);
-        s.field_equals(TAG_SENDER_COMP_ID, Box::new("SND"), &msg.header.field_map);
+        s.field_equals(
+            TAG_BEGIN_STRING,
+            FieldEqual::Str("FIX.4.2"),
+            &msg.header.field_map,
+        );
+        s.field_equals(
+            TAG_TARGET_COMP_ID,
+            FieldEqual::Str("TAR"),
+            &msg.header.field_map,
+        );
+        s.field_equals(
+            TAG_SENDER_COMP_ID,
+            FieldEqual::Str("SND"),
+            &msg.header.field_map,
+        );
         assert!(!msg.header.has(TAG_SENDER_SUB_ID));
         assert!(!msg.header.has(TAG_SENDER_LOCATION_ID));
         assert!(!msg.header.has(TAG_TARGET_SUB_ID));
@@ -2150,19 +2168,39 @@ mod tests {
 
         msg = Message::new();
         s.ssr.session.fill_default_header(&msg, None).await;
-        s.field_equals(TAG_BEGIN_STRING, Box::new("FIX.4.3"), &msg.header.field_map);
-        s.field_equals(TAG_TARGET_COMP_ID, Box::new("TAR"), &msg.header.field_map);
-        s.field_equals(TAG_TARGET_SUB_ID, Box::new("TARS"), &msg.header.field_map);
         s.field_equals(
-            TAG_TARGET_LOCATION_ID,
-            Box::new("TARL"),
+            TAG_BEGIN_STRING,
+            FieldEqual::Str("FIX.4.3"),
             &msg.header.field_map,
         );
-        s.field_equals(TAG_SENDER_COMP_ID, Box::new("SND"), &msg.header.field_map);
-        s.field_equals(TAG_SENDER_SUB_ID, Box::new("SNDS"), &msg.header.field_map);
+        s.field_equals(
+            TAG_TARGET_COMP_ID,
+            FieldEqual::Str("TAR"),
+            &msg.header.field_map,
+        );
+        s.field_equals(
+            TAG_TARGET_SUB_ID,
+            FieldEqual::Str("TARS"),
+            &msg.header.field_map,
+        );
+        s.field_equals(
+            TAG_TARGET_LOCATION_ID,
+            FieldEqual::Str("TARL"),
+            &msg.header.field_map,
+        );
+        s.field_equals(
+            TAG_SENDER_COMP_ID,
+            FieldEqual::Str("SND"),
+            &msg.header.field_map,
+        );
+        s.field_equals(
+            TAG_SENDER_SUB_ID,
+            FieldEqual::Str("SNDS"),
+            &msg.header.field_map,
+        );
         s.field_equals(
             TAG_SENDER_LOCATION_ID,
-            Box::new("SNDL"),
+            FieldEqual::Str("SNDL"),
             &msg.header.field_map,
         );
     }
@@ -2928,34 +2966,34 @@ mod tests {
                 expect_on_logout: true,
                 expect_send_logout: true,
             },
-            // TestCase {
-            //     before: SessionStateEnum::ResendState(ResendState::default()),
-            //     initiate_logon: false,
-            //     expect_on_logout: true,
-            //     expect_send_logout: true,
-            // },
-            // TestCase {
-            //     before: SessionStateEnum::PendingTimeout(PendingTimeout {
-            //         session_state: AfterPendingTimeout::ResendState(ResendState::default()),
-            //     }),
-            //     initiate_logon: false,
-            //     expect_on_logout: true,
-            //     expect_send_logout: true,
-            // },
-            // TestCase {
-            //     before: SessionStateEnum::PendingTimeout(PendingTimeout {
-            //         session_state: AfterPendingTimeout::InSession(InSession::default()),
-            //     }),
-            //     initiate_logon: false,
-            //     expect_on_logout: true,
-            //     expect_send_logout: true,
-            // },
-            // TestCase {
-            //     before: SessionStateEnum::new_not_session_time(),
-            //     initiate_logon: false,
-            //     expect_on_logout: false,
-            //     expect_send_logout: false,
-            // },
+            TestCase {
+                before: SessionStateEnum::ResendState(ResendState::default()),
+                initiate_logon: false,
+                expect_on_logout: true,
+                expect_send_logout: true,
+            },
+            TestCase {
+                before: SessionStateEnum::PendingTimeout(PendingTimeout {
+                    session_state: AfterPendingTimeout::ResendState(ResendState::default()),
+                }),
+                initiate_logon: false,
+                expect_on_logout: true,
+                expect_send_logout: true,
+            },
+            TestCase {
+                before: SessionStateEnum::PendingTimeout(PendingTimeout {
+                    session_state: AfterPendingTimeout::InSession(InSession::default()),
+                }),
+                initiate_logon: false,
+                expect_on_logout: true,
+                expect_send_logout: true,
+            },
+            TestCase {
+                before: SessionStateEnum::new_not_session_time(),
+                initiate_logon: false,
+                expect_on_logout: false,
+                expect_send_logout: false,
+            },
         ];
 
         for test in tests.iter_mut() {

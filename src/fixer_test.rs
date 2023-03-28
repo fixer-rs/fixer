@@ -28,45 +28,54 @@ use chrono::{DateTime, Duration, Utc};
 use mockall::predicate::*;
 use mockall::*;
 use simple_error::SimpleResult;
-use std::any::Any;
 use std::sync::Arc;
 use tokio::sync::{
     mpsc::{channel, unbounded_channel, Receiver, Sender},
     RwLock,
 };
 
+pub enum FieldEqual<'a> {
+    Num(isize),
+    Str(&'a str),
+    Bool(bool),
+    Other,
+}
+
 #[derive(Default)]
 pub struct FixerSuite {}
 
 impl FixerSuite {
     pub fn message_type(&self, msg_type: String, msg: &Message) {
-        self.field_equals(TAG_MSG_TYPE, Box::new(msg_type), &msg.header.field_map);
+        self.field_equals(
+            TAG_MSG_TYPE,
+            FieldEqual::Str(&msg_type),
+            &msg.header.field_map,
+        );
     }
 
-    pub fn field_equals(&self, tag: Tag, expected_value: Box<dyn Any>, field_map: &FieldMap) {
+    pub fn field_equals<'a>(&self, tag: Tag, expected_value: FieldEqual<'a>, field_map: &FieldMap) {
         assert!(field_map.has(tag), "Tag {} not set", tag);
 
-        if expected_value.is::<isize>() {
-            let int_result = field_map.get_int(tag);
-            assert!(int_result.is_ok());
-            if let Ok(int) = expected_value.downcast::<isize>() {
-                assert_eq!(int_result.unwrap(), *int);
+        match expected_value {
+            FieldEqual::Num(ev) => {
+                let int_result = field_map.get_int(tag);
+                assert!(int_result.is_ok());
+                assert_eq!(int_result.unwrap(), ev);
             }
-        } else if expected_value.is::<&str>() {
-            let string_result = field_map.get_string(tag);
-            assert!(string_result.is_ok());
-            if let Ok(string) = expected_value.downcast::<&str>() {
-                assert_eq!(string_result.unwrap(), *string);
+            FieldEqual::Str(ev) => {
+                let string_result = field_map.get_string(tag);
+                assert!(string_result.is_ok());
+                assert_eq!(string_result.unwrap(), ev);
             }
-        } else if expected_value.is::<bool>() {
-            let val = &mut (true as FIXBoolean);
-            let bool_result = field_map.get_field(tag, val);
-            assert!(bool_result.is_ok());
-            if let Ok(bl) = expected_value.downcast::<bool>() {
-                assert_eq!(*val, *bl);
+            FieldEqual::Bool(ev) => {
+                let val = &mut (true as FIXBoolean);
+                let bool_result = field_map.get_field(tag, val);
+                assert!(bool_result.is_ok());
+                assert_eq!(*val, ev);
             }
-        } else {
-            assert!(false, "Field type not handled")
+            FieldEqual::Other => {
+                assert!(false, "Field type not handled")
+            }
         }
     }
 
@@ -496,14 +505,7 @@ impl MockSessionReceiver {
     }
 
     pub async fn last_message(&mut self) -> Option<Vec<u8>> {
-        tokio::select! {
-            msg_option = self.send_channel.rx.recv() => {
-                msg_option
-            },
-            else => {
-                return None;
-            }
-        }
+        self.send_channel.rx.recv().await
     }
 }
 
@@ -535,7 +537,6 @@ impl SessionSuiteRig {
         let (_, message_in_rx) = channel::<FixIn>(1);
         let (session_event_tx, session_event_rx) = unbounded_channel::<Event>();
         let (message_event_tx, message_event_rx) = channel::<bool>(1);
-        let (_, session_time_notification_rx) = channel::<()>(1);
         let (admin_tx, admin_rx) = channel::<AdminEnum>(1);
 
         let duration = Duration::seconds(120);
@@ -590,7 +591,7 @@ impl SessionSuiteRig {
                 state: Some(SessionStateEnum::new_not_session_time()),
                 pending_stop: false,
                 stopped: false,
-                notify_on_in_session_time: Some(session_time_notification_rx),
+                notify_on_in_session_time: None,
             },
             state_timer: EventTimer::new(Arc::new(|| {})),
             peer_timer: EventTimer::new(Arc::new(|| {})),
