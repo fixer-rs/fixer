@@ -173,6 +173,7 @@ impl TimeRange {
     // is_in_same_range &determines if &two points in time are in the same time range
     pub fn is_in_same_range(&self, t1: &DateTime<FixedOffset>, t2: &DateTime<FixedOffset>) -> bool {
         if !(self.is_in_range(t1) && self.is_in_range(t2)) {
+            println!("--------- maji3.1");
             return false;
         }
 
@@ -180,6 +181,7 @@ impl TimeRange {
         let mut tmp2 = t2;
 
         if t2.lt(t1) {
+            println!("--------- maji3.2");
             (tmp1, tmp2) = (t2, t1);
         }
 
@@ -192,27 +194,36 @@ impl TimeRange {
         let mut day_offset = 0;
 
         if self.end_day.is_none() {
+            println!("--------- maji3.3");
             if self.start_time.d >= self.end_time.d && t1_time.d >= self.start_time.d {
+                println!("--------- maji3.4");
                 day_offset = 1
             }
         } else {
+            println!("--------- maji3.5");
             let end_day = self.end_day.unwrap().num_days_from_sunday();
 
             let t1_weekday = t1.weekday().num_days_from_sunday();
 
             match t1_weekday.cmp(&end_day) {
                 Ordering::Less => {
+                    println!("--------- maji3.51");
                     day_offset = (end_day - t1_weekday) as i64;
                 }
-                Ordering::Greater => day_offset = 7 + (end_day - t1_weekday) as i64,
+                Ordering::Greater => {
+                    println!("--------- maji3.53");
+                    day_offset = 7 + (end_day - t1_weekday) as i64;
+                }
                 Ordering::Equal => {
+                    println!("--------- maji3.52");
                     if self.end_time.d <= t1_time.d {
+                        println!("--------- maji3.521");
                         day_offset = 7;
                     }
                 }
             }
         }
-
+        println!("--------- maji3.6");
         let mut session_end = self
             .loc
             .with_ymd_and_hms(
