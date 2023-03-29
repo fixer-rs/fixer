@@ -1025,7 +1025,7 @@ impl Session {
                     self.sm_timeout(event).await;
                 },
                 _ = ticker.tick() => {
-                    self.sm_check_session_time(&gen_now()).await;
+                    self.sm_check_session_time(&mut gen_now()).await;
                 },
             }
         }
@@ -1044,7 +1044,7 @@ impl Session {
         self.sm.pending_stop = false;
         self.sm.stopped = false;
         self.sm.state = Some(SessionStateEnum::new_latent_state());
-        self.sm_check_session_time(&gen_now()).await;
+        self.sm_check_session_time(&mut gen_now()).await;
     }
 
     pub async fn sm_connect(&mut self) {
@@ -1102,7 +1102,7 @@ impl Session {
     }
 
     async fn sm_incoming(&mut self, fix_in: &FixIn) {
-        self.sm_check_session_time(&gen_now()).await;
+        self.sm_check_session_time(&mut gen_now()).await;
         if !self.sm.is_connected() {
             return;
         }
@@ -1151,7 +1151,7 @@ impl Session {
     }
 
     async fn sm_send_app_messages(&mut self) {
-        self.sm_check_session_time(&gen_now()).await;
+        self.sm_check_session_time(&mut gen_now()).await;
 
         if self.sm.is_logged_on() {
             self.send_queued().await;
@@ -1162,7 +1162,7 @@ impl Session {
 
     // timeout is called by the session on a timeout event.
     async fn sm_timeout(&mut self, event: Event) {
-        self.sm_check_session_time(&gen_now()).await;
+        self.sm_check_session_time(&mut gen_now()).await;
 
         let state = self.sm.state.take().unwrap();
         let next_state = match state {
@@ -1177,7 +1177,7 @@ impl Session {
         self.sm_set_state(next_state).await;
     }
 
-    async fn sm_check_session_time(&mut self, now: &DateTime<FixedOffset>) {
+    async fn sm_check_session_time(&mut self, now: &mut DateTime<FixedOffset>) {
         let mut check_first = false;
         if self.iss.session_time.is_some() {
             let session_time = self.iss.session_time.as_ref().unwrap();
@@ -1187,7 +1187,6 @@ impl Session {
         }
 
         if check_first {
-            println!("--------- maji1");
             if self.sm.is_session_time() {
                 self.log.on_event("Not in session");
             }
@@ -1202,7 +1201,6 @@ impl Session {
         }
 
         if !self.sm.is_session_time() {
-            println!("--------- maji2");
             self.log.on_event("In session");
             self.sm_notify_in_session_time();
             self.sm_set_state(SessionStateEnum::new_latent_state())
@@ -1213,19 +1211,13 @@ impl Session {
         if self.iss.session_time.is_some() {
             let session_time = self.iss.session_time.as_ref().unwrap();
             let creation_time = self.store.creation_time().await;
-            println!("-------------------------- ct {:?}", creation_time);
-            let creation_time_fixed_offset: DateTime<FixedOffset> = creation_time.into();
-            println!(
-                "-------------------------- ct {:?}",
-                creation_time_fixed_offset
-            );
-            if !session_time.is_in_same_range(&creation_time_fixed_offset, now) {
+            let mut creation_time_fixed_offset: DateTime<FixedOffset> = creation_time.into();
+            if !session_time.is_in_same_range(&mut creation_time_fixed_offset, now) {
                 check_third = true;
             }
         }
 
         if check_third {
-            println!("--------- maji3");
             self.log.on_event("Session reset");
             self.state_shutdown_now().await;
             let drop_result = self.drop_and_reset().await;
@@ -2108,7 +2100,7 @@ mod tests {
         BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIX42, BEGIN_STRING_FIX43,
         BEGIN_STRING_FIX44, BEGIN_STRING_FIXT11,
     };
-    use chrono::{Duration, Timelike, Utc};
+    use chrono::{DateTime, Duration, FixedOffset, Timelike, Utc};
     use dashmap::DashMap;
     use delegate::delegate;
     use std::sync::Arc;
@@ -2808,7 +2800,7 @@ mod tests {
             s.ssr.session.iss.session_time = None;
             s.ssr.session.sm.state = Some(test.before.clone());
 
-            s.ssr.session.sm_check_session_time(&gen_now()).await;
+            s.ssr.session.sm_check_session_time(&mut gen_now()).await;
             if test.after.is_some() {
                 s.ssr.state(test.after.take().unwrap());
             } else {
@@ -2918,7 +2910,7 @@ mod tests {
                 ),
             ));
 
-            s.ssr.session.sm_check_session_time(&gen_now()).await;
+            s.ssr.session.sm_check_session_time(&mut gen_now()).await;
             if test.after.is_some() {
                 s.ssr.state(test.after.take().unwrap());
             } else {
@@ -3037,7 +3029,7 @@ mod tests {
                     .mock_app
                     .to_admin(&Message::default(), &SessionID::default());
             }
-            s.ssr.session.sm_check_session_time(&now.into()).await;
+            s.ssr.session.sm_check_session_time(&mut now.into()).await;
             s.ssr.mock_app.write().await.mock_app.checkpoint();
 
             s.ssr.state(SessionStateEnum::new_not_session_time());
@@ -3072,58 +3064,58 @@ mod tests {
                 expect_on_logout: false,
                 expect_send_logout: false,
             },
-            // TestCase {
-            //     before: SessionStateEnum::new_logon_state(),
-            //     initiate_logon: false,
-            //     expect_on_logout: false,
-            //     expect_send_logout: false,
-            // },
-            // TestCase {
-            //     before: SessionStateEnum::new_logon_state(),
-            //     initiate_logon: true,
-            //     expect_on_logout: true,
-            //     expect_send_logout: false,
-            // },
-            // TestCase {
-            //     before: SessionStateEnum::new_logout_state(),
-            //     initiate_logon: false,
-            //     expect_on_logout: true,
-            //     expect_send_logout: false,
-            // },
-            // TestCase {
-            //     before: SessionStateEnum::new_in_session(),
-            //     initiate_logon: false,
-            //     expect_on_logout: true,
-            //     expect_send_logout: true,
-            // },
-            // TestCase {
-            //     before: SessionStateEnum::ResendState(ResendState::default()),
-            //     initiate_logon: false,
-            //     expect_on_logout: true,
-            //     expect_send_logout: true,
-            // },
-            // TestCase {
-            //     before: SessionStateEnum::PendingTimeout(PendingTimeout {
-            //         session_state: AfterPendingTimeout::ResendState(ResendState::default()),
-            //     }),
-            //     initiate_logon: false,
-            //     expect_on_logout: true,
-            //     expect_send_logout: true,
-            // },
-            // TestCase {
-            //     before: SessionStateEnum::PendingTimeout(PendingTimeout {
-            //         session_state: AfterPendingTimeout::InSession(InSession::default()),
-            //     }),
-            //     initiate_logon: false,
-            //     expect_on_logout: true,
-            //     expect_send_logout: true,
-            // },
-            // TestCase {
-            //     before: SessionStateEnum::new_not_session_time(),
-            //     initiate_logon: false,
-            //     expect_on_logout: false,
-            //     expect_send_logout: false,
-            // },
+            TestCase {
+                before: SessionStateEnum::new_logon_state(),
+                initiate_logon: false,
+                expect_on_logout: false,
+                expect_send_logout: false,
+            },
+            TestCase {
+                before: SessionStateEnum::new_logon_state(),
+                initiate_logon: true,
+                expect_on_logout: true,
+                expect_send_logout: false,
+            },
+            TestCase {
+                before: SessionStateEnum::new_logout_state(),
+                initiate_logon: false,
+                expect_on_logout: true,
+                expect_send_logout: false,
+            },
+            TestCase {
+                before: SessionStateEnum::new_in_session(),
+                initiate_logon: false,
+                expect_on_logout: true,
+                expect_send_logout: true,
+            },
+            TestCase {
+                before: SessionStateEnum::ResendState(ResendState::default()),
+                initiate_logon: false,
+                expect_on_logout: true,
+                expect_send_logout: true,
+            },
+            TestCase {
+                before: SessionStateEnum::PendingTimeout(PendingTimeout {
+                    session_state: AfterPendingTimeout::ResendState(ResendState::default()),
+                }),
+                initiate_logon: false,
+                expect_on_logout: true,
+                expect_send_logout: true,
+            },
+            TestCase {
+                before: SessionStateEnum::PendingTimeout(PendingTimeout {
+                    session_state: AfterPendingTimeout::InSession(InSession::default()),
+                }),
+                initiate_logon: false,
+                expect_on_logout: true,
+                expect_send_logout: true,
+            },
+            TestCase {
+                before: SessionStateEnum::new_not_session_time(),
+                initiate_logon: false,
+                expect_on_logout: false,
+                expect_send_logout: false,
+            },
         ];
 
         for test in tests.iter_mut() {
@@ -3160,7 +3152,12 @@ mod tests {
                     .mock_app
                     .to_admin(&Message::default(), &SessionID::default());
             }
-            s.ssr.session.sm_check_session_time(&now.into()).await;
+            let today: DateTime<FixedOffset> = now.into();
+            let tomorrow = today + Duration::days(1);
+            s.ssr
+                .session
+                .sm_check_session_time(&mut tomorrow.into())
+                .await;
             s.ssr.mock_app.write().await.mock_app.checkpoint();
 
             s.ssr.state(SessionStateEnum::new_latent_state());
