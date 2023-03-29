@@ -138,7 +138,7 @@ impl MessageStoreTrait for MemoryStore {
     async fn reset(&mut self) -> SimpleResult<()> {
         self.sender_msg_seq_num = 0;
         self.target_msg_seq_num = 0;
-        self.creation_time = Local::now().into();
+        self.creation_time = Utc::now().into();
         self.message_map.clear();
         Ok(())
     }

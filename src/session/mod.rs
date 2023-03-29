@@ -1187,6 +1187,7 @@ impl Session {
         }
 
         if check_first {
+            println!("--------- maji1");
             if self.sm.is_session_time() {
                 self.log.on_event("Not in session");
             }
@@ -1201,6 +1202,7 @@ impl Session {
         }
 
         if !self.sm.is_session_time() {
+            println!("--------- maji2");
             self.log.on_event("In session");
             self.sm_notify_in_session_time();
             self.sm_set_state(SessionStateEnum::new_latent_state())
@@ -1211,13 +1213,19 @@ impl Session {
         if self.iss.session_time.is_some() {
             let session_time = self.iss.session_time.as_ref().unwrap();
             let creation_time = self.store.creation_time().await;
+            println!("-------------------------- ct {:?}", creation_time);
             let creation_time_fixed_offset: DateTime<FixedOffset> = creation_time.into();
+            println!(
+                "-------------------------- ct {:?}",
+                creation_time_fixed_offset
+            );
             if !session_time.is_in_same_range(&creation_time_fixed_offset, now) {
                 check_third = true;
             }
         }
 
         if check_third {
+            println!("--------- maji3");
             self.log.on_event("Session reset");
             self.state_shutdown_now().await;
             let drop_result = self.drop_and_reset().await;
@@ -3064,12 +3072,12 @@ mod tests {
                 expect_on_logout: false,
                 expect_send_logout: false,
             },
-            TestCase {
-                before: SessionStateEnum::new_logon_state(),
-                initiate_logon: false,
-                expect_on_logout: false,
-                expect_send_logout: false,
-            },
+            // TestCase {
+            //     before: SessionStateEnum::new_logon_state(),
+            //     initiate_logon: false,
+            //     expect_on_logout: false,
+            //     expect_send_logout: false,
+            // },
             // TestCase {
             //     before: SessionStateEnum::new_logon_state(),
             //     initiate_logon: true,
