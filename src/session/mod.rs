@@ -2090,6 +2090,7 @@ mod tests {
             resend_state::ResendState,
             session_id::SessionID,
             session_state::{AfterPendingTimeout, SessionState, SessionStateEnum},
+            FixIn,
         },
         store::{MemoryStore, MessageStoreEnum, MessageStoreTrait},
         tag::{
@@ -3029,6 +3030,7 @@ mod tests {
                     .mock_app
                     .to_admin(&Message::default(), &SessionID::default());
             }
+
             s.ssr.session.sm_check_session_time(&mut now.into()).await;
             s.ssr.mock_app.write().await.mock_app.checkpoint();
 
@@ -3129,7 +3131,7 @@ mod tests {
 
             let now = Utc::now();
             let one_hour_before_now = now - Duration::hours(1);
-            let one_hour_from_now = now + Duration::hours(1);
+            let two_hours_from_now = now + Duration::hours(2);
 
             s.ssr.session.iss.session_time = Some(TimeRange::new_utc(
                 TimeOfDay::new(
@@ -3138,9 +3140,9 @@ mod tests {
                     one_hour_before_now.second() as isize,
                 ),
                 TimeOfDay::new(
-                    one_hour_from_now.hour() as isize,
-                    one_hour_from_now.minute() as isize,
-                    one_hour_from_now.second() as isize,
+                    two_hours_from_now.hour() as isize,
+                    two_hours_from_now.minute() as isize,
+                    two_hours_from_now.second() as isize,
                 ),
             ));
 
@@ -3152,6 +3154,7 @@ mod tests {
                     .mock_app
                     .to_admin(&Message::default(), &SessionID::default());
             }
+
             let today: DateTime<FixedOffset> = now.into();
             let tomorrow = today + Duration::days(1);
             s.ssr
@@ -3188,97 +3191,218 @@ mod tests {
 
     #[tokio::test]
     async fn test_incoming_not_in_session_time() {
-        let mut s = SessionSuite::setup_test().await;
-        // 	var tests = []struct {
-        // 		before           sessionState
-        // 		initiateLogon    bool
-        // 		expectOnLogout   bool
-        // 		expectSendLogout bool
-        // 	}{
-        // 		{before: logonState{}},
-        // 		{before: logonState{}, initiateLogon: true, expectOnLogout: true},
-        // 		{before: logoutState{}, expectOnLogout: true},
-        // 		{before: inSession{}, expectOnLogout: true, expectSendLogout: true},
-        // 		{before: resendState{}, expectOnLogout: true, expectSendLogout: true},
-        // 		{before: pendingTimeout{resendState{}}, expectOnLogout: true, expectSendLogout: true},
-        // 		{before: pendingTimeout{inSession{}}, expectOnLogout: true, expectSendLogout: true},
-        // 	}
+        struct TestCase {
+            before: SessionStateEnum,
+            initiate_logon: bool,
+            expect_on_logout: bool,
+            expect_send_logout: bool,
+        }
 
-        // 	for _, test := range tests {
-        // 		s.SetupTest()
+        let mut tests = vec![
+            TestCase {
+                before: SessionStateEnum::new_logon_state(),
+                initiate_logon: false,
+                expect_on_logout: false,
+                expect_send_logout: false,
+            },
+            TestCase {
+                before: SessionStateEnum::new_logon_state(),
+                initiate_logon: true,
+                expect_on_logout: true,
+                expect_send_logout: false,
+            },
+            TestCase {
+                before: SessionStateEnum::new_logout_state(),
+                initiate_logon: false,
+                expect_on_logout: true,
+                expect_send_logout: false,
+            },
+            TestCase {
+                before: SessionStateEnum::new_in_session(),
+                initiate_logon: false,
+                expect_on_logout: true,
+                expect_send_logout: true,
+            },
+            TestCase {
+                before: SessionStateEnum::ResendState(ResendState::default()),
+                initiate_logon: false,
+                expect_on_logout: true,
+                expect_send_logout: true,
+            },
+            TestCase {
+                before: SessionStateEnum::PendingTimeout(PendingTimeout {
+                    session_state: AfterPendingTimeout::ResendState(ResendState::default()),
+                }),
+                initiate_logon: false,
+                expect_on_logout: true,
+                expect_send_logout: true,
+            },
+            TestCase {
+                before: SessionStateEnum::PendingTimeout(PendingTimeout {
+                    session_state: AfterPendingTimeout::InSession(InSession::default()),
+                }),
+                initiate_logon: false,
+                expect_on_logout: true,
+                expect_send_logout: true,
+            },
+        ];
 
-        // 		s.ssr.session.sm.state = test.before
-        // 		s.ssr.session.InitiateLogon = test.initiateLogon
-        // 		s.ssr.incr_next_sender_msg_seq_num();
-        // 		s.ssr.incr_next_target_msg_seq_num();
+        for test in tests.iter_mut() {
+            let mut s = SessionSuite::setup_test().await;
+            s.ssr.session.sm.state = Some(test.before.clone());
+            s.ssr.session.iss.initiate_logon = test.initiate_logon;
 
-        // 		now := time.Now().UTC()
-        // 		s.ssr.session.SessionTime = internal.NewUTCTimeRange(
-        // 			internal.NewTimeOfDay(now.Add(time.Hour).Clock()),
-        // 			internal.NewTimeOfDay(now.Add(time.Duration(2)*time.Hour).Clock()),
-        // 		)
-        // 		if test.expectOnLogout {
-        // 			s.MockApp.On("OnLogout")
-        // 		}
-        // 		if test.expectSendLogout {
-        // 			s.MockApp.On("ToAdmin")
-        // 		}
+            s.ssr.incr_next_sender_msg_seq_num().await;
+            s.ssr.incr_next_target_msg_seq_num().await;
 
-        // 		msg := s.NewOrderSingle()
-        // 		msgBytes := msg.build()
+            let now = Utc::now();
+            let one_hour_from_now = now + Duration::hours(1);
+            let two_hours_from_now = now + Duration::hours(2);
 
-        // 		s.ssr.session.Incoming(s.ssr.session, fixIn{bytes: bytes.NewBuffer(msgBytes)})
-        // 		s.MockApp.AssertExpectations(s.T())
-        // 		s.State(notSessionTime{})
-        // 	}
+            s.ssr.session.iss.session_time = Some(TimeRange::new_utc(
+                TimeOfDay::new(
+                    one_hour_from_now.hour() as isize,
+                    one_hour_from_now.minute() as isize,
+                    one_hour_from_now.second() as isize,
+                ),
+                TimeOfDay::new(
+                    two_hours_from_now.hour() as isize,
+                    two_hours_from_now.minute() as isize,
+                    two_hours_from_now.second() as isize,
+                ),
+            ));
+
+            if test.expect_on_logout {
+                s.ssr.mock_app.on_logout(&SessionID::default());
+            }
+            if test.expect_send_logout {
+                s.ssr
+                    .mock_app
+                    .to_admin(&Message::default(), &SessionID::default());
+            }
+
+            let msg = s.ssr.message_factory.new_order_single();
+            let msg_bytes = msg.build();
+
+            s.ssr
+                .session
+                .sm_incoming(&FixIn {
+                    bytes: msg_bytes,
+                    receive_time: Utc::now(),
+                })
+                .await;
+            s.ssr.mock_app.write().await.mock_app.checkpoint();
+            s.ssr.state(SessionStateEnum::new_not_session_time());
+        }
     }
 
     #[tokio::test]
     async fn test_send_app_messages_not_in_session_time() {
-        let mut s = SessionSuite::setup_test().await;
-        // 	var tests = []struct {
-        // 		before           sessionState
-        // 		initiateLogon    bool
-        // 		expectOnLogout   bool
-        // 		expectSendLogout bool
-        // 	}{
-        // 		{before: logonState{}},
-        // 		{before: logonState{}, initiateLogon: true, expectOnLogout: true},
-        // 		{before: logoutState{}, expectOnLogout: true},
-        // 		{before: inSession{}, expectOnLogout: true, expectSendLogout: true},
-        // 		{before: resendState{}, expectOnLogout: true, expectSendLogout: true},
-        // 		{before: pendingTimeout{resendState{}}, expectOnLogout: true, expectSendLogout: true},
-        // 		{before: pendingTimeout{inSession{}}, expectOnLogout: true, expectSendLogout: true},
-        // 	}
+        struct TestCase {
+            before: SessionStateEnum,
+            initiate_logon: bool,
+            expect_on_logout: bool,
+            expect_send_logout: bool,
+        }
 
-        // 	for _, test := range tests {
-        // 		s.SetupTest()
+        let mut tests = vec![
+            TestCase {
+                before: SessionStateEnum::new_logon_state(),
+                initiate_logon: false,
+                expect_on_logout: false,
+                expect_send_logout: false,
+            },
+            TestCase {
+                before: SessionStateEnum::new_logon_state(),
+                initiate_logon: true,
+                expect_on_logout: true,
+                expect_send_logout: false,
+            },
+            TestCase {
+                before: SessionStateEnum::new_logout_state(),
+                initiate_logon: false,
+                expect_on_logout: true,
+                expect_send_logout: false,
+            },
+            TestCase {
+                before: SessionStateEnum::new_in_session(),
+                initiate_logon: false,
+                expect_on_logout: true,
+                expect_send_logout: true,
+            },
+            TestCase {
+                before: SessionStateEnum::ResendState(ResendState::default()),
+                initiate_logon: false,
+                expect_on_logout: true,
+                expect_send_logout: true,
+            },
+            TestCase {
+                before: SessionStateEnum::PendingTimeout(PendingTimeout {
+                    session_state: AfterPendingTimeout::ResendState(ResendState::default()),
+                }),
+                initiate_logon: false,
+                expect_on_logout: true,
+                expect_send_logout: true,
+            },
+            TestCase {
+                before: SessionStateEnum::PendingTimeout(PendingTimeout {
+                    session_state: AfterPendingTimeout::InSession(InSession::default()),
+                }),
+                initiate_logon: false,
+                expect_on_logout: true,
+                expect_send_logout: true,
+            },
+        ];
 
-        // 		s.ssr.session.sm.state = test.before
-        // 		s.ssr.session.InitiateLogon = test.initiateLogon
-        // 		s.ssr.incr_next_sender_msg_seq_num();
-        // 		s.ssr.incr_next_target_msg_seq_num();
+        for test in tests.iter_mut() {
+            let mut s = SessionSuite::setup_test().await;
+            s.ssr.session.sm.state = Some(test.before.clone());
+            s.ssr.session.iss.initiate_logon = test.initiate_logon;
 
-        // 		s.MockApp.On("ToApp").Return(nil)
-        // 		s.Require().Nil(s.queue_for_send(s.NewOrderSingle()))
-        // 		s.MockApp.AssertExpectations(s.T())
+            s.ssr.incr_next_sender_msg_seq_num().await;
+            s.ssr.incr_next_target_msg_seq_num().await;
 
-        // 		now := time.Now().UTC()
-        // 		s.ssr.session.SessionTime = internal.NewUTCTimeRange(
-        // 			internal.NewTimeOfDay(now.Add(time.Hour).Clock()),
-        // 			internal.NewTimeOfDay(now.Add(time.Duration(2)*time.Hour).Clock()),
-        // 		)
-        // 		if test.expectOnLogout {
-        // 			s.MockApp.On("OnLogout")
-        // 		}
-        // 		if test.expectSendLogout {
-        // 			s.MockApp.On("ToAdmin")
-        // 		}
+            let _ = s
+                .ssr
+                .mock_app
+                .to_app(&Message::new(), &SessionID::default());
+            assert!(s
+                .ssr
+                .session
+                .queue_for_send(&s.ssr.message_factory.new_order_single())
+                .await
+                .is_ok());
+            s.ssr.mock_app.write().await.mock_app.checkpoint();
 
-        // 		s.ssr.session.SendAppMessages(s.ssr.session)
-        // 		s.MockApp.AssertExpectations(s.T())
-        // 		s.State(notSessionTime{})
-        // 	}
+            let now = Utc::now();
+            let one_hour_from_now = now + Duration::hours(1);
+            let two_hours_from_now = now + Duration::hours(2);
+
+            s.ssr.session.iss.session_time = Some(TimeRange::new_utc(
+                TimeOfDay::new(
+                    one_hour_from_now.hour() as isize,
+                    one_hour_from_now.minute() as isize,
+                    one_hour_from_now.second() as isize,
+                ),
+                TimeOfDay::new(
+                    two_hours_from_now.hour() as isize,
+                    two_hours_from_now.minute() as isize,
+                    two_hours_from_now.second() as isize,
+                ),
+            ));
+
+            if test.expect_on_logout {
+                s.ssr.mock_app.on_logout(&SessionID::default());
+            }
+            if test.expect_send_logout {
+                s.ssr
+                    .mock_app
+                    .to_admin(&Message::default(), &SessionID::default());
+            }
+            s.ssr.session.sm_send_app_messages().await;
+            s.ssr.mock_app.write().await.mock_app.checkpoint();
+            s.ssr.state(SessionStateEnum::new_not_session_time());
+        }
     }
 
     #[tokio::test]
