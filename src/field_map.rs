@@ -5,7 +5,7 @@ use crate::errors::{
 use crate::field::{
     Field, FieldGroupReader, FieldGroupWriter, FieldValueReader, FieldValueWriter, FieldWriter,
 };
-use crate::fix_boolean::{FIXBoolean, FixBooleanTrait};
+use crate::fix_boolean::FIXBoolean;
 use crate::fix_int::{FIXInt, FIXIntTrait};
 use crate::fix_string::FIXString;
 use crate::fix_utc_timestamp::FIXUTCTimestamp;
@@ -179,7 +179,7 @@ impl FieldMap {
     pub fn get_bool(&self, tag: Tag) -> Result<bool, MessageRejectErrorEnum> {
         let mut val = FIXBoolean::default();
         self.get_field(tag, &mut val)?;
-        Ok(val.bool())
+        Ok(val)
     }
 
     // get_int is a get_field wrapper for int fields

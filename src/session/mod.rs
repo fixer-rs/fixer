@@ -8,16 +8,13 @@ use crate::{
         TargetTooLow, REJECT_REASON_COMP_ID_PROBLEM, REJECT_REASON_INVALID_MSG_TYPE,
         REJECT_REASON_SENDING_TIME_ACCURACY_PROBLEM,
     },
-    fix_boolean::{FIXBoolean, FixBooleanTrait},
+    fix_boolean::FIXBoolean,
     fix_int::FIXInt,
     fix_string::FIXString,
     fix_utc_timestamp::{FIXUTCTimestamp, TimestampPrecision},
     internal::event::{Event, LOGON_TIMEOUT, LOGOUT_TIMEOUT, NEED_HEARTBEAT, PEER_TIMEOUT},
     internal::event_timer::EventTimer,
-    internal::{
-        session_settings::SessionSettings,
-        time_range::{gen_now, utc},
-    },
+    internal::{session_settings::SessionSettings, time_range::gen_now},
     log::{LogEnum, LogTrait},
     message::Message,
     msg_type::{
@@ -49,7 +46,7 @@ use crate::{
     BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIX42, BEGIN_STRING_FIXT11,
 };
 use async_recursion::async_recursion;
-use chrono::{DateTime, Duration as ChronoDuration, FixedOffset, NaiveDateTime, Utc};
+use chrono::{DateTime, Duration as ChronoDuration, FixedOffset, Utc};
 use simple_error::SimpleError;
 use std::{error::Error, sync::Arc};
 use tokio::sync::{
@@ -398,19 +395,14 @@ impl Session {
 
     // queue_for_send will validate, persist, and queue the message for send
     async fn queue_for_send(&mut self, msg: &Message) -> Result<(), Box<dyn Error + Send + Sync>> {
-        println!("--------------- send messageEvent0");
         let msg_bytes = self.prep_message_for_send(msg, None).await?;
-        println!("--------------- send messageEvent0.5");
         let mut to_send = self.to_send.lock().await;
-        println!("--------------- send messageEvent0.6");
         to_send.push(msg_bytes);
-        println!("--------------- send messageEvent");
+
         tokio::select! {
             _ = self.message_event.send(true) => {
-                println!("--------------- send messageEvent1");
             }
             else => {
-                println!("--------------- send messageEvent2");
             }
         }
 
@@ -491,7 +483,7 @@ impl Session {
                         .get_field(TAG_RESET_SEQ_NUM_FLAG, &mut reset_seq_num_flag)?;
                 }
 
-                if reset_seq_num_flag.bool() {
+                if reset_seq_num_flag {
                     self.store.reset().await?;
 
                     self.sent_reset = true;
@@ -670,7 +662,7 @@ impl Session {
             }
 
             self.log.on_event("Responding to logon request");
-            self.send_logon_in_reply_to(reset_seq_num_flag.bool(), Some(msg))
+            self.send_logon_in_reply_to(reset_seq_num_flag, Some(msg))
                 .await?;
         }
         self.sent_reset = false;
@@ -971,13 +963,15 @@ impl Session {
                     }
                     return;
                 }
-                if !connect.err.is_closed() {}
+
+                if !connect.err.is_closed() {
+                    // TODO: close(msg.err)
+                }
 
                 self.message_in = connect.message_in;
                 self.message_out = connect.message_out;
                 self.sent_reset = false;
                 self.sm_connect().await;
-
                 // close connect?
             }
             AdminEnum::StopReq(_) => {
@@ -994,6 +988,7 @@ impl Session {
         }
     }
 
+    // TODO: use tokio::spawn instead of tokio::select! in order to run paralelly
     async fn run(&mut self) {
         self.sm_start().await;
         let tx = self.session_event.tx.clone();
@@ -2105,13 +2100,13 @@ mod tests {
             resend_state::ResendState,
             session_id::SessionID,
             session_state::{AfterPendingTimeout, SessionState, SessionStateEnum},
-            AdminEnum, Connect, FixIn,
+            AdminEnum, Connect, FixIn, StopReq,
         },
         store::{MemoryStore, MessageStoreEnum, MessageStoreTrait},
         tag::{
-            Tag, TAG_BEGIN_STRING, TAG_HEART_BT_INT, TAG_MSG_SEQ_NUM, TAG_RESET_SEQ_NUM_FLAG,
-            TAG_SENDER_COMP_ID, TAG_SENDER_LOCATION_ID, TAG_SENDER_SUB_ID, TAG_SENDING_TIME,
-            TAG_TARGET_COMP_ID, TAG_TARGET_LOCATION_ID, TAG_TARGET_SUB_ID,
+            Tag, TAG_BEGIN_STRING, TAG_DEFAULT_APPL_VER_ID, TAG_HEART_BT_INT, TAG_MSG_SEQ_NUM,
+            TAG_RESET_SEQ_NUM_FLAG, TAG_SENDER_COMP_ID, TAG_SENDER_LOCATION_ID, TAG_SENDER_SUB_ID,
+            TAG_SENDING_TIME, TAG_TARGET_COMP_ID, TAG_TARGET_LOCATION_ID, TAG_TARGET_SUB_ID,
         },
         BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIX42, BEGIN_STRING_FIX43,
         BEGIN_STRING_FIX44, BEGIN_STRING_FIXT11,
@@ -3055,7 +3050,7 @@ mod tests {
 
             if test.expect_send_logout {
                 s.ssr.last_to_admin_message_sent().await;
-                s.ssr.suite.message_type(
+                s.message_type(
                     String::from_utf8_lossy(MSG_TYPE_LOGOUT).to_string(),
                     s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap(),
                 );
@@ -3183,7 +3178,7 @@ mod tests {
 
             if test.expect_send_logout {
                 s.ssr.last_to_admin_message_sent().await;
-                s.ssr.suite.message_type(
+                s.message_type(
                     String::from_utf8_lossy(MSG_TYPE_LOGOUT).to_string(),
                     s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap(),
                 );
@@ -3328,46 +3323,46 @@ mod tests {
                 expect_on_logout: false,
                 expect_send_logout: false,
             },
-            // TestCase {
-            //     before: SessionStateEnum::new_logon_state(),
-            //     initiate_logon: true,
-            //     expect_on_logout: true,
-            //     expect_send_logout: false,
-            // },
-            // TestCase {
-            //     before: SessionStateEnum::new_logout_state(),
-            //     initiate_logon: false,
-            //     expect_on_logout: true,
-            //     expect_send_logout: false,
-            // },
-            // TestCase {
-            //     before: SessionStateEnum::new_in_session(),
-            //     initiate_logon: false,
-            //     expect_on_logout: true,
-            //     expect_send_logout: true,
-            // },
-            // TestCase {
-            //     before: SessionStateEnum::ResendState(ResendState::default()),
-            //     initiate_logon: false,
-            //     expect_on_logout: true,
-            //     expect_send_logout: true,
-            // },
-            // TestCase {
-            //     before: SessionStateEnum::PendingTimeout(PendingTimeout {
-            //         session_state: AfterPendingTimeout::ResendState(ResendState::default()),
-            //     }),
-            //     initiate_logon: false,
-            //     expect_on_logout: true,
-            //     expect_send_logout: true,
-            // },
-            // TestCase {
-            //     before: SessionStateEnum::PendingTimeout(PendingTimeout {
-            //         session_state: AfterPendingTimeout::InSession(InSession::default()),
-            //     }),
-            //     initiate_logon: false,
-            //     expect_on_logout: true,
-            //     expect_send_logout: true,
-            // },
+            TestCase {
+                before: SessionStateEnum::new_logon_state(),
+                initiate_logon: true,
+                expect_on_logout: true,
+                expect_send_logout: false,
+            },
+            TestCase {
+                before: SessionStateEnum::new_logout_state(),
+                initiate_logon: false,
+                expect_on_logout: true,
+                expect_send_logout: false,
+            },
+            TestCase {
+                before: SessionStateEnum::new_in_session(),
+                initiate_logon: false,
+                expect_on_logout: true,
+                expect_send_logout: true,
+            },
+            TestCase {
+                before: SessionStateEnum::ResendState(ResendState::default()),
+                initiate_logon: false,
+                expect_on_logout: true,
+                expect_send_logout: true,
+            },
+            TestCase {
+                before: SessionStateEnum::PendingTimeout(PendingTimeout {
+                    session_state: AfterPendingTimeout::ResendState(ResendState::default()),
+                }),
+                initiate_logon: false,
+                expect_on_logout: true,
+                expect_send_logout: true,
+            },
+            TestCase {
+                before: SessionStateEnum::PendingTimeout(PendingTimeout {
+                    session_state: AfterPendingTimeout::InSession(InSession::default()),
+                }),
+                initiate_logon: false,
+                expect_on_logout: true,
+                expect_send_logout: true,
+            },
         ];
 
         for test in tests.iter_mut() {
@@ -3378,17 +3373,10 @@ mod tests {
             s.ssr.incr_next_sender_msg_seq_num().await;
             s.ssr.incr_next_target_msg_seq_num().await;
 
-            // let _ = s
-            //     .ssr
-            //     .mock_app
-            //     .to_app(&Message::new(), &SessionID::default());
-            let mock_app = &mut s.ssr.mock_app.write().await.mock_app;
-            let _ = mock_app
-                .expect_to_app()
-                .times(1)
-                .return_const(Ok(()))
-                .call(&Message::new(), &SessionID::default());
-            println!("--------------- send messageEvent");
+            let _ = s
+                .ssr
+                .mock_app
+                .to_app(&Message::new(), &SessionID::default());
             assert!(s
                 .ssr
                 .session
@@ -3397,34 +3385,34 @@ mod tests {
                 .is_ok());
             s.ssr.mock_app.write().await.mock_app.checkpoint();
 
-            // let now = Utc::now();
-            // let one_hour_from_now = now + Duration::hours(1);
-            // let two_hours_from_now = now + Duration::hours(2);
+            let now = Utc::now();
+            let one_hour_from_now = now + Duration::hours(1);
+            let two_hours_from_now = now + Duration::hours(2);
 
-            // s.ssr.session.iss.session_time = Some(TimeRange::new_utc(
-            //     TimeOfDay::new(
-            //         one_hour_from_now.hour() as isize,
-            //         one_hour_from_now.minute() as isize,
-            //         one_hour_from_now.second() as isize,
-            //     ),
-            //     TimeOfDay::new(
-            //         two_hours_from_now.hour() as isize,
-            //         two_hours_from_now.minute() as isize,
-            //         two_hours_from_now.second() as isize,
-            //     ),
-            // ));
+            s.ssr.session.iss.session_time = Some(TimeRange::new_utc(
+                TimeOfDay::new(
+                    one_hour_from_now.hour() as isize,
+                    one_hour_from_now.minute() as isize,
+                    one_hour_from_now.second() as isize,
+                ),
+                TimeOfDay::new(
+                    two_hours_from_now.hour() as isize,
+                    two_hours_from_now.minute() as isize,
+                    two_hours_from_now.second() as isize,
+                ),
+            ));
 
-            // if test.expect_on_logout {
-            //     s.ssr.mock_app.on_logout(&SessionID::default());
-            // }
-            // if test.expect_send_logout {
-            //     s.ssr
-            //         .mock_app
-            //         .to_admin(&Message::default(), &SessionID::default());
-            // }
-            // s.ssr.session.sm_send_app_messages().await;
-            // s.ssr.mock_app.write().await.mock_app.checkpoint();
-            // s.ssr.state(SessionStateEnum::new_not_session_time());
+            if test.expect_on_logout {
+                s.ssr.mock_app.on_logout(&SessionID::default());
+            }
+            if test.expect_send_logout {
+                s.ssr
+                    .mock_app
+                    .to_admin(&Message::default(), &SessionID::default());
+            }
+            s.ssr.session.sm_send_app_messages().await;
+            s.ssr.mock_app.write().await.mock_app.checkpoint();
+            s.ssr.state(SessionStateEnum::new_not_session_time());
         }
     }
 
@@ -3559,12 +3547,13 @@ mod tests {
             .await;
 
         s.ssr.mock_app.write().await.mock_app.checkpoint();
+
         assert!(s.ssr.session.iss.initiate_logon);
         assert!(!s.ssr.session.sent_reset);
         s.ssr.state(SessionStateEnum::new_logon_state());
         s.ssr.last_to_admin_message_sent().await;
 
-        s.ssr.suite.message_type(
+        s.message_type(
             String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
             s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap(),
         );
@@ -3594,6 +3583,7 @@ mod tests {
                 .header
                 .field_map,
         );
+
         s.ssr.next_sender_msg_seq_num(3).await;
     }
 
@@ -3628,145 +3618,217 @@ mod tests {
             .on_admin(AdminEnum::Connect(admin_message))
             .await;
 
-        // 	adminMsg := connect{
-        // 		messageOut: s.Receiver.sendChannel,
-        // 	}
-        // 	s.ssr.session.sm.state = latentState{}
-        // 	s.ssr.session.HeartBtInt = time.Duration(45) * time.Second
-        // 	s.ssr.incr_next_target_msg_seq_num();
-        // 	s.ssr.incr_next_sender_msg_seq_num();
-        // 	s.ssr.session.InitiateLogon = true
+        s.ssr.mock_app.write().await.mock_app.checkpoint();
 
-        // 	s.MockApp.On("ToAdmin")
-        // 	s.MockApp.decorateToAdmin = fn(msg *Message) {
-        // 		msg.body.SetField(TAG_RESET_SEQ_NUM_FLAG, FIXBoolean(true))
-        // 	}
-        // 	s.ssr.session.onAdmin(adminMsg)
+        assert!(s.ssr.session.iss.initiate_logon);
+        assert!(s.ssr.session.sent_reset);
+        s.ssr.state(SessionStateEnum::new_logon_state());
+        s.ssr.last_to_admin_message_sent().await;
 
-        // 	s.ssr.mock_app.write().await.mock_app.checkpoint();
-        // 	s.True(s.ssr.session.InitiateLogon)
-        // 	s.True(s.sentReset)
-        // 	s.State(logonState{})
-        // 	s.LastToAdminMessageSent()
-        // 	s.MessageType(string(msgTypeLogon), s.MockApp.lastToAdmin)
-        // 	s.FieldEquals(TAG_MSG_SEQ_NUM, 1, s.MockApp.lastToAdmin.Header)
-        // 	s.FieldEquals(TAG_RESET_SEQ_NUM_FLAG, true, s.MockApp.lastToAdmin.Body)
-        // 	s.NextSenderMsgSeqNum(2)
-        // 	s.NextTargetMsgSeqNum(1)
+        s.message_type(
+            String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
+            s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap(),
+        );
+        s.field_equals(
+            TAG_MSG_SEQ_NUM,
+            FieldEqual::Num(1),
+            &s.ssr
+                .mock_app
+                .read()
+                .await
+                .last_to_admin
+                .as_ref()
+                .unwrap()
+                .header
+                .field_map,
+        );
+        s.field_equals(
+            TAG_RESET_SEQ_NUM_FLAG,
+            FieldEqual::Bool(true),
+            &s.ssr
+                .mock_app
+                .read()
+                .await
+                .last_to_admin
+                .as_ref()
+                .unwrap()
+                .body
+                .field_map,
+        );
+
+        s.ssr.next_sender_msg_seq_num(2).await;
+        s.ssr.next_target_msg_seq_num(1).await;
     }
 
     #[tokio::test]
     async fn test_on_admin_connect_initiate_logon_fixt11() {
         let mut s = SessionSuite::setup_test().await;
-        // 	s.ssr.session.sessionID.BeginString = string(BeginStringFIXT11)
-        // 	s.ssr.session.DefaultApplVerID = "8"
-        // 	s.ssr.session.InitiateLogon = true
+        s.ssr.session.session_id.begin_string = String::from(BEGIN_STRING_FIXT11);
+        s.ssr.session.iss.default_appl_ver_id = String::from("8");
+        s.ssr.session.iss.initiate_logon = true;
 
-        // 	adminMsg := connect{
-        // 		messageOut: s.Receiver.sendChannel,
-        // 	}
-        // 	s.ssr.session.sm.state = latentState{}
+        let (_, in_rx) = channel::<FixIn>(1);
+        let (err_tx, _) = channel::<Result<(), SimpleError>>(1);
 
-        // 	s.MockApp.On("ToAdmin")
-        // 	s.ssr.session.onAdmin(adminMsg)
+        let admin_message = Connect {
+            message_out: s.ssr.receiver.send_channel.tx.clone(),
+            message_in: in_rx,
+            err: err_tx,
+        };
 
-        // 	s.ssr.mock_app.write().await.mock_app.checkpoint();
-        // 	s.True(s.ssr.session.InitiateLogon)
-        // 	s.State(logonState{})
-        // 	s.LastToAdminMessageSent()
-        // 	s.MessageType(string(msgTypeLogon), s.MockApp.lastToAdmin)
-        // 	s.FieldEquals(tagDefaultApplVerID, "8", s.MockApp.lastToAdmin.Body)
+        s.ssr.session.sm.state = SessionStateEnum::new_latent_state();
+
+        s.ssr
+            .mock_app
+            .to_admin(&Message::default(), &SessionID::default());
+
+        s.ssr
+            .session
+            .on_admin(AdminEnum::Connect(admin_message))
+            .await;
+
+        s.ssr.mock_app.write().await.mock_app.checkpoint();
+        assert!(s.ssr.session.iss.initiate_logon);
+        s.ssr.state(SessionStateEnum::new_logon_state());
+        s.ssr.last_to_admin_message_sent().await;
+        s.message_type(
+            String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
+            s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap(),
+        );
+        s.field_equals(
+            TAG_DEFAULT_APPL_VER_ID,
+            FieldEqual::Str("8"),
+            &s.ssr
+                .mock_app
+                .read()
+                .await
+                .last_to_admin
+                .as_ref()
+                .unwrap()
+                .body
+                .field_map,
+        );
     }
 
     #[tokio::test]
     async fn test_on_admin_connect_refresh_on_logon() {
-        let mut s = SessionSuite::setup_test().await;
-        // 	var tests = []bool{true, false}
+        let tests = vec![true, false];
 
-        // 	for _, doRefresh := range tests {
-        // 		s.SetupTest()
-        // 		s.ssr.session.RefreshOnLogon = doRefresh
+        for do_refresh in tests {
+            let mut s = SessionSuite::setup_test().await;
+            s.ssr.session.iss.refresh_on_logon = do_refresh;
 
-        // 		adminMsg := connect{
-        // 			messageOut: s.Receiver.sendChannel,
-        // 		}
-        // 		s.ssr.session.sm.state = latentState{}
-        // 		s.ssr.session.InitiateLogon = true
+            let (_, in_rx) = channel::<FixIn>(1);
+            let (err_tx, _) = channel::<Result<(), SimpleError>>(1);
 
-        // 		if doRefresh {
-        // 			s.ssr.mock_store.On("Refresh").Return(nil)
-        // 		}
-        // 		s.MockApp.On("ToAdmin")
-        // 		s.ssr.session.onAdmin(adminMsg)
+            let admin_message = Connect {
+                message_out: s.ssr.receiver.send_channel.tx.clone(),
+                message_in: in_rx,
+                err: err_tx,
+            };
 
-        // 		s.ssr.mock_store.AssertExpectations(s.T())
-        // 	}
+            s.ssr.session.sm.state = SessionStateEnum::new_latent_state();
+            s.ssr.session.iss.initiate_logon = true;
+
+            if do_refresh {
+                let _ = s.ssr.mock_store.refresh().await;
+            }
+            s.ssr
+                .mock_app
+                .to_admin(&Message::default(), &SessionID::default());
+
+            s.ssr
+                .session
+                .on_admin(AdminEnum::Connect(admin_message))
+                .await;
+
+            if let MessageStoreEnum::MockMemoryStore(ms) = s.ssr.mock_store {
+                ms.write().await.mock.checkpoint();
+            }
+        }
     }
 
     #[tokio::test]
     async fn test_on_admin_connect_accept() {
         let mut s = SessionSuite::setup_test().await;
-        // 	adminMsg := connect{
-        // 		messageOut: s.Receiver.sendChannel,
-        // 	}
-        // 	s.ssr.session.sm.state = latentState{}
-        // 	s.ssr.incr_next_sender_msg_seq_num();
+        let (_, in_rx) = channel::<FixIn>(1);
+        let (err_tx, _) = channel::<Result<(), SimpleError>>(1);
 
-        // 	s.ssr.session.onAdmin(adminMsg)
-        // 	s.False(s.ssr.session.InitiateLogon)
-        // 	s.State(logonState{})
-        // 	s.NoMessageSent()
-        // 	s.NextSenderMsgSeqNum(2)
+        let admin_message = Connect {
+            message_out: s.ssr.receiver.send_channel.tx.clone(),
+            message_in: in_rx,
+            err: err_tx,
+        };
+
+        s.ssr.session.sm.state = SessionStateEnum::new_latent_state();
+        s.ssr.incr_next_sender_msg_seq_num().await;
+        s.ssr
+            .session
+            .on_admin(AdminEnum::Connect(admin_message))
+            .await;
+        assert!(!s.ssr.session.iss.initiate_logon);
+        s.ssr.state(SessionStateEnum::new_logon_state());
+        s.ssr.no_message_sent().await;
+        s.ssr.next_sender_msg_seq_num(2).await;
     }
 
     #[tokio::test]
     async fn test_on_admin_connect_not_in_session() {
-        let mut s = SessionSuite::setup_test().await;
-        // 	var tests = []bool{true, false}
+        let tests = vec![true, false];
 
-        // 	for _, doInitiateLogon := range tests {
-        // 		s.SetupTest()
-        // 		s.ssr.session.sm.state = notSessionTime{}
-        // 		s.ssr.incr_next_sender_msg_seq_num();
-        // 		s.ssr.session.InitiateLogon = doInitiateLogon
+        for do_initiate_logon in tests {
+            let mut s = SessionSuite::setup_test().await;
+            s.ssr.session.sm.state = SessionStateEnum::new_not_session_time();
+            s.ssr.session.iss.initiate_logon = do_initiate_logon;
+            s.ssr.incr_next_sender_msg_seq_num().await;
 
-        // 		adminMsg := connect{
-        // 			messageOut: s.Receiver.sendChannel,
-        // 		}
+            let (_, in_rx) = channel::<FixIn>(1);
+            let (err_tx, _) = channel::<Result<(), SimpleError>>(1);
 
-        // 		s.ssr.session.onAdmin(adminMsg)
+            let admin_message = Connect {
+                message_out: s.ssr.receiver.send_channel.tx.clone(),
+                message_in: in_rx,
+                err: err_tx,
+            };
 
-        // 		s.State(notSessionTime{})
-        // 		s.NoMessageSent()
-        // 		s.Disconnected()
-        // 		s.NextSenderMsgSeqNum(2)
-        // 	}
+            s.ssr
+                .session
+                .on_admin(AdminEnum::Connect(admin_message))
+                .await;
+
+            s.ssr.state(SessionStateEnum::new_not_session_time());
+            s.ssr.no_message_sent().await;
+            s.ssr.disconnected().await;
+            s.ssr.next_sender_msg_seq_num(2).await;
+        }
     }
 
     #[tokio::test]
     async fn test_on_admin_stop() {
         let mut s = SessionSuite::setup_test().await;
-        // 	s.ssr.session.sm.state = logonState{}
+        s.ssr.session.sm.state = SessionStateEnum::new_logon_state();
 
-        // 	s.ssr.session.onAdmin(stopReq{})
-        // 	s.Disconnected()
-        // 	s.Stopped()
+        s.ssr.session.on_admin(AdminEnum::StopReq(StopReq)).await;
+
+        s.ssr.disconnected().await;
+        s.ssr.stopped();
     }
 
     #[tokio::test]
     async fn test_reset_on_disconnect() {
         let mut s = SessionSuite::setup_test().await;
-        // 	s.ssr.incr_next_sender_msg_seq_num();
-        // 	s.ssr.incr_next_target_msg_seq_num();
+        s.ssr.incr_next_target_msg_seq_num().await;
+        s.ssr.incr_next_sender_msg_seq_num().await;
 
-        // 	s.ssr.session.reset_on_disconnect = false
-        // 	s.ssr.session.onDisconnect()
-        // 	s.NextSenderMsgSeqNum(2)
-        // 	s.NextTargetMsgSeqNum(2)
+        s.ssr.session.iss.reset_on_disconnect = false;
+        s.ssr.session.on_disconnect().await;
 
-        // 	s.ssr.session.reset_on_disconnect = true
-        // 	s.ssr.session.onDisconnect()
-        // 	s.ExpectStoreReset()
+        s.ssr.next_sender_msg_seq_num(2).await;
+        s.ssr.next_target_msg_seq_num(2).await;
+
+        s.ssr.session.iss.reset_on_disconnect = true;
+        s.ssr.session.on_disconnect().await;
+        s.ssr.expect_store_reset().await;
     }
 
     struct SessionSendTestSuite {

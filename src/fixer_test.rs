@@ -33,6 +33,7 @@ use tokio::sync::{
     mpsc::{channel, unbounded_channel, Receiver, Sender},
     RwLock,
 };
+use tokio::time::timeout;
 
 pub enum FieldEqual<'a> {
     Num(isize),
@@ -212,7 +213,11 @@ impl MessageStoreTrait for MockStoreExtended {
     }
 
     async fn refresh(&mut self) -> SimpleResult<()> {
-        self.mock.expect_refresh().call()
+        self.mock
+            .expect_refresh()
+            .times(1)
+            .return_const(Ok(()))
+            .call()
     }
 
     async fn reset(&mut self) -> SimpleResult<()> {
@@ -513,7 +518,15 @@ impl MockSessionReceiver {
     }
 
     pub async fn last_message(&mut self) -> Option<Vec<u8>> {
-        self.send_channel.rx.recv().await
+        while let Ok(msg) = timeout(
+            Duration::seconds(2).to_std().unwrap(),
+            self.send_channel.rx.recv(),
+        )
+        .await
+        {
+            return msg;
+        }
+        None
     }
 }
 
@@ -547,10 +560,11 @@ impl SessionSuiteRig {
         let (message_event_tx, message_event_rx) = channel::<bool>(1);
         let (admin_tx, admin_rx) = channel::<AdminEnum>(1);
 
-        let duration = Duration::seconds(120);
+        let max_latency_duration = Duration::seconds(120);
+        let duration = Duration::seconds(0);
 
         let session_settings = SessionSettings {
-            max_latency: duration,
+            max_latency: max_latency_duration,
             heart_bt_int: duration,
             session_time: None,
             resend_request_chunk_size: 0,
