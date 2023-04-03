@@ -100,9 +100,7 @@ impl TimeRange {
 
         r
     }
-}
 
-impl TimeRange {
     fn is_in_time_range(&self, t: &DateTime<FixedOffset>) -> bool {
         let new_t = t.with_timezone(&self.loc);
         let ts = TimeOfDay::new(
@@ -200,13 +198,13 @@ impl TimeRange {
             let t1_weekday = t1.weekday().num_days_from_sunday();
 
             if end_day < t1_weekday {
-                day_offset = (end_day - t1_weekday) as i64;
+                day_offset = 7 + (end_day - t1_weekday) as i64;
             } else if t1_weekday == end_day {
                 if self.end_time.d <= t1_time.d {
                     day_offset = 7;
                 }
             } else {
-                day_offset = 7 + (end_day - t1_weekday) as i64;
+                day_offset = (end_day - t1_weekday) as i64;
             }
         }
 
