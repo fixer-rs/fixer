@@ -1054,7 +1054,7 @@ impl Session {
     pub async fn sm_start(&mut self) {
         self.sm.pending_stop = false;
         self.sm.stopped = false;
-        self.sm.state = Some(SessionStateEnum::new_latent_state());
+        self.sm.state = SessionStateEnum::new_latent_state();
         self.sm_check_session_time(&mut gen_now()).await;
     }
 
@@ -1080,6 +1080,7 @@ impl Session {
         }
 
         self.sm_set_state(SessionStateEnum::new_logon_state()).await;
+
         // Fire logon timeout event after the pre-configured delay period.
         sleep(self.iss.logon_timeout.to_std().unwrap()).await;
         self.session_event.send(LOGON_TIMEOUT).await;
@@ -1088,7 +1089,7 @@ impl Session {
     async fn sm_stop(&mut self) {
         self.sm.pending_stop = true;
 
-        let state = self.sm.state.take().unwrap();
+        let state = self.sm.state.clone();
         let next_state = match state {
             SessionStateEnum::InSession(_) => self.logged_on_stop().await,
             SessionStateEnum::LatentState(ls) => SessionStateEnum::LatentState(ls),
@@ -1148,7 +1149,7 @@ impl Session {
     // sm_fix_msg_in is called by the session on incoming messages from the counter party.
     // The return type is the next session state following message processing.
     async fn sm_fix_msg_in(&mut self, msg: &mut Message) {
-        let state = self.sm.state.take().unwrap();
+        let state = self.sm.state.clone();
         let next_state = match state {
             SessionStateEnum::InSession(is) => self.in_session_fix_msg_in(msg, is).await,
             SessionStateEnum::LatentState(ls) => self.latent_state_fix_msg_in(msg, ls),
@@ -1175,7 +1176,7 @@ impl Session {
     async fn sm_timeout(&mut self, event: Event) {
         self.sm_check_session_time(&mut gen_now()).await;
 
-        let state = self.sm.state.take().unwrap();
+        let state = self.sm.state.clone();
         let next_state = match state {
             SessionStateEnum::InSession(is) => self.in_session_timeout(event, is).await,
             SessionStateEnum::LatentState(ls) => SessionStateEnum::LatentState(ls),
@@ -1252,7 +1253,7 @@ impl Session {
             }
         }
 
-        self.sm.state = Some(next_state);
+        self.sm.state = next_state;
     }
 
     fn sm_notify_in_session_time(&mut self) {
@@ -1264,9 +1265,9 @@ impl Session {
 
     async fn sm_handle_disconnect_state(&mut self) {
         let mut do_on_logout = self.sm.is_logged_on();
-        if let Some(SessionStateEnum::LogoutState(_)) = self.sm.state {
+        if let SessionStateEnum::LogoutState(_) = self.sm.state {
             do_on_logout = true;
-        } else if let Some(SessionStateEnum::LogonState(_)) = self.sm.state {
+        } else if let SessionStateEnum::LogonState(_) = self.sm.state {
             if self.iss.initiate_logon {
                 do_on_logout = true;
             }
@@ -1294,7 +1295,7 @@ impl Session {
 
     // shutdown_now terminates the session state immediately.
     async fn state_shutdown_now(&mut self) {
-        match self.sm.state.as_mut().unwrap() {
+        match self.sm.state {
             SessionStateEnum::InSession(_) => self.logged_on_shutdown_now().await,
             SessionStateEnum::LatentState(_) => (),
             SessionStateEnum::LogonState(_) => (),
@@ -1606,7 +1607,7 @@ impl Session {
     ) -> SessionStateEnum {
         if let MessageRejectErrorEnum::TargetTooHigh(tth) = rej {
             match self.sm.state {
-                Some(SessionStateEnum::ResendState(ref mut rs)) => {
+                SessionStateEnum::ResendState(ref mut rs) => {
                     msg.keep_message = true;
                     let msg_clone = msg.clone(); // TODO: optimize this
                     rs.message_stash.insert(tth.received_target, msg_clone);
@@ -2092,22 +2093,25 @@ mod tests {
         fix_string::FIXString,
         fix_utc_timestamp::{FIXUTCTimestamp, TimestampPrecision},
         fixer_test::{FieldEqual, MockStore, MockStoreExtended, SessionSuiteRig},
-        internal::time_range::{gen_now, TimeOfDay, TimeRange},
+        internal::{
+            event::{LOGON_TIMEOUT, LOGOUT_TIMEOUT, NEED_HEARTBEAT, PEER_TIMEOUT},
+            time_range::{gen_now, TimeOfDay, TimeRange},
+        },
         message::Message,
-        msg_type::MSG_TYPE_LOGOUT,
+        msg_type::{MSG_TYPE_LOGON, MSG_TYPE_LOGOUT},
         session::{
             in_session::InSession,
             pending_timeout::PendingTimeout,
             resend_state::ResendState,
             session_id::SessionID,
             session_state::{AfterPendingTimeout, SessionState, SessionStateEnum},
-            FixIn,
+            AdminEnum, Connect, FixIn,
         },
         store::{MemoryStore, MessageStoreEnum, MessageStoreTrait},
         tag::{
-            Tag, TAG_BEGIN_STRING, TAG_MSG_SEQ_NUM, TAG_SENDER_COMP_ID, TAG_SENDER_LOCATION_ID,
-            TAG_SENDER_SUB_ID, TAG_SENDING_TIME, TAG_TARGET_COMP_ID, TAG_TARGET_LOCATION_ID,
-            TAG_TARGET_SUB_ID,
+            Tag, TAG_BEGIN_STRING, TAG_HEART_BT_INT, TAG_MSG_SEQ_NUM, TAG_RESET_SEQ_NUM_FLAG,
+            TAG_SENDER_COMP_ID, TAG_SENDER_LOCATION_ID, TAG_SENDER_SUB_ID, TAG_SENDING_TIME,
+            TAG_TARGET_COMP_ID, TAG_TARGET_LOCATION_ID, TAG_TARGET_SUB_ID,
         },
         BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIX42, BEGIN_STRING_FIX43,
         BEGIN_STRING_FIX44, BEGIN_STRING_FIXT11,
@@ -2115,8 +2119,9 @@ mod tests {
     use chrono::{DateTime, Duration, FixedOffset, Timelike, Utc};
     use dashmap::DashMap;
     use delegate::delegate;
+    use simple_error::SimpleError;
     use std::sync::Arc;
-    use tokio::sync::RwLock;
+    use tokio::sync::{mpsc::channel, RwLock};
 
     struct SessionSuite {
         ssr: SessionSuiteRig,
@@ -2128,7 +2133,7 @@ mod tests {
                 ssr: SessionSuiteRig::init(),
             };
             assert!(s.ssr.session.store.reset().await.is_ok());
-            s.ssr.session.sm.state = Some(SessionStateEnum::new_latent_state());
+            s.ssr.session.sm.state = SessionStateEnum::new_latent_state();
             s
         }
 
@@ -2810,7 +2815,7 @@ mod tests {
         for test in tests.iter_mut() {
             let mut s = SessionSuite::setup_test().await;
             s.ssr.session.iss.session_time = None;
-            s.ssr.session.sm.state = Some(test.before.clone());
+            s.ssr.session.sm.state = test.before.clone();
 
             s.ssr.session.sm_check_session_time(&mut gen_now()).await;
             if test.after.is_some() {
@@ -2878,7 +2883,7 @@ mod tests {
 
         for test in tests.iter_mut() {
             let mut s = SessionSuite::setup_test().await;
-            s.ssr.session.sm.state = Some(test.before.clone());
+            s.ssr.session.sm.state = test.before.clone();
 
             let now = Utc::now();
             let mut store = MemoryStore {
@@ -3010,7 +3015,7 @@ mod tests {
 
         for test in tests.iter_mut() {
             let mut s = SessionSuite::setup_test().await;
-            s.ssr.session.sm.state = Some(test.before.clone());
+            s.ssr.session.sm.state = test.before.clone();
             s.ssr.session.iss.initiate_logon = test.initiate_logon;
 
             s.ssr.incr_next_sender_msg_seq_num().await;
@@ -3133,7 +3138,7 @@ mod tests {
 
         for test in tests.iter_mut() {
             let mut s = SessionSuite::setup_test().await;
-            s.ssr.session.sm.state = Some(test.before.clone());
+            s.ssr.session.sm.state = test.before.clone();
             s.ssr.session.iss.initiate_logon = test.initiate_logon;
 
             assert!(s.ssr.session.store.reset().await.is_ok());
@@ -3260,7 +3265,7 @@ mod tests {
 
         for test in tests.iter_mut() {
             let mut s = SessionSuite::setup_test().await;
-            s.ssr.session.sm.state = Some(test.before.clone());
+            s.ssr.session.sm.state = test.before.clone();
             s.ssr.session.iss.initiate_logon = test.initiate_logon;
 
             s.ssr.incr_next_sender_msg_seq_num().await;
@@ -3367,7 +3372,7 @@ mod tests {
 
         for test in tests.iter_mut() {
             let mut s = SessionSuite::setup_test().await;
-            s.ssr.session.sm.state = Some(test.before.clone());
+            s.ssr.session.sm.state = test.before.clone();
             s.ssr.session.iss.initiate_logon = test.initiate_logon;
 
             s.ssr.incr_next_sender_msg_seq_num().await;
@@ -3425,80 +3430,204 @@ mod tests {
 
     #[tokio::test]
     async fn test_timeout_not_in_session_time() {
-        let mut s = SessionSuite::setup_test().await;
-        // 	var tests = []struct {
-        // 		before           sessionState
-        // 		initiateLogon    bool
-        // 		expectOnLogout   bool
-        // 		expectSendLogout bool
-        // 	}{
-        // 		{before: logonState{}},
-        // 		{before: logonState{}, initiateLogon: true, expectOnLogout: true},
-        // 		{before: logoutState{}, expectOnLogout: true},
-        // 		{before: inSession{}, expectOnLogout: true, expectSendLogout: true},
-        // 		{before: resendState{}, expectOnLogout: true, expectSendLogout: true},
-        // 		{before: pendingTimeout{resendState{}}, expectOnLogout: true, expectSendLogout: true},
-        // 		{before: pendingTimeout{inSession{}}, expectOnLogout: true, expectSendLogout: true},
-        // 	}
+        struct TestCase {
+            before: SessionStateEnum,
+            initiate_logon: bool,
+            expect_on_logout: bool,
+            expect_send_logout: bool,
+        }
 
-        // 	var events = []internal.Event{internal.PeerTimeout, internal.NeedHeartbeat, internal.LogonTimeout, internal.LogoutTimeout}
+        let mut tests = vec![
+            TestCase {
+                before: SessionStateEnum::new_logon_state(),
+                initiate_logon: false,
+                expect_on_logout: false,
+                expect_send_logout: false,
+            },
+            TestCase {
+                before: SessionStateEnum::new_logon_state(),
+                initiate_logon: true,
+                expect_on_logout: true,
+                expect_send_logout: false,
+            },
+            TestCase {
+                before: SessionStateEnum::new_logout_state(),
+                initiate_logon: false,
+                expect_on_logout: true,
+                expect_send_logout: false,
+            },
+            TestCase {
+                before: SessionStateEnum::new_in_session(),
+                initiate_logon: false,
+                expect_on_logout: true,
+                expect_send_logout: true,
+            },
+            TestCase {
+                before: SessionStateEnum::ResendState(ResendState::default()),
+                initiate_logon: false,
+                expect_on_logout: true,
+                expect_send_logout: true,
+            },
+            TestCase {
+                before: SessionStateEnum::PendingTimeout(PendingTimeout {
+                    session_state: AfterPendingTimeout::ResendState(ResendState::default()),
+                }),
+                initiate_logon: false,
+                expect_on_logout: true,
+                expect_send_logout: true,
+            },
+            TestCase {
+                before: SessionStateEnum::PendingTimeout(PendingTimeout {
+                    session_state: AfterPendingTimeout::InSession(InSession::default()),
+                }),
+                initiate_logon: false,
+                expect_on_logout: true,
+                expect_send_logout: true,
+            },
+        ];
 
-        // 	for _, test := range tests {
-        // 		for _, event := range events {
-        // 			s.SetupTest()
+        let events = vec![PEER_TIMEOUT, NEED_HEARTBEAT, LOGON_TIMEOUT, LOGOUT_TIMEOUT];
 
-        // 			s.ssr.session.sm.state = test.before
-        // 			s.ssr.session.InitiateLogon = test.initiateLogon
-        // 			s.ssr.incr_next_sender_msg_seq_num();
-        // 			s.ssr.incr_next_target_msg_seq_num();
+        for test in tests.iter_mut() {
+            for event in events.iter() {
+                let mut s = SessionSuite::setup_test().await;
 
-        // 			now := time.Now().UTC()
-        // 			s.ssr.session.SessionTime = internal.NewUTCTimeRange(
-        // 				internal.NewTimeOfDay(now.Add(time.Hour).Clock()),
-        // 				internal.NewTimeOfDay(now.Add(time.Duration(2)*time.Hour).Clock()),
-        // 			)
-        // 			if test.expectOnLogout {
-        // 				s.MockApp.On("OnLogout")
-        // 			}
-        // 			if test.expectSendLogout {
-        // 				s.MockApp.On("ToAdmin")
-        // 			}
+                s.ssr.session.sm.state = test.before.clone();
+                s.ssr.session.iss.initiate_logon = test.initiate_logon;
 
-        // 			s.ssr.session.Timeout(s.ssr.session, event)
-        // 			s.MockApp.AssertExpectations(s.T())
-        // 			s.State(notSessionTime{})
-        // 		}
-        // 	}
+                s.ssr.incr_next_sender_msg_seq_num().await;
+                s.ssr.incr_next_target_msg_seq_num().await;
+
+                let now = Utc::now();
+                let one_hour_from_now = now + Duration::hours(1);
+                let two_hours_from_now = now + Duration::hours(2);
+
+                s.ssr.session.iss.session_time = Some(TimeRange::new_utc(
+                    TimeOfDay::new(
+                        one_hour_from_now.hour() as isize,
+                        one_hour_from_now.minute() as isize,
+                        one_hour_from_now.second() as isize,
+                    ),
+                    TimeOfDay::new(
+                        two_hours_from_now.hour() as isize,
+                        two_hours_from_now.minute() as isize,
+                        two_hours_from_now.second() as isize,
+                    ),
+                ));
+
+                if test.expect_on_logout {
+                    s.ssr.mock_app.on_logout(&SessionID::default());
+                }
+                if test.expect_send_logout {
+                    s.ssr
+                        .mock_app
+                        .to_admin(&Message::default(), &SessionID::default());
+                }
+
+                s.ssr.session.sm_timeout(*event).await;
+
+                s.ssr.mock_app.write().await.mock_app.checkpoint();
+                s.ssr.state(SessionStateEnum::new_not_session_time());
+            }
+        }
     }
 
     #[tokio::test]
     async fn test_on_admin_connect_initiate_logon() {
         let mut s = SessionSuite::setup_test().await;
-        // 	adminMsg := connect{
-        // 		messageOut: s.Receiver.sendChannel,
-        // 	}
-        // 	s.ssr.session.sm.state = latentState{}
-        // 	s.ssr.session.HeartBtInt = time.Duration(45) * time.Second
-        // 	s.ssr.incr_next_sender_msg_seq_num();
-        // 	s.ssr.session.InitiateLogon = true
 
-        // 	s.MockApp.On("ToAdmin")
-        // 	s.ssr.session.onAdmin(adminMsg)
+        let (_, in_rx) = channel::<FixIn>(1);
+        let (err_tx, _) = channel::<Result<(), SimpleError>>(1);
 
-        // 	s.MockApp.AssertExpectations(s.T())
-        // 	s.True(s.ssr.session.InitiateLogon)
-        // 	s.False(s.sentReset)
-        // 	s.State(logonState{})
-        // 	s.LastToAdminMessageSent()
-        // 	s.MessageType(string(msgTypeLogon), s.MockApp.lastToAdmin)
-        // 	s.FieldEquals(tagHeartBtInt, 45, s.MockApp.lastToAdmin.Body)
-        // 	s.FieldEquals(TAG_MSG_SEQ_NUM, 2, s.MockApp.lastToAdmin.Header)
-        // 	s.NextSenderMsgSeqNum(3)
+        let admin_message = Connect {
+            message_out: s.ssr.receiver.send_channel.tx.clone(),
+            message_in: in_rx,
+            err: err_tx,
+        };
+
+        s.ssr.session.sm.state = SessionStateEnum::new_latent_state();
+        s.ssr.session.iss.heart_bt_int = Duration::seconds(45);
+        s.ssr.incr_next_sender_msg_seq_num().await;
+        s.ssr.session.iss.initiate_logon = true;
+
+        s.ssr
+            .mock_app
+            .to_admin(&Message::default(), &SessionID::default());
+        s.ssr
+            .session
+            .on_admin(AdminEnum::Connect(admin_message))
+            .await;
+
+        s.ssr.mock_app.write().await.mock_app.checkpoint();
+        assert!(s.ssr.session.iss.initiate_logon);
+        assert!(!s.ssr.session.sent_reset);
+        s.ssr.state(SessionStateEnum::new_logon_state());
+        s.ssr.last_to_admin_message_sent().await;
+
+        s.ssr.suite.message_type(
+            String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
+            s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap(),
+        );
+        s.field_equals(
+            TAG_HEART_BT_INT,
+            FieldEqual::Num(45),
+            &s.ssr
+                .mock_app
+                .read()
+                .await
+                .last_to_admin
+                .as_ref()
+                .unwrap()
+                .body
+                .field_map,
+        );
+        s.field_equals(
+            TAG_MSG_SEQ_NUM,
+            FieldEqual::Num(2),
+            &s.ssr
+                .mock_app
+                .read()
+                .await
+                .last_to_admin
+                .as_ref()
+                .unwrap()
+                .header
+                .field_map,
+        );
+        s.ssr.next_sender_msg_seq_num(3).await;
     }
 
     #[tokio::test]
     async fn test_initiate_logon_reset_seq_num_flag() {
         let mut s = SessionSuite::setup_test().await;
+
+        let (_, in_rx) = channel::<FixIn>(1);
+        let (err_tx, _) = channel::<Result<(), SimpleError>>(1);
+
+        let admin_message = Connect {
+            message_out: s.ssr.receiver.send_channel.tx.clone(),
+            message_in: in_rx,
+            err: err_tx,
+        };
+
+        s.ssr.session.sm.state = SessionStateEnum::new_latent_state();
+        s.ssr.session.iss.heart_bt_int = Duration::seconds(45);
+        s.ssr.incr_next_target_msg_seq_num().await;
+        s.ssr.incr_next_sender_msg_seq_num().await;
+        s.ssr.session.iss.initiate_logon = true;
+
+        s.ssr
+            .mock_app
+            .to_admin(&Message::default(), &SessionID::default());
+        fn decorate_to_admin(msg: &Message) {
+            msg.body.set_field(TAG_RESET_SEQ_NUM_FLAG, true);
+        }
+        s.ssr.mock_app.write().await.decorate_to_admin = Some(decorate_to_admin);
+        s.ssr
+            .session
+            .on_admin(AdminEnum::Connect(admin_message))
+            .await;
+
         // 	adminMsg := connect{
         // 		messageOut: s.Receiver.sendChannel,
         // 	}
@@ -3514,7 +3643,7 @@ mod tests {
         // 	}
         // 	s.ssr.session.onAdmin(adminMsg)
 
-        // 	s.MockApp.AssertExpectations(s.T())
+        // 	s.ssr.mock_app.write().await.mock_app.checkpoint();
         // 	s.True(s.ssr.session.InitiateLogon)
         // 	s.True(s.sentReset)
         // 	s.State(logonState{})
@@ -3541,7 +3670,7 @@ mod tests {
         // 	s.MockApp.On("ToAdmin")
         // 	s.ssr.session.onAdmin(adminMsg)
 
-        // 	s.MockApp.AssertExpectations(s.T())
+        // 	s.ssr.mock_app.write().await.mock_app.checkpoint();
         // 	s.True(s.ssr.session.InitiateLogon)
         // 	s.State(logonState{})
         // 	s.LastToAdminMessageSent()

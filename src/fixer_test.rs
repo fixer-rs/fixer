@@ -339,7 +339,7 @@ impl Application for App {
 
 pub struct MockAppExtended {
     pub mock_app: MockApp,
-    pub decorate_to_admin: Option<fn(Message)>,
+    pub decorate_to_admin: Option<fn(msg: &Message)>,
     pub last_to_admin: Option<Message>,
     pub last_to_app: Option<Message>,
 }
@@ -380,7 +380,7 @@ impl Application for MockAppExtended {
             .call(msg, session_id);
 
         if let Some(decorate_to_admin) = self.decorate_to_admin {
-            decorate_to_admin(msg.clone());
+            decorate_to_admin(msg);
         }
 
         self.last_to_admin = Some(msg.clone());
@@ -388,11 +388,19 @@ impl Application for MockAppExtended {
 
     fn to_app(&mut self, msg: &Message, session_id: &SessionID) -> SimpleResult<()> {
         self.last_to_app = Some(msg.clone());
-        self.mock_app.expect_to_app().call(msg, session_id)
+        self.mock_app
+            .expect_to_app()
+            .times(1)
+            .returning(|_, _| -> SimpleResult<()> { Ok(()) })
+            .call(msg, session_id)
     }
 
     fn from_app(&mut self, msg: &Message, session_id: &SessionID) -> MessageRejectErrorResult {
-        self.mock_app.expect_from_app().call(msg, session_id)
+        self.mock_app
+            .expect_from_app()
+            .times(1)
+            .returning(|_, _| -> MessageRejectErrorResult { Ok(()) })
+            .call(msg, session_id)
     }
 }
 
@@ -488,12 +496,12 @@ impl MessageFactory {
 }
 
 pub struct SendChannel {
-    tx: Sender<Vec<u8>>,
-    rx: Receiver<Vec<u8>>,
+    pub tx: Sender<Vec<u8>>,
+    pub rx: Receiver<Vec<u8>>,
 }
 
 pub struct MockSessionReceiver {
-    send_channel: SendChannel,
+    pub send_channel: SendChannel,
 }
 
 impl MockSessionReceiver {
@@ -588,7 +596,7 @@ impl SessionSuiteRig {
             application: mock_app_shared.clone(),
             validator: Default::default(),
             sm: StateMachine {
-                state: Some(SessionStateEnum::new_not_session_time()),
+                state: SessionStateEnum::new_not_session_time(),
                 pending_stop: false,
                 stopped: false,
                 notify_on_in_session_time: None,
@@ -619,12 +627,7 @@ impl SessionSuiteRig {
     }
 
     pub fn state(&self, cur_state: SessionStateEnum) -> bool {
-        if self.session.sm.state.is_none() {
-            return false;
-        }
-
-        std::mem::discriminant(self.session.sm.state.as_ref().unwrap())
-            == std::mem::discriminant(&cur_state)
+        std::mem::discriminant(&self.session.sm.state) == std::mem::discriminant(&cur_state)
     }
 
     pub async fn message_sent_equals(&mut self, msg: &Message) {

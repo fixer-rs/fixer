@@ -79,7 +79,7 @@ impl SessionStateEnum {
 }
 
 pub struct StateMachine {
-    pub state: Option<SessionStateEnum>,
+    pub state: SessionStateEnum,
     pub pending_stop: bool,
     pub stopped: bool,
     pub notify_on_in_session_time: Option<Receiver<()>>,
@@ -87,15 +87,15 @@ pub struct StateMachine {
 
 impl StateMachine {
     pub fn is_logged_on(&self) -> bool {
-        self.state.as_ref().unwrap().is_logged_on()
+        self.state.is_logged_on()
     }
 
     pub fn is_connected(&self) -> bool {
-        self.state.as_ref().unwrap().is_connected()
+        self.state.is_connected()
     }
 
     pub fn is_session_time(&self) -> bool {
-        self.state.as_ref().unwrap().is_session_time()
+        self.state.is_session_time()
     }
 }
 
