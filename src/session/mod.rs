@@ -2136,7 +2136,6 @@ mod tests {
             to self.ssr.suite {
                 pub fn message_type(&self, msg_type: String, msg: &Message);
                 pub fn field_equals<'a>(&self, tag: Tag, expected_value: FieldEqual<'a>, field_map: &FieldMap);
-                pub fn message_equals_bytes(&self, expected_bytes: &[u8], msg: &Message) ;
             }
         }
     }
@@ -3837,224 +3836,255 @@ mod tests {
 
     impl SessionSendTestSuite {
         fn setup_test() -> Self {
-            SessionSendTestSuite {
+            let mut s = SessionSendTestSuite {
                 ssr: SessionSuiteRig::init(),
+            };
+            s.ssr.session.sm.state = SessionStateEnum::new_in_session();
+            s
+        }
+
+        delegate! {
+            to self.ssr.suite {
+                pub fn message_type(&self, msg_type: String, msg: &Message);
+                pub fn field_equals<'a>(&self, tag: Tag, expected_value: FieldEqual<'a>, field_map: &FieldMap);
             }
-            // 	suite.session.sm.state = inSession{}
         }
     }
 
     #[tokio::test]
     async fn test_queue_for_send_app_message() {
-        let mut suite = SessionSendTestSuite::setup_test();
-        // 	suite.MockApp.On("ToApp").Return(nil)
-        // 	require.Nil(suite.T(), suite.queue_for_send(suite.NewOrderSingle()))
+        let mut s = SessionSendTestSuite::setup_test();
+        let _ = s
+            .ssr
+            .mock_app
+            .to_app(&Message::new(), &SessionID::default());
+        assert!(s
+            .ssr
+            .session
+            .queue_for_send(&s.ssr.message_factory.new_order_single())
+            .await
+            .is_ok());
 
-        // 	suite.MockApp.AssertExpectations(suite.T())
-        // 	suite.NoMessageSent()
-        // 	suite.MessagePersisted(suite.MockApp.lastToApp)
-        // 	suite.FieldEquals(TAG_MSG_SEQ_NUM, 1, suite.MockApp.lastToApp.Header)
-        // 	suite.NextSenderMsgSeqNum(2)
+        s.ssr.mock_app.write().await.mock_app.checkpoint();
+        s.ssr.no_message_sent().await;
+        s.ssr
+            .message_persisted(&s.ssr.mock_app.write().await.last_to_app.as_mut().unwrap())
+            .await;
+        s.field_equals(
+            TAG_MSG_SEQ_NUM,
+            FieldEqual::Num(1),
+            &s.ssr
+                .mock_app
+                .read()
+                .await
+                .last_to_app
+                .as_ref()
+                .unwrap()
+                .header
+                .field_map,
+        );
+        s.ssr.next_sender_msg_seq_num(2).await;
     }
 
     #[tokio::test]
     async fn test_queue_for_send_do_not_send_app_message() {
-        let mut suite = SessionSendTestSuite::setup_test();
-        // 	suite.MockApp.On("ToApp").Return(ErrDoNotSend)
-        // 	suite.Equal(ErrDoNotSend, suite.queue_for_send(suite.NewOrderSingle()))
+        let mut s = SessionSendTestSuite::setup_test();
 
-        // 	suite.MockApp.AssertExpectations(suite.T())
-        // 	suite.NoMessagePersisted(1)
-        // 	suite.NoMessageSent()
-        // 	suite.NextSenderMsgSeqNum(1)
+        // 	s.MockApp.On("ToApp").Return(ErrDoNotSend)
+        // 	s.Equal(ErrDoNotSend, s.queue_for_send(s.NewOrderSingle()))
 
-        // 	suite.MockApp.On("ToAdmin")
-        // 	require.Nil(suite.T(), suite.send(suite.Heartbeat()))
+        // 	s.MockApp.AssertExpectations(s.T())
+        // 	s.NoMessagePersisted(1)
+        // 	s.NoMessageSent()
+        // 	s.NextSenderMsgSeqNum(1)
 
-        // 	suite.MockApp.AssertExpectations(suite.T())
-        // 	suite.LastToAdminMessageSent()
-        // 	suite.MessagePersisted(suite.MockApp.lastToAdmin)
-        // 	suite.NextSenderMsgSeqNum(2)
+        // 	s.MockApp.On("ToAdmin")
+        // 	require.Nil(s.T(), s.send(s.Heartbeat()))
+
+        // 	s.MockApp.AssertExpectations(s.T())
+        // 	s.LastToAdminMessageSent()
+        // 	s.MessagePersisted(s.MockApp.lastToAdmin)
+        // 	s.NextSenderMsgSeqNum(2)
     }
 
     #[tokio::test]
     async fn test_queue_for_send_admin_message() {
-        let mut suite = SessionSendTestSuite::setup_test();
-        // 	suite.MockApp.On("ToAdmin")
-        // 	require.Nil(suite.T(), suite.queue_for_send(suite.Heartbeat()))
+        let mut s = SessionSendTestSuite::setup_test();
+        // 	s.MockApp.On("ToAdmin")
+        // 	require.Nil(s.T(), s.queue_for_send(s.Heartbeat()))
 
-        // 	suite.MockApp.AssertExpectations(suite.T())
-        // 	suite.MessagePersisted(suite.MockApp.lastToAdmin)
-        // 	suite.NoMessageSent()
-        // 	suite.NextSenderMsgSeqNum(2)
+        // 	s.MockApp.AssertExpectations(s.T())
+        // 	s.MessagePersisted(s.MockApp.lastToAdmin)
+        // 	s.NoMessageSent()
+        // 	s.NextSenderMsgSeqNum(2)
     }
 
     #[tokio::test]
     async fn test_send_app_message() {
-        let mut suite = SessionSendTestSuite::setup_test();
-        // 	suite.MockApp.On("ToApp").Return(nil)
-        // 	require.Nil(suite.T(), suite.send(suite.NewOrderSingle()))
+        let mut s = SessionSendTestSuite::setup_test();
+        // 	s.MockApp.On("ToApp").Return(nil)
+        // 	require.Nil(s.T(), s.send(s.NewOrderSingle()))
 
-        // 	suite.MockApp.AssertExpectations(suite.T())
-        // 	suite.MessagePersisted(suite.MockApp.lastToApp)
-        // 	suite.LastToAppMessageSent()
-        // 	suite.NextSenderMsgSeqNum(2)
+        // 	s.MockApp.AssertExpectations(s.T())
+        // 	s.MessagePersisted(s.MockApp.lastToApp)
+        // 	s.LastToAppMessageSent()
+        // 	s.NextSenderMsgSeqNum(2)
     }
 
     #[tokio::test]
     async fn test_send_app_do_not_send_message() {
-        let mut suite = SessionSendTestSuite::setup_test();
-        // 	suite.MockApp.On("ToApp").Return(ErrDoNotSend)
-        // 	suite.Equal(ErrDoNotSend, suite.send(suite.NewOrderSingle()))
+        let mut s = SessionSendTestSuite::setup_test();
+        // 	s.MockApp.On("ToApp").Return(ErrDoNotSend)
+        // 	s.Equal(ErrDoNotSend, s.send(s.NewOrderSingle()))
 
-        // 	suite.MockApp.AssertExpectations(suite.T())
-        // 	suite.NextSenderMsgSeqNum(1)
-        // 	suite.NoMessageSent()
+        // 	s.MockApp.AssertExpectations(s.T())
+        // 	s.NextSenderMsgSeqNum(1)
+        // 	s.NoMessageSent()
     }
 
     #[tokio::test]
     async fn test_send_admin_message() {
-        let mut suite = SessionSendTestSuite::setup_test();
-        // 	suite.MockApp.On("ToAdmin")
-        // 	require.Nil(suite.T(), suite.send(suite.Heartbeat()))
-        // 	suite.MockApp.AssertExpectations(suite.T())
+        let mut s = SessionSendTestSuite::setup_test();
+        // 	s.MockApp.On("ToAdmin")
+        // 	require.Nil(s.T(), s.send(s.Heartbeat()))
+        // 	s.MockApp.AssertExpectations(s.T())
 
-        // 	suite.LastToAdminMessageSent()
-        // 	suite.MessagePersisted(suite.MockApp.lastToAdmin)
+        // 	s.LastToAdminMessageSent()
+        // 	s.MessagePersisted(s.MockApp.lastToAdmin)
     }
 
     #[tokio::test]
     async fn test_send_flushes_queue() {
-        let mut suite = SessionSendTestSuite::setup_test();
-        // 	suite.MockApp.On("ToApp").Return(nil)
-        // 	suite.MockApp.On("ToAdmin")
-        // 	require.Nil(suite.T(), suite.queue_for_send(suite.NewOrderSingle()))
-        // 	require.Nil(suite.T(), suite.queue_for_send(suite.Heartbeat()))
+        let mut s = SessionSendTestSuite::setup_test();
+        // 	s.MockApp.On("ToApp").Return(nil)
+        // 	s.MockApp.On("ToAdmin")
+        // 	require.Nil(s.T(), s.queue_for_send(s.NewOrderSingle()))
+        // 	require.Nil(s.T(), s.queue_for_send(s.Heartbeat()))
 
-        // 	order1 := suite.MockApp.lastToApp
-        // 	heartbeat := suite.MockApp.lastToAdmin
+        // 	order1 := s.MockApp.lastToApp
+        // 	heartbeat := s.MockApp.lastToAdmin
 
-        // 	suite.MockApp.AssertExpectations(suite.T())
-        // 	suite.NoMessageSent()
+        // 	s.MockApp.AssertExpectations(s.T())
+        // 	s.NoMessageSent()
 
-        // 	suite.MockApp.On("ToApp").Return(nil)
-        // 	require.Nil(suite.T(), suite.send(suite.NewOrderSingle()))
-        // 	suite.MockApp.AssertExpectations(suite.T())
-        // 	order2 := suite.MockApp.lastToApp
-        // 	suite.MessageSentEquals(order1)
-        // 	suite.MessageSentEquals(heartbeat)
-        // 	suite.MessageSentEquals(order2)
-        // 	suite.NoMessageSent()
+        // 	s.MockApp.On("ToApp").Return(nil)
+        // 	require.Nil(s.T(), s.send(s.NewOrderSingle()))
+        // 	s.MockApp.AssertExpectations(s.T())
+        // 	order2 := s.MockApp.lastToApp
+        // 	s.MessageSentEquals(order1)
+        // 	s.MessageSentEquals(heartbeat)
+        // 	s.MessageSentEquals(order2)
+        // 	s.NoMessageSent()
     }
 
     #[tokio::test]
     async fn test_send_not_logged_on() {
-        let mut suite = SessionSendTestSuite::setup_test();
-        // 	suite.MockApp.On("ToApp").Return(nil)
-        // 	suite.MockApp.On("ToAdmin")
-        // 	require.Nil(suite.T(), suite.queue_for_send(suite.NewOrderSingle()))
-        // 	require.Nil(suite.T(), suite.queue_for_send(suite.Heartbeat()))
+        let mut s = SessionSendTestSuite::setup_test();
+        // 	s.MockApp.On("ToApp").Return(nil)
+        // 	s.MockApp.On("ToAdmin")
+        // 	require.Nil(s.T(), s.queue_for_send(s.NewOrderSingle()))
+        // 	require.Nil(s.T(), s.queue_for_send(s.Heartbeat()))
 
-        // 	suite.MockApp.AssertExpectations(suite.T())
-        // 	suite.NoMessageSent()
+        // 	s.MockApp.AssertExpectations(s.T())
+        // 	s.NoMessageSent()
 
         // 	var tests = []sessionState{logoutState{}, latentState{}, logonState{}}
 
         // 	for _, test := range tests {
-        // 		suite.MockApp.On("ToApp").Return(nil)
-        // 		suite.session.sm.state = test
-        // 		require.Nil(suite.T(), suite.send(suite.NewOrderSingle()))
-        // 		suite.MockApp.AssertExpectations(suite.T())
-        // 		suite.NoMessageSent()
+        // 		s.MockApp.On("ToApp").Return(nil)
+        // 		s.session.sm.state = test
+        // 		require.Nil(s.T(), s.send(s.NewOrderSingle()))
+        // 		s.MockApp.AssertExpectations(s.T())
+        // 		s.NoMessageSent()
         // 	}
     }
 
     #[tokio::test]
     async fn test_send_enable_last_msg_seq_num_processed() {
-        let mut suite = SessionSendTestSuite::setup_test();
-        // 	suite.session.sm.state = inSession{}
-        // 	suite.session.EnableLastMsgSeqNumProcessed = true
+        let mut s = SessionSendTestSuite::setup_test();
+        // 	s.session.sm.state = inSession{}
+        // 	s.session.EnableLastMsgSeqNumProcessed = true
 
-        // 	suite.Require().Nil(suite.session.store.set_next_target_msg_seq_num(45))
+        // 	s.Require().Nil(s.session.store.set_next_target_msg_seq_num(45))
 
-        // 	suite.MockApp.On("ToApp").Return(nil)
-        // 	require.Nil(suite.T(), suite.send(suite.NewOrderSingle()))
-        // 	suite.MockApp.AssertExpectations(suite.T())
-        // 	suite.LastToAppMessageSent()
+        // 	s.MockApp.On("ToApp").Return(nil)
+        // 	require.Nil(s.T(), s.send(s.NewOrderSingle()))
+        // 	s.MockApp.AssertExpectations(s.T())
+        // 	s.LastToAppMessageSent()
 
-        // 	suite.FieldEquals(tagLastMsgSeqNumProcessed, 44, suite.MockApp.lastToApp.Header)
+        // 	s.FieldEquals(tagLastMsgSeqNumProcessed, 44, s.MockApp.lastToApp.Header)
     }
 
     #[tokio::test]
     async fn test_send_disable_message_persist() {
-        let mut suite = SessionSendTestSuite::setup_test();
-        // 	suite.session.sm.state = inSession{}
-        // 	suite.session.DisableMessagePersist = true
+        let mut s = SessionSendTestSuite::setup_test();
+        // 	s.session.sm.state = inSession{}
+        // 	s.session.DisableMessagePersist = true
 
-        // 	suite.MockApp.On("ToApp").Return(nil)
-        // 	require.Nil(suite.T(), suite.send(suite.NewOrderSingle()))
-        // 	suite.MockApp.AssertExpectations(suite.T())
-        // 	suite.LastToAppMessageSent()
-        // 	suite.NoMessagePersisted(1)
-        // 	suite.NextSenderMsgSeqNum(2)
+        // 	s.MockApp.On("ToApp").Return(nil)
+        // 	require.Nil(s.T(), s.send(s.NewOrderSingle()))
+        // 	s.MockApp.AssertExpectations(s.T())
+        // 	s.LastToAppMessageSent()
+        // 	s.NoMessagePersisted(1)
+        // 	s.NextSenderMsgSeqNum(2)
     }
 
     #[tokio::test]
     async fn test_drop_and_send_admin_message() {
-        let mut suite = SessionSendTestSuite::setup_test();
-        // 	suite.MockApp.On("ToAdmin")
-        // 	suite.Require().Nil(suite.dropAndSend(suite.Heartbeat()))
-        // 	suite.MockApp.AssertExpectations(suite.T())
+        let mut s = SessionSendTestSuite::setup_test();
+        // 	s.MockApp.On("ToAdmin")
+        // 	s.Require().Nil(s.dropAndSend(s.Heartbeat()))
+        // 	s.MockApp.AssertExpectations(s.T())
 
-        // 	suite.MessagePersisted(suite.MockApp.lastToAdmin)
-        // 	suite.LastToAdminMessageSent()
+        // 	s.MessagePersisted(s.MockApp.lastToAdmin)
+        // 	s.LastToAdminMessageSent()
     }
 
     #[tokio::test]
     async fn test_drop_and_send_drops_queue() {
-        let mut suite = SessionSendTestSuite::setup_test();
-        // 	suite.MockApp.On("ToApp").Return(nil)
-        // 	suite.MockApp.On("ToAdmin")
-        // 	require.Nil(suite.T(), suite.queue_for_send(suite.NewOrderSingle()))
-        // 	require.Nil(suite.T(), suite.queue_for_send(suite.Heartbeat()))
-        // 	suite.MockApp.AssertExpectations(suite.T())
+        let mut s = SessionSendTestSuite::setup_test();
+        // 	s.MockApp.On("ToApp").Return(nil)
+        // 	s.MockApp.On("ToAdmin")
+        // 	require.Nil(s.T(), s.queue_for_send(s.NewOrderSingle()))
+        // 	require.Nil(s.T(), s.queue_for_send(s.Heartbeat()))
+        // 	s.MockApp.AssertExpectations(s.T())
 
-        // 	suite.NoMessageSent()
+        // 	s.NoMessageSent()
 
-        // 	suite.MockApp.On("ToAdmin")
-        // 	require.Nil(suite.T(), suite.dropAndSend(suite.Logon()))
-        // 	suite.MockApp.AssertExpectations(suite.T())
+        // 	s.MockApp.On("ToAdmin")
+        // 	require.Nil(s.T(), s.dropAndSend(s.Logon()))
+        // 	s.MockApp.AssertExpectations(s.T())
 
-        // 	msg := suite.MockApp.lastToAdmin
-        // 	suite.MessageType(string(msgTypeLogon), msg)
-        // 	suite.FieldEquals(TAG_MSG_SEQ_NUM, 3, msg.Header)
+        // 	msg := s.MockApp.lastToAdmin
+        // 	s.MessageType(string(msgTypeLogon), msg)
+        // 	s.FieldEquals(TAG_MSG_SEQ_NUM, 3, msg.Header)
 
         // 	// Only one message sent.
-        // 	suite.LastToAdminMessageSent()
-        // 	suite.NoMessageSent()
+        // 	s.LastToAdminMessageSent()
+        // 	s.NoMessageSent()
     }
 
     #[tokio::test]
     async fn test_drop_and_send_drops_queue_with_reset() {
-        let mut suite = SessionSendTestSuite::setup_test();
-        // 	suite.MockApp.On("ToApp").Return(nil)
-        // 	suite.MockApp.On("ToAdmin")
-        // 	require.Nil(suite.T(), suite.queue_for_send(suite.NewOrderSingle()))
-        // 	require.Nil(suite.T(), suite.queue_for_send(suite.Heartbeat()))
-        // 	suite.MockApp.AssertExpectations(suite.T())
-        // 	suite.NoMessageSent()
+        let mut s = SessionSendTestSuite::setup_test();
+        // 	s.MockApp.On("ToApp").Return(nil)
+        // 	s.MockApp.On("ToAdmin")
+        // 	require.Nil(s.T(), s.queue_for_send(s.NewOrderSingle()))
+        // 	require.Nil(s.T(), s.queue_for_send(s.Heartbeat()))
+        // 	s.MockApp.AssertExpectations(s.T())
+        // 	s.NoMessageSent()
 
-        // 	suite.MockApp.On("ToAdmin")
-        // 	suite.Require().Nil(suite.MockStore.Reset())
-        // 	require.Nil(suite.T(), suite.dropAndSend(suite.Logon()))
-        // 	suite.MockApp.AssertExpectations(suite.T())
-        // 	msg := suite.MockApp.lastToAdmin
+        // 	s.MockApp.On("ToAdmin")
+        // 	s.Require().Nil(s.MockStore.Reset())
+        // 	require.Nil(s.T(), s.dropAndSend(s.Logon()))
+        // 	s.MockApp.AssertExpectations(s.T())
+        // 	msg := s.MockApp.lastToAdmin
 
-        // 	suite.MessageType(string(msgTypeLogon), msg)
-        // 	suite.FieldEquals(TAG_MSG_SEQ_NUM, 1, msg.Header)
+        // 	s.MessageType(string(msgTypeLogon), msg)
+        // 	s.FieldEquals(TAG_MSG_SEQ_NUM, 1, msg.Header)
 
         // 	// Only one message sent.
-        // 	suite.LastToAdminMessageSent()
-        // 	suite.NoMessageSent()
+        // 	s.LastToAdminMessageSent()
+        // 	s.NoMessageSent()
     }
 }
