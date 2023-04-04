@@ -8,7 +8,7 @@ use std::fmt::{Display, Formatter, Result as FmtResult};
 
 lazy_static! {
     // ERR_DO_NOT_SEND is a convenience error to indicate a DoNotSend in ToApp
-    static ref ERR_DO_NOT_SEND: SimpleError = simple_error!("Do Not Send");
+    pub static ref ERR_DO_NOT_SEND: SimpleError = simple_error!("Do Not Send");
 }
 
 pub const REJECT_REASON_INVALID_TAG_NUMBER: isize = 0;

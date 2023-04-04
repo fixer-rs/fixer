@@ -215,7 +215,7 @@ impl MessageStoreTrait for MockStoreExtended {
     async fn refresh(&mut self) -> SimpleResult<()> {
         self.mock
             .expect_refresh()
-            .times(1)
+            .once()
             .return_const(Ok(()))
             .call()
     }
@@ -355,7 +355,7 @@ impl Application for MockAppExtended {
     fn on_logon(&mut self, session_id: &SessionID) {
         self.mock_app
             .expect_on_logon()
-            .times(1)
+            .once()
             .return_const(())
             .call(session_id);
     }
@@ -363,7 +363,7 @@ impl Application for MockAppExtended {
     fn on_logout(&mut self, session_id: &SessionID) {
         self.mock_app
             .expect_on_logout()
-            .times(1)
+            .once()
             .return_const(())
             .call(session_id)
     }
@@ -372,7 +372,7 @@ impl Application for MockAppExtended {
         let result = self
             .mock_app
             .expect_from_admin()
-            .times(1)
+            .once()
             .call(msg, session_id);
         result
     }
@@ -380,7 +380,7 @@ impl Application for MockAppExtended {
     fn to_admin(&mut self, msg: &Message, session_id: &SessionID) {
         self.mock_app
             .expect_to_admin()
-            .times(1)
+            .once()
             .return_const(())
             .call(msg, session_id);
 
@@ -395,7 +395,7 @@ impl Application for MockAppExtended {
         self.last_to_app = Some(msg.clone());
         self.mock_app
             .expect_to_app()
-            .times(1)
+            .once()
             .returning(|_, _| -> SimpleResult<()> { Ok(()) })
             .call(msg, session_id)
     }
@@ -403,7 +403,7 @@ impl Application for MockAppExtended {
     fn from_app(&mut self, msg: &Message, session_id: &SessionID) -> MessageRejectErrorResult {
         self.mock_app
             .expect_from_app()
-            .times(1)
+            .once()
             .returning(|_, _| -> MessageRejectErrorResult { Ok(()) })
             .call(msg, session_id)
     }

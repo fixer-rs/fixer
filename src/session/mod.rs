@@ -492,7 +492,9 @@ impl Session {
                 }
             }
         } else {
+            println!("------------- aha?");
             if let Err(err) = self.application.write().await.to_app(msg, &self.session_id) {
+                println!("------------- hee?");
                 return Err(Box::new(err));
             }
         }
@@ -2081,8 +2083,9 @@ mod tests {
     use crate::{
         application::Application,
         errors::{
-            MessageRejectErrorEnum, MessageRejectErrorTrait, REJECT_REASON_COMP_ID_PROBLEM,
-            REJECT_REASON_REQUIRED_TAG_MISSING, REJECT_REASON_SENDING_TIME_ACCURACY_PROBLEM,
+            MessageRejectErrorEnum, MessageRejectErrorTrait, ERR_DO_NOT_SEND,
+            REJECT_REASON_COMP_ID_PROBLEM, REJECT_REASON_REQUIRED_TAG_MISSING,
+            REJECT_REASON_SENDING_TIME_ACCURACY_PROBLEM,
         },
         field_map::FieldMap,
         fix_string::FIXString,
@@ -2114,7 +2117,8 @@ mod tests {
     use chrono::{DateTime, Duration, FixedOffset, Timelike, Utc};
     use dashmap::DashMap;
     use delegate::delegate;
-    use simple_error::SimpleError;
+    use lazy_static::__Deref;
+    use simple_error::{SimpleError, SimpleResult};
     use std::sync::Arc;
     use tokio::sync::{mpsc::channel, RwLock};
 
@@ -3890,10 +3894,31 @@ mod tests {
     async fn test_queue_for_send_do_not_send_app_message() {
         let mut s = SessionSendTestSuite::setup_test();
 
-        // 	s.MockApp.On("ToApp").Return(ErrDoNotSend)
-        // 	s.Equal(ErrDoNotSend, s.queue_for_send(s.NewOrderSingle()))
+        let _ = s
+            .ssr
+            .mock_app
+            .write()
+            .await
+            .mock_app
+            .expect_to_app()
+            .once()
+            .returning(|_, _| -> SimpleResult<()> { Err(ERR_DO_NOT_SEND.clone()) });
+        // .call(&Message::new(), &SessionID::default());
 
-        // 	s.MockApp.AssertExpectations(s.T())
+        let queue_result = s
+            .ssr
+            .session
+            .queue_for_send(&s.ssr.message_factory.new_order_single())
+            .await;
+
+        assert!(queue_result.is_err());
+        let queue_err = queue_result.unwrap_err();
+        assert_eq!(
+            &(ERR_DO_NOT_SEND.deref().to_string()),
+            &queue_err.to_string()
+        );
+
+        s.ssr.mock_app.write().await.mock_app.checkpoint();
         // 	s.NoMessagePersisted(1)
         // 	s.NoMessageSent()
         // 	s.NextSenderMsgSeqNum(1)
