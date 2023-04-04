@@ -50,7 +50,7 @@ use chrono::{DateTime, Duration as ChronoDuration, FixedOffset, Utc};
 use simple_error::SimpleError;
 use std::{error::Error, sync::Arc};
 use tokio::sync::{
-    mpsc::{channel, Receiver, Sender, UnboundedReceiver, UnboundedSender},
+    mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
     Mutex, OnceCell, RwLock,
 };
 use tokio::time::{interval, sleep, Duration};
@@ -70,13 +70,13 @@ pub mod pending_timeout;
 pub mod resend_state;
 
 pub struct MessageEvent {
-    pub tx: Sender<bool>,
-    pub rx: Receiver<bool>,
+    pub tx: UnboundedSender<bool>,
+    pub rx: UnboundedReceiver<bool>,
 }
 
 impl MessageEvent {
     async fn send(&self, event: bool) {
-        let _ = self.tx.send(event).await;
+        let _ = self.tx.send(event);
     }
 }
 
@@ -86,14 +86,14 @@ pub struct SessionEvent {
 }
 
 pub struct Connect {
-    pub message_out: Sender<Vec<u8>>,
-    pub message_in: Receiver<FixIn>,
-    pub err: Sender<Result<(), SimpleError>>,
+    pub message_out: UnboundedSender<Vec<u8>>,
+    pub message_in: UnboundedReceiver<FixIn>,
+    pub err: UnboundedSender<Result<(), SimpleError>>,
 }
 
 pub struct Admin {
-    pub tx: Sender<AdminEnum>,
-    pub rx: Receiver<AdminEnum>,
+    pub tx: UnboundedSender<AdminEnum>,
+    pub rx: UnboundedReceiver<AdminEnum>,
 }
 
 pub enum AdminEnum {
@@ -109,8 +109,8 @@ pub struct Session {
     pub log: LogEnum,
     pub session_id: SessionID,
 
-    pub message_out: Sender<Vec<u8>>,
-    pub message_in: Receiver<FixIn>,
+    pub message_out: UnboundedSender<Vec<u8>>,
+    pub message_in: UnboundedReceiver<FixIn>,
 
     // application messages are queued up for send here
     // wrapped in Mutex for access to to_send.
@@ -141,10 +141,10 @@ pub struct FixIn {
 
 pub struct StopReq;
 
-type WaitChan = Receiver<()>;
+type WaitChan = UnboundedReceiver<()>;
 
 pub struct WaitForInSessionReq {
-    pub rep: Sender<WaitChan>,
+    pub rep: UnboundedSender<WaitChan>,
 }
 
 impl SessionEvent {
@@ -166,10 +166,10 @@ impl Session {
 
     async fn connect(
         &self,
-        message_in: Receiver<FixIn>,
-        message_out: Sender<Vec<u8>>,
+        message_in: UnboundedReceiver<FixIn>,
+        message_out: UnboundedSender<Vec<u8>>,
     ) -> Result<(), SimpleError> {
-        let (tx, mut rx) = channel::<Result<(), SimpleError>>(1);
+        let (tx, mut rx) = unbounded_channel::<Result<(), SimpleError>>();
         let _ = self.admin.tx.send(AdminEnum::Connect(Connect {
             message_out,
             message_in,
@@ -193,7 +193,7 @@ impl Session {
     }
 
     async fn wait_for_in_session_time(&self) {
-        let (tx, mut rx) = channel::<WaitChan>(1);
+        let (tx, mut rx) = unbounded_channel::<WaitChan>();
 
         let _ = self
             .admin
@@ -400,10 +400,8 @@ impl Session {
         to_send.push(msg_bytes);
 
         tokio::select! {
-            _ = self.message_event.send(true) => {
-            }
-            else => {
-            }
+            _ = self.message_event.send(true) => {},
+            else => {},
         }
 
         Ok(())
@@ -492,9 +490,7 @@ impl Session {
                 }
             }
         } else {
-            println!("------------- aha?");
             if let Err(err) = self.application.write().await.to_app(msg, &self.session_id) {
-                println!("------------- hee?");
                 return Err(Box::new(err));
             }
         }
@@ -527,7 +523,7 @@ impl Session {
         for msg_bytes in self.to_send.lock().await.iter_mut() {
             self.log.on_outgoing(msg_bytes);
             // TODO: check this error
-            let _ = self.message_out.send(msg_bytes.to_vec()).await;
+            let _ = self.message_out.send(msg_bytes.to_vec());
             self.state_timer
                 .reset(self.iss.heart_bt_int.to_std().unwrap())
                 .await;
@@ -946,10 +942,7 @@ impl Session {
             AdminEnum::Connect(connect) => {
                 if self.sm.is_connected() {
                     if !connect.err.is_closed() {
-                        let _ = connect
-                            .err
-                            .send(Err(simple_error!("Already connected")))
-                            .await;
+                        let _ = connect.err.send(Err(simple_error!("Already connected")));
                     }
 
                     return;
@@ -960,8 +953,7 @@ impl Session {
                     if !connect.err.is_closed() {
                         let _ = connect
                             .err
-                            .send(Err(simple_error!("Connection outside of session time")))
-                            .await;
+                            .send(Err(simple_error!("Connection outside of session time")));
                     }
                     return;
                 }
@@ -981,8 +973,9 @@ impl Session {
             }
             AdminEnum::WaitForInSessionReq(wfisr) => {
                 if !self.sm.is_session_time() {
-                    let notify = self.sm.notify_on_in_session_time.take();
-                    let _ = wfisr.rep.send(notify.unwrap()).await;
+                    let notify = self.sm.notify_on_in_session_time.take().unwrap();
+
+                    let _ = wfisr.rep.send(notify);
                 }
                 // TODO: close
                 // close(wfisr.rep)
@@ -1203,7 +1196,7 @@ impl Session {
             self.sm_set_state(SessionStateEnum::new_not_session_time())
                 .await;
             if self.sm.notify_on_in_session_time.is_none() {
-                let (_, rx) = channel::<()>(1);
+                let (_, rx) = unbounded_channel::<()>();
                 self.sm.notify_on_in_session_time = Some(rx);
             }
             return;
@@ -2090,7 +2083,10 @@ mod tests {
         field_map::FieldMap,
         fix_string::FIXString,
         fix_utc_timestamp::{FIXUTCTimestamp, TimestampPrecision},
-        fixer_test::{FieldEqual, MockStore, MockStoreExtended, SessionSuiteRig},
+        fixer_test::{
+            FieldEqual, MockStore, MockStoreExtended, SessionSuiteRig,
+            TEST_QUEUE_FOR_SEND_APP_MESSAGE, TEST_SEND_APP_DO_NOT_SEND_MESSAGE,
+        },
         internal::{
             event::{LOGON_TIMEOUT, LOGOUT_TIMEOUT, NEED_HEARTBEAT, PEER_TIMEOUT},
             time_range::{gen_now, TimeOfDay, TimeRange},
@@ -2107,9 +2103,10 @@ mod tests {
         },
         store::{MemoryStore, MessageStoreEnum, MessageStoreTrait},
         tag::{
-            Tag, TAG_BEGIN_STRING, TAG_DEFAULT_APPL_VER_ID, TAG_HEART_BT_INT, TAG_MSG_SEQ_NUM,
-            TAG_RESET_SEQ_NUM_FLAG, TAG_SENDER_COMP_ID, TAG_SENDER_LOCATION_ID, TAG_SENDER_SUB_ID,
-            TAG_SENDING_TIME, TAG_TARGET_COMP_ID, TAG_TARGET_LOCATION_ID, TAG_TARGET_SUB_ID,
+            Tag, TAG_BEGIN_STRING, TAG_DEFAULT_APPL_VER_ID, TAG_HEART_BT_INT,
+            TAG_LAST_MSG_SEQ_NUM_PROCESSED, TAG_MSG_SEQ_NUM, TAG_RESET_SEQ_NUM_FLAG,
+            TAG_SENDER_COMP_ID, TAG_SENDER_LOCATION_ID, TAG_SENDER_SUB_ID, TAG_SENDING_TIME,
+            TAG_TARGET_COMP_ID, TAG_TARGET_LOCATION_ID, TAG_TARGET_SUB_ID,
         },
         BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIX42, BEGIN_STRING_FIX43,
         BEGIN_STRING_FIX44, BEGIN_STRING_FIXT11,
@@ -2118,9 +2115,9 @@ mod tests {
     use dashmap::DashMap;
     use delegate::delegate;
     use lazy_static::__Deref;
-    use simple_error::{SimpleError, SimpleResult};
+    use simple_error::SimpleError;
     use std::sync::Arc;
-    use tokio::sync::{mpsc::channel, RwLock};
+    use tokio::sync::{mpsc::unbounded_channel, RwLock};
 
     struct SessionSuite {
         ssr: SessionSuiteRig,
@@ -3527,8 +3524,8 @@ mod tests {
     async fn test_on_admin_connect_initiate_logon() {
         let mut s = SessionSuite::setup_test().await;
 
-        let (_, in_rx) = channel::<FixIn>(1);
-        let (err_tx, _) = channel::<Result<(), SimpleError>>(1);
+        let (_, in_rx) = unbounded_channel::<FixIn>();
+        let (err_tx, _) = unbounded_channel::<Result<(), SimpleError>>();
 
         let admin_message = Connect {
             message_out: s.ssr.receiver.send_channel.tx.clone(),
@@ -3594,8 +3591,8 @@ mod tests {
     async fn test_initiate_logon_reset_seq_num_flag() {
         let mut s = SessionSuite::setup_test().await;
 
-        let (_, in_rx) = channel::<FixIn>(1);
-        let (err_tx, _) = channel::<Result<(), SimpleError>>(1);
+        let (_, in_rx) = unbounded_channel::<FixIn>();
+        let (err_tx, _) = unbounded_channel::<Result<(), SimpleError>>();
 
         let admin_message = Connect {
             message_out: s.ssr.receiver.send_channel.tx.clone(),
@@ -3670,8 +3667,8 @@ mod tests {
         s.ssr.session.iss.default_appl_ver_id = String::from("8");
         s.ssr.session.iss.initiate_logon = true;
 
-        let (_, in_rx) = channel::<FixIn>(1);
-        let (err_tx, _) = channel::<Result<(), SimpleError>>(1);
+        let (_, in_rx) = unbounded_channel::<FixIn>();
+        let (err_tx, _) = unbounded_channel::<Result<(), SimpleError>>();
 
         let admin_message = Connect {
             message_out: s.ssr.receiver.send_channel.tx.clone(),
@@ -3721,8 +3718,8 @@ mod tests {
             let mut s = SessionSuite::setup_test().await;
             s.ssr.session.iss.refresh_on_logon = do_refresh;
 
-            let (_, in_rx) = channel::<FixIn>(1);
-            let (err_tx, _) = channel::<Result<(), SimpleError>>(1);
+            let (_, in_rx) = unbounded_channel::<FixIn>();
+            let (err_tx, _) = unbounded_channel::<Result<(), SimpleError>>();
 
             let admin_message = Connect {
                 message_out: s.ssr.receiver.send_channel.tx.clone(),
@@ -3754,8 +3751,8 @@ mod tests {
     #[tokio::test]
     async fn test_on_admin_connect_accept() {
         let mut s = SessionSuite::setup_test().await;
-        let (_, in_rx) = channel::<FixIn>(1);
-        let (err_tx, _) = channel::<Result<(), SimpleError>>(1);
+        let (_, in_rx) = unbounded_channel::<FixIn>();
+        let (err_tx, _) = unbounded_channel::<Result<(), SimpleError>>();
 
         let admin_message = Connect {
             message_out: s.ssr.receiver.send_channel.tx.clone(),
@@ -3785,8 +3782,8 @@ mod tests {
             s.ssr.session.iss.initiate_logon = do_initiate_logon;
             s.ssr.incr_next_sender_msg_seq_num().await;
 
-            let (_, in_rx) = channel::<FixIn>(1);
-            let (err_tx, _) = channel::<Result<(), SimpleError>>(1);
+            let (_, in_rx) = unbounded_channel::<FixIn>();
+            let (err_tx, _) = unbounded_channel::<Result<(), SimpleError>>();
 
             let admin_message = Connect {
                 message_out: s.ssr.receiver.send_channel.tx.clone(),
@@ -3893,17 +3890,7 @@ mod tests {
     #[tokio::test]
     async fn test_queue_for_send_do_not_send_app_message() {
         let mut s = SessionSendTestSuite::setup_test();
-
-        let _ = s
-            .ssr
-            .mock_app
-            .write()
-            .await
-            .mock_app
-            .expect_to_app()
-            .once()
-            .returning(|_, _| -> SimpleResult<()> { Err(ERR_DO_NOT_SEND.clone()) });
-        // .call(&Message::new(), &SessionID::default());
+        s.ssr.session.session_id.qualifier = TEST_QUEUE_FOR_SEND_APP_MESSAGE.to_string();
 
         let queue_result = s
             .ssr
@@ -3919,197 +3906,444 @@ mod tests {
         );
 
         s.ssr.mock_app.write().await.mock_app.checkpoint();
-        // 	s.NoMessagePersisted(1)
-        // 	s.NoMessageSent()
-        // 	s.NextSenderMsgSeqNum(1)
+        s.ssr.no_message_persisted(1).await;
+        s.ssr.no_message_sent().await;
+        s.ssr.next_sender_msg_seq_num(1).await;
 
-        // 	s.MockApp.On("ToAdmin")
-        // 	require.Nil(s.T(), s.send(s.Heartbeat()))
+        s.ssr
+            .mock_app
+            .to_admin(&Message::default(), &SessionID::default());
 
-        // 	s.MockApp.AssertExpectations(s.T())
-        // 	s.LastToAdminMessageSent()
-        // 	s.MessagePersisted(s.MockApp.lastToAdmin)
-        // 	s.NextSenderMsgSeqNum(2)
+        assert!(s
+            .ssr
+            .session
+            .send(&s.ssr.message_factory.heartbeat())
+            .await
+            .is_ok());
+
+        s.ssr.mock_app.write().await.mock_app.checkpoint();
+        s.ssr.last_to_admin_message_sent().await;
+        s.ssr
+            .message_persisted(s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap())
+            .await;
+        s.ssr.next_sender_msg_seq_num(2).await;
     }
 
     #[tokio::test]
     async fn test_queue_for_send_admin_message() {
         let mut s = SessionSendTestSuite::setup_test();
-        // 	s.MockApp.On("ToAdmin")
-        // 	require.Nil(s.T(), s.queue_for_send(s.Heartbeat()))
+        s.ssr
+            .mock_app
+            .to_admin(&Message::default(), &SessionID::default());
+        assert!(s
+            .ssr
+            .session
+            .queue_for_send(&s.ssr.message_factory.heartbeat())
+            .await
+            .is_ok());
 
-        // 	s.MockApp.AssertExpectations(s.T())
-        // 	s.MessagePersisted(s.MockApp.lastToAdmin)
-        // 	s.NoMessageSent()
-        // 	s.NextSenderMsgSeqNum(2)
+        s.ssr.mock_app.write().await.mock_app.checkpoint();
+        s.ssr
+            .message_persisted(s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap())
+            .await;
+        s.ssr.no_message_sent().await;
+        s.ssr.next_sender_msg_seq_num(2).await;
     }
 
     #[tokio::test]
     async fn test_send_app_message() {
         let mut s = SessionSendTestSuite::setup_test();
-        // 	s.MockApp.On("ToApp").Return(nil)
-        // 	require.Nil(s.T(), s.send(s.NewOrderSingle()))
+        assert!(s
+            .ssr
+            .mock_app
+            .to_app(&Message::default(), &SessionID::default())
+            .is_ok());
+        assert!(s
+            .ssr
+            .session
+            .send(&s.ssr.message_factory.new_order_single())
+            .await
+            .is_ok());
 
-        // 	s.MockApp.AssertExpectations(s.T())
-        // 	s.MessagePersisted(s.MockApp.lastToApp)
-        // 	s.LastToAppMessageSent()
-        // 	s.NextSenderMsgSeqNum(2)
+        s.ssr.mock_app.write().await.mock_app.checkpoint();
+        s.ssr
+            .message_persisted(s.ssr.mock_app.read().await.last_to_app.as_ref().unwrap())
+            .await;
+        s.ssr.last_to_app_message_sent().await;
+        s.ssr.next_sender_msg_seq_num(2).await;
     }
 
     #[tokio::test]
     async fn test_send_app_do_not_send_message() {
         let mut s = SessionSendTestSuite::setup_test();
-        // 	s.MockApp.On("ToApp").Return(ErrDoNotSend)
-        // 	s.Equal(ErrDoNotSend, s.send(s.NewOrderSingle()))
 
-        // 	s.MockApp.AssertExpectations(s.T())
-        // 	s.NextSenderMsgSeqNum(1)
-        // 	s.NoMessageSent()
+        s.ssr.session.session_id.qualifier = TEST_SEND_APP_DO_NOT_SEND_MESSAGE.to_string();
+        let queue_result = s
+            .ssr
+            .session
+            .send(&s.ssr.message_factory.new_order_single())
+            .await;
+
+        assert!(queue_result.is_err());
+        let queue_err = queue_result.unwrap_err();
+        assert_eq!(
+            &(ERR_DO_NOT_SEND.deref().to_string()),
+            &queue_err.to_string()
+        );
+
+        s.ssr.mock_app.write().await.mock_app.checkpoint();
+        s.ssr.next_sender_msg_seq_num(1).await;
+        s.ssr.no_message_sent().await;
     }
 
     #[tokio::test]
     async fn test_send_admin_message() {
         let mut s = SessionSendTestSuite::setup_test();
-        // 	s.MockApp.On("ToAdmin")
-        // 	require.Nil(s.T(), s.send(s.Heartbeat()))
-        // 	s.MockApp.AssertExpectations(s.T())
+        s.ssr
+            .mock_app
+            .to_admin(&Message::default(), &SessionID::default());
+        assert!(s
+            .ssr
+            .session
+            .send(&s.ssr.message_factory.heartbeat())
+            .await
+            .is_ok());
+        s.ssr.mock_app.write().await.mock_app.checkpoint();
 
-        // 	s.LastToAdminMessageSent()
-        // 	s.MessagePersisted(s.MockApp.lastToAdmin)
+        s.ssr.last_to_admin_message_sent().await;
+        s.ssr
+            .message_persisted(s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap())
+            .await;
     }
 
     #[tokio::test]
     async fn test_send_flushes_queue() {
         let mut s = SessionSendTestSuite::setup_test();
-        // 	s.MockApp.On("ToApp").Return(nil)
-        // 	s.MockApp.On("ToAdmin")
-        // 	require.Nil(s.T(), s.queue_for_send(s.NewOrderSingle()))
-        // 	require.Nil(s.T(), s.queue_for_send(s.Heartbeat()))
+        assert!(s
+            .ssr
+            .mock_app
+            .to_app(&Message::default(), &SessionID::default())
+            .is_ok());
+        s.ssr
+            .mock_app
+            .to_admin(&Message::default(), &SessionID::default());
+        assert!(s
+            .ssr
+            .session
+            .queue_for_send(&s.ssr.message_factory.new_order_single())
+            .await
+            .is_ok());
+        assert!(s
+            .ssr
+            .session
+            .queue_for_send(&s.ssr.message_factory.heartbeat())
+            .await
+            .is_ok());
 
-        // 	order1 := s.MockApp.lastToApp
-        // 	heartbeat := s.MockApp.lastToAdmin
+        let order_1 = s
+            .ssr
+            .mock_app
+            .read()
+            .await
+            .last_to_app
+            .as_ref()
+            .unwrap()
+            .clone();
+        let heartbeat = s
+            .ssr
+            .mock_app
+            .read()
+            .await
+            .last_to_admin
+            .as_ref()
+            .unwrap()
+            .clone();
 
-        // 	s.MockApp.AssertExpectations(s.T())
-        // 	s.NoMessageSent()
+        s.ssr.mock_app.write().await.mock_app.checkpoint();
+        s.ssr.no_message_sent().await;
 
-        // 	s.MockApp.On("ToApp").Return(nil)
-        // 	require.Nil(s.T(), s.send(s.NewOrderSingle()))
-        // 	s.MockApp.AssertExpectations(s.T())
-        // 	order2 := s.MockApp.lastToApp
-        // 	s.MessageSentEquals(order1)
-        // 	s.MessageSentEquals(heartbeat)
-        // 	s.MessageSentEquals(order2)
-        // 	s.NoMessageSent()
+        assert!(s
+            .ssr
+            .mock_app
+            .to_app(&Message::default(), &SessionID::default())
+            .is_ok());
+        assert!(s
+            .ssr
+            .session
+            .send(&s.ssr.message_factory.new_order_single())
+            .await
+            .is_ok());
+        s.ssr.mock_app.write().await.mock_app.checkpoint();
+        let order_2 = s
+            .ssr
+            .mock_app
+            .read()
+            .await
+            .last_to_app
+            .as_ref()
+            .unwrap()
+            .clone();
+        s.ssr.message_sent_equals(&order_1).await;
+        s.ssr.message_sent_equals(&heartbeat).await;
+        s.ssr.message_sent_equals(&order_2).await;
+        s.ssr.no_message_sent().await;
     }
 
     #[tokio::test]
     async fn test_send_not_logged_on() {
         let mut s = SessionSendTestSuite::setup_test();
-        // 	s.MockApp.On("ToApp").Return(nil)
-        // 	s.MockApp.On("ToAdmin")
-        // 	require.Nil(s.T(), s.queue_for_send(s.NewOrderSingle()))
-        // 	require.Nil(s.T(), s.queue_for_send(s.Heartbeat()))
+        assert!(s
+            .ssr
+            .mock_app
+            .to_app(&Message::default(), &SessionID::default())
+            .is_ok());
+        s.ssr
+            .mock_app
+            .to_admin(&Message::default(), &SessionID::default());
+        assert!(s
+            .ssr
+            .session
+            .queue_for_send(&s.ssr.message_factory.new_order_single())
+            .await
+            .is_ok());
+        assert!(s
+            .ssr
+            .session
+            .queue_for_send(&s.ssr.message_factory.heartbeat())
+            .await
+            .is_ok());
 
-        // 	s.MockApp.AssertExpectations(s.T())
-        // 	s.NoMessageSent()
+        s.ssr.mock_app.write().await.mock_app.checkpoint();
+        s.ssr.no_message_sent().await;
 
-        // 	var tests = []sessionState{logoutState{}, latentState{}, logonState{}}
+        let tests = vec![
+            SessionStateEnum::new_logout_state(),
+            SessionStateEnum::new_latent_state(),
+            SessionStateEnum::new_logon_state(),
+        ];
 
-        // 	for _, test := range tests {
-        // 		s.MockApp.On("ToApp").Return(nil)
-        // 		s.session.sm.state = test
-        // 		require.Nil(s.T(), s.send(s.NewOrderSingle()))
-        // 		s.MockApp.AssertExpectations(s.T())
-        // 		s.NoMessageSent()
-        // 	}
+        for test in tests {
+            assert!(s
+                .ssr
+                .mock_app
+                .to_app(&Message::default(), &SessionID::default())
+                .is_ok());
+            s.ssr.session.sm.state = test;
+            assert!(s
+                .ssr
+                .session
+                .send(&s.ssr.message_factory.new_order_single())
+                .await
+                .is_ok());
+            s.ssr.mock_app.write().await.mock_app.checkpoint();
+            s.ssr.no_message_sent().await;
+        }
     }
 
     #[tokio::test]
     async fn test_send_enable_last_msg_seq_num_processed() {
         let mut s = SessionSendTestSuite::setup_test();
-        // 	s.session.sm.state = inSession{}
-        // 	s.session.EnableLastMsgSeqNumProcessed = true
+        s.ssr.session.sm.state = SessionStateEnum::new_in_session();
+        s.ssr.session.iss.enable_last_msg_seq_num_processed = true;
+        assert!(s
+            .ssr
+            .session
+            .store
+            .set_next_target_msg_seq_num(45)
+            .await
+            .is_ok());
 
-        // 	s.Require().Nil(s.session.store.set_next_target_msg_seq_num(45))
-
-        // 	s.MockApp.On("ToApp").Return(nil)
-        // 	require.Nil(s.T(), s.send(s.NewOrderSingle()))
-        // 	s.MockApp.AssertExpectations(s.T())
-        // 	s.LastToAppMessageSent()
-
-        // 	s.FieldEquals(tagLastMsgSeqNumProcessed, 44, s.MockApp.lastToApp.Header)
+        assert!(s
+            .ssr
+            .mock_app
+            .to_app(&Message::default(), &SessionID::default())
+            .is_ok());
+        assert!(s
+            .ssr
+            .session
+            .send(&s.ssr.message_factory.new_order_single())
+            .await
+            .is_ok());
+        s.ssr.mock_app.write().await.mock_app.checkpoint();
+        s.ssr.last_to_app_message_sent().await;
+        s.field_equals(
+            TAG_LAST_MSG_SEQ_NUM_PROCESSED,
+            FieldEqual::Num(44),
+            &s.ssr
+                .mock_app
+                .read()
+                .await
+                .last_to_app
+                .as_ref()
+                .unwrap()
+                .header
+                .field_map,
+        );
     }
 
     #[tokio::test]
     async fn test_send_disable_message_persist() {
         let mut s = SessionSendTestSuite::setup_test();
-        // 	s.session.sm.state = inSession{}
-        // 	s.session.DisableMessagePersist = true
+        s.ssr.session.sm.state = SessionStateEnum::new_in_session();
+        s.ssr.session.iss.disable_message_persist = true;
 
-        // 	s.MockApp.On("ToApp").Return(nil)
-        // 	require.Nil(s.T(), s.send(s.NewOrderSingle()))
-        // 	s.MockApp.AssertExpectations(s.T())
-        // 	s.LastToAppMessageSent()
-        // 	s.NoMessagePersisted(1)
-        // 	s.NextSenderMsgSeqNum(2)
+        assert!(s
+            .ssr
+            .mock_app
+            .to_app(&Message::default(), &SessionID::default())
+            .is_ok());
+        assert!(s
+            .ssr
+            .session
+            .send(&s.ssr.message_factory.new_order_single())
+            .await
+            .is_ok());
+        s.ssr.mock_app.write().await.mock_app.checkpoint();
+        s.ssr.last_to_app_message_sent().await;
+        s.ssr.no_message_persisted(1).await;
+        s.ssr.next_sender_msg_seq_num(2).await;
     }
 
     #[tokio::test]
     async fn test_drop_and_send_admin_message() {
         let mut s = SessionSendTestSuite::setup_test();
-        // 	s.MockApp.On("ToAdmin")
-        // 	s.Require().Nil(s.dropAndSend(s.Heartbeat()))
-        // 	s.MockApp.AssertExpectations(s.T())
+        s.ssr
+            .mock_app
+            .to_admin(&Message::default(), &SessionID::default());
+        assert!(s
+            .ssr
+            .session
+            .drop_and_send(&s.ssr.message_factory.heartbeat())
+            .await
+            .is_ok());
 
-        // 	s.MessagePersisted(s.MockApp.lastToAdmin)
-        // 	s.LastToAdminMessageSent()
+        s.ssr.mock_app.write().await.mock_app.checkpoint();
+
+        s.ssr
+            .message_persisted(&s.ssr.mock_app.write().await.last_to_admin.as_mut().unwrap())
+            .await;
+        s.ssr.last_to_admin_message_sent().await;
     }
 
     #[tokio::test]
     async fn test_drop_and_send_drops_queue() {
         let mut s = SessionSendTestSuite::setup_test();
-        // 	s.MockApp.On("ToApp").Return(nil)
-        // 	s.MockApp.On("ToAdmin")
-        // 	require.Nil(s.T(), s.queue_for_send(s.NewOrderSingle()))
-        // 	require.Nil(s.T(), s.queue_for_send(s.Heartbeat()))
-        // 	s.MockApp.AssertExpectations(s.T())
+        assert!(s
+            .ssr
+            .mock_app
+            .to_app(&Message::default(), &SessionID::default())
+            .is_ok());
+        s.ssr
+            .mock_app
+            .to_admin(&Message::default(), &SessionID::default());
+        assert!(s
+            .ssr
+            .session
+            .queue_for_send(&s.ssr.message_factory.new_order_single())
+            .await
+            .is_ok());
+        assert!(s
+            .ssr
+            .session
+            .queue_for_send(&s.ssr.message_factory.heartbeat())
+            .await
+            .is_ok());
+        s.ssr.mock_app.write().await.mock_app.checkpoint();
 
-        // 	s.NoMessageSent()
+        s.ssr.no_message_sent().await;
 
-        // 	s.MockApp.On("ToAdmin")
-        // 	require.Nil(s.T(), s.dropAndSend(s.Logon()))
-        // 	s.MockApp.AssertExpectations(s.T())
+        s.ssr
+            .mock_app
+            .to_admin(&Message::default(), &SessionID::default());
+        assert!(s
+            .ssr
+            .session
+            .drop_and_send(&s.ssr.message_factory.logon())
+            .await
+            .is_ok());
+        s.ssr.mock_app.write().await.mock_app.checkpoint();
 
-        // 	msg := s.MockApp.lastToAdmin
-        // 	s.MessageType(string(msgTypeLogon), msg)
-        // 	s.FieldEquals(TAG_MSG_SEQ_NUM, 3, msg.Header)
+        s.message_type(
+            String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
+            s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap(),
+        );
+        s.field_equals(
+            TAG_MSG_SEQ_NUM,
+            FieldEqual::Num(3),
+            &s.ssr
+                .mock_app
+                .read()
+                .await
+                .last_to_admin
+                .as_ref()
+                .unwrap()
+                .header
+                .field_map,
+        );
 
-        // 	// Only one message sent.
-        // 	s.LastToAdminMessageSent()
-        // 	s.NoMessageSent()
+        // Only one message sent.
+        s.ssr.last_to_admin_message_sent().await;
+        s.ssr.no_message_sent().await;
     }
 
     #[tokio::test]
     async fn test_drop_and_send_drops_queue_with_reset() {
         let mut s = SessionSendTestSuite::setup_test();
-        // 	s.MockApp.On("ToApp").Return(nil)
-        // 	s.MockApp.On("ToAdmin")
-        // 	require.Nil(s.T(), s.queue_for_send(s.NewOrderSingle()))
-        // 	require.Nil(s.T(), s.queue_for_send(s.Heartbeat()))
-        // 	s.MockApp.AssertExpectations(s.T())
-        // 	s.NoMessageSent()
+        assert!(s
+            .ssr
+            .mock_app
+            .to_app(&Message::default(), &SessionID::default())
+            .is_ok());
+        s.ssr
+            .mock_app
+            .to_admin(&Message::default(), &SessionID::default());
+        assert!(s
+            .ssr
+            .session
+            .queue_for_send(&s.ssr.message_factory.new_order_single())
+            .await
+            .is_ok());
+        assert!(s
+            .ssr
+            .session
+            .queue_for_send(&s.ssr.message_factory.heartbeat())
+            .await
+            .is_ok());
+        s.ssr.mock_app.write().await.mock_app.checkpoint();
+        s.ssr.no_message_sent().await;
 
-        // 	s.MockApp.On("ToAdmin")
-        // 	s.Require().Nil(s.MockStore.Reset())
-        // 	require.Nil(s.T(), s.dropAndSend(s.Logon()))
-        // 	s.MockApp.AssertExpectations(s.T())
-        // 	msg := s.MockApp.lastToAdmin
+        s.ssr
+            .mock_app
+            .to_admin(&Message::default(), &SessionID::default());
+        assert!(s.ssr.mock_store.reset().await.is_ok());
+        assert!(s
+            .ssr
+            .session
+            .drop_and_send(&s.ssr.message_factory.logon())
+            .await
+            .is_ok());
+        s.ssr.mock_app.write().await.mock_app.checkpoint();
 
-        // 	s.MessageType(string(msgTypeLogon), msg)
-        // 	s.FieldEquals(TAG_MSG_SEQ_NUM, 1, msg.Header)
+        s.message_type(
+            String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
+            s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap(),
+        );
+        s.field_equals(
+            TAG_MSG_SEQ_NUM,
+            FieldEqual::Num(1),
+            &s.ssr
+                .mock_app
+                .read()
+                .await
+                .last_to_admin
+                .as_ref()
+                .unwrap()
+                .header
+                .field_map,
+        );
 
-        // 	// Only one message sent.
-        // 	s.LastToAdminMessageSent()
-        // 	s.NoMessageSent()
+        // Only one message sent.
+        s.ssr.last_to_admin_message_sent().await;
+        s.ssr.no_message_sent().await;
     }
 }

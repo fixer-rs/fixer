@@ -1,5 +1,5 @@
 use crate::application::Application;
-use crate::errors::MessageRejectErrorResult;
+use crate::errors::{MessageRejectErrorResult, ERR_DO_NOT_SEND};
 use crate::field_map::FieldMap;
 use crate::fix_boolean::FIXBoolean;
 use crate::fix_string::FIXString;
@@ -30,7 +30,7 @@ use mockall::*;
 use simple_error::SimpleResult;
 use std::sync::Arc;
 use tokio::sync::{
-    mpsc::{channel, unbounded_channel, Receiver, Sender},
+    mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
     RwLock,
 };
 use tokio::time::timeout;
@@ -393,11 +393,20 @@ impl Application for MockAppExtended {
 
     fn to_app(&mut self, msg: &Message, session_id: &SessionID) -> SimpleResult<()> {
         self.last_to_app = Some(msg.clone());
-        self.mock_app
-            .expect_to_app()
-            .once()
-            .returning(|_, _| -> SimpleResult<()> { Ok(()) })
-            .call(msg, session_id)
+        match session_id.qualifier.as_str() {
+            TEST_QUEUE_FOR_SEND_APP_MESSAGE | TEST_SEND_APP_DO_NOT_SEND_MESSAGE => self
+                .mock_app
+                .expect_to_app()
+                .once()
+                .returning(|_, _| -> SimpleResult<()> { Err(ERR_DO_NOT_SEND.clone()) })
+                .call(msg, session_id),
+            _ => self
+                .mock_app
+                .expect_to_app()
+                .once()
+                .returning(|_, _| -> SimpleResult<()> { Ok(()) })
+                .call(msg, session_id),
+        }
     }
 
     fn from_app(&mut self, msg: &Message, session_id: &SessionID) -> MessageRejectErrorResult {
@@ -501,8 +510,8 @@ impl MessageFactory {
 }
 
 pub struct SendChannel {
-    pub tx: Sender<Vec<u8>>,
-    pub rx: Receiver<Vec<u8>>,
+    pub tx: UnboundedSender<Vec<u8>>,
+    pub rx: UnboundedReceiver<Vec<u8>>,
 }
 
 pub struct MockSessionReceiver {
@@ -511,7 +520,7 @@ pub struct MockSessionReceiver {
 
 impl MockSessionReceiver {
     pub fn new() -> Self {
-        let (tx, rx) = channel::<Vec<u8>>(10);
+        let (tx, rx) = unbounded_channel::<Vec<u8>>();
         MockSessionReceiver {
             send_channel: SendChannel { tx, rx },
         }
@@ -555,10 +564,10 @@ impl SessionSuiteRig {
 
         let mock_store_shared = MockStoreShared::new_mock_store(mock_store_extended);
 
-        let (_, message_in_rx) = channel::<FixIn>(1);
+        let (_, message_in_rx) = unbounded_channel::<FixIn>();
         let (session_event_tx, session_event_rx) = unbounded_channel::<Event>();
-        let (message_event_tx, message_event_rx) = channel::<bool>(1);
-        let (admin_tx, admin_rx) = channel::<AdminEnum>(1);
+        let (message_event_tx, message_event_rx) = unbounded_channel::<bool>();
+        let (admin_tx, admin_rx) = unbounded_channel::<AdminEnum>();
 
         let max_latency_duration = Duration::seconds(120);
         let duration = Duration::seconds(0);
@@ -766,3 +775,10 @@ impl SessionSuiteRig {
         self.suite.message_equals_bytes(&persisted_messages[0], msg);
     }
 }
+
+// for various test cases
+// set these strs in SessionID.qualifier
+// do matching in the MockAppExtended
+// and mock the result
+pub const TEST_QUEUE_FOR_SEND_APP_MESSAGE: &str = "test_queue_for_send_app_message";
+pub const TEST_SEND_APP_DO_NOT_SEND_MESSAGE: &str = "test_send_app_do_not_send_message";

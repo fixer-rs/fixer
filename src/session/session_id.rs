@@ -3,7 +3,7 @@ use std::string::ToString;
 // SessionID is a unique identifier of a Session
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct SessionID {
-    pub begin_string: String, // TODO: str
+    pub begin_string: String,
     pub target_comp_id: String,
     pub target_sub_id: String,
     pub target_location_id: String,

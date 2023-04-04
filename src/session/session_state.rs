@@ -6,7 +6,7 @@ use crate::session::{
 use delegate::delegate;
 use std::any::Any;
 use subenum::subenum;
-use tokio::sync::mpsc::Receiver;
+use tokio::sync::mpsc::UnboundedReceiver;
 
 #[subenum(AfterPendingTimeout)]
 #[derive(Debug, Clone)]
@@ -82,7 +82,7 @@ pub struct StateMachine {
     pub state: SessionStateEnum,
     pub pending_stop: bool,
     pub stopped: bool,
-    pub notify_on_in_session_time: Option<Receiver<()>>,
+    pub notify_on_in_session_time: Option<UnboundedReceiver<()>>,
 }
 
 impl StateMachine {
