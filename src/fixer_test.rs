@@ -379,11 +379,22 @@ impl Application for MockAppExtended {
     }
 
     fn to_admin(&mut self, msg: &Message, session_id: &SessionID) {
-        self.mock_app
-            .expect_to_admin()
-            .once()
-            .return_const(())
-            .call(msg, session_id);
+        match session_id.qualifier.as_str() {
+            TEST_FIX_MSG_IN_RESEND_REQUEST_ALL_ADMIN_EXPECT_GAP_FILL => {
+                self.mock_app
+                    .expect_to_admin()
+                    .times(3)
+                    .return_const(())
+                    .call(msg, session_id);
+            }
+            _ => {
+                self.mock_app
+                    .expect_to_admin()
+                    .once()
+                    .return_const(())
+                    .call(msg, session_id);
+            }
+        }
 
         if let Some(decorate_to_admin) = self.decorate_to_admin {
             decorate_to_admin(msg);
@@ -448,6 +459,25 @@ impl Application for MockAppShared {
 
     fn from_app(&mut self, msg: &Message, session_id: &SessionID) -> MessageRejectErrorResult {
         self.try_write().unwrap().from_app(msg, session_id)
+    }
+}
+
+pub trait TestApplication {
+    fn never_on_logout(&mut self);
+    fn never_to_admin(&mut self);
+}
+
+impl TestApplication for MockAppShared {
+    fn never_on_logout(&mut self) {
+        self.try_write()
+            .unwrap()
+            .mock_app
+            .expect_on_logout()
+            .never();
+    }
+
+    fn never_to_admin(&mut self) {
+        self.try_write().unwrap().mock_app.expect_to_admin().never();
     }
 }
 
@@ -782,3 +812,5 @@ impl SessionSuiteRig {
 // and mock the result
 pub const TEST_QUEUE_FOR_SEND_APP_MESSAGE: &str = "test_queue_for_send_app_message";
 pub const TEST_SEND_APP_DO_NOT_SEND_MESSAGE: &str = "test_send_app_do_not_send_message";
+pub const TEST_FIX_MSG_IN_RESEND_REQUEST_ALL_ADMIN_EXPECT_GAP_FILL: &str =
+    "test_fix_msg_in_resend_request_all_admin_expect_gap_fill";

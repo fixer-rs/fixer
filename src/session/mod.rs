@@ -2084,7 +2084,7 @@ mod tests {
         fix_string::FIXString,
         fix_utc_timestamp::{FIXUTCTimestamp, TimestampPrecision},
         fixer_test::{
-            FieldEqual, MockStore, MockStoreExtended, SessionSuiteRig,
+            FieldEqual, MockStore, MockStoreExtended, SessionSuiteRig, TestApplication,
             TEST_QUEUE_FOR_SEND_APP_MESSAGE, TEST_SEND_APP_DO_NOT_SEND_MESSAGE,
         },
         internal::{
@@ -3033,13 +3033,11 @@ mod tests {
                 ),
             ));
 
-            if test.expect_on_logout {
-                s.ssr.mock_app.on_logout(&SessionID::default());
+            if !test.expect_on_logout {
+                s.ssr.mock_app.never_on_logout();
             }
-            if test.expect_send_logout {
-                s.ssr
-                    .mock_app
-                    .to_admin(&Message::default(), &SessionID::default());
+            if !test.expect_send_logout {
+                s.ssr.mock_app.never_to_admin();
             }
 
             s.ssr.session.sm_check_session_time(&mut now.into()).await;
@@ -3157,13 +3155,11 @@ mod tests {
                 ),
             ));
 
-            if test.expect_on_logout {
-                s.ssr.mock_app.on_logout(&SessionID::default());
+            if !test.expect_on_logout {
+                s.ssr.mock_app.never_on_logout();
             }
-            if test.expect_send_logout {
-                s.ssr
-                    .mock_app
-                    .to_admin(&Message::default(), &SessionID::default());
+            if !test.expect_send_logout {
+                s.ssr.mock_app.never_to_admin();
             }
 
             let today: DateTime<FixedOffset> = now.into();
@@ -3283,13 +3279,11 @@ mod tests {
                 ),
             ));
 
-            if test.expect_on_logout {
-                s.ssr.mock_app.on_logout(&SessionID::default());
+            if !test.expect_on_logout {
+                s.ssr.mock_app.never_on_logout();
             }
-            if test.expect_send_logout {
-                s.ssr
-                    .mock_app
-                    .to_admin(&Message::default(), &SessionID::default());
+            if !test.expect_send_logout {
+                s.ssr.mock_app.never_to_admin();
             }
 
             let msg = s.ssr.message_factory.new_order_single();
@@ -3373,17 +3367,12 @@ mod tests {
             s.ssr.incr_next_sender_msg_seq_num().await;
             s.ssr.incr_next_target_msg_seq_num().await;
 
-            let _ = s
-                .ssr
-                .mock_app
-                .to_app(&Message::new(), &SessionID::default());
             assert!(s
                 .ssr
                 .session
                 .queue_for_send(&s.ssr.message_factory.new_order_single())
                 .await
                 .is_ok());
-            s.ssr.mock_app.write().await.mock_app.checkpoint();
 
             let now = Utc::now();
             let one_hour_from_now = now + Duration::hours(1);
@@ -3402,13 +3391,11 @@ mod tests {
                 ),
             ));
 
-            if test.expect_on_logout {
-                s.ssr.mock_app.on_logout(&SessionID::default());
+            if !test.expect_on_logout {
+                s.ssr.mock_app.never_on_logout();
             }
-            if test.expect_send_logout {
-                s.ssr
-                    .mock_app
-                    .to_admin(&Message::default(), &SessionID::default());
+            if !test.expect_send_logout {
+                s.ssr.mock_app.never_to_admin();
             }
             s.ssr.session.sm_send_app_messages().await;
             s.ssr.mock_app.write().await.mock_app.checkpoint();
@@ -3503,18 +3490,15 @@ mod tests {
                     ),
                 ));
 
-                if test.expect_on_logout {
-                    s.ssr.mock_app.on_logout(&SessionID::default());
+                if !test.expect_on_logout {
+                    s.ssr.mock_app.never_on_logout();
                 }
                 if test.expect_send_logout {
-                    s.ssr
-                        .mock_app
-                        .to_admin(&Message::default(), &SessionID::default());
+                    s.ssr.mock_app.never_to_admin();
                 }
 
                 s.ssr.session.sm_timeout(*event).await;
 
-                s.ssr.mock_app.write().await.mock_app.checkpoint();
                 s.ssr.state(SessionStateEnum::new_not_session_time());
             }
         }
@@ -3538,9 +3522,6 @@ mod tests {
         s.ssr.incr_next_sender_msg_seq_num().await;
         s.ssr.session.iss.initiate_logon = true;
 
-        s.ssr
-            .mock_app
-            .to_admin(&Message::default(), &SessionID::default());
         s.ssr
             .session
             .on_admin(AdminEnum::Connect(admin_message))
@@ -3606,9 +3587,6 @@ mod tests {
         s.ssr.incr_next_sender_msg_seq_num().await;
         s.ssr.session.iss.initiate_logon = true;
 
-        s.ssr
-            .mock_app
-            .to_admin(&Message::default(), &SessionID::default());
         fn decorate_to_admin(msg: &Message) {
             msg.body.set_field(TAG_RESET_SEQ_NUM_FLAG, true);
         }
@@ -3617,8 +3595,6 @@ mod tests {
             .session
             .on_admin(AdminEnum::Connect(admin_message))
             .await;
-
-        s.ssr.mock_app.write().await.mock_app.checkpoint();
 
         assert!(s.ssr.session.iss.initiate_logon);
         assert!(s.ssr.session.sent_reset);
@@ -3679,15 +3655,10 @@ mod tests {
         s.ssr.session.sm.state = SessionStateEnum::new_latent_state();
 
         s.ssr
-            .mock_app
-            .to_admin(&Message::default(), &SessionID::default());
-
-        s.ssr
             .session
             .on_admin(AdminEnum::Connect(admin_message))
             .await;
 
-        s.ssr.mock_app.write().await.mock_app.checkpoint();
         assert!(s.ssr.session.iss.initiate_logon);
         s.ssr.state(SessionStateEnum::new_logon_state());
         s.ssr.last_to_admin_message_sent().await;
@@ -3733,9 +3704,6 @@ mod tests {
             if do_refresh {
                 let _ = s.ssr.mock_store.refresh().await;
             }
-            s.ssr
-                .mock_app
-                .to_admin(&Message::default(), &SessionID::default());
 
             s.ssr
                 .session
@@ -3855,10 +3823,6 @@ mod tests {
     #[tokio::test]
     async fn test_queue_for_send_app_message() {
         let mut s = SessionSendTestSuite::setup_test();
-        let _ = s
-            .ssr
-            .mock_app
-            .to_app(&Message::new(), &SessionID::default());
         assert!(s
             .ssr
             .session
@@ -3866,7 +3830,6 @@ mod tests {
             .await
             .is_ok());
 
-        s.ssr.mock_app.write().await.mock_app.checkpoint();
         s.ssr.no_message_sent().await;
         s.ssr
             .message_persisted(&s.ssr.mock_app.write().await.last_to_app.as_mut().unwrap())
@@ -3905,14 +3868,9 @@ mod tests {
             &queue_err.to_string()
         );
 
-        s.ssr.mock_app.write().await.mock_app.checkpoint();
         s.ssr.no_message_persisted(1).await;
         s.ssr.no_message_sent().await;
         s.ssr.next_sender_msg_seq_num(1).await;
-
-        s.ssr
-            .mock_app
-            .to_admin(&Message::default(), &SessionID::default());
 
         assert!(s
             .ssr
@@ -3921,7 +3879,6 @@ mod tests {
             .await
             .is_ok());
 
-        s.ssr.mock_app.write().await.mock_app.checkpoint();
         s.ssr.last_to_admin_message_sent().await;
         s.ssr
             .message_persisted(s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap())
@@ -3932,9 +3889,6 @@ mod tests {
     #[tokio::test]
     async fn test_queue_for_send_admin_message() {
         let mut s = SessionSendTestSuite::setup_test();
-        s.ssr
-            .mock_app
-            .to_admin(&Message::default(), &SessionID::default());
         assert!(s
             .ssr
             .session
@@ -3942,7 +3896,6 @@ mod tests {
             .await
             .is_ok());
 
-        s.ssr.mock_app.write().await.mock_app.checkpoint();
         s.ssr
             .message_persisted(s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap())
             .await;
@@ -3955,17 +3908,11 @@ mod tests {
         let mut s = SessionSendTestSuite::setup_test();
         assert!(s
             .ssr
-            .mock_app
-            .to_app(&Message::default(), &SessionID::default())
-            .is_ok());
-        assert!(s
-            .ssr
             .session
             .send(&s.ssr.message_factory.new_order_single())
             .await
             .is_ok());
 
-        s.ssr.mock_app.write().await.mock_app.checkpoint();
         s.ssr
             .message_persisted(s.ssr.mock_app.read().await.last_to_app.as_ref().unwrap())
             .await;
@@ -3991,7 +3938,6 @@ mod tests {
             &queue_err.to_string()
         );
 
-        s.ssr.mock_app.write().await.mock_app.checkpoint();
         s.ssr.next_sender_msg_seq_num(1).await;
         s.ssr.no_message_sent().await;
     }
@@ -3999,16 +3945,12 @@ mod tests {
     #[tokio::test]
     async fn test_send_admin_message() {
         let mut s = SessionSendTestSuite::setup_test();
-        s.ssr
-            .mock_app
-            .to_admin(&Message::default(), &SessionID::default());
         assert!(s
             .ssr
             .session
             .send(&s.ssr.message_factory.heartbeat())
             .await
             .is_ok());
-        s.ssr.mock_app.write().await.mock_app.checkpoint();
 
         s.ssr.last_to_admin_message_sent().await;
         s.ssr
@@ -4019,14 +3961,6 @@ mod tests {
     #[tokio::test]
     async fn test_send_flushes_queue() {
         let mut s = SessionSendTestSuite::setup_test();
-        assert!(s
-            .ssr
-            .mock_app
-            .to_app(&Message::default(), &SessionID::default())
-            .is_ok());
-        s.ssr
-            .mock_app
-            .to_admin(&Message::default(), &SessionID::default());
         assert!(s
             .ssr
             .session
@@ -4059,21 +3993,14 @@ mod tests {
             .unwrap()
             .clone();
 
-        s.ssr.mock_app.write().await.mock_app.checkpoint();
         s.ssr.no_message_sent().await;
 
-        assert!(s
-            .ssr
-            .mock_app
-            .to_app(&Message::default(), &SessionID::default())
-            .is_ok());
         assert!(s
             .ssr
             .session
             .send(&s.ssr.message_factory.new_order_single())
             .await
             .is_ok());
-        s.ssr.mock_app.write().await.mock_app.checkpoint();
         let order_2 = s
             .ssr
             .mock_app
@@ -4092,14 +4019,7 @@ mod tests {
     #[tokio::test]
     async fn test_send_not_logged_on() {
         let mut s = SessionSendTestSuite::setup_test();
-        assert!(s
-            .ssr
-            .mock_app
-            .to_app(&Message::default(), &SessionID::default())
-            .is_ok());
-        s.ssr
-            .mock_app
-            .to_admin(&Message::default(), &SessionID::default());
+
         assert!(s
             .ssr
             .session
@@ -4113,7 +4033,6 @@ mod tests {
             .await
             .is_ok());
 
-        s.ssr.mock_app.write().await.mock_app.checkpoint();
         s.ssr.no_message_sent().await;
 
         let tests = vec![
@@ -4123,11 +4042,6 @@ mod tests {
         ];
 
         for test in tests {
-            assert!(s
-                .ssr
-                .mock_app
-                .to_app(&Message::default(), &SessionID::default())
-                .is_ok());
             s.ssr.session.sm.state = test;
             assert!(s
                 .ssr
@@ -4135,7 +4049,6 @@ mod tests {
                 .send(&s.ssr.message_factory.new_order_single())
                 .await
                 .is_ok());
-            s.ssr.mock_app.write().await.mock_app.checkpoint();
             s.ssr.no_message_sent().await;
         }
     }
@@ -4155,16 +4068,10 @@ mod tests {
 
         assert!(s
             .ssr
-            .mock_app
-            .to_app(&Message::default(), &SessionID::default())
-            .is_ok());
-        assert!(s
-            .ssr
             .session
             .send(&s.ssr.message_factory.new_order_single())
             .await
             .is_ok());
-        s.ssr.mock_app.write().await.mock_app.checkpoint();
         s.ssr.last_to_app_message_sent().await;
         s.field_equals(
             TAG_LAST_MSG_SEQ_NUM_PROCESSED,
@@ -4189,16 +4096,10 @@ mod tests {
 
         assert!(s
             .ssr
-            .mock_app
-            .to_app(&Message::default(), &SessionID::default())
-            .is_ok());
-        assert!(s
-            .ssr
             .session
             .send(&s.ssr.message_factory.new_order_single())
             .await
             .is_ok());
-        s.ssr.mock_app.write().await.mock_app.checkpoint();
         s.ssr.last_to_app_message_sent().await;
         s.ssr.no_message_persisted(1).await;
         s.ssr.next_sender_msg_seq_num(2).await;
@@ -4207,17 +4108,12 @@ mod tests {
     #[tokio::test]
     async fn test_drop_and_send_admin_message() {
         let mut s = SessionSendTestSuite::setup_test();
-        s.ssr
-            .mock_app
-            .to_admin(&Message::default(), &SessionID::default());
         assert!(s
             .ssr
             .session
             .drop_and_send(&s.ssr.message_factory.heartbeat())
             .await
             .is_ok());
-
-        s.ssr.mock_app.write().await.mock_app.checkpoint();
 
         s.ssr
             .message_persisted(&s.ssr.mock_app.write().await.last_to_admin.as_mut().unwrap())
@@ -4228,11 +4124,6 @@ mod tests {
     #[tokio::test]
     async fn test_drop_and_send_drops_queue() {
         let mut s = SessionSendTestSuite::setup_test();
-        assert!(s
-            .ssr
-            .mock_app
-            .to_app(&Message::default(), &SessionID::default())
-            .is_ok());
         s.ssr
             .mock_app
             .to_admin(&Message::default(), &SessionID::default());
@@ -4248,20 +4139,15 @@ mod tests {
             .queue_for_send(&s.ssr.message_factory.heartbeat())
             .await
             .is_ok());
-        s.ssr.mock_app.write().await.mock_app.checkpoint();
 
         s.ssr.no_message_sent().await;
 
-        s.ssr
-            .mock_app
-            .to_admin(&Message::default(), &SessionID::default());
         assert!(s
             .ssr
             .session
             .drop_and_send(&s.ssr.message_factory.logon())
             .await
             .is_ok());
-        s.ssr.mock_app.write().await.mock_app.checkpoint();
 
         s.message_type(
             String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
@@ -4291,14 +4177,6 @@ mod tests {
         let mut s = SessionSendTestSuite::setup_test();
         assert!(s
             .ssr
-            .mock_app
-            .to_app(&Message::default(), &SessionID::default())
-            .is_ok());
-        s.ssr
-            .mock_app
-            .to_admin(&Message::default(), &SessionID::default());
-        assert!(s
-            .ssr
             .session
             .queue_for_send(&s.ssr.message_factory.new_order_single())
             .await
@@ -4309,12 +4187,8 @@ mod tests {
             .queue_for_send(&s.ssr.message_factory.heartbeat())
             .await
             .is_ok());
-        s.ssr.mock_app.write().await.mock_app.checkpoint();
         s.ssr.no_message_sent().await;
 
-        s.ssr
-            .mock_app
-            .to_admin(&Message::default(), &SessionID::default());
         assert!(s.ssr.mock_store.reset().await.is_ok());
         assert!(s
             .ssr
