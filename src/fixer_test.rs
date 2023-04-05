@@ -373,6 +373,7 @@ impl Application for MockAppExtended {
             .mock_app
             .expect_from_admin()
             .once()
+            .returning(|_, _| -> MessageRejectErrorResult { Ok(()) })
             .call(msg, session_id);
         result
     }
@@ -452,7 +453,7 @@ impl Application for MockAppShared {
 
 #[derive(Default)]
 pub struct MessageFactory {
-    seq_num: isize,
+    pub seq_num: isize,
 }
 
 impl MessageFactory {
@@ -672,10 +673,9 @@ impl SessionSuiteRig {
     }
 
     pub async fn last_to_admin_message_sent(&mut self) {
-        let mock_app_clone = self.mock_app.clone();
-        let last_to_admin = &mock_app_clone.as_ref().read().await.last_to_admin;
-        assert!(last_to_admin.is_some(), "No ToAdmin received");
-        self.message_sent_equals(&last_to_admin.as_ref().unwrap())
+        let mock_app_clone = self.mock_app.as_ref().read().await.last_to_admin.clone();
+        assert!(mock_app_clone.is_some(), "No ToAdmin received");
+        self.message_sent_equals(&mock_app_clone.as_ref().unwrap())
             .await;
     }
 

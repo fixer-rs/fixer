@@ -1166,7 +1166,7 @@ impl Session {
     async fn sm_timeout(&mut self, event: Event) {
         self.sm_check_session_time(&mut gen_now()).await;
 
-        let state = self.sm.state.clone();
+        let state = self.sm.state.clone(); // TODO: optimize this
         let next_state = match state {
             SessionStateEnum::InSession(is) => self.in_session_timeout(event, is).await,
             SessionStateEnum::LatentState(ls) => SessionStateEnum::LatentState(ls),
@@ -1847,7 +1847,7 @@ impl Session {
             _ => {
                 let verify_result = self.verify(msg).await;
                 if let Err(err) = verify_result {
-                    return self.handle_state_error(&err.to_string());
+                    return self.in_session_process_reject(msg, err, is).await;
                 }
             }
         }
