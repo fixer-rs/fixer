@@ -2085,7 +2085,7 @@ mod tests {
         fix_utc_timestamp::{FIXUTCTimestamp, TimestampPrecision},
         fixer_test::{
             FieldEqual, MockStore, MockStoreExtended, SessionSuiteRig, TestApplication,
-            TEST_QUEUE_FOR_SEND_APP_MESSAGE, TEST_SEND_APP_DO_NOT_SEND_MESSAGE,
+            TO_APP_RETURN_ERROR,
         },
         internal::{
             event::{LOGON_TIMEOUT, LOGOUT_TIMEOUT, NEED_HEARTBEAT, PEER_TIMEOUT},
@@ -3853,7 +3853,7 @@ mod tests {
     #[tokio::test]
     async fn test_queue_for_send_do_not_send_app_message() {
         let mut s = SessionSendTestSuite::setup_test();
-        s.ssr.session.session_id.qualifier = TEST_QUEUE_FOR_SEND_APP_MESSAGE.to_string();
+        s.ssr.session.session_id.qualifier = TO_APP_RETURN_ERROR.to_string();
 
         let queue_result = s
             .ssr
@@ -3924,7 +3924,7 @@ mod tests {
     async fn test_send_app_do_not_send_message() {
         let mut s = SessionSendTestSuite::setup_test();
 
-        s.ssr.session.session_id.qualifier = TEST_SEND_APP_DO_NOT_SEND_MESSAGE.to_string();
+        s.ssr.session.session_id.qualifier = TO_APP_RETURN_ERROR.to_string();
         let queue_result = s
             .ssr
             .session

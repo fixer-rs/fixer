@@ -27,7 +27,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use mockall::predicate::*;
 use mockall::*;
-use simple_error::SimpleResult;
+use simple_error::{SimpleError, SimpleResult};
 use std::sync::Arc;
 use tokio::sync::{
     mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
@@ -380,12 +380,8 @@ impl Application for MockAppExtended {
 
     fn to_admin(&mut self, msg: &Message, session_id: &SessionID) {
         match session_id.qualifier.as_str() {
-            TEST_FIX_MSG_IN_RESEND_REQUEST_ALL_ADMIN_EXPECT_GAP_FILL => {
-                self.mock_app
-                    .expect_to_admin()
-                    .times(3)
-                    .return_const(())
-                    .call(msg, session_id);
+            OVERRIDE_TIMES | OVERRIDE_TIMES_TO_APP_RETURN_ERROR => {
+                self.mock_app.to_admin(msg, session_id);
             }
             _ => {
                 self.mock_app
@@ -406,12 +402,15 @@ impl Application for MockAppExtended {
     fn to_app(&mut self, msg: &Message, session_id: &SessionID) -> SimpleResult<()> {
         self.last_to_app = Some(msg.clone());
         match session_id.qualifier.as_str() {
-            TEST_QUEUE_FOR_SEND_APP_MESSAGE | TEST_SEND_APP_DO_NOT_SEND_MESSAGE => self
+            TO_APP_RETURN_ERROR => self
                 .mock_app
                 .expect_to_app()
                 .once()
                 .returning(|_, _| -> SimpleResult<()> { Err(ERR_DO_NOT_SEND.clone()) })
                 .call(msg, session_id),
+            OVERRIDE_TIMES | OVERRIDE_TIMES_TO_APP_RETURN_ERROR => {
+                self.mock_app.to_app(msg, session_id)
+            }
             _ => self
                 .mock_app
                 .expect_to_app()
@@ -465,6 +464,9 @@ impl Application for MockAppShared {
 pub trait TestApplication {
     fn never_on_logout(&mut self);
     fn never_to_admin(&mut self);
+    fn set_to_admin(&mut self, times: usize);
+    fn set_to_app(&mut self, times: usize);
+    fn set_to_app_return_error(&mut self, times: usize, err: &SimpleError);
 }
 
 impl TestApplication for MockAppShared {
@@ -478,6 +480,33 @@ impl TestApplication for MockAppShared {
 
     fn never_to_admin(&mut self) {
         self.try_write().unwrap().mock_app.expect_to_admin().never();
+    }
+
+    fn set_to_admin(&mut self, times: usize) {
+        self.try_write()
+            .unwrap()
+            .mock_app
+            .expect_to_admin()
+            .times(times)
+            .return_const(());
+    }
+
+    fn set_to_app(&mut self, times: usize) {
+        self.try_write()
+            .unwrap()
+            .mock_app
+            .expect_to_app()
+            .times(times)
+            .returning(|_, _| -> SimpleResult<()> { Ok(()) });
+    }
+    fn set_to_app_return_error(&mut self, times: usize, err: &SimpleError) {
+        let new_err = err.clone();
+        self.try_write()
+            .unwrap()
+            .mock_app
+            .expect_to_app()
+            .times(times)
+            .returning(move |_, _| -> SimpleResult<()> { Err(new_err.clone()) });
     }
 }
 
@@ -810,7 +839,6 @@ impl SessionSuiteRig {
 // set these strs in SessionID.qualifier
 // do matching in the MockAppExtended
 // and mock the result
-pub const TEST_QUEUE_FOR_SEND_APP_MESSAGE: &str = "test_queue_for_send_app_message";
-pub const TEST_SEND_APP_DO_NOT_SEND_MESSAGE: &str = "test_send_app_do_not_send_message";
-pub const TEST_FIX_MSG_IN_RESEND_REQUEST_ALL_ADMIN_EXPECT_GAP_FILL: &str =
-    "test_fix_msg_in_resend_request_all_admin_expect_gap_fill";
+pub const TO_APP_RETURN_ERROR: &str = "to_app_return_error";
+pub const OVERRIDE_TIMES: &str = "override_times";
+pub const OVERRIDE_TIMES_TO_APP_RETURN_ERROR: &str = "override_times_to_app_return_error";
