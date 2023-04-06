@@ -28,6 +28,7 @@ mod tests {
     use crate::{
         errors::ERR_DO_NOT_SEND,
         field_map::FieldMap,
+        fix_boolean::FIXBoolean,
         fix_utc_timestamp::FIXUTCTimestamp,
         fixer_test::{
             FieldEqual, SessionSuiteRig, TestApplication, OVERRIDE_TIMES,
@@ -828,7 +829,7 @@ mod tests {
         s.ssr.incr_next_target_msg_seq_num().await;
 
         let mut nos = s.ssr.message_factory.new_order_single();
-        nos.header.set_field(TAG_POSS_DUP_FLAG, true);
+        nos.header.set_field(TAG_POSS_DUP_FLAG, true as FIXBoolean);
 
         s.ssr.session.sm_fix_msg_in(&mut nos).await;
 
@@ -874,7 +875,7 @@ mod tests {
         s.ssr.session.sm_fix_msg_in(&mut nos).await;
 
         s.ssr.no_message_sent().await;
-        // s.ssr.state(SessionStateEnum::new_in_session());
-        // s.ssr.next_target_msg_seq_num(2).await;
+        s.ssr.state(SessionStateEnum::new_in_session());
+        s.ssr.next_target_msg_seq_num(2).await;
     }
 }

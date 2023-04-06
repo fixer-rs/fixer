@@ -16,7 +16,7 @@ pub const UTC_TIMESTAMP_MICROS_FORMAT: &str = "%Y%m%d-%H:%M:%S%.6f";
 pub const UTC_TIMESTAMP_NANOS_FORMAT: &str = "%Y%m%d-%H:%M:%S%.9f";
 
 // FIXUTCTimestamp is a FIX UTC Timestamp value, implements FieldValue
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct FIXUTCTimestamp {
     pub time: DateTime<Utc>,
     pub precision: TimestampPrecision,

@@ -324,7 +324,9 @@ impl Session {
         );
 
         if set_reset_seq_num {
-            logon.body.set_field(TAG_RESET_SEQ_NUM_FLAG, true);
+            logon
+                .body
+                .set_field(TAG_RESET_SEQ_NUM_FLAG, true as FIXBoolean);
         }
 
         if self.iss.default_appl_ver_id.len() > 0 {
@@ -373,7 +375,7 @@ impl Session {
     }
 
     async fn resend(&mut self, msg: &Message) -> bool {
-        msg.header.set_field(TAG_POSS_DUP_FLAG, true);
+        msg.header.set_field(TAG_POSS_DUP_FLAG, true as FIXBoolean);
 
         let mut orig_sending_time = FIXString::new();
         let get_field_result = msg
@@ -1678,6 +1680,7 @@ impl Session {
                 {
                     return self.handle_state_error(&err.to_string());
                 }
+                return SessionStateEnum::InSession(is);
             }
         }
 
@@ -1695,6 +1698,7 @@ impl Session {
             {
                 return self.handle_state_error(&err.to_string());
             }
+            return SessionStateEnum::InSession(is);
         }
 
         let mut orig_sending_time = FIXUTCTimestamp::default();
@@ -1741,9 +1745,13 @@ impl Session {
         sequence_reset
             .header
             .set_field(TAG_MSG_SEQ_NUM, begin_seq_no);
-        sequence_reset.header.set_field(TAG_POSS_DUP_FLAG, true);
+        sequence_reset
+            .header
+            .set_field(TAG_POSS_DUP_FLAG, true as FIXBoolean);
         sequence_reset.body.set_field(TAG_NEW_SEQ_NO, end_seq_no);
-        sequence_reset.body.set_field(TAG_GAP_FILL_FLAG, true);
+        sequence_reset
+            .body
+            .set_field(TAG_GAP_FILL_FLAG, true as FIXBoolean);
 
         let mut orig_sending_time = FIXString::new();
         if sequence_reset
@@ -2081,6 +2089,7 @@ mod tests {
             REJECT_REASON_SENDING_TIME_ACCURACY_PROBLEM,
         },
         field_map::FieldMap,
+        fix_boolean::FIXBoolean,
         fix_string::FIXString,
         fix_utc_timestamp::{FIXUTCTimestamp, TimestampPrecision},
         fixer_test::{
@@ -3588,7 +3597,8 @@ mod tests {
         s.ssr.session.iss.initiate_logon = true;
 
         fn decorate_to_admin(msg: &Message) {
-            msg.body.set_field(TAG_RESET_SEQ_NUM_FLAG, true);
+            msg.body
+                .set_field(TAG_RESET_SEQ_NUM_FLAG, true as FIXBoolean);
         }
         s.ssr.mock_app.write().await.decorate_to_admin = Some(decorate_to_admin);
         s.ssr
