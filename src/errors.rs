@@ -61,7 +61,7 @@ impl<'a, T: 'a + Error + Send + Sync> IntoError<dyn Error + Send + Sync + 'a> fo
 pub type MessageRejectErrorResult = Result<(), MessageRejectErrorEnum>;
 
 #[enum_dispatch]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum MessageRejectErrorEnum {
     MessageRejectError(MessageRejectError),
     RejectLogon(RejectLogon),
@@ -87,7 +87,7 @@ impl Display for MessageRejectErrorEnum {
 impl Error for MessageRejectErrorEnum {}
 
 // RejectLogon indicates the application is rejecting permission to logon. Implements MessageRejectError
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RejectLogon {
     pub text: String,
 }
@@ -122,7 +122,7 @@ impl MessageRejectErrorTrait for RejectLogon {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct MessageRejectError {
     pub reject_reason: isize,
     pub text: String,
@@ -370,7 +370,7 @@ pub fn other_error() -> MessageRejectErrorEnum {
 }
 
 // IncorrectBeginString is a message reject specific to incorrect begin strings.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct IncorrectBeginString {
     pub message_reject_error: MessageRejectError,
 }
@@ -395,7 +395,7 @@ impl Display for IncorrectBeginString {
 impl Error for IncorrectBeginString {}
 
 // TargetTooHigh is a MessageReject where the sequence number is larger than expected.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct TargetTooHigh {
     pub message_reject_error: MessageRejectError,
     pub received_target: isize,
@@ -426,7 +426,7 @@ impl Display for TargetTooHigh {
 impl Error for TargetTooHigh {}
 
 // TargetTooLow is a MessageReject where the sequence number is less than expected.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct TargetTooLow {
     pub message_reject_error: MessageRejectError,
     pub received_target: isize,

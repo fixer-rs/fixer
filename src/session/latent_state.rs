@@ -30,32 +30,41 @@ impl LatentState {
 
 #[cfg(test)]
 mod tests {
-    // type LatentStateTestSuite struct {
-    //     SessionSuiteRig
-    // }
+    use crate::{fixer_test::SessionSuiteRig, session::session_state::SessionStateEnum};
 
-    // func TestLatentStateTestSuite(t *testing.T) {
-    //     suite.Run(t, new(LatentStateTestSuite))
-    // }
+    struct SessionSuite {
+        ssr: SessionSuiteRig,
+    }
 
-    // func (s *LatentStateTestSuite) SetupTest() {
-    //     s.Init()
-    //     s.session.State = latentState{}
-    // }
+    impl SessionSuite {
+        async fn setup_test() -> Self {
+            let mut s = SessionSuite {
+                ssr: SessionSuiteRig::init(),
+            };
+            s.ssr.session.sm.state = SessionStateEnum::new_latent_state();
+            s
+        }
+    }
 
-    // func (s *LatentStateTestSuite) TestPreliminary() {
-    //     s.False(s.session.IsLoggedOn())
-    //     s.False(s.session.IsConnected())
-    //     s.True(s.session.IsSessionTime())
-    // }
+    #[tokio::test]
+    async fn test_preliminary() {
+        let s = SessionSuite::setup_test().await;
+        assert!(!s.ssr.session.sm.is_logged_on());
+        assert!(!s.ssr.session.sm.is_connected());
+        assert!(s.ssr.session.sm.is_session_time());
+    }
 
-    // func (s *LatentStateTestSuite) TestDisconnected() {
-    //     s.session.Disconnected(s.session)
-    //     s.State(latentState{})
-    // }
+    #[tokio::test]
+    async fn test_disconnected() {
+        let mut s = SessionSuite::setup_test().await;
+        s.ssr.session.sm_disconnected().await;
+        s.ssr.state(SessionStateEnum::new_latent_state());
+    }
 
-    // func (s *LatentStateTestSuite) TestStop() {
-    //     s.session.Stop(s.session)
-    //     s.Stopped()
-    // }
+    #[tokio::test]
+    async fn test_stop() {
+        let mut s = SessionSuite::setup_test().await;
+        s.ssr.session.sm_stop().await;
+        s.ssr.stopped();
+    }
 }

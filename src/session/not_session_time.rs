@@ -27,32 +27,41 @@ impl NotSessionTime {
 
 #[cfg(test)]
 mod tests {
-    // type NotSessionTimeTestSuite struct {
-    // 	SessionSuiteRig
-    // }
+    use crate::{fixer_test::SessionSuiteRig, session::session_state::SessionStateEnum};
 
-    // func TestNotSessionTime(t *testing.T) {
-    // 	suite.Run(t, new(NotSessionTimeTestSuite))
-    // }
+    struct SessionSuite {
+        ssr: SessionSuiteRig,
+    }
 
-    // func (s *NotSessionTimeTestSuite) SetupTest() {
-    // 	s.Init()
-    // 	s.session.State = notSessionTime{}
-    // }
+    impl SessionSuite {
+        async fn setup_test() -> Self {
+            let mut s = SessionSuite {
+                ssr: SessionSuiteRig::init(),
+            };
+            s.ssr.session.sm.state = SessionStateEnum::new_not_session_time();
+            s
+        }
+    }
 
-    // func (s *NotSessionTimeTestSuite) TestPreliminary() {
-    // 	s.False(s.session.IsLoggedOn())
-    // 	s.False(s.session.IsConnected())
-    // 	s.False(s.session.IsSessionTime())
-    // }
+    #[tokio::test]
+    async fn test_preliminary() {
+        let s = SessionSuite::setup_test().await;
+        assert!(!s.ssr.session.sm.is_logged_on());
+        assert!(!s.ssr.session.sm.is_connected());
+        assert!(!s.ssr.session.sm.is_session_time());
+    }
 
-    // func (s *NotSessionTimeTestSuite) TestDisconnected() {
-    // 	s.session.Disconnected(s.session)
-    // 	s.State(notSessionTime{})
-    // }
+    #[tokio::test]
+    async fn test_disconnected() {
+        let mut s = SessionSuite::setup_test().await;
+        s.ssr.session.sm_disconnected().await;
+        s.ssr.state(SessionStateEnum::new_not_session_time());
+    }
 
-    // func (s *NotSessionTimeTestSuite) TestStop() {
-    // 	s.session.Stop(s.session)
-    // 	s.Stopped()
-    // }
+    #[tokio::test]
+    async fn test_stop() {
+        let mut s = SessionSuite::setup_test().await;
+        s.ssr.session.sm_stop().await;
+        s.ssr.stopped();
+    }
 }

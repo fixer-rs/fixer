@@ -22,82 +22,110 @@ impl PendingTimeout {
 
 #[cfg(test)]
 mod tests {
-    // type PendingTimeoutTestSuite struct {
-    // 	SessionSuiteRig
-    // }
+    use crate::{
+        fixer_test::SessionSuiteRig,
+        internal::event::{LOGON_TIMEOUT, LOGOUT_TIMEOUT, NEED_HEARTBEAT, PEER_TIMEOUT},
+        session::{
+            in_session::InSession,
+            pending_timeout::PendingTimeout,
+            resend_state::ResendState,
+            session_state::{AfterPendingTimeout, SessionStateEnum},
+        },
+    };
 
-    // func TestPendingTimeoutTestSuite(t *testing.T) {
-    // 	suite.Run(t, new(PendingTimeoutTestSuite))
-    // }
+    struct SessionSuite {
+        ssr: SessionSuiteRig,
+    }
 
-    // func (s *PendingTimeoutTestSuite) SetupTest() {
-    // 	s.Init()
-    // }
+    impl SessionSuite {
+        async fn setup_test() -> Self {
+            SessionSuite {
+                ssr: SessionSuiteRig::init(),
+            }
+        }
+    }
 
-    // func (s *PendingTimeoutTestSuite) TestIsConnectedIsLoggedOn() {
-    // 	tests := []pendingTimeout{
-    // 		{inSession{}},
-    // 		{resendState{}},
-    // 	}
+    #[tokio::test]
+    async fn test_is_connected_is_logged_on() {
+        let tests = vec![
+            SessionStateEnum::PendingTimeout(PendingTimeout {
+                session_state: AfterPendingTimeout::InSession(InSession::default()),
+            }),
+            SessionStateEnum::PendingTimeout(PendingTimeout {
+                session_state: AfterPendingTimeout::ResendState(ResendState::default()),
+            }),
+        ];
 
-    // 	for _, state := range tests {
-    // 		s.session.State = state
+        for test in tests {
+            let mut s = SessionSuite::setup_test().await;
+            s.ssr.session.sm.state = test;
+            assert!(s.ssr.session.sm.is_logged_on());
+            assert!(s.ssr.session.sm.is_connected());
+        }
+    }
 
-    // 		s.True(s.session.IsConnected())
-    // 		s.True(s.session.IsLoggedOn())
-    // 	}
-    // }
+    #[tokio::test]
+    async fn test_session_timeout() {
+        let tests = vec![
+            SessionStateEnum::PendingTimeout(PendingTimeout {
+                session_state: AfterPendingTimeout::InSession(InSession::default()),
+            }),
+            SessionStateEnum::PendingTimeout(PendingTimeout {
+                session_state: AfterPendingTimeout::ResendState(ResendState::default()),
+            }),
+        ];
 
-    // func (s *PendingTimeoutTestSuite) TestSessionTimeout() {
-    // 	tests := []pendingTimeout{
-    // 		{inSession{}},
-    // 		{resendState{}},
-    // 	}
+        for test in tests {
+            let mut s = SessionSuite::setup_test().await;
+            s.ssr.session.sm.state = test;
 
-    // 	for _, state := range tests {
-    // 		s.session.State = state
+            s.ssr.session.sm_timeout(PEER_TIMEOUT).await;
+            s.ssr.state(SessionStateEnum::new_latent_state());
+        }
+    }
 
-    // 		s.MockApp.On("OnLogout").Return(nil)
-    // 		s.session.Timeout(s.session, internal.PeerTimeout)
+    #[tokio::test]
+    async fn test_timeout_unchanged_state() {
+        let tests = vec![
+            SessionStateEnum::PendingTimeout(PendingTimeout {
+                session_state: AfterPendingTimeout::InSession(InSession::default()),
+            }),
+            SessionStateEnum::PendingTimeout(PendingTimeout {
+                session_state: AfterPendingTimeout::ResendState(ResendState::default()),
+            }),
+        ];
 
-    // 		s.MockApp.AssertExpectations(s.T())
-    // 		s.State(latentState{})
-    // 	}
-    // }
+        let test_events = vec![NEED_HEARTBEAT, LOGON_TIMEOUT, LOGOUT_TIMEOUT];
 
-    // func (s *PendingTimeoutTestSuite) TestTimeoutUnchangedState() {
-    // 	tests := []pendingTimeout{
-    // 		{inSession{}},
-    // 		{resendState{}},
-    // 	}
+        for test in tests {
+            let mut s = SessionSuite::setup_test().await;
+            s.ssr.session.sm.state = test.clone();
 
-    // 	testEvents := []internal.Event{internal.NeedHeartbeat, internal.LogonTimeout, internal.LogoutTimeout}
+            for event in test_events.iter() {
+                s.ssr.session.sm_timeout(*event).await;
+                s.ssr.state(test.clone());
+            }
+        }
+    }
 
-    // 	for _, state := range tests {
-    // 		s.session.State = state
+    #[tokio::test]
+    async fn test_disconnected() {
+        let tests = vec![
+            SessionStateEnum::PendingTimeout(PendingTimeout {
+                session_state: AfterPendingTimeout::InSession(InSession::default()),
+            }),
+            SessionStateEnum::PendingTimeout(PendingTimeout {
+                session_state: AfterPendingTimeout::ResendState(ResendState::default()),
+            }),
+        ];
 
-    // 		for _, event := range testEvents {
-    // 			s.session.Timeout(s.session, event)
-    // 			s.State(state)
-    // 		}
-    // 	}
-    // }
+        for test in tests {
+            let mut s = SessionSuite::setup_test().await;
+            s.ssr.session.sm.state = test;
 
-    // func (s *PendingTimeoutTestSuite) TestDisconnected() {
-    // 	tests := []pendingTimeout{
-    // 		{inSession{}},
-    // 		{resendState{}},
-    // 	}
+            s.ssr.disconnected().await;
 
-    // 	for _, state := range tests {
-    // 		s.SetupTest()
-    // 		s.session.State = state
-
-    // 		s.MockApp.On("OnLogout").Return(nil)
-    // 		s.session.Disconnected(s.session)
-
-    // 		s.MockApp.AssertExpectations(s.T())
-    // 		s.State(latentState{})
-    // 	}
-    // }
+            s.ssr.state(SessionStateEnum::new_latent_state());
+        }
+    }
 }

@@ -1,5 +1,5 @@
 use crate::application::Application;
-use crate::errors::{MessageRejectErrorResult, ERR_DO_NOT_SEND};
+use crate::errors::{MessageRejectErrorEnum, MessageRejectErrorResult, ERR_DO_NOT_SEND};
 use crate::field_map::FieldMap;
 use crate::fix_boolean::FIXBoolean;
 use crate::fix_string::FIXString;
@@ -369,13 +369,15 @@ impl Application for MockAppExtended {
     }
 
     fn from_admin(&mut self, msg: &Message, session_id: &SessionID) -> MessageRejectErrorResult {
-        let result = self
-            .mock_app
-            .expect_from_admin()
-            .once()
-            .returning(|_, _| -> MessageRejectErrorResult { Ok(()) })
-            .call(msg, session_id);
-        result
+        match session_id.qualifier.as_str() {
+            OVERRIDE_TIMES_FROM_ADMIN_RETURN_ERROR => self.mock_app.from_admin(msg, session_id),
+            _ => self
+                .mock_app
+                .expect_from_admin()
+                .once()
+                .returning(|_, _| -> MessageRejectErrorResult { Ok(()) })
+                .call(msg, session_id),
+        }
     }
 
     fn to_admin(&mut self, msg: &Message, session_id: &SessionID) {
@@ -467,6 +469,7 @@ pub trait TestApplication {
     fn set_to_admin(&mut self, times: usize);
     fn set_to_app(&mut self, times: usize);
     fn set_to_app_return_error(&mut self, times: usize, err: &SimpleError);
+    fn set_from_admin_return_error(&mut self, times: usize, err: MessageRejectErrorEnum);
 }
 
 impl TestApplication for MockAppShared {
@@ -499,6 +502,7 @@ impl TestApplication for MockAppShared {
             .times(times)
             .returning(|_, _| -> SimpleResult<()> { Ok(()) });
     }
+
     fn set_to_app_return_error(&mut self, times: usize, err: &SimpleError) {
         let new_err = err.clone();
         self.try_write()
@@ -507,6 +511,15 @@ impl TestApplication for MockAppShared {
             .expect_to_app()
             .times(times)
             .returning(move |_, _| -> SimpleResult<()> { Err(new_err.clone()) });
+    }
+
+    fn set_from_admin_return_error(&mut self, times: usize, err: MessageRejectErrorEnum) {
+        self.try_write()
+            .unwrap()
+            .mock_app
+            .expect_from_admin()
+            .times(times)
+            .returning(move |_, _| -> MessageRejectErrorResult { Err(err.clone()) });
     }
 }
 
@@ -840,5 +853,7 @@ impl SessionSuiteRig {
 // do matching in the MockAppExtended
 // and mock the result
 pub const TO_APP_RETURN_ERROR: &str = "to_app_return_error";
+
 pub const OVERRIDE_TIMES: &str = "override_times";
 pub const OVERRIDE_TIMES_TO_APP_RETURN_ERROR: &str = "override_times_to_app_return_error";
+pub const OVERRIDE_TIMES_FROM_ADMIN_RETURN_ERROR: &str = "override_times_from_admin_return_error";
