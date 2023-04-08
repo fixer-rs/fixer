@@ -1,11 +1,14 @@
 use crate::tag::Tag;
+use delegate::delegate;
+use enum_dispatch::enum_dispatch;
 use simple_error::SimpleError;
+use std::any::Any;
 use std::error::Error;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
 lazy_static! {
     // ERR_DO_NOT_SEND is a convenience error to indicate a DoNotSend in ToApp
-    static ref ERR_DO_NOT_SEND: SimpleError = simple_error!("Do Not Send");
+    pub static ref ERR_DO_NOT_SEND: SimpleError = simple_error!("Do Not Send");
 }
 
 pub const REJECT_REASON_INVALID_TAG_NUMBER: isize = 0;
@@ -26,7 +29,10 @@ pub const REJECT_REASON_INCORRECT_NUM_IN_GROUP_COUNT_FOR_REPEATING_GROUP: isize 
 pub const REJECT_REASON_OTHER: isize = 99;
 
 // MessageRejectError is a type of error that can correlate to a message reject.
-pub trait MessageRejectErrorTrait: Error + IntoError<dyn Error> {
+#[enum_dispatch(MessageRejectErrorEnum)]
+pub trait MessageRejectErrorTrait:
+    Error + IntoError<dyn Error + Send + Sync> + Any + Send + Sync
+{
     // reject_reason, tag 373 for session rejects, tag 380 for business rejects.
     fn reject_reason(&self) -> isize;
     fn business_reject_ref_id(&self) -> &str;
@@ -37,25 +43,51 @@ pub trait MessageRejectErrorTrait: Error + IntoError<dyn Error> {
 pub trait IntoError<Super: ?Sized> {
     fn as_error(&self) -> &Super;
     fn as_error_mut(&mut self) -> &mut Super;
-    fn into_error(self: Box<Self>) -> Box<Super>;
+    fn into_error(self: Self) -> Box<Super>;
 }
 
-impl<'a, T: 'a + Error> IntoError<dyn Error + 'a> for T {
-    fn as_error(&self) -> &(dyn Error + 'a) {
+impl<'a, T: 'a + Error + Send + Sync> IntoError<dyn Error + Send + Sync + 'a> for T {
+    fn as_error(&self) -> &(dyn Error + Send + Sync + 'a) {
         self
     }
-    fn as_error_mut(&mut self) -> &mut (dyn Error + 'a) {
+    fn as_error_mut(&mut self) -> &mut (dyn Error + Send + Sync + 'a) {
         self
     }
-    fn into_error(self: Box<Self>) -> Box<dyn Error + 'a> {
-        self
+    fn into_error(self: Self) -> Box<dyn Error + Send + Sync + 'a> {
+        Box::new(self)
     }
 }
 
-pub type MessageRejectErrorResult = Result<(), Box<dyn MessageRejectErrorTrait>>;
+pub type MessageRejectErrorResult = Result<(), MessageRejectErrorEnum>;
+
+#[enum_dispatch]
+#[derive(Debug, Clone)]
+pub enum MessageRejectErrorEnum {
+    MessageRejectError(MessageRejectError),
+    RejectLogon(RejectLogon),
+    IncorrectBeginString(IncorrectBeginString),
+    TargetTooLow(TargetTooLow),
+    TargetTooHigh(TargetTooHigh),
+}
+
+impl Display for MessageRejectErrorEnum {
+    delegate! {
+        to match self {
+            Self::MessageRejectError(err) => err,
+            Self::RejectLogon(err) => err,
+            Self::IncorrectBeginString(err) => err,
+            Self::TargetTooLow(err) => err,
+            Self::TargetTooHigh(err) => err,
+        } {
+            fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult;
+        }
+    }
+}
+
+impl Error for MessageRejectErrorEnum {}
 
 // RejectLogon indicates the application is rejecting permission to logon. Implements MessageRejectError
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RejectLogon {
     pub text: String,
 }
@@ -90,9 +122,7 @@ impl MessageRejectErrorTrait for RejectLogon {
     }
 }
 
-// impl From<MessageRejectErrorTrait>
-
-#[derive(Debug)]
+#[derive(Debug, Default, Clone)]
 pub struct MessageRejectError {
     pub reject_reason: isize,
     pub text: String,
@@ -140,14 +170,15 @@ pub fn new_message_reject_error(
     err: String,
     reject_reason: isize,
     ref_tag_id: Option<Tag>,
-) -> Box<dyn MessageRejectErrorTrait> {
-    Box::new(MessageRejectError {
+) -> MessageRejectErrorEnum {
+    MessageRejectError {
         text: err,
         reject_reason,
         ref_tag_id,
         business_reject_ref_id: String::new(),
         is_business_reject: false,
-    })
+    }
+    .into()
 }
 
 // new_business_message_reject_error returns a MessageRejectError with the given error mesage, reject reason, and optional ref_tag_id.
@@ -156,14 +187,15 @@ pub fn new_business_message_reject_error(
     err: String,
     reject_reason: isize,
     ref_tag_id: Option<Tag>,
-) -> Box<dyn MessageRejectErrorTrait> {
-    Box::new(MessageRejectError {
+) -> MessageRejectErrorEnum {
+    MessageRejectError {
         text: err,
         reject_reason,
         ref_tag_id,
         business_reject_ref_id: String::new(),
         is_business_reject: true,
-    })
+    }
+    .into()
 }
 
 // new_business_message_reject_error_with_ref_id returns a MessageRejectError with the given error mesage, reject reason, ref_id, and optional ref_tag_id.
@@ -173,18 +205,19 @@ pub fn new_business_message_reject_error_with_ref_id(
     reject_reason: isize,
     business_reject_ref_id: String,
     ref_tag_id: Option<Tag>,
-) -> Box<dyn MessageRejectErrorTrait> {
-    Box::new(MessageRejectError {
+) -> MessageRejectErrorEnum {
+    MessageRejectError {
         text: err,
         reject_reason,
         ref_tag_id,
         business_reject_ref_id,
         is_business_reject: true,
-    })
+    }
+    .into()
 }
 
 // incorrect_data_format_for_value returns an error indicating a field that cannot be parsed as the type required.
-pub fn incorrect_data_format_for_value(tag: Tag) -> Box<dyn MessageRejectErrorTrait> {
+pub fn incorrect_data_format_for_value(tag: Tag) -> MessageRejectErrorEnum {
     new_message_reject_error(
         String::from("Incorrect data format for value"),
         REJECT_REASON_INCORRECT_DATA_FORMAT_FOR_VALUE,
@@ -193,10 +226,7 @@ pub fn incorrect_data_format_for_value(tag: Tag) -> Box<dyn MessageRejectErrorTr
 }
 
 // repeating_group_fields_out_of_order returns an error indicating a problem parsing repeating groups fields
-pub fn repeating_group_fields_out_of_order(
-    tag: Tag,
-    mut reason: String,
-) -> Box<dyn MessageRejectErrorTrait> {
+pub fn repeating_group_fields_out_of_order(tag: Tag, mut reason: String) -> MessageRejectErrorEnum {
     if !reason.is_empty() {
         reason = format!("Repeating group fields out of order ({})", reason)
     } else {
@@ -210,7 +240,7 @@ pub fn repeating_group_fields_out_of_order(
 }
 
 // value_is_incorrect returns an error indicating a field with value that is not valid.
-pub fn value_is_incorrect(tag: Tag) -> Box<dyn MessageRejectErrorTrait> {
+pub fn value_is_incorrect(tag: Tag) -> MessageRejectErrorEnum {
     new_message_reject_error(
         String::from("Value is incorrect (out of range) for this tag"),
         REJECT_REASON_VALUE_IS_INCORRECT,
@@ -219,7 +249,7 @@ pub fn value_is_incorrect(tag: Tag) -> Box<dyn MessageRejectErrorTrait> {
 }
 
 // conditionally_required_field_missing indicates that the requested field could not be found in the FIX message.
-pub fn conditionally_required_field_missing(tag: Tag) -> Box<dyn MessageRejectErrorTrait> {
+pub fn conditionally_required_field_missing(tag: Tag) -> MessageRejectErrorEnum {
     new_business_message_reject_error(
         format!("Conditionally Required Field Missing ({})", tag),
         REJECT_REASON_CONDITIONALLY_REQUIRED_FIELD_MISSING,
@@ -228,8 +258,7 @@ pub fn conditionally_required_field_missing(tag: Tag) -> Box<dyn MessageRejectEr
 }
 
 // value_is_incorrect_no_tag returns an error indicating a field with value that is not valid.
-// FIXME: to be compliant with legacy tests, for certain value issues, do not include ref_tag? (11c_NewSeqNoLess)
-pub fn value_is_incorrect_no_tag() -> Box<dyn MessageRejectErrorTrait> {
+pub fn value_is_incorrect_no_tag() -> MessageRejectErrorEnum {
     new_message_reject_error(
         String::from("Value is incorrect (out of range) for this tag"),
         REJECT_REASON_VALUE_IS_INCORRECT,
@@ -238,7 +267,7 @@ pub fn value_is_incorrect_no_tag() -> Box<dyn MessageRejectErrorTrait> {
 }
 
 // invalid_message_type returns an error to indicate an invalid message type
-pub fn invalid_message_type() -> Box<dyn MessageRejectErrorTrait> {
+pub fn invalid_message_type() -> MessageRejectErrorEnum {
     new_message_reject_error(
         String::from("Invalid MsgType"),
         REJECT_REASON_INVALID_MSG_TYPE,
@@ -247,7 +276,7 @@ pub fn invalid_message_type() -> Box<dyn MessageRejectErrorTrait> {
 }
 
 // unsupported_message_type returns an error to indicate an unhandled message.
-pub fn unsupported_message_type() -> Box<dyn MessageRejectErrorTrait> {
+pub fn unsupported_message_type() -> MessageRejectErrorEnum {
     new_business_message_reject_error(
         String::from("Unsupported Message Type"),
         REJECT_REASON_UNSUPPORTED_MESSAGE_TYPE,
@@ -256,7 +285,7 @@ pub fn unsupported_message_type() -> Box<dyn MessageRejectErrorTrait> {
 }
 
 // tag_not_defined_for_this_message_type returns an error for an invalid tag appearing in a message.
-pub fn tag_not_defined_for_this_message_type(tag: Tag) -> Box<dyn MessageRejectErrorTrait> {
+pub fn tag_not_defined_for_this_message_type(tag: Tag) -> MessageRejectErrorEnum {
     new_message_reject_error(
         String::from("Tag not defined for this message type"),
         REJECT_REASON_TAG_NOT_DEFINED_FOR_THIS_MESSAGE_TYPE,
@@ -265,7 +294,7 @@ pub fn tag_not_defined_for_this_message_type(tag: Tag) -> Box<dyn MessageRejectE
 }
 
 // tag_appears_more_than_once return an error for multiple tags in a message not detected as a repeating group.
-pub fn tag_appears_more_than_once(tag: Tag) -> Box<dyn MessageRejectErrorTrait> {
+pub fn tag_appears_more_than_once(tag: Tag) -> MessageRejectErrorEnum {
     new_message_reject_error(
         String::from("Tag appears more than once"),
         REJECT_REASON_TAG_APPEARS_MORE_THAN_ONCE,
@@ -274,7 +303,7 @@ pub fn tag_appears_more_than_once(tag: Tag) -> Box<dyn MessageRejectErrorTrait> 
 }
 
 // required_tag_missing returns a validation error when a required field cannot be found in a message.
-pub fn required_tag_missing(tag: Tag) -> Box<dyn MessageRejectErrorTrait> {
+pub fn required_tag_missing(tag: Tag) -> MessageRejectErrorEnum {
     new_message_reject_error(
         String::from("Required tag missing"),
         REJECT_REASON_REQUIRED_TAG_MISSING,
@@ -283,9 +312,7 @@ pub fn required_tag_missing(tag: Tag) -> Box<dyn MessageRejectErrorTrait> {
 }
 
 // incorrect_num_in_group_count_for_repeating_group returns a validation error when the num in group value for a group does not match actual size.
-pub fn incorrect_num_in_group_count_for_repeating_group(
-    tag: Tag,
-) -> Box<dyn MessageRejectErrorTrait> {
+pub fn incorrect_num_in_group_count_for_repeating_group(tag: Tag) -> MessageRejectErrorEnum {
     new_message_reject_error(
         String::from("Incorrect NumInGroup count for repeating group"),
         REJECT_REASON_INCORRECT_NUM_IN_GROUP_COUNT_FOR_REPEATING_GROUP,
@@ -294,7 +321,7 @@ pub fn incorrect_num_in_group_count_for_repeating_group(
 }
 
 // tag_specified_out_of_required_order returns validation error when the group order does not match the spec.
-pub fn tag_specified_out_of_required_order(tag: Tag) -> Box<dyn MessageRejectErrorTrait> {
+pub fn tag_specified_out_of_required_order(tag: Tag) -> MessageRejectErrorEnum {
     new_message_reject_error(
         String::from("Tag specified out of required order"),
         REJECT_REASON_TAG_SPECIFIED_OUT_OF_REQUIRED_ORDER,
@@ -303,7 +330,7 @@ pub fn tag_specified_out_of_required_order(tag: Tag) -> Box<dyn MessageRejectErr
 }
 
 // tag_specified_without_a_value returns a validation error for when a field has no value.
-pub fn tag_specified_without_a_value(tag: Tag) -> Box<dyn MessageRejectErrorTrait> {
+pub fn tag_specified_without_a_value(tag: Tag) -> MessageRejectErrorEnum {
     new_message_reject_error(
         String::from("Tag specified without a value"),
         REJECT_REASON_TAG_SPECIFIED_WITHOUT_A_VALUE,
@@ -312,7 +339,7 @@ pub fn tag_specified_without_a_value(tag: Tag) -> Box<dyn MessageRejectErrorTrai
 }
 
 // invalid_tag_number returns a validation error for messages with invalid tags.
-pub fn invalid_tag_number(tag: Tag) -> Box<dyn MessageRejectErrorTrait> {
+pub fn invalid_tag_number(tag: Tag) -> MessageRejectErrorEnum {
     new_message_reject_error(
         String::from("Invalid tag number"),
         REJECT_REASON_INVALID_TAG_NUMBER,
@@ -321,7 +348,7 @@ pub fn invalid_tag_number(tag: Tag) -> Box<dyn MessageRejectErrorTrait> {
 }
 
 // comp_id_problem creates a reject for msg where msg has invalid comp id values.
-pub fn comp_id_problem() -> Box<dyn MessageRejectErrorTrait> {
+pub fn comp_id_problem() -> MessageRejectErrorEnum {
     new_message_reject_error(
         String::from("CompID problem"),
         REJECT_REASON_COMP_ID_PROBLEM,
@@ -330,7 +357,7 @@ pub fn comp_id_problem() -> Box<dyn MessageRejectErrorTrait> {
 }
 
 // sending_time_accuracy_problem creates a reject for a msg with stale or invalid sending time.
-pub fn sending_time_accuracy_problem() -> Box<dyn MessageRejectErrorTrait> {
+pub fn sending_time_accuracy_problem() -> MessageRejectErrorEnum {
     new_message_reject_error(
         String::from("SendingTime accuracy problem"),
         REJECT_REASON_SENDING_TIME_ACCURACY_PROBLEM,
@@ -338,9 +365,96 @@ pub fn sending_time_accuracy_problem() -> Box<dyn MessageRejectErrorTrait> {
     )
 }
 
-pub fn other_error() -> Box<dyn MessageRejectErrorTrait> {
+pub fn other_error() -> MessageRejectErrorEnum {
     new_message_reject_error(String::from("Other error"), REJECT_REASON_OTHER, None)
 }
+
+// IncorrectBeginString is a message reject specific to incorrect begin strings.
+#[derive(Debug, Default, Clone)]
+pub struct IncorrectBeginString {
+    pub message_reject_error: MessageRejectError,
+}
+
+impl MessageRejectErrorTrait for IncorrectBeginString {
+    delegate! {
+        to self.message_reject_error {
+            fn reject_reason(&self) -> isize;
+            fn business_reject_ref_id(&self) -> &str;
+            fn ref_tag_id(&self) -> Option<Tag>;
+            fn is_business_reject(&self) -> bool;
+        }
+    }
+}
+
+impl Display for IncorrectBeginString {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(f, "Incorrect BeginString")
+    }
+}
+
+impl Error for IncorrectBeginString {}
+
+// TargetTooHigh is a MessageReject where the sequence number is larger than expected.
+#[derive(Debug, Default, Clone)]
+pub struct TargetTooHigh {
+    pub message_reject_error: MessageRejectError,
+    pub received_target: isize,
+    pub expected_target: isize,
+}
+
+impl MessageRejectErrorTrait for TargetTooHigh {
+    delegate! {
+        to self.message_reject_error {
+            fn reject_reason(&self) -> isize;
+            fn business_reject_ref_id(&self) -> &str;
+            fn ref_tag_id(&self) -> Option<Tag>;
+            fn is_business_reject(&self) -> bool;
+        }
+    }
+}
+
+impl Display for TargetTooHigh {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(
+            f,
+            "MsgSeqNum too high, expecting {} but received {}",
+            self.expected_target, self.received_target
+        )
+    }
+}
+
+impl Error for TargetTooHigh {}
+
+// TargetTooLow is a MessageReject where the sequence number is less than expected.
+#[derive(Debug, Default, Clone)]
+pub struct TargetTooLow {
+    pub message_reject_error: MessageRejectError,
+    pub received_target: isize,
+    pub expected_target: isize,
+}
+
+impl MessageRejectErrorTrait for TargetTooLow {
+    delegate! {
+        to self.message_reject_error {
+            fn reject_reason(&self) -> isize;
+            fn business_reject_ref_id(&self) -> &str;
+            fn ref_tag_id(&self) -> Option<Tag>;
+            fn is_business_reject(&self) -> bool;
+        }
+    }
+}
+
+impl Display for TargetTooLow {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(
+            f,
+            "MsgSeqNum too low, expecting {} but received {}",
+            self.expected_target, self.received_target
+        )
+    }
+}
+
+impl Error for TargetTooLow {}
 
 #[cfg(test)]
 mod tests {

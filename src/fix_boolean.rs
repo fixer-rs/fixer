@@ -93,7 +93,7 @@ mod tests {
             let mut val = bool::default();
             let err = val.read(test.bytes);
             assert_eq!(test.expect_error, err.is_err());
-            assert_eq!(test.expected, val.bool());
+            assert_eq!(test.expected, val);
         }
     }
 }

@@ -1,5 +1,5 @@
 use crate::internal::time_range::TimeRange;
-use tokio::time::Duration;
+use chrono::Duration;
 
 // SessionSettings stores all of the configuration for a given session
 pub struct SessionSettings {
@@ -9,7 +9,7 @@ pub struct SessionSettings {
     pub reset_on_disconnect: bool,
     pub heart_bt_int: Duration,
     pub heart_bt_int_override: bool,
-    pub session_time: TimeRange,
+    pub session_time: Option<TimeRange>,
     pub initiate_logon: bool,
     pub resend_request_chunk_size: isize,
     pub enable_last_msg_seq_num_processed: bool,

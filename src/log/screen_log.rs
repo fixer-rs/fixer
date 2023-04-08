@@ -1,5 +1,5 @@
-use crate::log::{Log, LogFactory};
-use crate::session_id::SessionID;
+use crate::log::{LogEnum, LogFactoryEnum, LogFactoryTrait, LogTrait};
+use crate::session::session_id::SessionID;
 use chrono::Utc;
 use flexi_logger::{Logger, LoggerHandle, WriteMode};
 use log::info;
@@ -13,7 +13,7 @@ pub struct ScreenLog {
 
 const TIME_FORMAT: &str = "%Y-%m-%d %H:%M:%S %z %Z";
 
-impl Log for ScreenLog {
+impl LogTrait for ScreenLog {
     fn on_incoming(&self, data: &[u8]) {
         let log_time = Utc::now();
 
@@ -47,26 +47,26 @@ impl Log for ScreenLog {
         )
     }
 
-    fn on_eventf(&self, fmt: &str, params: &HashMap<&str, &str>) {
+    fn on_eventf(&self, fmt: &str, params: HashMap<String, String>) {
         let tpl = Template::new(fmt).unwrap();
-        self.on_event(&tpl.render(params));
+        self.on_event(&tpl.render(&params));
     }
 }
 
-pub struct ScreenLogFactory {}
+pub struct ScreenLogFactory;
 
-impl LogFactory for ScreenLogFactory {
-    fn create(&self) -> Result<Box<dyn Log>, String> {
+impl LogFactoryTrait for ScreenLogFactory {
+    fn create(&self) -> Result<LogEnum, String> {
         let logger = start("Failed to create ScreenLogger")?;
-        Ok(Box::new(ScreenLog {
+        Ok(LogEnum::ScreenLog(ScreenLog {
             prefix: String::from("GLOBAL"),
             logger,
         }))
     }
 
-    fn create_session_log(&self, session_id: SessionID) -> Result<Box<dyn Log>, String> {
+    fn create_session_log(&self, session_id: SessionID) -> Result<LogEnum, String> {
         let logger = start("Failed to create_session_log ScreenLogger")?;
-        Ok(Box::new(ScreenLog {
+        Ok(LogEnum::ScreenLog(ScreenLog {
             prefix: session_id.to_string(),
             logger,
         }))
@@ -84,7 +84,7 @@ fn start(err: &str) -> Result<LoggerHandle, String> {
 
 impl ScreenLogFactory {
     // new creates an instance of LogFactory that writes messages and events to stdout.
-    pub fn new() -> Box<dyn LogFactory> {
-        Box::new(ScreenLogFactory {})
+    pub fn new() -> LogFactoryEnum {
+        LogFactoryEnum::ScreenLogFactory(ScreenLogFactory)
     }
 }

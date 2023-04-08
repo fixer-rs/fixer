@@ -1,13 +1,13 @@
 use crate::internal::switching_sleep::ASwitchingSleep;
 use defer_lite::defer;
+use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::time::Duration;
 use wg::AsyncWaitGroup;
 
-type EventTimerFunc = fn();
+type EventTimerFunc = Arc<dyn Fn() -> () + Send + Sync>;
 
 pub struct EventTimer {
-    f: EventTimerFunc,
     timer: ASwitchingSleep,
     done: mpsc::UnboundedSender<()>,
     wg: AsyncWaitGroup,
@@ -18,7 +18,6 @@ impl EventTimer {
         let (tx, mut rx) = mpsc::unbounded_channel();
 
         let t = EventTimer {
-            f: task,
             timer: ASwitchingSleep::new(Duration::from_secs(1)),
             done: tx,
             wg: AsyncWaitGroup::new(),
@@ -37,19 +36,21 @@ impl EventTimer {
                         timer.stop().await;
                         return
                     }
-                    () = &mut timer => {(t.f)()}
+                    () = &mut timer => {
+                        task();
+                    }
                 }
             }
         });
         t
     }
 
-    pub async fn stop(&mut self) {
+    pub async fn stop(&self) {
         // no need to close self.done as Rust automatically close channel after all sender is closed.
         self.wg.wait().await;
     }
 
-    pub async fn reset(&mut self, timeout: Duration) {
+    pub async fn reset(&self, timeout: Duration) {
         self.timer.reset(timeout).await;
     }
 }

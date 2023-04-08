@@ -1,5 +1,5 @@
 use crate::field::{FieldValue, FieldValueReader, FieldValueWriter};
-use chrono::{naive::NaiveDateTime, DateTime, TimeZone, Utc};
+use chrono::{DateTime, TimeZone, Utc};
 
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TimestampPrecision {
@@ -16,7 +16,7 @@ pub const UTC_TIMESTAMP_MICROS_FORMAT: &str = "%Y%m%d-%H:%M:%S%.6f";
 pub const UTC_TIMESTAMP_NANOS_FORMAT: &str = "%Y%m%d-%H:%M:%S%.9f";
 
 // FIXUTCTimestamp is a FIX UTC Timestamp value, implements FieldValue
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct FIXUTCTimestamp {
     pub time: DateTime<Utc>,
     pub precision: TimestampPrecision,
@@ -85,6 +85,15 @@ impl FieldValueWriter for FIXUTCTimestamp {
 }
 
 impl FieldValue for FIXUTCTimestamp {}
+
+impl FIXUTCTimestamp {
+    pub fn from_time(time: DateTime<Utc>) -> Self {
+        FIXUTCTimestamp {
+            time,
+            precision: TimestampPrecision::default(),
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
