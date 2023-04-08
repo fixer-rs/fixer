@@ -10,9 +10,8 @@ use simple_error::{SimpleError, SimpleResult};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
 
-pub static SESSIONS: Lazy<Mutex<HashMap<Arc<SessionID>, Session>>> =
-    Lazy::new(|| Mutex::new(HashMap::new()));
-
+pub static SESSIONS: Lazy<Mutex<HashMap<Arc<SessionID>, Arc<Mutex<Session>>>>> =
+    Lazy::new(|| Mutex::new(hashmap! {}));
 pub static ERR_DUPLICATE_SESSION_ID: Lazy<SimpleError> =
     Lazy::new(|| simple_error!("Duplicate SessionID"));
 pub static ERR_UNKNOWN_SESSION: Lazy<SimpleError> = Lazy::new(|| simple_error!("Unknown session"));
@@ -57,7 +56,7 @@ pub async fn send_to_target(
         .get_mut(session_id)
         .ok_or(ERR_UNKNOWN_SESSION.clone())?;
 
-    session.queue_for_send(msg).await
+    session.clone().lock().await.queue_for_send(msg).await
 }
 
 // unregister_session removes a session from the set of known sessions.
@@ -71,12 +70,20 @@ pub async fn unregister_session(session_id: Arc<SessionID>) -> SimpleResult<()> 
     Err(ERR_UNKNOWN_SESSION.clone())
 }
 
-pub async fn register_session(s: Session) -> SimpleResult<()> {
+pub async fn register_session(s: Arc<Mutex<Session>>) -> SimpleResult<()> {
     let mut lock = (*SESSIONS).lock().await;
-    if (*lock).contains_key(&s.session_id) {
+    let session_lock = s.lock().await;
+    let session_id = session_lock.session_id.clone();
+    if (*lock).contains_key(&session_id) {
         return Err(ERR_DUPLICATE_SESSION_ID.clone());
     }
 
-    (*lock).insert(s.session_id.clone(), s);
+    (*lock).insert(session_id.clone(), s.clone());
     Ok(())
+}
+
+pub async fn lookup_session(session_id: &Arc<SessionID>) -> Option<Arc<Mutex<Session>>> {
+    let lock = (*SESSIONS).lock().await;
+    let session = lock.get(session_id)?;
+    Some(session.clone())
 }

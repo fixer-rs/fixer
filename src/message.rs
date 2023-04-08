@@ -6,6 +6,7 @@ use crate::{
     },
     field_map::{FieldMap, LocalField, TagOrderType},
     fix_string::FIXString,
+    registry::Messageable,
     tag::*,
     tag_value::TagValue,
     BEGIN_STRING_FIX40,
@@ -181,6 +182,12 @@ impl ToString for Message {
     }
 }
 
+impl Messageable for Message {
+    fn to_message<'a>(&'a self) -> &'a Message {
+        &self
+    }
+}
+
 impl Message {
     pub fn new() -> Self {
         Message {
@@ -189,10 +196,6 @@ impl Message {
             trailer: Trailer::init(),
             ..Default::default()
         }
-    }
-
-    pub fn to_message(self) -> Self {
-        self
     }
 
     pub fn copy_into(&self, to: &mut Message) {

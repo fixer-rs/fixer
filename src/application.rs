@@ -27,3 +27,36 @@ pub trait Application: Send + Sync {
     // from_app notification of app message being received from target.
     fn from_app(&mut self, msg: &Message, session_id: &SessionID) -> MessageRejectErrorResult;
 }
+
+#[cfg(test)]
+pub struct DummyApplication {}
+
+#[cfg(test)]
+impl Application for DummyApplication {
+    fn on_create(&mut self, _session_id: &SessionID) {}
+
+    fn on_logon(&mut self, _session_id: &SessionID) {}
+
+    fn on_logout(&mut self, _session_id: &SessionID) {}
+
+    fn to_admin(&mut self, _msg: &Message, _session_id: &SessionID) {}
+
+    fn to_app(&mut self, _msg: &Message, _session_id: &SessionID) -> SimpleResult<()> {
+        Ok(())
+    }
+
+    fn from_admin(&mut self, _msg: &Message, _session_id: &SessionID) -> MessageRejectErrorResult {
+        Ok(())
+    }
+
+    fn from_app(&mut self, _msg: &Message, _session_id: &SessionID) -> MessageRejectErrorResult {
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+impl DummyApplication {
+    pub fn new() -> Self {
+        DummyApplication {}
+    }
+}

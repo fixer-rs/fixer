@@ -1,7 +1,7 @@
 use crate::errors::MessageRejectErrorEnum;
 use crate::fix_boolean::FIXBoolean;
 use crate::{field_map::LocalField, tag::Tag};
-use simple_error::SimpleError;
+use simple_error::SimpleResult;
 
 pub trait FieldTag {
     fn tag(&self) -> Tag;
@@ -17,7 +17,7 @@ pub trait FieldValueWriter {
 pub trait FieldValueReader {
     // read reads the contents of the []byte into FieldValue.
     // returns an error if there are issues in the data processing
-    fn read(&mut self, input: &[u8]) -> Result<(), SimpleError>;
+    fn read(&mut self, input: &[u8]) -> SimpleResult<()>;
 }
 
 // The FieldValue interface is used to write/extract typed field values to/from raw bytes

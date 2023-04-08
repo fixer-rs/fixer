@@ -1,5 +1,5 @@
 use crate::field::{FieldValue, FieldValueReader, FieldValueWriter};
-use simple_error::SimpleError;
+use simple_error::SimpleResult;
 
 // FIXFloat is a FIX Float Value, implements FieldValue
 pub type FIXFloat = f64;
@@ -15,7 +15,7 @@ impl FIXFloatTrait for FIXFloat {
 }
 
 impl FieldValueReader for FIXFloat {
-    fn read(&mut self, input: &[u8]) -> Result<(), SimpleError> {
+    fn read(&mut self, input: &[u8]) -> SimpleResult<()> {
         let f = fast_float::parse(input)
             .map_err(|_| simple_error!("invalid value {}", String::from_utf8_lossy(input)))?;
 

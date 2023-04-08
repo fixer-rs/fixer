@@ -1,5 +1,5 @@
 use crate::field::{FieldValue, FieldValueReader, FieldValueWriter};
-use simple_error::SimpleError;
+use simple_error::SimpleResult;
 
 // FIXString is a FIX String Value, implements FieldValue
 pub type FIXString = String;
@@ -15,7 +15,7 @@ impl FIXStringTrait for FIXString {
 }
 
 impl FieldValueReader for FIXString {
-    fn read(&mut self, input: &[u8]) -> Result<(), SimpleError> {
+    fn read(&mut self, input: &[u8]) -> SimpleResult<()> {
         self.clear();
         *self = String::from_utf8_lossy(input).to_string();
         Ok(())

@@ -1,6 +1,6 @@
 use crate::field::{FieldValue, FieldValueReader, FieldValueWriter};
 use chrono::{DateTime, TimeZone, Utc};
-use simple_error::SimpleError;
+use simple_error::SimpleResult;
 
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TimestampPrecision {
@@ -24,7 +24,7 @@ pub struct FIXUTCTimestamp {
 }
 
 impl FieldValueReader for FIXUTCTimestamp {
-    fn read(&mut self, input: &[u8]) -> Result<(), SimpleError> {
+    fn read(&mut self, input: &[u8]) -> SimpleResult<()> {
         let res = |_| {
             simple_error!(
                 "Invalid Value for Timestamp: {}",
