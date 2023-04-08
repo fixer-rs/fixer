@@ -1,4 +1,5 @@
 use crate::field::{FieldValue, FieldValueReader, FieldValueWriter};
+use simple_error::SimpleError;
 
 // FIXString is a FIX String Value, implements FieldValue
 pub type FIXString = String;
@@ -14,7 +15,7 @@ impl FIXStringTrait for FIXString {
 }
 
 impl FieldValueReader for FIXString {
-    fn read(&mut self, input: &[u8]) -> Result<(), ()> {
+    fn read(&mut self, input: &[u8]) -> Result<(), SimpleError> {
         self.clear();
         *self = String::from_utf8_lossy(input).to_string();
         Ok(())
@@ -65,7 +66,12 @@ mod tests {
             let mut field = FIXString::new();
             let err = field.read(test.bytes);
             if test.expected_error {
-                assert_eq!(Err(()), err, "Expected error for {:?}", test.bytes);
+                assert_eq!(
+                    Err(simple_error!("")),
+                    err,
+                    "Expected error for {:?}",
+                    test.bytes
+                );
             } else {
                 assert_eq!(Ok(()), err, "UnExpected '{:?}'", err);
             }
