@@ -45,6 +45,12 @@ pub enum LogEnum {
     FileLog,
 }
 
+impl Default for LogEnum {
+    fn default() -> Self {
+        LogEnum::NullLog(NullLog)
+    }
+}
+
 #[enum_dispatch(LogFactoryTrait)]
 pub enum LogFactoryEnum {
     NullLogFactory,

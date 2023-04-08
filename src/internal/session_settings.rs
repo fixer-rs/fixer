@@ -2,6 +2,7 @@ use crate::internal::time_range::TimeRange;
 use chrono::Duration;
 
 // SessionSettings stores all of the configuration for a given session
+#[derive(Clone)]
 pub struct SessionSettings {
     pub reset_on_logon: bool,
     pub refresh_on_logon: bool,
@@ -25,4 +26,31 @@ pub struct SessionSettings {
     pub logout_timeout: Duration,
     pub logon_timeout: Duration,
     pub socket_connect_address: Vec<String>,
+}
+
+#[cfg(test)]
+impl Default for SessionSettings {
+    fn default() -> Self {
+        let duration = Duration::seconds(1);
+        SessionSettings {
+            max_latency: duration,
+            heart_bt_int: duration,
+            reconnect_interval: duration,
+            logout_timeout: duration,
+            logon_timeout: duration,
+            reset_on_logon: Default::default(),
+            refresh_on_logon: Default::default(),
+            reset_on_logout: Default::default(),
+            reset_on_disconnect: Default::default(),
+            heart_bt_int_override: Default::default(),
+            session_time: Default::default(),
+            initiate_logon: Default::default(),
+            resend_request_chunk_size: Default::default(),
+            enable_last_msg_seq_num_processed: Default::default(),
+            skip_check_latency: Default::default(),
+            disable_message_persist: Default::default(),
+            default_appl_ver_id: Default::default(),
+            socket_connect_address: Default::default(),
+        }
+    }
 }

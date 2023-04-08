@@ -28,8 +28,6 @@ impl ResendState {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use crate::{
         field_map::FieldMap,
         fixer_test::{FieldEqual, SessionSuiteRig, TestApplication, OVERRIDE_TIMES},
@@ -40,6 +38,7 @@ mod tests {
         tag::{Tag, TAG_BEGIN_SEQ_NO, TAG_END_SEQ_NO},
     };
     use delegate::delegate;
+    use std::sync::Arc;
 
     struct SessionSuite {
         ssr: SessionSuiteRig,

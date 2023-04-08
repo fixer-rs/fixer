@@ -24,8 +24,6 @@ impl LogoutState {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use crate::{
         errors::conditionally_required_field_missing,
         fixer_test::{SessionSuiteRig, TestApplication, FROM_APP_RETURN_ERROR},
@@ -33,6 +31,7 @@ mod tests {
         session::session_state::SessionStateEnum,
         tag::Tag,
     };
+    use std::sync::Arc;
 
     struct SessionSuite {
         ssr: SessionSuiteRig,

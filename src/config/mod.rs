@@ -1,6 +1,5 @@
 pub mod doc;
 
-// NOTE: Additions to this file should be made to both config/doc.rs and http://www.quickfixgo.org/docs/
 // Const configuration settings
 pub const BEGIN_STRING: &str = "BeginString";
 pub const SENDER_COMP_ID: &str = "SenderCompID";

@@ -36,6 +36,7 @@ impl Default for ValidatorSettings {
     }
 }
 
+#[derive(Default)]
 pub struct FixValidator {
     data_dictionary: DataDictionary,
     settings: ValidatorSettings,
@@ -53,6 +54,7 @@ impl Validator for FixValidator {
     }
 }
 
+#[derive(Default)]
 pub struct FixtValidator {
     transport_data_dictionary: DataDictionary,
     app_data_dictionary: DataDictionary,
@@ -393,6 +395,12 @@ fn validate_field(
 pub enum ValidatorEnum {
     Fix(FixValidator),
     Fixt(FixtValidator),
+}
+
+impl Default for ValidatorEnum {
+    fn default() -> Self {
+        Self::Fix(FixValidator::default())
+    }
 }
 
 impl ValidatorEnum {
