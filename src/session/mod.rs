@@ -2090,7 +2090,6 @@ mod tests {
     };
     use chrono::{DateTime, Duration, FixedOffset, Timelike, Utc};
     use delegate::delegate;
-    use lazy_static::__Deref;
     use simple_error::SimpleError;
     use std::{collections::HashMap, sync::Arc};
     use tokio::sync::{mpsc::unbounded_channel, RwLock};
@@ -3812,10 +3811,7 @@ mod tests {
 
         assert!(queue_result.is_err());
         let queue_err = queue_result.unwrap_err();
-        assert_eq!(
-            &(ERR_DO_NOT_SEND.deref().to_string()),
-            &queue_err.to_string()
-        );
+        assert_eq!(&(ERR_DO_NOT_SEND.to_string()), &queue_err.to_string());
 
         s.ssr.no_message_persisted(1).await;
         s.ssr.no_message_sent().await;
@@ -3882,10 +3878,7 @@ mod tests {
 
         assert!(queue_result.is_err());
         let queue_err = queue_result.unwrap_err();
-        assert_eq!(
-            &(ERR_DO_NOT_SEND.deref().to_string()),
-            &queue_err.to_string()
-        );
+        assert_eq!(&(ERR_DO_NOT_SEND.to_string()), &queue_err.to_string());
 
         s.ssr.next_sender_msg_seq_num(1).await;
         s.ssr.no_message_sent().await;
