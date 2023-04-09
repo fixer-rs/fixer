@@ -142,13 +142,12 @@ pub struct XMLComponentMember {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lazy_static::lazy_static;
+    use once_cell::sync::Lazy;
     use quick_xml::de::{from_str, DeError};
     use std::any::{Any, TypeId};
 
-    lazy_static! {
-        static ref CACHED_XML_DOC: XMLDoc = {
-            let xml = r#"<fix major='4' type='FIX' servicepack='0' minor='3'>
+    static CACHED_XML_DOC: Lazy<XMLDoc> = Lazy::new(|| {
+        let xml = r#"<fix major='4' type='FIX' servicepack='0' minor='3'>
     <header>
         <field name='BeginString' required='Y' />
         <group name='NoHops' required='N'>
@@ -213,10 +212,9 @@ mod tests {
     </trailer>
     </fix>
     "#;
-            let xml_doc: Result<XMLDoc, DeError> = from_str(xml);
-            xml_doc.unwrap()
-        };
-    }
+        let xml_doc: Result<XMLDoc, DeError> = from_str(xml);
+        xml_doc.unwrap()
+    });
 
     #[test]
     fn test_boiler_plate() {

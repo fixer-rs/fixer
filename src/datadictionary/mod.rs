@@ -560,7 +560,8 @@ mod component_type_tests {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use async_once::AsyncOnce;
+    use once_cell::sync::Lazy;
+    use tokio::runtime::Runtime;
 
     #[tokio::test]
     async fn test_parse_bad_path() {
@@ -576,16 +577,16 @@ mod tests {
     }
 
     // global variable
-    lazy_static! {
-        static ref DICT: AsyncOnce<DataDictionary> = AsyncOnce::new(async {
-            let dd = parse("./spec/FIX43.xml").await.unwrap();
-            dd
-        });
-    }
+
+    static DICT: Lazy<DataDictionary> = Lazy::new(|| {
+        let rt = Runtime::new().unwrap();
+        let ajep = rt.block_on(parse("./spec/FIX43.xml"));
+        ajep.unwrap()
+    });
 
     #[tokio::test]
     async fn test_components() {
-        let d = DICT.get().await.clone();
+        let d = DICT.clone();
         assert!(
             d.component_types.contains_key("SpreadOrBenchmarkCurveData"),
             "Component not found"
@@ -594,7 +595,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_fields_by_tag() {
-        let d = DICT.get().await.clone();
+        let d = DICT.clone();
 
         struct TestCase {
             tag: isize,
@@ -654,7 +655,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_enum_fields_by_tag() {
-        let d = DICT.get().await.clone();
+        let d = DICT.clone();
 
         let f = d.field_type_by_tag.get(&658).unwrap();
 
@@ -722,7 +723,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_data_dictionary_messages() {
-        let d = DICT.get().await.clone();
+        let d = DICT.clone();
         assert!(d.messages.contains_key("D"), "Did not find message");
     }
 
@@ -738,7 +739,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_message_required_tags() {
-        let d = DICT.get().await.clone();
+        let d = DICT.clone();
 
         let nos = d.messages.get("D").unwrap();
 
@@ -799,7 +800,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_message_tags() {
-        let d = DICT.get().await.clone();
+        let d = DICT.clone();
 
         let nos = d.messages.get("D").unwrap();
 

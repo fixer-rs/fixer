@@ -1,15 +1,14 @@
 use crate::tag::Tag;
 use delegate::delegate;
 use enum_dispatch::enum_dispatch;
+use once_cell::sync::Lazy;
 use simple_error::SimpleError;
 use std::any::Any;
 use std::error::Error;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
-lazy_static! {
-    // ERR_DO_NOT_SEND is a convenience error to indicate a DoNotSend in ToApp
-    pub static ref ERR_DO_NOT_SEND: SimpleError = simple_error!("Do Not Send");
-}
+// ERR_DO_NOT_SEND is a convenience error to indicate a DoNotSend in ToApp
+pub static ERR_DO_NOT_SEND: Lazy<SimpleError> = Lazy::new(|| simple_error!("Do Not Send"));
 
 pub const REJECT_REASON_INVALID_TAG_NUMBER: isize = 0;
 pub const REJECT_REASON_REQUIRED_TAG_MISSING: isize = 1;
