@@ -23,6 +23,7 @@ delegate = "0.9"
 enum_dispatch = "0.3"
 fast-float = "0.2"
 flexi_logger = {version = "0.25", features = ["async"]}
+futures = "0.3"
 itoa = "1.0"
 log = "0.4"
 maplit = "1.0"

@@ -560,8 +560,8 @@ mod component_type_tests {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures::executor::block_on;
     use once_cell::sync::Lazy;
-    use tokio::runtime::Runtime;
 
     #[tokio::test]
     async fn test_parse_bad_path() {
@@ -577,12 +577,8 @@ mod tests {
     }
 
     // global variable
-
-    static DICT: Lazy<DataDictionary> = Lazy::new(|| {
-        let rt = Runtime::new().unwrap();
-        let ajep = rt.block_on(parse("./spec/FIX43.xml"));
-        ajep.unwrap()
-    });
+    static DICT: Lazy<DataDictionary> =
+        Lazy::new(|| block_on(async { parse("./spec/FIX43.xml").await.unwrap() }));
 
     #[tokio::test]
     async fn test_components() {
