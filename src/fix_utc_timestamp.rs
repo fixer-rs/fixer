@@ -1,5 +1,6 @@
 use crate::field::{FieldValue, FieldValueReader, FieldValueWriter};
 use chrono::{DateTime, TimeZone, Utc};
+use simple_error::SimpleError;
 
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TimestampPrecision {
@@ -23,37 +24,45 @@ pub struct FIXUTCTimestamp {
 }
 
 impl FieldValueReader for FIXUTCTimestamp {
-    fn read(&mut self, input: &[u8]) -> Result<(), ()> {
+    fn read(&mut self, input: &[u8]) -> Result<(), SimpleError> {
+        let res = |e| {
+            simple_error!(
+                "Invalid Value for Timestamp: {}",
+                String::from_utf8_lossy(input)
+            )
+        };
         let input_str = String::from_utf8_lossy(input).to_string();
         match input_str.len() {
             17 => {
                 self.precision = TimestampPrecision::Seconds;
                 self.time = Utc
                     .datetime_from_str(&input_str, UTC_TIMESTAMP_SECONDS_FORMAT)
-                    .map_err(|_| ())?;
+                    .map_err(res)?;
+                Ok(())
             }
             21 => {
                 self.precision = TimestampPrecision::Millis;
                 self.time = Utc
                     .datetime_from_str(&input_str, UTC_TIMESTAMP_MILLIS_FORMAT)
-                    .map_err(|_| ())?;
+                    .map_err(res)?;
+                Ok(())
             }
             24 => {
                 self.precision = TimestampPrecision::Micros;
                 self.time = Utc
                     .datetime_from_str(&input_str, UTC_TIMESTAMP_MICROS_FORMAT)
-                    .map_err(|_| ())?;
+                    .map_err(res)?;
+                Ok(())
             }
             27 => {
                 self.precision = TimestampPrecision::Nanos;
                 self.time = Utc
                     .datetime_from_str(&input_str, UTC_TIMESTAMP_NANOS_FORMAT)
-                    .map_err(|_| ())?;
+                    .map_err(res)?;
+                Ok(())
             }
-            _ => (),
-        };
-
-        Ok(())
+            _ => Ok(()),
+        }
     }
 }
 

@@ -1,4 +1,5 @@
 use crate::field::{FieldValue, FieldValueReader, FieldValueWriter};
+use simple_error::SimpleError;
 
 // FIXFloat is a FIX Float Value, implements FieldValue
 pub type FIXFloat = f64;
@@ -14,12 +15,16 @@ impl FIXFloatTrait for FIXFloat {
 }
 
 impl FieldValueReader for FIXFloat {
-    fn read(&mut self, input: &[u8]) -> Result<(), ()> {
-        let f = fast_float::parse(input).map_err(|_| ())?;
+    fn read(&mut self, input: &[u8]) -> Result<(), SimpleError> {
+        let f = fast_float::parse(input)
+            .map_err(|_| simple_error!("invalid value {}", String::from_utf8_lossy(input)))?;
 
         for chr in input.iter() {
             if *chr != b'.' && *chr != b'-' && !(b'0'..=b'9').contains(chr) {
-                return Err(());
+                return Err(simple_error!(
+                    "invalid value {}",
+                    String::from_utf8_lossy(input)
+                ));
             }
         }
 
