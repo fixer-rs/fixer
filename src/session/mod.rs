@@ -3,7 +3,7 @@ use crate::{
     datadictionary::DataDictionary,
     errors::{
         comp_id_problem, required_tag_missing, sending_time_accuracy_problem,
-        tag_specified_without_a_value, value_is_incorrect_no_tag, IncorrectBeginString,
+        tag_specified_without_a_value, value_is_incorrect_no_tag, FixerError, IncorrectBeginString,
         MessageRejectErrorEnum, MessageRejectErrorResult, MessageRejectErrorTrait, TargetTooHigh,
         TargetTooLow, REJECT_REASON_COMP_ID_PROBLEM, REJECT_REASON_INVALID_MSG_TYPE,
         REJECT_REASON_SENDING_TIME_ACCURACY_PROBLEM,
@@ -288,7 +288,7 @@ impl Session {
             && self.store.next_sender_msg_seq_num().await == 1;
     }
 
-    async fn send_logon(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
+    async fn send_logon(&mut self) -> Result<(), FixerError> {
         let set_request = self.should_send_reset().await;
         self.send_logon_in_reply_to(set_request, None).await
     }
@@ -297,7 +297,7 @@ impl Session {
         &mut self,
         set_reset_seq_num: bool,
         in_reply_to: Option<&Message>,
-    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+    ) -> Result<(), FixerError> {
         let logon = Message::new();
         logon.header.set_field(TAG_MSG_TYPE, FIXString::from("A"));
         logon.header.set_field(
@@ -358,7 +358,7 @@ impl Session {
         logout
     }
 
-    async fn send_logout(&mut self, reason: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
+    async fn send_logout(&mut self, reason: &str) -> Result<(), FixerError> {
         self.send_logout_in_reply_to(reason, None).await
     }
 
@@ -366,7 +366,7 @@ impl Session {
         &mut self,
         reason: &str,
         in_reply_to: Option<&Message>,
-    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+    ) -> Result<(), FixerError> {
         let logout = self.build_logout(reason);
         self.send_in_reply_to(&logout, in_reply_to).await
     }
@@ -393,7 +393,7 @@ impl Session {
     }
 
     // queue_for_send will validate, persist, and queue the message for send
-    async fn queue_for_send(&mut self, msg: &Message) -> Result<(), Box<dyn Error + Send + Sync>> {
+    async fn queue_for_send(&mut self, msg: &Message) -> Result<(), FixerError> {
         let msg_bytes = self.prep_message_for_send(msg, None).await?;
         let mut to_send = self.to_send.lock().await;
         to_send.push(msg_bytes);
@@ -407,7 +407,7 @@ impl Session {
     }
 
     // send will validate, persist, queue the message. If the session is logged on, send all messages in the queue
-    async fn send(&mut self, msg: &Message) -> Result<(), Box<dyn Error + Send + Sync>> {
+    async fn send(&mut self, msg: &Message) -> Result<(), FixerError> {
         self.send_in_reply_to(msg, None).await
     }
 
@@ -415,7 +415,7 @@ impl Session {
         &mut self,
         msg: &Message,
         in_reply_to: Option<&Message>,
-    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+    ) -> Result<(), FixerError> {
         if !self.sm.is_logged_on() {
             return self.queue_for_send(msg).await;
         }
@@ -430,13 +430,13 @@ impl Session {
     }
 
     // drop_and_reset will drop the send queue and reset the message store
-    async fn drop_and_reset(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
+    async fn drop_and_reset(&mut self) -> Result<(), FixerError> {
         self.drop_queued().await;
         Ok(self.store.reset().await?)
     }
 
     // drop_and_send will validate and persist the message, then drops the send queue and sends the message.
-    async fn drop_and_send(&mut self, msg: &Message) -> Result<(), Box<dyn Error + Send + Sync>> {
+    async fn drop_and_send(&mut self, msg: &Message) -> Result<(), FixerError> {
         self.drop_and_send_in_reply_to(msg, None).await
     }
 
@@ -444,7 +444,7 @@ impl Session {
         &mut self,
         msg: &Message,
         in_reply_to: Option<&Message>,
-    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+    ) -> Result<(), FixerError> {
         {
             let msg_bytes = self.prep_message_for_send(msg, in_reply_to).await?;
             let mut to_send = self.to_send.lock().await;
@@ -460,7 +460,7 @@ impl Session {
         &mut self,
         msg: &Message,
         in_reply_to: Option<&Message>,
-    ) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
+    ) -> Result<Vec<u8>, FixerError> {
         self.fill_default_header(msg, in_reply_to).await;
         let seq_num = self.store.next_sender_msg_seq_num().await;
         msg.header.set_field(TAG_MSG_SEQ_NUM, seq_num);
@@ -489,9 +489,11 @@ impl Session {
                 }
             }
         } else {
-            if let Err(err) = self.application.write().await.to_app(msg, &self.session_id) {
-                return Err(Box::new(err));
-            }
+            let _ = self
+                .application
+                .write()
+                .await
+                .to_app(msg, &self.session_id)?;
         }
 
         let mut msg_bytes = msg.build();
@@ -499,19 +501,11 @@ impl Session {
         Ok(msg_bytes)
     }
 
-    async fn persist(
-        &mut self,
-        seq_num: isize,
-        msg_bytes: &[u8],
-    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+    async fn persist(&mut self, seq_num: isize, msg_bytes: &[u8]) -> Result<(), FixerError> {
         if !self.iss.disable_message_persist {
-            let result = self
-                .store
+            self.store
                 .save_message_and_incr_next_sender_msg_seq_num(seq_num, msg_bytes.to_vec())
-                .await;
-            if let Err(err) = result {
-                return Err(err.into());
-            }
+                .await?;
             return Ok(());
         }
 
@@ -542,7 +536,7 @@ impl Session {
     async fn do_target_too_high(
         &mut self,
         reject: &TargetTooHigh,
-    ) -> Result<ResendState, Box<dyn Error + Send + Sync>> {
+    ) -> Result<ResendState, FixerError> {
         self.log.on_eventf(
             "MsgSeqNum too high, expecting {{expect}} but received {{received}}",
             hashmap! {
@@ -559,7 +553,7 @@ impl Session {
         &mut self,
         begin_seq: isize,
         end_seq: isize,
-    ) -> Result<ResendState, Box<dyn Error + Send + Sync>> {
+    ) -> Result<ResendState, FixerError> {
         let mut next_state = ResendState::default();
         next_state.resend_range_end = end_seq;
 
@@ -601,10 +595,7 @@ impl Session {
         Ok(next_state)
     }
 
-    async fn handle_logon(
-        &mut self,
-        msg: &mut Message,
-    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+    async fn handle_logon(&mut self, msg: &mut Message) -> Result<(), FixerError> {
         //Grab default app ver id from fixt.1.1 logon
         if self.session_id.begin_string == BEGIN_STRING_FIXT11 {
             let mut target_appl_ver_id = FIXString::new();
@@ -675,7 +666,7 @@ impl Session {
         Ok(self.store.incr_next_target_msg_seq_num().await?)
     }
 
-    async fn initiate_logout(&mut self, reason: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
+    async fn initiate_logout(&mut self, reason: &str) -> Result<(), FixerError> {
         self.initiate_logout_in_reply_to(reason, None).await
     }
 
@@ -683,7 +674,7 @@ impl Session {
         &mut self,
         reason: &str,
         in_reply_to: Option<&Message>,
-    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+    ) -> Result<(), FixerError> {
         self.send_logout_in_reply_to(reason, in_reply_to)
             .await
             .map_err(|err| {
@@ -857,7 +848,7 @@ impl Session {
         &mut self,
         msg: &Message,
         rej: MessageRejectErrorEnum,
-    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+    ) -> Result<(), FixerError> {
         let reply = msg.reverse_route();
 
         if !matches!(
@@ -1502,7 +1493,7 @@ impl Session {
         begin_seq_no: isize,
         end_seq_no: isize,
         in_reply_to: &Message,
-    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+    ) -> Result<(), FixerError> {
         if self.iss.disable_message_persist {
             self.in_session_generate_sequence_reset(begin_seq_no, end_seq_no + 1, in_reply_to)
                 .await?;
@@ -1876,19 +1867,19 @@ impl Session {
 
         let handle_logon_result = self.handle_logon(msg).await;
         if let Err(err) = handle_logon_result {
-            if let Some(inner_err) = err.downcast_ref::<MessageRejectErrorEnum>() {
-                match inner_err {
-                    &MessageRejectErrorEnum::RejectLogon(_) => {
+            match err {
+                FixerError::Reject(reject_enum) => match reject_enum {
+                    MessageRejectErrorEnum::RejectLogon(ref rl) => {
                         return self
-                            .logon_shutdown_with_reason(msg, true, &inner_err.to_string())
+                            .logon_shutdown_with_reason(msg, true, &rl.to_string())
                             .await;
                     }
-                    &MessageRejectErrorEnum::TargetTooLow(_) => {
+                    MessageRejectErrorEnum::TargetTooLow(ref ttl) => {
                         return self
-                            .logon_shutdown_with_reason(msg, false, &inner_err.to_string())
+                            .logon_shutdown_with_reason(msg, false, &ttl.to_string())
                             .await;
                     }
-                    &MessageRejectErrorEnum::TargetTooHigh(ref tth) => {
+                    MessageRejectErrorEnum::TargetTooHigh(ref tth) => {
                         let do_result = self.do_target_too_high(tth).await;
                         match do_result {
                             Err(third_err) => {
@@ -1899,12 +1890,15 @@ impl Session {
                             Ok(rs) => return SessionStateEnum::ResendState(rs),
                         }
                     }
-                    _ => {}
+                    _ => {
+                        return self.handle_state_error(&reject_enum.to_string());
+                    }
+                },
+                _ => {
+                    return self.handle_state_error(&err.to_string());
                 }
             }
-            return self.handle_state_error(&err.to_string());
         }
-
         SessionStateEnum::new_in_session()
     }
 

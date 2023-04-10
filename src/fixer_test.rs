@@ -525,7 +525,7 @@ impl TestApplication for MockAppShared {
             .mock_app
             .expect_to_app()
             .times(times)
-            .returning(move |_, _| -> SimpleResult<()> { Err(new_err.clone()) });
+            .return_once(|_, _| -> SimpleResult<()> { Err(new_err) });
     }
 
     fn set_from_admin_return_error(&mut self, times: usize, err: MessageRejectErrorEnum) {
@@ -534,7 +534,7 @@ impl TestApplication for MockAppShared {
             .mock_app
             .expect_from_admin()
             .times(times)
-            .returning(move |_, _| -> MessageRejectErrorResult { Err(err.clone()) });
+            .return_once(|_, _| -> MessageRejectErrorResult { Err(err) });
     }
 
     fn set_from_app_return_error(&mut self, times: usize, err: MessageRejectErrorEnum) {
@@ -543,7 +543,7 @@ impl TestApplication for MockAppShared {
             .mock_app
             .expect_from_app()
             .times(times)
-            .returning(move |_, _| -> MessageRejectErrorResult { Err(err.clone()) });
+            .return_once(|_, _| -> MessageRejectErrorResult { Err(err) });
     }
 }
 
@@ -762,20 +762,17 @@ impl SessionSuiteRig {
     }
 
     pub async fn last_to_app_message_sent(&mut self) {
-        if self.mock_app.read().await.last_to_app.is_none() {
-            assert!(false, "Should be connected");
-        }
-        let mock_app_clone = self.mock_app.clone();
-        let last_to_app = &mock_app_clone.as_ref().read().await.last_to_app;
+        let last_to_app = self.mock_app.as_ref().read().await.last_to_app.clone();
+        assert!(last_to_app.is_some(), "Should be connected");
 
         self.message_sent_equals(&last_to_app.as_ref().unwrap())
             .await;
     }
 
     pub async fn last_to_admin_message_sent(&mut self) {
-        let mock_app_clone = self.mock_app.as_ref().read().await.last_to_admin.clone();
-        assert!(mock_app_clone.is_some(), "No ToAdmin received");
-        self.message_sent_equals(&mock_app_clone.as_ref().unwrap())
+        let last_to_admin = self.mock_app.as_ref().read().await.last_to_admin.clone();
+        assert!(last_to_admin.is_some(), "No ToAdmin received");
+        self.message_sent_equals(&last_to_admin.as_ref().unwrap())
             .await;
     }
 
