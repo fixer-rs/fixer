@@ -1,7 +1,6 @@
-use simple_error::SimpleError;
-
 use crate::fix_boolean::FIXBoolean;
 use crate::{field_map::LocalField, tag::Tag};
+use simple_error::SimpleError;
 use std::error::Error;
 
 // FieldValueWriter is an interface for writing field values

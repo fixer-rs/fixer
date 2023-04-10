@@ -1,3 +1,4 @@
+use crate::errors::FixerError;
 use parse_duration::parse;
 use std::collections::HashMap;
 use std::error::Error;
@@ -64,57 +65,46 @@ impl SessionSettings {
     }
 
     // setting is a settings string accessor. Returns an error if the setting is missing.
-    pub fn setting(&self, setting: &str) -> Result<String, Box<dyn Error>> {
+    pub fn setting(&self, setting: &str) -> Result<String, FixerError> {
         if !self.settings.contains_key(setting) {
-            return Err(Box::new(ConditionallyRequiredSetting {
-                setting: setting.to_string(),
-            }));
+            return Err(FixerError::new_conditionally_required(setting));
         }
         Ok(self.settings.get(setting).unwrap().to_string())
     }
 
     // int_setting returns the requested setting parsed as an int.  Returns an errror if the setting is not set or cannot be parsed as an int.
-    pub fn int_setting(&self, setting: &str) -> Result<isize, Box<dyn Error>> {
+    pub fn int_setting(&self, setting: &str) -> Result<isize, FixerError> {
         let string_val = self.setting(setting)?;
 
-        atoi_simd::parse::<isize>(string_val.as_bytes()).map_err(|_| {
-            Box::new(IncorrectFormatForSetting {
-                setting: setting.to_string(),
-                value: string_val.clone(),
-                err: Box::new(simple_error!("invalid setting")),
-            })
-            .into()
-        })
+        atoi_simd::parse::<isize>(string_val.as_bytes())
+            .map_err(|_| FixerError::new_incorrect_format_for_setting(setting, &string_val))
     }
 
     // duration_setting returns the requested setting parsed as a Duration.
     // Returns an error if the setting is not set or cannot be parsed as a time.Duration.
-    pub fn duration_setting(&self, setting: &str) -> Result<Duration, Box<dyn Error>> {
+    pub fn duration_setting(&self, setting: &str) -> Result<Duration, FixerError> {
         let string_val = self.setting(setting)?;
 
-        let val_result = parse(&string_val);
-        if let Err(err) = val_result {
-            return Err(Box::new(IncorrectFormatForSetting {
-                setting: setting.to_string(),
-                value: string_val,
-                err: Box::new(err),
-            }));
-        }
-        Ok(val_result.unwrap())
+        Ok(parse(&string_val).map_err(|err| {
+            FixerError::new_incorrect_format_for_setting_with_error(
+                setting,
+                &string_val,
+                Box::new(err),
+            )
+        })?)
     }
 
     // bool_setting returns the requested setting parsed as a boolean.  Returns an error if the setting is not set or cannot be parsed as a bool.
-    pub fn bool_setting(&self, setting: &str) -> Result<bool, Box<dyn Error>> {
+    pub fn bool_setting(&self, setting: &str) -> Result<bool, FixerError> {
         let string_val = self.setting(setting)?;
 
         match string_val.as_ref() {
             "Y" | "y" => Ok(true),
             "N" | "n" => Ok(false),
-            _ => Err(Box::new(IncorrectFormatForSetting {
-                setting: setting.to_string(),
-                value: string_val,
-                err: Box::new(simple_error!("")),
-            })),
+            _ => Err(FixerError::new_incorrect_format_for_setting(
+                setting,
+                &string_val,
+            )),
         }
     }
 

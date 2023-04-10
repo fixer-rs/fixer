@@ -73,15 +73,12 @@ where
             self.big_buffer[0..new_len].copy_from_slice(&new_buffer);
         }
 
-        let n_result = self
+        let n = self
             .reader
             .read(&mut self.big_buffer[self.len..self.cap])
-            .await;
+            .await
+            .map_err(|_| simple_error!("failed to parse big_buffer"))?;
 
-        if let Err(_err) = n_result {
-            return Err(simple_error!("failed to parse big_buffer"));
-        }
-        let n = n_result.unwrap();
         if n == 0 {
             return Err(simple_error!("eof"));
         }
