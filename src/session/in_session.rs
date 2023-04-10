@@ -18,7 +18,6 @@ impl InSession {
             pub fn is_connected(&self) -> bool;
             pub fn is_session_time(&self) -> bool;
             pub fn is_logged_on(&self) -> bool;
-
         }
     }
 }

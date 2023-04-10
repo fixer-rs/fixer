@@ -1,11 +1,12 @@
+use crate::session::session_settings::{ConditionallyRequiredSetting, IncorrectFormatForSetting};
 use crate::tag::Tag;
 use delegate::delegate;
 use enum_dispatch::enum_dispatch;
 use once_cell::sync::Lazy;
 use simple_error::SimpleError;
-use std::any::Any;
 use std::error::Error;
 use std::fmt::{Display, Formatter, Result as FmtResult};
+use thiserror::Error as ThisError;
 
 // ERR_DO_NOT_SEND is a convenience error to indicate a DoNotSend in ToApp
 pub static ERR_DO_NOT_SEND: Lazy<SimpleError> = Lazy::new(|| simple_error!("Do Not Send"));
@@ -29,9 +30,7 @@ pub const REJECT_REASON_OTHER: isize = 99;
 
 // MessageRejectError is a type of error that can correlate to a message reject.
 #[enum_dispatch(MessageRejectErrorEnum)]
-pub trait MessageRejectErrorTrait:
-    Error + IntoError<dyn Error + Send + Sync> + Any + Send + Sync
-{
+pub trait MessageRejectErrorTrait: Error {
     // reject_reason, tag 373 for session rejects, tag 380 for business rejects.
     fn reject_reason(&self) -> isize;
     fn business_reject_ref_id(&self) -> &str;
@@ -39,28 +38,10 @@ pub trait MessageRejectErrorTrait:
     fn is_business_reject(&self) -> bool;
 }
 
-pub trait IntoError<Super: ?Sized> {
-    fn as_error(&self) -> &Super;
-    fn as_error_mut(&mut self) -> &mut Super;
-    fn into_error(self: Self) -> Box<Super>;
-}
-
-impl<'a, T: 'a + Error + Send + Sync> IntoError<dyn Error + Send + Sync + 'a> for T {
-    fn as_error(&self) -> &(dyn Error + Send + Sync + 'a) {
-        self
-    }
-    fn as_error_mut(&mut self) -> &mut (dyn Error + Send + Sync + 'a) {
-        self
-    }
-    fn into_error(self: Self) -> Box<dyn Error + Send + Sync + 'a> {
-        Box::new(self)
-    }
-}
-
 pub type MessageRejectErrorResult = Result<(), MessageRejectErrorEnum>;
 
 #[enum_dispatch]
-#[derive(Debug, Clone)]
+#[derive(Debug, ThisError)]
 pub enum MessageRejectErrorEnum {
     MessageRejectError(MessageRejectError),
     RejectLogon(RejectLogon),
@@ -83,10 +64,8 @@ impl Display for MessageRejectErrorEnum {
     }
 }
 
-impl Error for MessageRejectErrorEnum {}
-
 // RejectLogon indicates the application is rejecting permission to logon. Implements MessageRejectError
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct RejectLogon {
     pub text: String,
 }
@@ -121,19 +100,13 @@ impl MessageRejectErrorTrait for RejectLogon {
     }
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default)]
 pub struct MessageRejectError {
     pub reject_reason: isize,
     pub text: String,
     pub business_reject_ref_id: String,
     pub ref_tag_id: Option<Tag>,
     pub is_business_reject: bool,
-}
-
-impl MessageRejectError {
-    pub fn as_trait(self) -> Box<dyn MessageRejectErrorTrait> {
-        Box::new(self)
-    }
 }
 
 impl Display for MessageRejectError {
@@ -369,7 +342,7 @@ pub fn other_error() -> MessageRejectErrorEnum {
 }
 
 // IncorrectBeginString is a message reject specific to incorrect begin strings.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default)]
 pub struct IncorrectBeginString {
     pub message_reject_error: MessageRejectError,
 }
@@ -394,7 +367,7 @@ impl Display for IncorrectBeginString {
 impl Error for IncorrectBeginString {}
 
 // TargetTooHigh is a MessageReject where the sequence number is larger than expected.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default)]
 pub struct TargetTooHigh {
     pub message_reject_error: MessageRejectError,
     pub received_target: isize,
@@ -425,7 +398,7 @@ impl Display for TargetTooHigh {
 impl Error for TargetTooHigh {}
 
 // TargetTooLow is a MessageReject where the sequence number is less than expected.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default)]
 pub struct TargetTooLow {
     pub message_reject_error: MessageRejectError,
     pub received_target: isize,
@@ -454,6 +427,55 @@ impl Display for TargetTooLow {
 }
 
 impl Error for TargetTooLow {}
+
+#[derive(Debug, ThisError)]
+pub enum FixerError {
+    Reject(#[from] MessageRejectErrorEnum),
+    Simple(#[from] SimpleError),
+    ConditionallyRequiredSetting(#[from] ConditionallyRequiredSetting),
+    IncorrectFormatForSetting(#[from] IncorrectFormatForSetting),
+}
+
+impl Display for FixerError {
+    delegate! {
+        to match self {
+            Self::Reject(err) => err,
+            Self::Simple(err) => err,
+            Self::ConditionallyRequiredSetting(err) => err,
+            Self::IncorrectFormatForSetting(err) => err,
+        } {
+            fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult;
+        }
+    }
+}
+
+impl FixerError {
+    pub fn new_conditionally_required(setting: &str) -> Self {
+        Self::ConditionallyRequiredSetting(ConditionallyRequiredSetting {
+            setting: setting.to_string(),
+        })
+    }
+
+    pub fn new_incorrect_format_for_setting(setting: &str, string_val: &str) -> Self {
+        Self::IncorrectFormatForSetting(IncorrectFormatForSetting {
+            setting: setting.to_string(),
+            value: string_val.to_string(),
+            err: Box::new(simple_error!("invalid setting")),
+        })
+    }
+
+    pub fn new_incorrect_format_for_setting_with_error(
+        setting: &str,
+        string_val: &str,
+        err: Box<dyn Error>,
+    ) -> Self {
+        Self::IncorrectFormatForSetting(IncorrectFormatForSetting {
+            setting: setting.to_string(),
+            value: string_val.to_string(),
+            err,
+        })
+    }
+}
 
 #[cfg(test)]
 mod tests {
