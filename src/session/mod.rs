@@ -39,7 +39,7 @@ use crate::{
         TAG_SENDER_SUB_ID, TAG_SENDING_TIME, TAG_SESSION_REJECT_REASON, TAG_TARGET_COMP_ID,
         TAG_TARGET_LOCATION_ID, TAG_TARGET_SUB_ID, TAG_TEST_REQ_ID, TAG_TEXT,
     },
-    validation::Validator,
+    validation::{Validator, ValidatorEnum},
     BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIX42, BEGIN_STRING_FIXT11,
 };
 use async_recursion::async_recursion;
@@ -115,7 +115,7 @@ pub struct Session {
     pub session_event: SessionEvent,
     pub message_event: MessageEvent,
     pub application: Arc<RwLock<dyn Application>>,
-    pub validator: Option<Box<dyn Validator>>,
+    pub validator: Option<ValidatorEnum>,
     pub sm: StateMachine,
     pub state_timer: EventTimer,
     pub peer_timer: EventTimer,

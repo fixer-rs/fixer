@@ -11,9 +11,11 @@ use crate::message::Message;
 use crate::msg_type::is_admin_message_type;
 use crate::tag::*;
 use crate::tag_value::TagValue;
+use enum_dispatch::enum_dispatch;
 
 // Validator validates a FIX message
-pub trait Validator: Send + Sync {
+#[enum_dispatch]
+pub trait Validator {
     fn validate(&self, msg: &Message) -> MessageRejectErrorResult;
 }
 
@@ -34,7 +36,7 @@ impl Default for ValidatorSettings {
     }
 }
 
-struct FixValidator {
+pub struct FixValidator {
     data_dictionary: DataDictionary,
     settings: ValidatorSettings,
 }
@@ -51,7 +53,7 @@ impl Validator for FixValidator {
     }
 }
 
-struct FixtValidator {
+pub struct FixtValidator {
     transport_data_dictionary: DataDictionary,
     app_data_dictionary: DataDictionary,
     settings: ValidatorSettings,
@@ -83,27 +85,6 @@ impl Validator for FixtValidator {
             &msg_type,
             msg,
         )
-    }
-}
-
-impl dyn Validator {
-    // new creates a FIX message validator from the given data dictionaries
-    pub fn new(
-        settings: ValidatorSettings,
-        app_data_dictionary: DataDictionary,
-        transport_data_dictionary: Option<DataDictionary>,
-    ) -> Box<Self> {
-        if let Some(transport_data_dictionary) = transport_data_dictionary {
-            return Box::new(FixtValidator {
-                transport_data_dictionary,
-                app_data_dictionary,
-                settings,
-            });
-        }
-        Box::new(FixValidator {
-            data_dictionary: app_data_dictionary,
-            settings,
-        })
     }
 }
 
@@ -411,6 +392,33 @@ fn validate_field(
     Ok(())
 }
 
+#[enum_dispatch(Validator)]
+pub enum ValidatorEnum {
+    Fix(FixValidator),
+    Fixt(FixtValidator),
+}
+
+impl ValidatorEnum {
+    // new creates a FIX message validator from the given data dictionaries
+    pub fn new(
+        settings: ValidatorSettings,
+        app_data_dictionary: DataDictionary,
+        transport_data_dictionary: Option<DataDictionary>,
+    ) -> Self {
+        if let Some(transport_data_dictionary) = transport_data_dictionary {
+            return Self::Fixt(FixtValidator {
+                transport_data_dictionary,
+                app_data_dictionary,
+                settings,
+            });
+        }
+        Self::Fix(FixValidator {
+            data_dictionary: app_data_dictionary,
+            settings,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -419,7 +427,7 @@ mod tests {
 
     struct ValidateTest {
         test_name: &'static str,
-        validator: Box<dyn Validator>,
+        validator: ValidatorEnum,
         message_bytes: Vec<u8>,
         expected_reject_reason: isize,
         expected_ref_tag_id: Option<Tag>,
@@ -569,7 +577,7 @@ mod tests {
 
     async fn tc_invalid_tag_number_header() -> ValidateTest {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
-        let validator = <dyn Validator>::new(ValidatorSettings::default(), dict, None);
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
         let invalid_header_field_message = create_fix40_new_order_single();
         let tag = 9999 as Tag;
 
@@ -590,7 +598,7 @@ mod tests {
 
     async fn tc_invalid_tag_number_body() -> ValidateTest {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
-        let validator = <dyn Validator>::new(ValidatorSettings::default(), dict, None);
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
         let invalid_body_field_message = create_fix40_new_order_single();
         let tag = 9999 as Tag;
         invalid_body_field_message
@@ -610,7 +618,7 @@ mod tests {
 
     async fn tc_invalid_tag_number_trailer() -> ValidateTest {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
-        let validator = <dyn Validator>::new(ValidatorSettings::default(), dict, None);
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
         let invalid_trailer_field_message = create_fix40_new_order_single();
         let tag = 9999 as Tag;
         invalid_trailer_field_message
@@ -630,7 +638,7 @@ mod tests {
 
     async fn tc_tag_not_defined_for_message() -> ValidateTest {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
-        let validator = <dyn Validator>::new(ValidatorSettings::default(), dict, None);
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
         let invalid_msg = create_fix40_new_order_single();
         let tag = 41 as Tag;
         invalid_msg.body.set_field(tag, FIXString::from("hello"));
@@ -649,7 +657,7 @@ mod tests {
     async fn tc_tag_is_defined_for_message() -> ValidateTest {
         // compare to tcTagIsNotDefinedForMessage
         let dict = parse("./spec/FIX43.xml").await.unwrap();
-        let validator = <dyn Validator>::new(ValidatorSettings::default(), dict, None);
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
         let valid_msg = create_fix43_new_order_single();
         let message_bytes = valid_msg.build();
 
@@ -665,7 +673,7 @@ mod tests {
 
     async fn tc_field_not_found_body() -> ValidateTest {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
-        let validator = <dyn Validator>::new(ValidatorSettings::default(), dict, None);
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
         let invalid_msg1 = Message::new();
         invalid_msg1
             .header
@@ -717,7 +725,7 @@ mod tests {
 
     async fn tc_field_not_found_header() -> ValidateTest {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
-        let validator = <dyn Validator>::new(ValidatorSettings::default(), dict, None);
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
 
         let invalid_msg2 = Message::new();
         invalid_msg2
@@ -766,7 +774,7 @@ mod tests {
 
     async fn tc_tag_specified_without_a_value() -> ValidateTest {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
-        let validator = <dyn Validator>::new(ValidatorSettings::default(), dict, None);
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
         let builder = create_fix40_new_order_single();
 
         let bogus_tag = 109 as Tag;
@@ -785,7 +793,7 @@ mod tests {
 
     async fn tc_invalid_msg_type() -> ValidateTest {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
-        let validator = <dyn Validator>::new(ValidatorSettings::default(), dict, None);
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
         let builder = create_fix40_new_order_single();
         builder.header.set_field(TAG_MSG_TYPE, FIXString::from("z"));
         let message_bytes = builder.build();
@@ -802,7 +810,7 @@ mod tests {
 
     async fn tc_value_is_incorrect() -> ValidateTest {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
-        let validator = <dyn Validator>::new(ValidatorSettings::default(), dict, None);
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
 
         let tag = 21 as Tag;
         let builder = create_fix40_new_order_single();
@@ -821,7 +829,7 @@ mod tests {
 
     async fn tc_incorrect_data_format_for_value() -> ValidateTest {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
-        let validator = <dyn Validator>::new(ValidatorSettings::default(), dict, None);
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
         let builder = create_fix40_new_order_single();
         let tag = 38 as Tag;
         builder.body.set_field(tag, FIXString::from("+200.00"));
@@ -839,7 +847,7 @@ mod tests {
 
     async fn tc_tag_specified_out_of_required_order_header() -> ValidateTest {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
-        let validator = <dyn Validator>::new(ValidatorSettings::default(), dict, None);
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
 
         let builder = create_fix40_new_order_single();
         let tag = TAG_ON_BEHALF_OF_COMP_ID;
@@ -859,7 +867,7 @@ mod tests {
 
     async fn tc_tag_specified_out_of_required_order_trailer() -> ValidateTest {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
-        let validator = <dyn Validator>::new(ValidatorSettings::default(), dict, None);
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
 
         let builder = create_fix40_new_order_single();
         let tag = TAG_SIGNATURE;
@@ -882,7 +890,7 @@ mod tests {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let mut custom_validator_settings = ValidatorSettings::default();
         custom_validator_settings.reject_invalid_message = false;
-        let validator = <dyn Validator>::new(custom_validator_settings, dict, None);
+        let validator = ValidatorEnum::new(custom_validator_settings, dict, None);
 
         let builder = create_fix40_new_order_single();
         let tag = 9999 as Tag;
@@ -903,7 +911,7 @@ mod tests {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let mut custom_validator_settings = ValidatorSettings::default();
         custom_validator_settings.reject_invalid_message = true;
-        let validator = <dyn Validator>::new(custom_validator_settings, dict, None);
+        let validator = ValidatorEnum::new(custom_validator_settings, dict, None);
 
         let builder = create_fix40_new_order_single();
         let tag = 9999 as Tag;
@@ -924,7 +932,7 @@ mod tests {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let mut custom_validator_settings = ValidatorSettings::default();
         custom_validator_settings.check_fields_out_of_order = false;
-        let validator = <dyn Validator>::new(custom_validator_settings, dict, None);
+        let validator = ValidatorEnum::new(custom_validator_settings, dict, None);
 
         let builder = create_fix40_new_order_single();
         let tag = TAG_ON_BEHALF_OF_COMP_ID;
@@ -946,7 +954,7 @@ mod tests {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let mut custom_validator_settings = ValidatorSettings::default();
         custom_validator_settings.check_fields_out_of_order = false;
-        let validator = <dyn Validator>::new(custom_validator_settings, dict, None);
+        let validator = ValidatorEnum::new(custom_validator_settings, dict, None);
 
         let builder = create_fix40_new_order_single();
         let tag = TAG_SIGNATURE;
@@ -966,7 +974,7 @@ mod tests {
 
     async fn tc_tag_appears_more_than_once() -> ValidateTest {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
-        let validator = <dyn Validator>::new(ValidatorSettings::default(), dict, None);
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
         let tag = 40 as Tag;
 
         ValidateTest {
@@ -981,7 +989,7 @@ mod tests {
 
     async fn tc_float_validation() -> ValidateTest {
         let dict = parse("./spec/FIX42.xml").await.unwrap();
-        let validator = <dyn Validator>::new(ValidatorSettings::default(), dict, None);
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
         let tag = 38 as Tag;
         ValidateTest{
             test_name:  "FloatValidation",
