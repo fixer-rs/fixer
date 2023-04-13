@@ -138,20 +138,22 @@ impl MessageRejectErrorTrait for MessageRejectError {
     }
 }
 
-// new_message_reject_error returns a MessageRejectError with the given error message, reject reason, and optional reftagid
-pub fn new_message_reject_error(
-    err: String,
-    reject_reason: isize,
-    ref_tag_id: Option<Tag>,
-) -> MessageRejectErrorEnum {
-    MessageRejectError {
-        text: err,
-        reject_reason,
-        ref_tag_id,
-        business_reject_ref_id: String::new(),
-        is_business_reject: false,
+impl MessageRejectError {
+    // MessageRejectError::new() returns a MessageRejectError with the given error message, reject reason, and optional reftagid
+    pub fn new(
+        err: String,
+        reject_reason: isize,
+        ref_tag_id: Option<Tag>,
+    ) -> MessageRejectErrorEnum {
+        MessageRejectError {
+            text: err,
+            reject_reason,
+            ref_tag_id,
+            business_reject_ref_id: String::new(),
+            is_business_reject: false,
+        }
+        .into()
     }
-    .into()
 }
 
 // new_business_message_reject_error returns a MessageRejectError with the given error mesage, reject reason, and optional ref_tag_id.
@@ -191,7 +193,7 @@ pub fn new_business_message_reject_error_with_ref_id(
 
 // incorrect_data_format_for_value returns an error indicating a field that cannot be parsed as the type required.
 pub fn incorrect_data_format_for_value(tag: Tag) -> MessageRejectErrorEnum {
-    new_message_reject_error(
+    MessageRejectError::new(
         String::from("Incorrect data format for value"),
         REJECT_REASON_INCORRECT_DATA_FORMAT_FOR_VALUE,
         Some(tag),
@@ -205,7 +207,7 @@ pub fn repeating_group_fields_out_of_order(tag: Tag, mut reason: String) -> Mess
     } else {
         reason = String::from("Repeating group fields out of order")
     }
-    new_message_reject_error(
+    MessageRejectError::new(
         reason,
         REJECT_REASON_REPEATING_GROUP_FIELDS_OUT_OF_ORDER,
         Some(tag),
@@ -214,7 +216,7 @@ pub fn repeating_group_fields_out_of_order(tag: Tag, mut reason: String) -> Mess
 
 // value_is_incorrect returns an error indicating a field with value that is not valid.
 pub fn value_is_incorrect(tag: Tag) -> MessageRejectErrorEnum {
-    new_message_reject_error(
+    MessageRejectError::new(
         String::from("Value is incorrect (out of range) for this tag"),
         REJECT_REASON_VALUE_IS_INCORRECT,
         Some(tag),
@@ -232,7 +234,7 @@ pub fn conditionally_required_field_missing(tag: Tag) -> MessageRejectErrorEnum 
 
 // value_is_incorrect_no_tag returns an error indicating a field with value that is not valid.
 pub fn value_is_incorrect_no_tag() -> MessageRejectErrorEnum {
-    new_message_reject_error(
+    MessageRejectError::new(
         String::from("Value is incorrect (out of range) for this tag"),
         REJECT_REASON_VALUE_IS_INCORRECT,
         None,
@@ -241,7 +243,7 @@ pub fn value_is_incorrect_no_tag() -> MessageRejectErrorEnum {
 
 // invalid_message_type returns an error to indicate an invalid message type
 pub fn invalid_message_type() -> MessageRejectErrorEnum {
-    new_message_reject_error(
+    MessageRejectError::new(
         String::from("Invalid MsgType"),
         REJECT_REASON_INVALID_MSG_TYPE,
         None,
@@ -259,7 +261,7 @@ pub fn unsupported_message_type() -> MessageRejectErrorEnum {
 
 // tag_not_defined_for_this_message_type returns an error for an invalid tag appearing in a message.
 pub fn tag_not_defined_for_this_message_type(tag: Tag) -> MessageRejectErrorEnum {
-    new_message_reject_error(
+    MessageRejectError::new(
         String::from("Tag not defined for this message type"),
         REJECT_REASON_TAG_NOT_DEFINED_FOR_THIS_MESSAGE_TYPE,
         Some(tag),
@@ -268,7 +270,7 @@ pub fn tag_not_defined_for_this_message_type(tag: Tag) -> MessageRejectErrorEnum
 
 // tag_appears_more_than_once return an error for multiple tags in a message not detected as a repeating group.
 pub fn tag_appears_more_than_once(tag: Tag) -> MessageRejectErrorEnum {
-    new_message_reject_error(
+    MessageRejectError::new(
         String::from("Tag appears more than once"),
         REJECT_REASON_TAG_APPEARS_MORE_THAN_ONCE,
         Some(tag),
@@ -277,7 +279,7 @@ pub fn tag_appears_more_than_once(tag: Tag) -> MessageRejectErrorEnum {
 
 // required_tag_missing returns a validation error when a required field cannot be found in a message.
 pub fn required_tag_missing(tag: Tag) -> MessageRejectErrorEnum {
-    new_message_reject_error(
+    MessageRejectError::new(
         String::from("Required tag missing"),
         REJECT_REASON_REQUIRED_TAG_MISSING,
         Some(tag),
@@ -286,7 +288,7 @@ pub fn required_tag_missing(tag: Tag) -> MessageRejectErrorEnum {
 
 // incorrect_num_in_group_count_for_repeating_group returns a validation error when the num in group value for a group does not match actual size.
 pub fn incorrect_num_in_group_count_for_repeating_group(tag: Tag) -> MessageRejectErrorEnum {
-    new_message_reject_error(
+    MessageRejectError::new(
         String::from("Incorrect NumInGroup count for repeating group"),
         REJECT_REASON_INCORRECT_NUM_IN_GROUP_COUNT_FOR_REPEATING_GROUP,
         Some(tag),
@@ -295,7 +297,7 @@ pub fn incorrect_num_in_group_count_for_repeating_group(tag: Tag) -> MessageReje
 
 // tag_specified_out_of_required_order returns validation error when the group order does not match the spec.
 pub fn tag_specified_out_of_required_order(tag: Tag) -> MessageRejectErrorEnum {
-    new_message_reject_error(
+    MessageRejectError::new(
         String::from("Tag specified out of required order"),
         REJECT_REASON_TAG_SPECIFIED_OUT_OF_REQUIRED_ORDER,
         Some(tag),
@@ -304,7 +306,7 @@ pub fn tag_specified_out_of_required_order(tag: Tag) -> MessageRejectErrorEnum {
 
 // tag_specified_without_a_value returns a validation error for when a field has no value.
 pub fn tag_specified_without_a_value(tag: Tag) -> MessageRejectErrorEnum {
-    new_message_reject_error(
+    MessageRejectError::new(
         String::from("Tag specified without a value"),
         REJECT_REASON_TAG_SPECIFIED_WITHOUT_A_VALUE,
         Some(tag),
@@ -313,7 +315,7 @@ pub fn tag_specified_without_a_value(tag: Tag) -> MessageRejectErrorEnum {
 
 // invalid_tag_number returns a validation error for messages with invalid tags.
 pub fn invalid_tag_number(tag: Tag) -> MessageRejectErrorEnum {
-    new_message_reject_error(
+    MessageRejectError::new(
         String::from("Invalid tag number"),
         REJECT_REASON_INVALID_TAG_NUMBER,
         Some(tag),
@@ -322,7 +324,7 @@ pub fn invalid_tag_number(tag: Tag) -> MessageRejectErrorEnum {
 
 // comp_id_problem creates a reject for msg where msg has invalid comp id values.
 pub fn comp_id_problem() -> MessageRejectErrorEnum {
-    new_message_reject_error(
+    MessageRejectError::new(
         String::from("CompID problem"),
         REJECT_REASON_COMP_ID_PROBLEM,
         None,
@@ -331,7 +333,7 @@ pub fn comp_id_problem() -> MessageRejectErrorEnum {
 
 // sending_time_accuracy_problem creates a reject for a msg with stale or invalid sending time.
 pub fn sending_time_accuracy_problem() -> MessageRejectErrorEnum {
-    new_message_reject_error(
+    MessageRejectError::new(
         String::from("SendingTime accuracy problem"),
         REJECT_REASON_SENDING_TIME_ACCURACY_PROBLEM,
         None,
@@ -339,7 +341,7 @@ pub fn sending_time_accuracy_problem() -> MessageRejectErrorEnum {
 }
 
 pub fn other_error() -> MessageRejectErrorEnum {
-    new_message_reject_error(String::from("Other error"), REJECT_REASON_OTHER, None)
+    MessageRejectError::new(String::from("Other error"), REJECT_REASON_OTHER, None)
 }
 
 // IncorrectBeginString is a message reject specific to incorrect begin strings.
@@ -491,7 +493,7 @@ mod tests {
         let expected_ref_tag_id: Tag = 44;
         let expected_is_business_reject = false;
 
-        let msg_rej = new_message_reject_error(
+        let msg_rej = MessageRejectError::new(
             String::from(expected_error_string),
             expected_reject_reason,
             Some(expected_ref_tag_id),
