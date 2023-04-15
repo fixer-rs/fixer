@@ -1,7 +1,11 @@
-use std::string::ToString;
+use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
+    string::ToString,
+};
 
 // SessionID is a unique identifier of a Session
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub struct SessionID {
     pub begin_string: String,
     pub target_comp_id: String,
@@ -26,6 +30,12 @@ impl SessionID {
     // is_fixt returns true if the SessionID has a FIXT begin_string
     pub fn is_fixt(&self) -> bool {
         self.begin_string == crate::BEGIN_STRING_FIXT11
+    }
+
+    pub fn get_hash(&self) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        self.hash(&mut hasher);
+        hasher.finish()
     }
 }
 
