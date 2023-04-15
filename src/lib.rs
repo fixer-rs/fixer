@@ -7,6 +7,7 @@ extern crate anyhow;
 
 pub mod application;
 pub mod config;
+pub mod connection;
 pub mod datadictionary;
 pub mod errors;
 pub mod field;
@@ -18,8 +19,6 @@ pub mod fix_float;
 pub mod fix_int;
 pub mod fix_string;
 pub mod fix_utc_timestamp;
-#[cfg(test)]
-pub mod fixer_test;
 pub mod internal;
 pub mod log;
 pub mod message;
@@ -32,6 +31,9 @@ pub mod store;
 pub mod tag;
 pub mod tag_value;
 pub mod validation;
+
+#[cfg(test)]
+pub mod fixer_test;
 
 //FIX BeginString string values
 pub const BEGIN_STRING_FIX40: &str = "FIX.4.0";
