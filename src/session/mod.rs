@@ -45,7 +45,7 @@ use crate::{
 use async_recursion::async_recursion;
 use chrono::{DateTime, Duration as ChronoDuration, FixedOffset, Utc};
 use simple_error::SimpleError;
-use std::{error::Error, sync::Arc};
+use std::sync::Arc;
 use tokio::sync::{
     mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
     Mutex, OnceCell, RwLock,
