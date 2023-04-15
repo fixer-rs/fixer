@@ -25,7 +25,7 @@ pub struct FIXUTCTimestamp {
 
 impl FieldValueReader for FIXUTCTimestamp {
     fn read(&mut self, input: &[u8]) -> Result<(), SimpleError> {
-        let res = |e| {
+        let res = |_| {
             simple_error!(
                 "Invalid Value for Timestamp: {}",
                 String::from_utf8_lossy(input)
