@@ -393,7 +393,7 @@ impl Session {
     }
 
     // queue_for_send will validate, persist, and queue the message for send
-    async fn queue_for_send(&mut self, msg: &Message) -> Result<(), FixerError> {
+    pub async fn queue_for_send(&mut self, msg: &Message) -> Result<(), FixerError> {
         let msg_bytes = self.prep_message_for_send(msg, None).await?;
         let mut to_send = self.to_send.lock().await;
         to_send.push(msg_bytes);
