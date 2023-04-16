@@ -1,4 +1,7 @@
-use crate::log::{LogFactoryTrait, LogTrait};
+use crate::{
+    log::{LogFactoryTrait, LogTrait},
+    session::session_id::SessionID,
+};
 use flexi_logger::LoggerHandle;
 use log::info;
 use ramhorns::Template;
@@ -41,8 +44,8 @@ impl LogTrait for FileLog {
 }
 
 pub struct FileLogFactory {
-    // 	global_log_path   string
-    // 	session_log_paths map[SessionID]string
+    global_log_path: String,
+    session_log_paths: HashMap<SessionID, String>, // TODO: convert this to &SessionID
 }
 impl FileLogFactory {
     // new creates an instance of LogFactory that writes messages and events to file.

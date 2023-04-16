@@ -10,7 +10,7 @@ const DELIMITER: &str = "\u{1}";
 const CHECKSUM: &str = "\u{1}10=";
 const DEFAULT_BUF_SIZE: usize = 4096;
 
-pub struct Parser<T: Unpin + AsyncRead + AsyncReadExt> {
+pub struct Parser<T: Unpin + AsyncRead> {
     big_buffer: Vec<u8>,
     reader: BufReader<T>,
     pub last_read: DateTime<Local>,
@@ -22,7 +22,7 @@ pub struct Parser<T: Unpin + AsyncRead + AsyncReadExt> {
 
 impl<T> Parser<T>
 where
-    T: Unpin + AsyncRead + AsyncReadExt,
+    T: Unpin + AsyncRead,
 {
     pub fn new(reader: BufReader<T>) -> Self
     where
