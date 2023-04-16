@@ -26,6 +26,7 @@ delegate = "0.10"
 dyn-clone = "1.0"
 enum_dispatch = "0.3"
 fast-float = "0.2"
+fast-socks5 = "0.8"
 futures = "0.3"
 itoa = "1.0"
 log = "0.4"
@@ -55,6 +56,7 @@ tokio = { version = "1.32", features = [
   "macros",
   "time",
 ] }
+tokio-rustls = "0.24"
 wg = "0.3"
 
 [dev-dependencies]
