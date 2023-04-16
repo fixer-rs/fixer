@@ -5,7 +5,7 @@ use enum_dispatch::enum_dispatch;
 use simple_error::SimpleResult;
 use std::collections::HashMap;
 
-//The MessageStore interface provides methods to record and retrieve messages for resend purposes
+// The MessageStore interface provides methods to record and retrieve messages for resend purposes
 #[async_trait]
 #[enum_dispatch]
 pub trait MessageStoreTrait {
