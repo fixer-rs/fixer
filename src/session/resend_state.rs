@@ -28,6 +28,8 @@ impl ResendState {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use crate::{
         field_map::FieldMap,
         fixer_test::{FieldEqual, SessionSuiteRig, TestApplication, OVERRIDE_TIMES},
@@ -142,7 +144,11 @@ mod tests {
 
         s.ssr.message_factory.set_next_seq_num(1);
         s.ssr.mock_app.write().await.mock_app.checkpoint();
-        s.ssr.session.session_id.qualifier = OVERRIDE_TIMES.to_string();
+
+        let mut session_id = (*s.ssr.session.session_id).clone();
+        session_id.qualifier = OVERRIDE_TIMES.to_string();
+        s.ssr.session.session_id = Arc::new(session_id);
+
         s.ssr.mock_app.set_from_app(4);
 
         s.ssr
@@ -195,7 +201,10 @@ mod tests {
         s.ssr.next_target_msg_seq_num(2).await;
         s.ssr.state(&SessionStateEnum::new_resend_state());
 
-        s.ssr.session.session_id.qualifier = OVERRIDE_TIMES.to_string();
+        let mut session_id = (*s.ssr.session.session_id).clone();
+        session_id.qualifier = OVERRIDE_TIMES.to_string();
+        s.ssr.session.session_id = Arc::new(session_id);
+
         s.ssr.mock_app.set_from_app(2);
         s.ssr
             .session
@@ -265,7 +274,11 @@ mod tests {
         s.ssr.next_target_msg_seq_num(1).await;
 
         s.ssr.message_factory.set_next_seq_num(1);
-        s.ssr.session.session_id.qualifier = OVERRIDE_TIMES.to_string();
+
+        let mut session_id = (*s.ssr.session.session_id).clone();
+        session_id.qualifier = OVERRIDE_TIMES.to_string();
+        s.ssr.session.session_id = Arc::new(session_id);
+
         s.ssr.mock_app.set_from_app(1);
         s.ssr
             .session

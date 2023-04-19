@@ -31,12 +31,6 @@ impl SessionID {
     pub fn is_fixt(&self) -> bool {
         self.begin_string == crate::BEGIN_STRING_FIXT11
     }
-
-    pub fn get_hash(&self) -> u64 {
-        let mut hasher = DefaultHasher::new();
-        self.hash(&mut hasher);
-        hasher.finish()
-    }
 }
 
 impl ToString for SessionID {
