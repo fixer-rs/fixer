@@ -1,6 +1,6 @@
 use once_cell::sync::Lazy;
 use simple_error::{SimpleError, SimpleResult};
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
 
 use crate::{
@@ -11,7 +11,7 @@ use crate::{
     tag::{TAG_BEGIN_STRING, TAG_SENDER_COMP_ID, TAG_TARGET_COMP_ID},
 };
 
-pub static SESSIONS: Lazy<RwLock<HashMap<u64, Session>>> =
+pub static SESSIONS: Lazy<RwLock<HashMap<Arc<SessionID>, Session>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
 
 pub static ERR_DUPLICATE_SESSION_ID: Lazy<SimpleError> =
@@ -44,28 +44,28 @@ pub async fn send(message: &dyn Messageable) -> Result<(), FixerError> {
         ..Default::default()
     };
 
-    send_to_target(message, &session_id).await
+    send_to_target(message, &Arc::new(session_id)).await
 }
 
 // send_to_target sends a message based on the session_id. Convenient for use in from_app since it provides a session ID for incoming messages.
 pub async fn send_to_target(
     message: &dyn Messageable,
-    session_id: &SessionID,
+    session_id: &Arc<SessionID>,
 ) -> Result<(), FixerError> {
     let msg = message.to_message();
     let mut lock = (*SESSIONS).write().await;
-    let key = session_id.get_hash();
-    let session = lock.get_mut(&key).ok_or(ERR_UNKNOWN_SESSION.clone())?;
+    let session = lock
+        .get_mut(session_id)
+        .ok_or(ERR_UNKNOWN_SESSION.clone())?;
 
     session.queue_for_send(msg).await
 }
 
 // unregister_session removes a session from the set of known sessions.
-pub async fn unregister_session(session_id: &SessionID) -> SimpleResult<()> {
+pub async fn unregister_session(session_id: &Arc<SessionID>) -> SimpleResult<()> {
     let mut lock = (*SESSIONS).write().await;
-    let key = session_id.get_hash();
-    if (*lock).contains_key(&key) {
-        (*lock).remove(&key);
+    if (*lock).contains_key(session_id) {
+        (*lock).remove(session_id);
         return Ok(());
     }
 
@@ -74,11 +74,10 @@ pub async fn unregister_session(session_id: &SessionID) -> SimpleResult<()> {
 
 pub async fn register_session(s: Session) -> SimpleResult<()> {
     let mut lock = (*SESSIONS).write().await;
-    let key = s.session_id.get_hash();
-    if (*lock).contains_key(&key) {
+    if (*lock).contains_key(&s.session_id) {
         return Err(ERR_DUPLICATE_SESSION_ID.clone());
     }
 
-    (*lock).insert(key, s);
+    (*lock).insert(s.session_id.clone(), s);
     Ok(())
 }

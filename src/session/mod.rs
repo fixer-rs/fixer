@@ -104,7 +104,7 @@ pub struct Session {
     pub store: MessageStoreEnum,
 
     pub log: LogEnum,
-    pub session_id: SessionID,
+    pub session_id: Arc<SessionID>,
 
     pub message_out: UnboundedSender<Vec<u8>>,
     pub message_in: UnboundedReceiver<FixIn>,
@@ -2113,9 +2113,12 @@ mod tests {
     #[tokio::test]
     async fn test_fill_default_header() {
         let mut s = SessionSuite::setup_test().await;
-        s.ssr.session.session_id.begin_string = FIXString::from("FIX.4.2");
-        s.ssr.session.session_id.target_comp_id = FIXString::from("TAR");
-        s.ssr.session.session_id.sender_comp_id = FIXString::from("SND");
+
+        let mut session_id = (*s.ssr.session.session_id).clone();
+        session_id.begin_string = FIXString::from("FIX.4.2");
+        session_id.target_comp_id = FIXString::from("TAR");
+        session_id.sender_comp_id = FIXString::from("SND");
+        s.ssr.session.session_id = Arc::new(session_id);
 
         let mut msg = Message::new();
         s.ssr.session.fill_default_header(&msg, None).await;
@@ -2139,13 +2142,15 @@ mod tests {
         assert!(!msg.header.has(TAG_TARGET_SUB_ID));
         assert!(!msg.header.has(TAG_TARGET_LOCATION_ID));
 
-        s.ssr.session.session_id.begin_string = String::from("FIX.4.3");
-        s.ssr.session.session_id.target_comp_id = String::from("TAR");
-        s.ssr.session.session_id.target_sub_id = String::from("TARS");
-        s.ssr.session.session_id.target_location_id = String::from("TARL");
-        s.ssr.session.session_id.sender_comp_id = String::from("SND");
-        s.ssr.session.session_id.sender_sub_id = String::from("SNDS");
-        s.ssr.session.session_id.sender_location_id = String::from("SNDL");
+        let mut session_id = (*s.ssr.session.session_id).clone();
+        session_id.begin_string = String::from("FIX.4.3");
+        session_id.target_comp_id = String::from("TAR");
+        session_id.target_sub_id = String::from("TARS");
+        session_id.target_location_id = String::from("TARL");
+        session_id.sender_comp_id = String::from("SND");
+        session_id.sender_sub_id = String::from("SNDS");
+        session_id.sender_location_id = String::from("SNDL");
+        s.ssr.session.session_id = Arc::new(session_id);
 
         msg = Message::new();
         s.ssr.session.fill_default_header(&msg, None).await;
@@ -2239,7 +2244,10 @@ mod tests {
         ];
 
         for test in tests.iter() {
-            s.ssr.session.session_id.begin_string = test.begin_string.to_string();
+            let mut session_id = (*s.ssr.session.session_id).clone();
+            session_id.begin_string = test.begin_string.to_string();
+            s.ssr.session.session_id = Arc::new(session_id);
+
             s.ssr.session.timestamp_precision = test.precision;
 
             let msg = Message::new();
@@ -2254,8 +2262,12 @@ mod tests {
     #[tokio::test]
     async fn test_check_correct_comp_id() {
         let mut s = SessionSuite::setup_test().await;
-        s.ssr.session.session_id.target_comp_id = String::from("TAR");
-        s.ssr.session.session_id.sender_comp_id = String::from("SND");
+
+        let mut session_id = (*s.ssr.session.session_id).clone();
+        session_id.target_comp_id = String::from("TAR");
+        session_id.sender_comp_id = String::from("SND");
+        s.ssr.session.session_id = Arc::new(session_id);
+
         struct TestCase {
             sender_comp_id: Option<FIXString>,
             target_comp_id: Option<FIXString>,
@@ -2709,7 +2721,10 @@ mod tests {
         ];
 
         for test in tests.iter_mut() {
-            s.ssr.session.session_id.begin_string = String::from(test.begin_string);
+            let mut session_id = (*s.ssr.session.session_id).clone();
+            session_id.begin_string = test.begin_string.to_string();
+            s.ssr.session.session_id = Arc::new(session_id);
+
             s.ssr.session.iss.reset_on_logon = test.reset_on_logon;
             s.ssr.session.iss.reset_on_disconnect = test.reset_on_disconnect;
             s.ssr.session.iss.reset_on_logout = test.reset_on_logout;
@@ -3581,7 +3596,11 @@ mod tests {
     #[tokio::test]
     async fn test_on_admin_connect_initiate_logon_fixt11() {
         let mut s = SessionSuite::setup_test().await;
-        s.ssr.session.session_id.begin_string = String::from(BEGIN_STRING_FIXT11);
+
+        let mut session_id = (*s.ssr.session.session_id).clone();
+        session_id.begin_string = String::from(BEGIN_STRING_FIXT11);
+        s.ssr.session.session_id = Arc::new(session_id);
+
         s.ssr.session.iss.default_appl_ver_id = String::from("8");
         s.ssr.session.iss.initiate_logon = true;
 
@@ -3795,7 +3814,10 @@ mod tests {
     #[tokio::test]
     async fn test_queue_for_send_do_not_send_app_message() {
         let mut s = SessionSendTestSuite::setup_test();
-        s.ssr.session.session_id.qualifier = TO_APP_RETURN_ERROR.to_string();
+
+        let mut session_id = (*s.ssr.session.session_id).clone();
+        session_id.qualifier = TO_APP_RETURN_ERROR.to_string();
+        s.ssr.session.session_id = Arc::new(session_id);
 
         let queue_result = s
             .ssr
@@ -3863,7 +3885,10 @@ mod tests {
     async fn test_send_app_do_not_send_message() {
         let mut s = SessionSendTestSuite::setup_test();
 
-        s.ssr.session.session_id.qualifier = TO_APP_RETURN_ERROR.to_string();
+        let mut session_id = (*s.ssr.session.session_id).clone();
+        session_id.qualifier = TO_APP_RETURN_ERROR.to_string();
+        s.ssr.session.session_id = Arc::new(session_id);
+
         let queue_result = s
             .ssr
             .session

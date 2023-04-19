@@ -24,6 +24,8 @@ impl InSession {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use crate::{
         errors::ERR_DO_NOT_SEND,
         field_map::FieldMap,
@@ -383,7 +385,9 @@ mod tests {
     #[tokio::test]
     async fn test_fix_msg_in_resend_request_all_admin_expect_gap_fill() {
         let mut s = SessionSuite::setup_test().await;
-        s.ssr.session.session_id.qualifier = OVERRIDE_TIMES.to_string();
+        let mut session_id = (*s.ssr.session.session_id).clone();
+        session_id.qualifier = OVERRIDE_TIMES.to_string();
+        s.ssr.session.session_id = Arc::new(session_id);
 
         s.ssr.mock_app.set_to_admin(3);
 
@@ -399,7 +403,10 @@ mod tests {
         s.ssr.mock_app.write().await.mock_app.checkpoint();
         s.ssr.next_sender_msg_seq_num(4).await;
 
-        s.ssr.session.session_id.qualifier.clear();
+        let mut session_id = (*s.ssr.session.session_id).clone();
+        session_id.qualifier.clear();
+        s.ssr.session.session_id = Arc::new(session_id);
+
         s.ssr
             .session
             .sm_fix_msg_in(&mut s.ssr.message_factory.resend_request(1))
@@ -470,7 +477,9 @@ mod tests {
     #[tokio::test]
     async fn test_fix_msg_in_resend_request_all_admin_then_app() {
         let mut s = SessionSuite::setup_test().await;
-        s.ssr.session.session_id.qualifier = OVERRIDE_TIMES.to_string();
+        let mut session_id = (*s.ssr.session.session_id).clone();
+        session_id.qualifier = OVERRIDE_TIMES.to_string();
+        s.ssr.session.session_id = Arc::new(session_id);
 
         s.ssr.mock_app.set_to_admin(2);
         s.ssr.mock_app.set_to_app(1);
@@ -601,7 +610,9 @@ mod tests {
     async fn test_fix_msg_in_resend_request_no_message_persist() {
         let mut s = SessionSuite::setup_test().await;
         s.ssr.session.iss.disable_message_persist = true;
-        s.ssr.session.session_id.qualifier = OVERRIDE_TIMES.to_string();
+        let mut session_id = (*s.ssr.session.session_id).clone();
+        session_id.qualifier = OVERRIDE_TIMES.to_string();
+        s.ssr.session.session_id = Arc::new(session_id);
 
         s.ssr.mock_app.set_to_app(1);
         assert!(s
@@ -689,7 +700,10 @@ mod tests {
     #[tokio::test]
     async fn test_fix_msg_in_resend_request_do_not_send_app() {
         let mut s = SessionSuite::setup_test().await;
-        s.ssr.session.session_id.qualifier = OVERRIDE_TIMES.to_string();
+        let mut session_id = (*s.ssr.session.session_id).clone();
+        session_id.qualifier = OVERRIDE_TIMES.to_string();
+        s.ssr.session.session_id = Arc::new(session_id);
+
         s.ssr.mock_app.set_to_admin(2);
         s.ssr.mock_app.set_to_app(1);
         s.ssr.session.sm_timeout(NEED_HEARTBEAT).await;
@@ -711,7 +725,10 @@ mod tests {
         s.ssr.next_sender_msg_seq_num(4).await;
 
         // NOTE: a cheat here, need to reset mock.
-        s.ssr.session.session_id.qualifier = OVERRIDE_TIMES_TO_APP_RETURN_ERROR.to_string();
+        let mut session_id = (*s.ssr.session.session_id).clone();
+        session_id.qualifier = OVERRIDE_TIMES_TO_APP_RETURN_ERROR.to_string();
+        s.ssr.session.session_id = Arc::new(session_id);
+
         s.ssr.mock_app.set_to_admin(1);
         s.ssr.mock_app.set_to_app_return_error(1, &ERR_DO_NOT_SEND);
 

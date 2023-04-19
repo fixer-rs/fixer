@@ -696,12 +696,12 @@ impl SessionSuiteRig {
         let session = Session {
             store: MessageStoreEnum::MockMemoryStore(mock_store_shared.clone()),
             log: LogEnum::NullLog(NullLog),
-            session_id: SessionID {
+            session_id: Arc::new(SessionID {
                 begin_string: String::from("FIX.4.2"),
                 target_comp_id: String::from("TW"),
                 sender_comp_id: String::from("ISLD"),
                 ..Default::default()
-            },
+            }),
             message_out: receiver.send_channel.tx.clone(),
             message_in: message_in_rx,
             to_send: Default::default(),

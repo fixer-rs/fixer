@@ -24,6 +24,8 @@ impl LogonState {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use crate::{
         errors::{MessageRejectErrorEnum, RejectLogon},
         field_map::FieldMap,
@@ -389,7 +391,11 @@ mod tests {
     #[tokio::test]
     async fn test_fix_msg_in_logon_reject_logon() {
         let mut s = SessionSuite::setup_test().await;
-        s.ssr.session.session_id.qualifier = OVERRIDE_TIMES_FROM_ADMIN_RETURN_ERROR.to_string();
+
+        let mut session_id = (*s.ssr.session.session_id).clone();
+        session_id.qualifier = OVERRIDE_TIMES_FROM_ADMIN_RETURN_ERROR.to_string();
+        s.ssr.session.session_id = Arc::new(session_id);
+
         s.ssr.mock_app.set_from_admin_return_error(
             1,
             MessageRejectErrorEnum::RejectLogon(RejectLogon {
@@ -436,7 +442,11 @@ mod tests {
     #[tokio::test]
     async fn test_fix_msg_in_logon_seq_num_too_high() {
         let mut s = SessionSuite::setup_test().await;
-        s.ssr.session.session_id.qualifier = OVERRIDE_TIMES.to_string();
+
+        let mut session_id = (*s.ssr.session.session_id).clone();
+        session_id.qualifier = OVERRIDE_TIMES.to_string();
+        s.ssr.session.session_id = Arc::new(session_id);
+
         s.ssr.mock_app.set_to_admin(2);
 
         s.ssr.message_factory.set_next_seq_num(6);
@@ -480,7 +490,10 @@ mod tests {
                 .field_map,
         );
 
-        s.ssr.session.session_id.qualifier.clear();
+        let mut session_id = (*s.ssr.session.session_id).clone();
+        session_id.qualifier.clear();
+        s.ssr.session.session_id = Arc::new(session_id);
+
         s.ssr.message_factory.set_next_seq_num(1);
 
         s.ssr
@@ -502,7 +515,11 @@ mod tests {
     #[tokio::test]
     async fn test_fix_msg_in_logon_seq_num_too_low() {
         let mut s = SessionSuite::setup_test().await;
-        s.ssr.session.session_id.qualifier = OVERRIDE_TIMES.to_string();
+
+        let mut session_id = (*s.ssr.session.session_id).clone();
+        session_id.qualifier = OVERRIDE_TIMES.to_string();
+        s.ssr.session.session_id = Arc::new(session_id);
+
         s.ssr.mock_app.set_to_admin(1);
 
         s.ssr.incr_next_sender_msg_seq_num().await;

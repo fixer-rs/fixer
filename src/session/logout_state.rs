@@ -24,6 +24,8 @@ impl LogoutState {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use crate::{
         errors::conditionally_required_field_missing,
         fixer_test::{SessionSuiteRig, TestApplication, FROM_APP_RETURN_ERROR},
@@ -99,7 +101,11 @@ mod tests {
     #[tokio::test]
     async fn test_fix_msg_in_not_logout_reject() {
         let mut s = SessionSuite::setup_test().await;
-        s.ssr.session.session_id.qualifier = FROM_APP_RETURN_ERROR.to_string();
+
+        let mut session_id = (*s.ssr.session.session_id).clone();
+        session_id.qualifier = FROM_APP_RETURN_ERROR.to_string();
+        s.ssr.session.session_id = Arc::new(session_id);
+
         let error = conditionally_required_field_missing(11 as Tag);
         s.ssr.mock_app.set_from_app_return_error(1, error);
 
