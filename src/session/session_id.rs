@@ -1,8 +1,4 @@
-use std::{
-    collections::hash_map::DefaultHasher,
-    hash::{Hash, Hasher},
-    string::ToString,
-};
+use std::{hash::Hash, string::ToString};
 
 // SessionID is a unique identifier of a Session
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]

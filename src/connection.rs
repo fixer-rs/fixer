@@ -3,12 +3,11 @@ use crate::{
     parser::Parser,
     session::FixIn,
 };
-use std::pin::Pin;
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 pub async fn write_loop<W>(
-    mut connection: Pin<&mut W>,
+    mut connection: W,
     mut message_out: UnboundedReceiver<Vec<u8>>,
     log: LogEnum,
 ) where
@@ -17,7 +16,7 @@ pub async fn write_loop<W>(
     loop {
         tokio::select! {
             Some(msg) = message_out.recv() => {
-                if let Err(err) = (*connection).write(&msg).await {
+                if let Err(err) = (connection).write(&msg).await {
                     log.on_event(&err.to_string());
                 };
             },
@@ -30,7 +29,7 @@ pub async fn write_loop<W>(
 
 pub async fn read_loop<T>(mut parser: Parser<T>, msg_in: UnboundedSender<FixIn>)
 where
-    T: Unpin + AsyncRead + AsyncReadExt,
+    T: Unpin + AsyncRead,
 {
     loop {
         tokio::select! {
@@ -55,7 +54,6 @@ mod tests {
     use crate::log::{null_log::NullLog, LogEnum};
     use crate::parser::Parser;
     use crate::session::FixIn;
-    use std::pin::Pin;
     use tokio::io::BufReader;
     use tokio::sync::mpsc::unbounded_channel;
 
@@ -70,7 +68,7 @@ mod tests {
             let _ = msg_out_tx.send(br#"test msg 3"#.to_vec());
         });
         let nl = LogEnum::NullLog(NullLog {});
-        write_loop(Pin::new(&mut writer), msg_out_rx, nl).await;
+        write_loop(&mut writer, msg_out_rx, nl).await;
 
         let expected = "test msg 1 test msg 2 test msg 3";
         let res = &String::from_utf8_lossy(&writer).to_string();

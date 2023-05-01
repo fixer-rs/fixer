@@ -36,7 +36,7 @@ impl Display for IncorrectFormatForSetting {
 impl Error for IncorrectFormatForSetting {}
 
 // SessionSettings maps session settings to values with typed accessors.
-#[derive(Default, Clone)]
+#[derive(Default, Debug, PartialEq, Eq, Clone)]
 pub struct SessionSettings {
     settings: HashMap<String, String>,
 }
@@ -108,7 +108,15 @@ impl SessionSettings {
         }
     }
 
-    fn overlay(&mut self, overlay: &SessionSettings) {
+    pub fn is_empty(&self) -> bool {
+        self.settings.is_empty()
+    }
+
+    pub fn reset(&mut self) {
+        self.settings.clear();
+    }
+
+    pub fn overlay(&mut self, overlay: &SessionSettings) {
         for (k, v) in overlay.settings.iter() {
             let _ = self.settings.insert(k.clone(), v.clone());
         }
@@ -257,10 +265,8 @@ mod tests {
             s.set(test.input.to_string(), test.expected.to_string());
         }
 
-        let cloned = s.clone();
-
         for test in tests.iter() {
-            let err = cloned.setting(test.input);
+            let err = &s.setting(test.input);
             assert!(err.is_ok(), "Unexpected err {:?}", err);
             assert_eq!(
                 test.expected,
