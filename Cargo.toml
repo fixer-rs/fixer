@@ -22,7 +22,6 @@ defer-lite = "1.0"
 delegate = "0.9"
 enum_dispatch = "0.3"
 fast-float = "0.2"
-flexi_logger = {version = "0.25", features = ["async"]}
 futures = "0.3"
 itoa = "1.0"
 log = "0.4"
@@ -40,7 +39,7 @@ serde_derive = "1.0"
 simple-error = "0.2"
 subenum = "1.0"
 thiserror = "1.0"
-tokio = {version = "1.27", features = ["io-util", "fs", "rt", "rt-multi-thread", "sync", "macros", "time"]}
+tokio = {version = "1.27", features = ["io-util", "io-std", "fs", "rt", "rt-multi-thread", "sync", "macros", "time"]}
 wg = "0.3"
 
 [dev-dependencies]

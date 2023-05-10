@@ -50,7 +50,7 @@ impl Settings {
 
     // parse creates and initializes a Settings instance with config parsed from a Reader.
     // Returns error if the config is has parse errors.
-    pub async fn parse<F>(reader: F) -> Result<Self, Box<dyn Error>>
+    pub async fn parse<F>(reader: F) -> Result<Self, Box<dyn Error + Send + Sync>>
     where
         F: AsyncBufRead,
     {
@@ -139,7 +139,7 @@ impl Settings {
     pub async fn add_session(
         &mut self,
         session_settings: SessionSettings,
-    ) -> Result<Arc<SessionID>, Box<dyn Error>> {
+    ) -> Result<Arc<SessionID>, Box<dyn Error + Send + Sync>> {
         self.lazy_init().await;
         let session_id = session_id_from_session_settings(
             &self.global_settings().await.read().await.as_ref().unwrap(),

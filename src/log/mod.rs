@@ -1,38 +1,41 @@
 use crate::session::session_id::SessionID;
+use async_trait::async_trait;
 use enum_dispatch::enum_dispatch;
 use file_log::{FileLog, FileLogFactory};
 use null_log::{NullLog, NullLogFactory};
 use screen_log::{ScreenLog, ScreenLogFactory};
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt, sync::Arc};
 
 pub mod file_log;
 pub mod null_log;
 pub mod screen_log;
 
 // Log is a generic trait for logging FIX messages and events.
+#[async_trait]
 #[enum_dispatch]
 pub trait LogTrait {
     // on_incoming log incoming fix message
-    fn on_incoming(&self, data: &[u8]);
+    async fn on_incoming(&mut self, data: &[u8]);
 
     // on_outgoing log outgoing fix message
-    fn on_outgoing(&self, data: &[u8]);
+    async fn on_outgoing(&mut self, data: &[u8]);
 
     // on_event log fix event
-    fn on_event(&self, data: &str);
+    async fn on_event(&mut self, data: &str);
 
     // on_eventf log fix event according to format specifier
-    fn on_eventf(&self, format: &str, params: HashMap<String, String>);
+    async fn on_eventf(&mut self, format: &str, params: HashMap<String, String>);
 }
 
 // The LogFactory trait creates global and session specific Log instances
+#[async_trait]
 #[enum_dispatch]
 pub trait LogFactoryTrait {
     // create global log
-    fn create(&self) -> Result<LogEnum, String>;
+    async fn create(&mut self) -> Result<LogEnum, String>;
 
     // create_session_log session specific log
-    fn create_session_log(&self, session_id: SessionID) -> Result<LogEnum, String>;
+    async fn create_session_log(&mut self, session_id: Arc<SessionID>) -> Result<LogEnum, String>;
 }
 
 #[enum_dispatch(LogTrait)]
@@ -42,8 +45,21 @@ pub enum LogEnum {
     FileLog,
 }
 
+impl fmt::Debug for LogEnum {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
 #[enum_dispatch(LogFactoryTrait)]
 pub enum LogFactoryEnum {
     NullLogFactory,
     ScreenLogFactory,
+    FileLogFactory,
+}
+
+impl fmt::Debug for LogFactoryEnum {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }

@@ -62,10 +62,10 @@ pub async fn send_to_target(
 }
 
 // unregister_session removes a session from the set of known sessions.
-pub async fn unregister_session(session_id: &Arc<SessionID>) -> SimpleResult<()> {
+pub async fn unregister_session(session_id: Arc<SessionID>) -> SimpleResult<()> {
     let mut lock = (*SESSIONS).write().await;
-    if (*lock).contains_key(session_id) {
-        (*lock).remove(session_id);
+    if (*lock).contains_key(&session_id) {
+        (*lock).remove(&session_id);
         return Ok(());
     }
 

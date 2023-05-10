@@ -12,6 +12,7 @@ pub mod datadictionary;
 pub mod errors;
 pub mod field;
 pub mod field_map;
+pub mod fileutil;
 pub mod fix_boolean;
 pub mod fix_bytes;
 pub mod fix_decimal;
