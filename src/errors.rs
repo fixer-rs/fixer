@@ -472,7 +472,7 @@ impl FixerError {
     pub fn new_incorrect_format_for_setting_with_error(
         setting: &str,
         string_val: &str,
-        err: Box<dyn Error>,
+        err: Box<dyn Error + Send + Sync>,
     ) -> Self {
         Self::IncorrectFormatForSetting(IncorrectFormatForSetting {
             setting: setting.to_string(),

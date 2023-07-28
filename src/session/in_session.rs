@@ -62,7 +62,7 @@ mod tests {
                 ssr: SessionSuiteRig::init(),
             };
             assert!(s.ssr.session.store.reset().await.is_ok());
-            s.ssr.session.sm.state = SessionStateEnum::new_in_session();
+            s.ssr.session.sm.state = SessionStateEnum::new_in_session().await;
             s
         }
 
@@ -155,7 +155,7 @@ mod tests {
         let mut s = SessionSuite::setup_test().await;
         s.ssr.session.sm_timeout(NEED_HEARTBEAT).await;
 
-        s.ssr.state(&SessionStateEnum::new_in_session());
+        s.ssr.state(&SessionStateEnum::new_in_session().await);
         s.ssr.last_to_admin_message_sent().await;
         s.message_type(
             String::from_utf8_lossy(MSG_TYPE_HEARTBEAT).to_string(),
@@ -471,7 +471,7 @@ mod tests {
         );
 
         s.ssr.next_sender_msg_seq_num(4).await;
-        s.ssr.state(&SessionStateEnum::new_in_session());
+        s.ssr.state(&SessionStateEnum::new_in_session().await);
     }
 
     #[tokio::test]
@@ -603,7 +603,7 @@ mod tests {
         );
 
         s.ssr.next_sender_msg_seq_num(4).await;
-        s.ssr.state(&SessionStateEnum::new_in_session());
+        s.ssr.state(&SessionStateEnum::new_in_session().await);
     }
 
     #[tokio::test]
@@ -694,7 +694,7 @@ mod tests {
         );
 
         s.ssr.next_sender_msg_seq_num(2).await;
-        s.ssr.state(&SessionStateEnum::new_in_session());
+        s.ssr.state(&SessionStateEnum::new_in_session().await);
     }
 
     #[tokio::test]
@@ -800,7 +800,7 @@ mod tests {
 
         s.ssr.no_message_sent().await;
         s.ssr.next_sender_msg_seq_num(4).await;
-        s.ssr.state(&SessionStateEnum::new_in_session());
+        s.ssr.state(&SessionStateEnum::new_in_session().await);
     }
 
     #[tokio::test]
@@ -874,7 +874,7 @@ mod tests {
                 .body
                 .field_map,
         );
-        s.ssr.state(&SessionStateEnum::new_in_session());
+        s.ssr.state(&SessionStateEnum::new_in_session().await);
 
         nos.header.set_field(
             TAG_ORIG_SENDING_TIME,
@@ -885,7 +885,7 @@ mod tests {
         s.ssr.session.sm_fix_msg_in(&mut nos).await;
 
         s.ssr.no_message_sent().await;
-        s.ssr.state(&SessionStateEnum::new_in_session());
+        s.ssr.state(&SessionStateEnum::new_in_session().await);
         s.ssr.next_target_msg_seq_num(2).await;
     }
 }

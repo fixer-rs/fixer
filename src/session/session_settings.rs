@@ -24,7 +24,7 @@ impl Error for ConditionallyRequiredSetting {}
 pub struct IncorrectFormatForSetting {
     pub setting: String,
     pub value: String,
-    pub err: Box<dyn Error>,
+    pub err: Box<dyn Error + Send + Sync>,
 }
 
 impl Display for IncorrectFormatForSetting {

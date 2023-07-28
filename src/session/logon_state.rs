@@ -137,7 +137,7 @@ mod tests {
         assert!(s.ssr.session.iss.heart_bt_int.is_zero());
         s.ssr.session.sm_fix_msg_in(&mut logon).await;
 
-        s.ssr.state(&SessionStateEnum::new_in_session());
+        s.ssr.state(&SessionStateEnum::new_in_session().await);
         assert_eq!(Duration::seconds(32), s.ssr.session.iss.heart_bt_int); // Should be written from logon message.
         assert!(!s.ssr.session.iss.heart_bt_int_override);
 
@@ -178,7 +178,7 @@ mod tests {
         s.ssr.session.iss.heart_bt_int = Duration::seconds(1);
         s.ssr.session.sm_fix_msg_in(&mut logon).await;
 
-        s.ssr.state(&SessionStateEnum::new_in_session());
+        s.ssr.state(&SessionStateEnum::new_in_session().await);
         assert_eq!(Duration::seconds(1), s.ssr.session.iss.heart_bt_int); // Should not have changed.
         assert!(s.ssr.session.iss.heart_bt_int_override);
 
@@ -252,7 +252,7 @@ mod tests {
 
         s.ssr.session.sm_fix_msg_in(&mut logon).await;
 
-        s.ssr.state(&SessionStateEnum::new_in_session());
+        s.ssr.state(&SessionStateEnum::new_in_session().await);
         assert_eq!(Duration::seconds(32), s.ssr.session.iss.heart_bt_int);
 
         s.ssr.last_to_admin_message_sent().await;
@@ -304,7 +304,7 @@ mod tests {
 
         s.ssr.session.sm_fix_msg_in(&mut logon).await;
 
-        s.ssr.state(&SessionStateEnum::new_in_session());
+        s.ssr.state(&SessionStateEnum::new_in_session().await);
 
         s.ssr.next_target_msg_seq_num(3).await;
         s.ssr.next_sender_msg_seq_num(2).await;
@@ -331,7 +331,7 @@ mod tests {
 
         s.ssr.session.sm_fix_msg_in(&mut logon).await;
 
-        s.ssr.state(&SessionStateEnum::new_in_session());
+        s.ssr.state(&SessionStateEnum::new_in_session().await);
 
         s.ssr.next_target_msg_seq_num(2).await;
         s.ssr.next_sender_msg_seq_num(2).await;
@@ -353,7 +353,7 @@ mod tests {
 
         s.ssr.session.sm_fix_msg_in(&mut logon).await;
 
-        s.ssr.state(&SessionStateEnum::new_in_session());
+        s.ssr.state(&SessionStateEnum::new_in_session().await);
 
         s.ssr.next_target_msg_seq_num(2).await;
         s.ssr.next_sender_msg_seq_num(1).await;
@@ -508,7 +508,7 @@ mod tests {
             .session
             .sm_fix_msg_in(&mut s.ssr.message_factory.sequence_reset(7))
             .await;
-        s.ssr.state(&SessionStateEnum::new_in_session());
+        s.ssr.state(&SessionStateEnum::new_in_session().await);
         s.ssr.next_target_msg_seq_num(7).await;
     }
 

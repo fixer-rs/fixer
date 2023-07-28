@@ -102,7 +102,7 @@ mod tests {
     #[tokio::test]
     async fn test_fix_msg_in() {
         let mut s = SessionSuite::setup_test().await;
-        s.ssr.session.sm.state = SessionStateEnum::new_in_session();
+        s.ssr.session.sm.state = SessionStateEnum::new_in_session().await;
 
         // In session expects seq number 1, send too high.
         s.ssr.message_factory.set_next_seq_num(2);
@@ -157,14 +157,14 @@ mod tests {
             .await;
 
         s.ssr.mock_app.write().await.mock_app.checkpoint();
-        s.ssr.state(&SessionStateEnum::new_in_session());
+        s.ssr.state(&SessionStateEnum::new_in_session().await);
         s.ssr.next_target_msg_seq_num(5).await;
     }
 
     #[tokio::test]
     async fn test_fix_msg_in_sequence_reset() {
         let mut s = SessionSuite::setup_test().await;
-        s.ssr.session.sm.state = SessionStateEnum::new_in_session();
+        s.ssr.session.sm.state = SessionStateEnum::new_in_session().await;
 
         // In session expects seq number 1, send too high.
         s.ssr.message_factory.set_next_seq_num(3);
@@ -213,13 +213,13 @@ mod tests {
 
         s.ssr.mock_app.write().await.mock_app.checkpoint();
         s.ssr.next_target_msg_seq_num(4).await;
-        s.ssr.state(&SessionStateEnum::new_in_session());
+        s.ssr.state(&SessionStateEnum::new_in_session().await);
     }
 
     #[tokio::test]
     async fn test_fix_msg_in_resend_chunk() {
         let mut s = SessionSuite::setup_test().await;
-        s.ssr.session.sm.state = SessionStateEnum::new_in_session();
+        s.ssr.session.sm.state = SessionStateEnum::new_in_session().await;
         s.ssr.session.iss.resend_request_chunk_size = 2;
 
         // In session expects seq number 1, send too high.

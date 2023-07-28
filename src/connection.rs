@@ -9,7 +9,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 pub async fn write_loop<W>(
     mut connection: W,
     mut message_out: UnboundedReceiver<Vec<u8>>,
-    log: LogEnum,
+    mut log: LogEnum,
 ) where
     W: AsyncWrite + Unpin,
 {
@@ -17,7 +17,7 @@ pub async fn write_loop<W>(
         tokio::select! {
             Some(msg) = message_out.recv() => {
                 if let Err(err) = (connection).write(&msg).await {
-                    log.on_event(&err.to_string());
+                    log.on_event(&err.to_string()).await;
                 };
             },
             else => {

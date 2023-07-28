@@ -1,251 +1,265 @@
 use crate::{
-    log::{LogFactoryTrait, LogTrait},
+    config::FILE_LOG_PATH,
+    errors::FixerError,
+    fileutil::session_id_filename_prefix,
+    log::{LogEnum, LogFactoryEnum, LogFactoryTrait, LogTrait},
     session::session_id::SessionID,
+    settings::Settings,
 };
-use flexi_logger::LoggerHandle;
-use log::info;
+use async_trait::async_trait;
 use ramhorns::Template;
-use std::collections::HashMap;
+use std::{collections::HashMap, path::Path, sync::Arc};
+use tokio::{
+    fs::{DirBuilder, File, OpenOptions},
+    io::AsyncWriteExt,
+};
+
+const GLOBAL_PATH: &'static str = "GLOBAL";
 
 pub struct FileLog {
-    event_logger: LoggerHandle,
-    message_logger: LoggerHandle,
+    event_file: File,
+    message_file: File,
 }
 
+#[async_trait]
 impl LogTrait for FileLog {
-    fn on_incoming(&self, data: &[u8]) {
-        info!(
-            target: "message_logger",
-            "{}",
-            String::from_utf8_lossy(data),
-        )
+    async fn on_incoming(&mut self, data: &[u8]) {
+        let mut mut_data = data.to_owned();
+        mut_data.push(b'\n');
+        let _ = self.message_file.write_all(&mut_data).await;
     }
 
-    fn on_outgoing(&self, data: &[u8]) {
-        info!(
-            target: "message_logger",
-            "{}",
-            String::from_utf8_lossy(data),
-        )
+    async fn on_outgoing(&mut self, data: &[u8]) {
+        let mut mut_data = data.to_owned();
+        mut_data.push(b'\n');
+        let _ = self.message_file.write_all(&mut_data).await;
     }
 
-    fn on_event(&self, data: &str) {
-        info!(
-            target: "event_logger",
-            "{}",
-            data,
-        )
+    async fn on_event(&mut self, data: &str) {
+        let mut mut_data = data.as_bytes().to_owned();
+        mut_data.push(b'\n');
+        let _ = self.event_file.write_all(&mut_data).await;
     }
 
-    fn on_eventf(&self, fmt: &str, params: HashMap<String, String>) {
+    async fn on_eventf(&mut self, fmt: &str, params: HashMap<String, String>) {
         let tpl = Template::new(fmt).unwrap();
-        self.on_event(&tpl.render(&params));
+        self.on_event(&tpl.render(&params)).await;
     }
 }
 
+impl FileLog {
+    async fn new(prefix: &str, log_path: &str) -> Result<Self, String> {
+        let event_log_name = Path::new(log_path).join(prefix.to_string() + ".event.current.log");
+        let message_log_name =
+            Path::new(log_path).join(prefix.to_string() + ".messages.current.log");
+
+        let _ = DirBuilder::new()
+            .mode(0o777)
+            .recursive(true)
+            .create(log_path)
+            .await
+            .map_err(|err| err.to_string())?;
+
+        let event_file = OpenOptions::new()
+            .write(true)
+            .read(true)
+            .create(true)
+            .append(true)
+            .open(&event_log_name)
+            .await
+            .map_err(|err| err.to_string())?;
+
+        let message_file = OpenOptions::new()
+            .write(true)
+            .read(true)
+            .create(true)
+            .append(true)
+            .open(&message_log_name)
+            .await
+            .map_err(|err| err.to_string())?;
+
+        Ok(FileLog {
+            event_file,
+            message_file,
+        })
+    }
+}
+
+#[derive(Default)]
 pub struct FileLogFactory {
     global_log_path: String,
-    session_log_paths: HashMap<SessionID, String>, // TODO: convert this to &SessionID
+    session_log_paths: HashMap<Arc<SessionID>, String>,
 }
+
 impl FileLogFactory {
     // new creates an instance of LogFactory that writes messages and events to file.
     // The location of global and session log files is configured via FileLogPath.
-    // fn new(settings *Settings) -> Result<dyn LogFactory>, Box<dyn Error> {
-    // 	logFactory := fileLogFactory{}
+    pub async fn new(settings: &mut Settings) -> Result<LogFactoryEnum, FixerError> {
+        let mut log_factory = FileLogFactory::default();
 
-    // 	var err error
-    // 	if logFactory.global_log_path, err = settings.GlobalSettings().Setting(config.FileLogPath); err != nil {
-    // 		return logFactory, err
-    // 	}
+        let gs_option = settings.global_settings().await;
+        let gs = gs_option.read().await;
+        let gss = gs.as_ref().unwrap();
+        let res = gss.setting(FILE_LOG_PATH)?;
+        log_factory.global_log_path = res;
 
-    // 	logFactory.session_log_paths = make(map[SessionID]string)
+        for (sid, session_settings) in settings.session_settings().await.iter() {
+            let log_path = session_settings.setting(FILE_LOG_PATH)?;
+            log_factory.session_log_paths.insert(sid.clone(), log_path);
+        }
 
-    // 	for sid, sessionSettings := range settings.SessionSettings() {
-    // 		logPath, err := sessionSettings.Setting(config.FileLogPath)
-    // 		if err != nil {
-    // 			return logFactory, err
-    // 		}
-    // 		logFactory.session_log_paths[sid] = logPath
-    // 	}
-
-    // 	return logFactory, nil
-    // }
+        Ok(LogFactoryEnum::FileLogFactory(log_factory))
+    }
 }
 
-// func newFileLog(prefix string, logPath string) (fileLog, error) {
-// 	l := fileLog{}
+#[async_trait]
+impl LogFactoryTrait for FileLogFactory {
+    async fn create(&mut self) -> Result<LogEnum, String> {
+        let logger = FileLog::new(GLOBAL_PATH, &self.global_log_path).await?;
+        Ok(LogEnum::FileLog(logger))
+    }
 
-// 	eventLogName := path.Join(logPath, prefix+".event.current.log")
-// 	messageLogName := path.Join(logPath, prefix+".messages.current.log")
+    async fn create_session_log(&mut self, session_id: Arc<SessionID>) -> Result<LogEnum, String> {
+        let prefix = session_id_filename_prefix(&*session_id);
+        let log_path = self.session_log_paths.get(&session_id).ok_or(format!(
+            "logger not defined for {:?}",
+            &*session_id.to_string()
+        ))?;
 
-// 	if err := os.MkdirAll(logPath, os.ModePerm); err != nil {
-// 		return l, err
-// 	}
-
-// 	fileFlags := os.O_RDWR | os.O_CREATE | os.O_APPEND
-// 	eventFile, err := os.OpenFile(eventLogName, fileFlags, os.ModePerm)
-// 	if err != nil {
-// 		return l, err
-// 	}
-
-// 	messageFile, err := os.OpenFile(messageLogName, fileFlags, os.ModePerm)
-// 	if err != nil {
-// 		return l, err
-// 	}
-
-// 	logFlag := log.Ldate | log.Ltime | log.Lmicroseconds | log.LUTC
-// 	l.eventLogger = log.New(eventFile, "", logFlag)
-// 	l.messageLogger = log.New(messageFile, "", logFlag)
-
-// 	return l, nil
-// }
-
-// func (f fileLogFactory) Create() (Log, error) {
-// 	return newFileLog("GLOBAL", f.global_log_path)
-// }
-
-// func (f fileLogFactory) CreateSessionLog(sessionID SessionID) (Log, error) {
-// 	logPath, ok := f.session_log_paths[sessionID]
-
-// 	if !ok {
-// 		return nil, fmt.Errorf("logger not defined for %v", sessionID)
-// 	}
-
-// 	prefix := sessionIDFilenamePrefix(sessionID)
-// 	return newFileLog(prefix, logPath)
-// }
+        let logger = FileLog::new(&prefix, log_path).await?;
+        Ok(LogEnum::FileLog(logger))
+    }
+}
 
 #[cfg(test)]
 mod tests {
+    use super::FileLogFactory;
+    use crate::{
+        log::{LogFactoryTrait, LogTrait},
+        settings::Settings,
+    };
+    use std::{env::temp_dir, path::Path};
+    use tokio::{
+        fs::File,
+        io::{AsyncBufRead, AsyncBufReadExt, BufReader},
+    };
 
-    // package quickfix
+    async fn generate_helper(global_path: &str, local_path: &str) -> Settings {
+        let cfg_str = format!(
+            r#"# default settings for sessions
+[DEFAULT]
+ConnectionType=initiator
+ReconnectInterval=60
+SenderCompID=TW
+FileLogPath={}
 
-    // import (
-    // 	"bufio"
-    // 	"fmt"
-    // 	"os"
-    // 	"path"
-    // 	"strings"
-    // 	"testing"
-    // )
+# session definition
+[SESSION]
+BeginString=FIX.4.1
+TargetCompID=ARCA
+FileLogPath={}
 
-    // func TestFileLog_FileLogFactory::new(t *testing.T) {
+[SESSION]
+BeginString=FIX.4.1
+TargetCompID=ARCA
+SessionQualifier=BS
+"#,
+            global_path, local_path,
+        );
+        let cfg = cfg_str.as_bytes();
 
-    // 	_, err := FileLogFactory::new(NewSettings())
+        let s_result = Settings::parse(cfg).await;
+        assert!(s_result.is_ok());
+        s_result.unwrap()
+    }
 
-    // 	if err == nil {
-    // 		t.Error("Should expect error when settings have no file log path")
-    // 	}
+    #[tokio::test]
+    async fn test_file_log_file_log_factory_new() {
+        let file_log_factory_result = FileLogFactory::new(&mut Settings::new()).await;
+        assert!(
+            file_log_factory_result.is_err(),
+            "Should expect error when settings have no file log path"
+        );
 
-    // 	cfg := `
-    // # default settings for sessions
-    // [DEFAULT]
-    // ConnectionType=initiator
-    // ReconnectInterval=60
-    // SenderCompID=TW
-    // FileLogPath=.
+        let mut settings = generate_helper(".", "mydir").await;
 
-    // # session definition
-    // [SESSION]
-    // BeginString=FIX.4.1
-    // TargetCompID=ARCA
-    // FileLogPath=mydir
+        let factory_result = FileLogFactory::new(&mut settings).await;
+        assert!(factory_result.is_ok(), "Did not expect error",);
+    }
 
-    // [SESSION]
-    // BeginString=FIX.4.1
-    // TargetCompID=ARCA
-    // SessionQualifier=BS
-    // `
-    // 	stringReader := strings.NewReader(cfg)
-    // 	settings, _ := ParseSettings(stringReader)
+    #[tokio::test]
+    async fn test_new_file_log() {
+        let tmp = String::from(temp_dir().to_str().unwrap());
+        let mut settings = generate_helper(&tmp, &tmp).await;
+        let factory_result = FileLogFactory::new(&mut settings).await;
+        assert!(factory_result.is_ok());
+        let mut factory = factory_result.unwrap();
 
-    // 	factory, err := FileLogFactory::new(settings)
+        let logger_result = factory.create().await;
+        assert!(logger_result.is_ok());
+        let messages_path = Path::new(&tmp).join(format!("{}.messages.current.log", "GLOBAL"));
+        let event_path = Path::new(&tmp).join(format!("{}.event.current.log", "GLOBAL"));
+        let messages_exists = messages_path.exists();
+        let event_exists = event_path.exists();
+        assert!(messages_exists);
+        assert!(event_exists);
+    }
 
-    // 	if err != nil {
-    // 		t.Error("Did not expect error", err)
-    // 	}
+    #[tokio::test]
+    async fn test_file_log_append() {
+        let tmp = String::from(temp_dir().to_str().unwrap());
+        let mut settings = generate_helper(&tmp, &tmp).await;
+        let factory_result = FileLogFactory::new(&mut settings).await;
+        assert!(factory_result.is_ok());
+        let mut factory = factory_result.unwrap();
 
-    // 	if factory == nil {
-    // 		t.Error("Should have returned factory")
-    // 	}
-    // }
+        let logger_result = factory.create().await;
+        assert!(logger_result.is_ok());
+        let mut logger = logger_result.unwrap();
 
-    // type fileLogHelper struct {
-    // 	LogPath string
-    // 	Prefix  string
-    // 	Log     Log
-    // }
+        let message_path = Path::new(&tmp).join(format!("{}.messages.current.log", "GLOBAL"));
+        let event_path = Path::new(&tmp).join(format!("{}.event.current.log", "GLOBAL"));
 
-    // func newFileLogHelper(t *testing.T) *fileLogHelper {
-    // 	prefix := "myprefix"
-    // 	logPath := path.Join(os.TempDir(), fmt.Sprintf("TestLogStore-%d", os.Getpid()))
+        let message_file_result = File::open(message_path).await;
+        assert!(message_file_result.is_ok());
+        let message_file = message_file_result.unwrap();
+        let mut message_reader = BufReader::new(message_file);
 
-    // 	log, err := newFileLog(prefix, logPath)
-    // 	if err != nil {
-    // 		t.Error("Unexpected error", err)
-    // 	}
+        let event_file_result = File::open(event_path).await;
+        assert!(event_file_result.is_ok());
+        let event_file = event_file_result.unwrap();
+        let mut event_reader = BufReader::new(event_file);
 
-    // 	return &fileLogHelper{
-    // 		LogPath: logPath,
-    // 		Prefix:  prefix,
-    // 		Log:     log,
-    // 	}
-    // }
+        logger.on_incoming(b"incoming").await;
+        let mut msg_buf = String::new();
+        let message_read_result = message_reader.read_line(&mut msg_buf).await;
+        assert!(message_read_result.is_ok());
+        assert!(message_read_result.unwrap() != 0);
 
-    // func TestNewFileLog(t *testing.T) {
-    // 	helper := newFileLogHelper(t)
+        logger.on_event("Event").await;
+        let mut msg_buf = String::new();
+        let event_read_result = event_reader.read_line(&mut msg_buf).await;
+        assert!(event_read_result.is_ok());
+        assert!(event_read_result.unwrap() != 0);
 
-    // 	tests := []struct {
-    // 		expectedPath string
-    // 	}{
-    // 		{path.Join(helper.LogPath, fmt.Sprintf("%v.messages.current.log", helper.Prefix))},
-    // 		{path.Join(helper.LogPath, fmt.Sprintf("%v.event.current.log", helper.Prefix))},
-    // 	}
+        let new_factory_result = FileLogFactory::new(&mut settings).await;
+        assert!(new_factory_result.is_ok());
+        let mut new_factory = new_factory_result.unwrap();
 
-    // 	for _, test := range tests {
-    // 		if _, err := os.Stat(test.expectedPath); os.IsNotExist(err) {
-    // 			t.Errorf("%v does not exist", test.expectedPath)
-    // 		}
-    // 	}
-    // }
+        let new_logger_result = new_factory.create().await;
+        assert!(new_logger_result.is_ok());
+        let mut new_logger = new_logger_result.unwrap();
 
-    // func TestFileLog_Append(t *testing.T) {
-    // 	helper := newFileLogHelper(t)
+        new_logger.on_incoming(b"incoming").await;
+        let mut msg_buf = String::new();
+        let message_read_result = message_reader.read_line(&mut msg_buf).await;
+        assert!(message_read_result.is_ok());
+        assert!(message_read_result.unwrap() != 0);
 
-    // 	messageLogFile, err := os.Open(path.Join(helper.LogPath, fmt.Sprintf("%v.messages.current.log", helper.Prefix)))
-    // 	if err != nil {
-    // 		t.Error("Unexpected error", err)
-    // 	}
-    // 	defer messageLogFile.Close()
-
-    // 	eventLogFile, err := os.Open(path.Join(helper.LogPath, fmt.Sprintf("%v.event.current.log", helper.Prefix)))
-    // 	if err != nil {
-    // 		t.Error("Unexpected error", err)
-    // 	}
-    // 	defer eventLogFile.Close()
-
-    // 	messageScanner := bufio.NewScanner(messageLogFile)
-    // 	eventScanner := bufio.NewScanner(eventLogFile)
-
-    // 	helper.Log.OnIncoming([]byte("incoming"))
-    // 	if !messageScanner.Scan() {
-    // 		t.Error("Unexpected EOF")
-    // 	}
-
-    // 	helper.Log.OnEvent("Event")
-    // 	if !eventScanner.Scan() {
-    // 		t.Error("Unexpected EOF")
-    // 	}
-
-    // 	newHelper := newFileLogHelper(t)
-    // 	newHelper.Log.OnIncoming([]byte("incoming"))
-    // 	if !messageScanner.Scan() {
-    // 		t.Error("Unexpected EOF")
-    // 	}
-
-    // 	newHelper.Log.OnEvent("Event")
-    // 	if !eventScanner.Scan() {
-    // 		t.Error("Unexpected EOF")
-    // 	}
-    // }
+        new_logger.on_event("Event").await;
+        let mut msg_buf = String::new();
+        let event_read_result = event_reader.read_line(&mut msg_buf).await;
+        assert!(event_read_result.is_ok());
+        assert!(event_read_result.unwrap() != 0);
+    }
 }

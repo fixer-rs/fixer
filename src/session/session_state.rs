@@ -67,7 +67,7 @@ impl SessionStateEnum {
         Self::LatentState(LatentState::default())
     }
 
-    pub fn new_in_session() -> Self {
+    pub async fn new_in_session() -> Self {
         Self::InSession(InSession::default())
     }
 
