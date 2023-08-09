@@ -14,7 +14,7 @@ use tokio::{
     io::AsyncWriteExt,
 };
 
-const GLOBAL_PATH: &'static str = "GLOBAL";
+const GLOBAL_PATH: &str = "GLOBAL";
 
 pub struct FileLog {
     event_file: File,
@@ -53,7 +53,7 @@ impl FileLog {
         let message_log_name =
             Path::new(log_path).join(prefix.to_string() + ".messages.current.log");
 
-        let _ = DirBuilder::new()
+        DirBuilder::new()
             .mode(0o777)
             .recursive(true)
             .create(log_path)
@@ -120,7 +120,7 @@ impl LogFactoryTrait for FileLogFactory {
     }
 
     async fn create_session_log(&mut self, session_id: Arc<SessionID>) -> Result<LogEnum, String> {
-        let prefix = session_id_filename_prefix(&*session_id);
+        let prefix = session_id_filename_prefix(&session_id);
         let log_path = self.session_log_paths.get(&session_id).ok_or(format!(
             "logger not defined for {:?}",
             &*session_id.to_string()
@@ -141,7 +141,7 @@ mod tests {
     use std::{env::temp_dir, path::Path};
     use tokio::{
         fs::File,
-        io::{AsyncBufRead, AsyncBufReadExt, BufReader},
+        io::{AsyncBufReadExt, BufReader},
     };
 
     async fn generate_helper(global_path: &str, local_path: &str) -> Settings {

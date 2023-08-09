@@ -4,7 +4,7 @@ use enum_dispatch::enum_dispatch;
 use file_log::{FileLog, FileLogFactory};
 use null_log::{NullLog, NullLogFactory};
 use screen_log::{ScreenLog, ScreenLogFactory};
-use std::{collections::HashMap, fmt, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 pub mod file_log;
 pub mod null_log;
@@ -45,21 +45,9 @@ pub enum LogEnum {
     FileLog,
 }
 
-impl fmt::Debug for LogEnum {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
 #[enum_dispatch(LogFactoryTrait)]
 pub enum LogFactoryEnum {
     NullLogFactory,
     ScreenLogFactory,
     FileLogFactory,
-}
-
-impl fmt::Debug for LogFactoryEnum {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
-    }
 }

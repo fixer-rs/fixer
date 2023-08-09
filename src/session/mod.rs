@@ -281,11 +281,9 @@ impl Session {
         // other way:
         // if self.session_id.begin_string.as_str() < BEGIN_STRING_FIX41 { return false; }
 
-        return (self.iss.reset_on_logon
-            || self.iss.reset_on_disconnect
-            || self.iss.reset_on_logout)
+        (self.iss.reset_on_logon || self.iss.reset_on_disconnect || self.iss.reset_on_logout)
             && self.store.next_target_msg_seq_num().await == 1
-            && self.store.next_sender_msg_seq_num().await == 1;
+            && self.store.next_sender_msg_seq_num().await == 1
     }
 
     async fn send_logon(&mut self) -> Result<(), FixerError> {
@@ -326,14 +324,14 @@ impl Session {
                 .set_field(TAG_RESET_SEQ_NUM_FLAG, true as FIXBoolean);
         }
 
-        if self.iss.default_appl_ver_id.len() > 0 {
+        if !self.iss.default_appl_ver_id.is_empty() {
             logon.body.set_field(
                 TAG_DEFAULT_APPL_VER_ID,
                 FIXString::from(&self.iss.default_appl_ver_id),
             );
         }
 
-        Ok(self.drop_and_send_in_reply_to(&logon, in_reply_to).await?)
+        self.drop_and_send_in_reply_to(&logon, in_reply_to).await
     }
 
     fn build_logout(&self, reason: &str) -> Message {
@@ -489,15 +487,14 @@ impl Session {
                 }
             }
         } else {
-            let _ = self
-                .application
+            self.application
                 .write()
                 .await
                 .to_app(msg, &self.session_id)?;
         }
 
-        let mut msg_bytes = msg.build();
-        self.persist(seq_num, &mut msg_bytes).await?;
+        let msg_bytes = msg.build();
+        self.persist(seq_num, &msg_bytes).await?;
         Ok(msg_bytes)
     }
 
@@ -556,8 +553,10 @@ impl Session {
         begin_seq: isize,
         end_seq: isize,
     ) -> Result<ResendState, FixerError> {
-        let mut next_state = ResendState::default();
-        next_state.resend_range_end = end_seq;
+        let mut next_state = ResendState {
+            resend_range_end: end_seq,
+            ..Default::default()
+        };
 
         let resend = Message::new();
         resend
@@ -573,15 +572,13 @@ impl Session {
 
         if end_seq_no < end_seq {
             next_state.current_resend_range_end = end_seq_no;
+        } else if matches!(
+            self.session_id.begin_string.as_str(),
+            BEGIN_STRING_FIX40 | BEGIN_STRING_FIX41
+        ) {
+            end_seq_no = 999999;
         } else {
-            if matches!(
-                self.session_id.begin_string.as_str(),
-                BEGIN_STRING_FIX40 | BEGIN_STRING_FIX41
-            ) {
-                end_seq_no = 999999;
-            } else {
-                end_seq_no = 0;
-            }
+            end_seq_no = 0;
         }
         resend.body.set_field(TAG_END_SEQ_NO, end_seq_no);
 
@@ -626,17 +623,11 @@ impl Session {
         let get_field_result = msg
             .body
             .get_field(TAG_RESET_SEQ_NUM_FLAG, &mut reset_seq_num_flag);
-        if get_field_result.is_ok() {
-            if reset_seq_num_flag {
-                if !self.sent_reset {
-                    self.log
-                        .on_event(
-                            "Logon contains reset_seq_num_flag=Y, resetting sequence numbers to 1",
-                        )
-                        .await;
-                    reset_store = true;
-                }
-            }
+        if get_field_result.is_ok() && reset_seq_num_flag && !self.sent_reset {
+            self.log
+                .on_event("Logon contains reset_seq_num_flag=Y, resetting sequence numbers to 1")
+                .await;
+            reset_store = true;
         }
 
         if reset_store {
@@ -865,7 +856,7 @@ impl Session {
                     .body
                     .set_field(TAG_BUSINESS_REJECT_REASON, rej.reject_reason());
                 let ref_id = rej.business_reject_ref_id();
-                if ref_id != "" {
+                if !ref_id.is_empty() {
                     reply
                         .body
                         .set_field(TAG_BUSINESS_REJECT_REF_ID, FIXString::from(ref_id));
@@ -901,7 +892,7 @@ impl Session {
             if let Some(ref_tag_id) = ref_tag_id_result {
                 reply.body.set_field(
                     TAG_TEXT,
-                    FIXString::from(format!("{} ({})", rej.to_string(), ref_tag_id)),
+                    FIXString::from(format!("{} ({})", rej, ref_tag_id)),
                 );
             } else {
                 reply
@@ -1412,16 +1403,20 @@ impl Session {
                 )
                 .await;
 
-            if new_seq_no > expected_seq_num {
-                let set_result = self.store.set_next_target_msg_seq_num(new_seq_no).await;
-                if let Err(err) = set_result {
-                    return self.handle_state_error(&err.to_string()).await;
+            match new_seq_no.cmp(&expected_seq_num) {
+                std::cmp::Ordering::Less => {
+                    // FIXME: to be compliant with legacy tests, do not include tag in reftagid? (11c_NewSeqNoLess).
+                    let reject_result = self.do_reject(msg, value_is_incorrect_no_tag()).await;
+                    if let Err(err) = reject_result {
+                        return self.handle_state_error(&err.to_string()).await;
+                    }
                 }
-            } else if new_seq_no < expected_seq_num {
-                // FIXME: to be compliant with legacy tests, do not include tag in reftagid? (11c_NewSeqNoLess).
-                let reject_result = self.do_reject(msg, value_is_incorrect_no_tag()).await;
-                if let Err(err) = reject_result {
-                    return self.handle_state_error(&err.to_string()).await;
+                std::cmp::Ordering::Equal => {}
+                std::cmp::Ordering::Greater => {
+                    let set_result = self.store.set_next_target_msg_seq_num(new_seq_no).await;
+                    if let Err(err) = set_result {
+                        return self.handle_state_error(&err.to_string()).await;
+                    }
                 }
             }
         }
@@ -1633,7 +1628,7 @@ impl Session {
                     let err_str = &err.to_string();
                     return self.handle_state_error(err_str).await;
                 }
-                return SessionStateEnum::new_logout_state();
+                SessionStateEnum::new_logout_state()
             }
             _ => {
                 if let Err(err) = self.do_reject(msg, rej).await {
@@ -1645,7 +1640,7 @@ impl Session {
                     let err_str = &err.to_string();
                     return self.handle_state_error(err_str).await;
                 }
-                return SessionStateEnum::new_logout_state();
+                SessionStateEnum::new_logout_state()
             }
         }
     }
@@ -1658,21 +1653,20 @@ impl Session {
     ) -> SessionStateEnum {
         let mut pos_dup_flag = FIXBoolean::default();
         let rej_string = rej.to_string();
-        if msg.header.has(TAG_POSS_DUP_FLAG) {
-            if msg
+        if msg.header.has(TAG_POSS_DUP_FLAG)
+            && msg
                 .header
                 .get_field(TAG_POSS_DUP_FLAG, &mut pos_dup_flag)
                 .is_err()
+        {
+            if let Err(err) = self
+                .do_reject(msg, MessageRejectErrorEnum::TargetTooLow(rej))
+                .await
             {
-                if let Err(err) = self
-                    .do_reject(msg, MessageRejectErrorEnum::TargetTooLow(rej))
-                    .await
-                {
-                    let err_str = &err.to_string();
-                    return self.handle_state_error(&err_str).await;
-                }
-                return SessionStateEnum::new_in_session().await;
+                let err_str = &err.to_string();
+                return self.handle_state_error(err_str).await;
             }
+            return SessionStateEnum::new_in_session().await;
         }
 
         if !pos_dup_flag {

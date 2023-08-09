@@ -85,13 +85,13 @@ impl SessionSettings {
     pub fn duration_setting(&self, setting: &str) -> Result<Duration, FixerError> {
         let string_val = self.setting(setting)?;
 
-        Ok(parse(&string_val).map_err(|err| {
+        parse(&string_val).map_err(|err| {
             FixerError::new_incorrect_format_for_setting_with_error(
                 setting,
                 &string_val,
                 Box::new(err),
             )
-        })?)
+        })
     }
 
     // bool_setting returns the requested setting parsed as a boolean.  Returns an error if the setting is not set or cannot be parsed as a bool.

@@ -53,13 +53,8 @@ impl SwitchingSleep {
 
     /// Stop the timer. It does nothing if already stopped.
     pub fn stop(&mut self) {
-        if !self.is_elapsed() {
-            match self.sleeper.take() {
-                Some(_) => {
-                    self.tx.send(()).unwrap();
-                }
-                None => (),
-            }
+        if !self.is_elapsed() && self.sleeper.take().is_some() {
+            self.tx.send(()).unwrap();
         }
     }
 
