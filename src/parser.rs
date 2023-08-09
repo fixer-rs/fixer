@@ -42,7 +42,7 @@ where
     async fn read_more(&mut self) -> SimpleResult<isize> {
         if self.len == self.cap {
             let mut new_buffer = vec![];
-            if self.big_buffer.len() == 0 {
+            if self.big_buffer.is_empty() {
                 self.big_buffer = Vec::with_capacity(DEFAULT_BUF_SIZE);
                 self.big_buffer.resize(DEFAULT_BUF_SIZE, 0);
                 self.start = 0;
@@ -165,7 +165,7 @@ where
 
         let msg_bytes = self.big_buffer[self.start..self.start + index as usize].to_vec();
 
-        self.start = self.start + index as usize;
+        self.start += index as usize;
         self.len = self.end - self.start;
         self.cap -= index as usize;
 

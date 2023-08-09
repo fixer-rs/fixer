@@ -5,7 +5,7 @@ use tokio::sync::mpsc;
 use tokio::time::Duration;
 use wg::AsyncWaitGroup;
 
-type EventTimerFunc = Arc<dyn Fn() -> () + Send + Sync>;
+type EventTimerFunc = Arc<dyn Fn() + Send + Sync>;
 
 pub struct EventTimer {
     timer: ASwitchingSleep,

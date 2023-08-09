@@ -23,10 +23,10 @@ impl LogTrait for ScreenLog {
             "<{}, {}, incoming>\n  ({})\n",
             log_time.format(TIME_FORMAT),
             &self.prefix,
-            String::from_utf8_lossy(&data)
+            String::from_utf8_lossy(data)
         );
         let mut stdout = io::stdout();
-        let _ = stdout.write_all(&output.as_bytes()).await;
+        let _ = stdout.write_all(output.as_bytes()).await;
     }
 
     async fn on_outgoing(&mut self, data: &[u8]) {
@@ -36,10 +36,10 @@ impl LogTrait for ScreenLog {
             "<{}, {}, outgoing>\n  ({})\n",
             log_time.format(TIME_FORMAT),
             &self.prefix,
-            String::from_utf8_lossy(&data)
+            String::from_utf8_lossy(data)
         );
         let mut stdout = io::stdout();
-        let _ = stdout.write_all(&output.as_bytes()).await;
+        let _ = stdout.write_all(output.as_bytes()).await;
     }
 
     async fn on_event(&mut self, data: &str) {
@@ -52,7 +52,7 @@ impl LogTrait for ScreenLog {
             data,
         );
         let mut stdout = io::stdout();
-        let _ = stdout.write_all(&output.as_bytes()).await;
+        let _ = stdout.write_all(output.as_bytes()).await;
     }
 
     async fn on_eventf(&mut self, fmt: &str, params: HashMap<String, String>) {

@@ -38,10 +38,10 @@ pub fn header_field_ordering(i: &Tag, j: &Tag) -> Ordering {
     let orderi = ordering(i);
     let orderj = ordering(j);
 
-    if orderi < orderj {
-        return Ordering::Less;
-    } else if orderi > orderj {
-        return Ordering::Greater;
+    match orderi.cmp(&orderj) {
+        Ordering::Less => return Ordering::Less,
+        Ordering::Equal => {}
+        Ordering::Greater => return Ordering::Greater,
     }
 
     if i < j {
@@ -285,7 +285,7 @@ impl Message {
 
         // message must start with begin string, body length, msg type
         let field = self.fields.get_mut(field_index).unwrap();
-        let raw_bytes = extract_specific_field(field, TAG_BEGIN_STRING, &*raw_message)?;
+        let raw_bytes = extract_specific_field(field, TAG_BEGIN_STRING, raw_message)?;
 
         self.header.add(&vec![field.clone()]);
         field_index += 1;
@@ -518,15 +518,12 @@ fn extract_xml_data_field(
     buffer: &[u8],
     data_len: isize,
 ) -> Result<Vec<u8>, ParseError> {
-    let mut end_index = buffer
-        .iter()
-        .position(|x| *x == '=' as u8)
-        .ok_or(ParseError {
-            orig_error: format!(
-                "extract_field: No Trailing Delim in {}",
-                String::from_utf8_lossy(buffer).as_ref()
-            ),
-        })?;
+    let mut end_index = buffer.iter().position(|x| *x == b'=').ok_or(ParseError {
+        orig_error: format!(
+            "extract_field: No Trailing Delim in {}",
+            String::from_utf8_lossy(buffer).as_ref()
+        ),
+    })?;
     end_index += data_len as usize + 1;
     let buffer_slice = buffer.get(..(end_index + 1)).unwrap();
     parsed_field_bytes

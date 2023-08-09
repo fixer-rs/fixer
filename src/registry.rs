@@ -20,7 +20,7 @@ pub static ERR_UNKNOWN_SESSION: Lazy<SimpleError> = Lazy::new(|| simple_error!("
 
 // Messagable is a Message or something that can be converted to a Message.
 pub trait Messageable {
-    fn to_message<'a>(&'a self) -> &'a Message;
+    fn to_message(&self) -> &Message;
 }
 
 // send determines the session to send Messagable using header fields begin_string, target_comp_id, sender_comp_id.

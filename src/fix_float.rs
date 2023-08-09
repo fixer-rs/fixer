@@ -20,7 +20,7 @@ impl FieldValueReader for FIXFloat {
             .map_err(|_| simple_error!("invalid value {}", String::from_utf8_lossy(input)))?;
 
         for chr in input.iter() {
-            if *chr != b'.' && *chr != b'-' && !(b'0'..=b'9').contains(chr) {
+            if *chr != b'.' && *chr != b'-' && !chr.is_ascii_digit() {
                 return Err(simple_error!(
                     "invalid value {}",
                     String::from_utf8_lossy(input)

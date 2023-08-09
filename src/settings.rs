@@ -128,7 +128,7 @@ impl Settings {
             let global_clone = self.global_settings.clone();
             let mut clone_settings = global_clone.read().await.as_ref().unwrap().clone();
 
-            clone_settings.overlay(&settings);
+            clone_settings.overlay(settings);
             all_session_settings.insert(session_id.clone(), clone_settings);
         }
 
@@ -142,7 +142,7 @@ impl Settings {
     ) -> Result<Arc<SessionID>, Box<dyn Error + Send + Sync>> {
         self.lazy_init().await;
         let session_id = session_id_from_session_settings(
-            &self.global_settings().await.read().await.as_ref().unwrap(),
+            self.global_settings().await.read().await.as_ref().unwrap(),
             &session_settings,
         );
 
@@ -177,7 +177,7 @@ fn session_id_from_session_settings(
 ) -> Arc<SessionID> {
     let mut session_id = SessionID::default();
 
-    for settings in vec![global_settings, session_settings] {
+    for settings in &[global_settings, session_settings] {
         if settings.has_setting(BEGIN_STRING) {
             session_id.begin_string = settings.setting(BEGIN_STRING).unwrap();
         }

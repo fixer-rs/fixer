@@ -164,7 +164,7 @@ impl TimeRange {
         if self.start_day.is_some() {
             return self.is_in_week_range(t);
         }
-        return self.is_in_time_range(t);
+        self.is_in_time_range(t)
     }
 
     // is_in_same_range &determines if &two points in time are in the same time range
@@ -197,14 +197,14 @@ impl TimeRange {
             let end_day = self.end_day.unwrap().num_days_from_sunday();
             let t1_weekday = t1.weekday().num_days_from_sunday();
 
-            if end_day < t1_weekday {
-                day_offset = 7 + (end_day - t1_weekday) as i64;
-            } else if t1_weekday == end_day {
-                if self.end_time.d <= t1_time.d {
-                    day_offset = 7;
+            match end_day.cmp(&t1_weekday) {
+                std::cmp::Ordering::Less => day_offset = 7 + (end_day - t1_weekday) as i64,
+                std::cmp::Ordering::Equal => {
+                    if self.end_time.d <= t1_time.d {
+                        day_offset = 7;
+                    }
                 }
-            } else {
-                day_offset = (end_day - t1_weekday) as i64;
+                std::cmp::Ordering::Greater => day_offset = (end_day - t1_weekday) as i64,
             }
         }
 
@@ -219,7 +219,7 @@ impl TimeRange {
                 self.end_time.second as u32,
             )
             .unwrap();
-        session_end = session_end + Duration::days(day_offset);
+        session_end += Duration::days(day_offset);
 
         t2 < &mut session_end
     }
