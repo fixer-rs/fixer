@@ -799,8 +799,8 @@ impl Session {
             return Err(tag_specified_without_a_value(TAG_TARGET_COMP_ID));
         }
 
-        if self.session_id.sender_comp_id.as_bytes() != &target_comp_id
-            || self.session_id.target_comp_id.as_bytes() != &sender_comp_id
+        if self.session_id.sender_comp_id.as_bytes() != target_comp_id
+            || self.session_id.target_comp_id.as_bytes() != sender_comp_id
         {
             return Err(comp_id_problem());
         }
@@ -832,7 +832,7 @@ impl Session {
             .header
             .get_bytes(TAG_BEGIN_STRING)
             .map_err(|_| required_tag_missing(TAG_BEGIN_STRING))?;
-        if self.session_id.begin_string.as_bytes() != &begin_string {
+        if self.session_id.begin_string.as_bytes() != begin_string {
             return Err(IncorrectBeginString::default().into());
         }
 
