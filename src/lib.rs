@@ -26,6 +26,7 @@ pub mod message;
 pub mod msg_type;
 pub mod parser;
 pub mod registry;
+pub mod repeating_group;
 pub mod session;
 pub mod settings;
 pub mod store;

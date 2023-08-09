@@ -902,7 +902,7 @@ TargetCompID=TARGET
                 );
             }
 
-            if tc.session_qualifier.len() > 0 {
+            if !tc.session_qualifier.is_empty() {
                 session_settings.set(
                     SESSION_QUALIFIER.to_string(),
                     tc.session_qualifier.to_string(),
