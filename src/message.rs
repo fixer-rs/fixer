@@ -53,7 +53,7 @@ pub fn header_field_ordering(i: &Tag, j: &Tag) -> Ordering {
 
 impl Header {
     pub fn init() -> Self {
-        let field_map = FieldMap::init_with_ordering(header_field_ordering);
+        let field_map = FieldMap::default().init_with_ordering(header_field_ordering);
         Header { field_map }
     }
 
@@ -97,7 +97,7 @@ pub struct Body {
 
 impl Body {
     pub fn init() -> Self {
-        let field_map = FieldMap::init();
+        let field_map = FieldMap::default().init();
         Body { field_map }
     }
 
@@ -155,7 +155,7 @@ fn trailer_field_ordering(i: &Tag, j: &Tag) -> Ordering {
 
 impl Trailer {
     pub fn init() -> Self {
-        let field_map = FieldMap::init_with_ordering(trailer_field_ordering);
+        let field_map = FieldMap::default().init_with_ordering(trailer_field_ordering);
         Trailer { field_map }
     }
 
