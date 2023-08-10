@@ -95,7 +95,16 @@ pub struct FieldMap {
 
 impl Default for FieldMap {
     fn default() -> Self {
-        Self::init_with_ordering(normal_field_order)
+        FieldMap {
+            rw_lock: RwLock::new(FieldMapContent {
+                tag_lookup: HashMap::new(),
+                tag_sort: TagSort {
+                    tags: Vec::new(),
+                    compare: normal_field_order,
+                },
+            })
+            .into(),
+        }
     }
 }
 
@@ -105,22 +114,13 @@ fn normal_field_order(i: &Tag, j: &Tag) -> Ordering {
 }
 
 impl FieldMap {
-    pub fn init() -> FieldMap {
-        Self::init_with_ordering(normal_field_order)
+    pub fn init(self) -> FieldMap {
+        self.init_with_ordering(normal_field_order)
     }
 
-    pub fn init_with_ordering(ordering: TagOrder) -> FieldMap {
-        let tag_sort = TagSort {
-            tags: Vec::new(),
-            compare: ordering,
-        };
-        let field_map_content = FieldMapContent {
-            tag_lookup: HashMap::new(),
-            tag_sort,
-        };
-        FieldMap {
-            rw_lock: RwLock::new(field_map_content).into(),
-        }
+    pub fn init_with_ordering(self, ordering: TagOrder) -> FieldMap {
+        self.rw_lock.write().unwrap().tag_sort.compare = ordering;
+        self
     }
 
     // tags returns all of the Field Tags in this FieldMap
@@ -459,7 +459,7 @@ mod tests {
 
     #[test]
     fn test_field_map_total() {
-        let f_map = FieldMap::init();
+        let f_map = FieldMap::default().init();
 
         f_map.set_field(1, String::from("hello"));
         f_map.set_field(2, String::from("world"));
@@ -476,7 +476,7 @@ mod tests {
 
     #[test]
     fn test_field_map_typed_set_and_get() {
-        let f_map = FieldMap::init();
+        let f_map = FieldMap::default().init();
 
         f_map.set_string(1, "hello");
         f_map.set_int(2, 256);
@@ -503,7 +503,7 @@ mod tests {
 
     #[test]
     fn test_field_map_bool_typed_set_and_get() {
-        let f_map = FieldMap::init();
+        let f_map = FieldMap::default().init();
 
         f_map.set_bool(1, true);
         let v = f_map.get_bool(1);
@@ -526,7 +526,7 @@ mod tests {
 
     #[test]
     fn test_field_map_copy_into() {
-        let f_map_a = FieldMap::init_with_ordering(header_field_ordering);
+        let f_map_a = FieldMap::default().init_with_ordering(header_field_ordering);
 
         f_map_a.set_string(9, "length");
         f_map_a.set_string(8, "begin");
@@ -534,7 +534,7 @@ mod tests {
         f_map_a.set_string(1, "a");
         assert_eq!(vec![8, 9, 35, 1], f_map_a.sorted_tags());
 
-        let mut f_map_b = FieldMap::init();
+        let mut f_map_b = FieldMap::default().init();
 
         f_map_b.set_string(1, "A");
         f_map_b.set_string(3, "C");
@@ -563,7 +563,7 @@ mod tests {
         assert_eq!(vec![8, 9, 35, 1, 2], f_map_b.sorted_tags());
 
         // updating the existing map doesn't affect the new
-        let f_map_a = FieldMap::init();
+        let f_map_a = FieldMap::default().init();
         f_map_a.set_string(1, "AA");
         let s = f_map_b.get_string(1);
         assert!(s.is_ok());
