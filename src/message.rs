@@ -4,7 +4,7 @@ use crate::{
     field::{
         Field, FieldGroupReader, FieldGroupWriter, FieldValueReader, FieldValueWriter, FieldWriter,
     },
-    field_map::{FieldMap, LocalField},
+    field_map::{FieldMap, LocalField, TagOrderType},
     fix_string::FIXString,
     tag::*,
     tag_value::TagValue,
@@ -13,7 +13,6 @@ use crate::{
 use chrono::{DateTime, Utc};
 use delegate::delegate;
 use std::{
-    cmp::Ordering,
     error::Error,
     fmt::{Display, Formatter},
     string::ToString,
@@ -24,30 +23,9 @@ pub struct Header {
     pub field_map: FieldMap,
 }
 
-// in the message header, the first 3 tags in the message header must be 8,9,35
-pub fn header_field_ordering(i: &Tag, j: &Tag) -> Ordering {
-    fn ordering(t: &Tag) -> isize {
-        match *t {
-            TAG_BEGIN_STRING => 1,
-            TAG_BODY_LENGTH => 2,
-            TAG_MSG_TYPE => 3,
-            _ => isize::MAX,
-        }
-    }
-
-    let orderi = ordering(i);
-    let orderj = ordering(j);
-
-    match orderi.cmp(&orderj) {
-        Ordering::Less => return Ordering::Less,
-        Ordering::Equal => return i.cmp(j),
-        Ordering::Greater => return Ordering::Greater,
-    }
-}
-
 impl Header {
     pub fn init() -> Self {
-        let field_map = FieldMap::default().init_with_ordering(header_field_ordering);
+        let field_map = FieldMap::default().init_with_ordering(TagOrderType::Header);
         Header { field_map }
     }
 
@@ -133,20 +111,9 @@ pub struct Trailer {
     pub field_map: FieldMap,
 }
 
-// In the trailer, CheckSum (tag 10) must be last
-fn trailer_field_ordering(i: &Tag, j: &Tag) -> Ordering {
-    if *i == TAG_CHECK_SUM {
-        return Ordering::Greater;
-    }
-    if *j == TAG_CHECK_SUM {
-        return Ordering::Less;
-    }
-    i.cmp(j)
-}
-
 impl Trailer {
     pub fn init() -> Self {
-        let field_map = FieldMap::default().init_with_ordering(trailer_field_ordering);
+        let field_map = FieldMap::default().init_with_ordering(TagOrderType::Trailer);
         Trailer { field_map }
     }
 
@@ -183,7 +150,7 @@ impl Trailer {
     }
 }
 
-//Message is a FIX Message abstraction.
+// Message is a FIX Message abstraction.
 #[derive(Debug, Default, Clone)]
 pub struct Message {
     pub header: Header,

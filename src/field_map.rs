@@ -9,7 +9,7 @@ use crate::fix_boolean::FIXBoolean;
 use crate::fix_int::{FIXInt, FIXIntTrait};
 use crate::fix_string::FIXString;
 use crate::fix_utc_timestamp::FIXUTCTimestamp;
-use crate::tag::{Tag, TAG_BEGIN_STRING, TAG_BODY_LENGTH, TAG_CHECK_SUM};
+use crate::tag::{Tag, TAG_BEGIN_STRING, TAG_BODY_LENGTH, TAG_CHECK_SUM, TAG_MSG_TYPE};
 use crate::tag_value::TagValue;
 use chrono::{DateTime, Utc};
 use std::cmp::Ordering;
@@ -57,9 +57,18 @@ impl LocalFieldTrait for LocalField {
 // TagOrder true if tag i should occur before tag j
 pub type TagOrder = fn(i: &Tag, j: &Tag) -> Ordering;
 
+#[derive(Clone)]
+pub enum TagOrderType {
+    Normal,
+    Header,
+    Trailer,
+    Custom(TagOrder),
+}
+
+#[derive(Clone)]
 struct TagSort {
     tags: Vec<Tag>,
-    compare: TagOrder,
+    compare_type: TagOrderType,
 }
 
 impl fmt::Debug for TagSort {
@@ -75,13 +84,9 @@ impl TagSort {
     pub fn swap(&mut self, i: isize, j: isize) {
         self.tags.swap(i as usize, j as usize);
     }
-
-    pub fn less(&self, i: isize, j: isize) -> Ordering {
-        (self.compare)(&self.tags[i as usize], &self.tags[j as usize])
-    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FieldMapContent {
     tag_lookup: HashMap<Tag, LocalField>,
     tag_sort: TagSort,
@@ -100,7 +105,7 @@ impl Default for FieldMap {
                 tag_lookup: HashMap::new(),
                 tag_sort: TagSort {
                     tags: Vec::new(),
-                    compare: normal_field_order,
+                    compare_type: TagOrderType::Normal,
                 },
             })
             .into(),
@@ -108,18 +113,13 @@ impl Default for FieldMap {
     }
 }
 
-// ascending tags
-fn normal_field_order(i: &Tag, j: &Tag) -> Ordering {
-    i.cmp(j)
-}
-
 impl FieldMap {
     pub fn init(self) -> FieldMap {
-        self.init_with_ordering(normal_field_order)
+        self.init_with_ordering(TagOrderType::Normal)
     }
 
-    pub fn init_with_ordering(self, ordering: TagOrder) -> FieldMap {
-        self.rw_lock.write().unwrap().tag_sort.compare = ordering;
+    pub fn init_with_ordering(self, ordering: TagOrderType) -> FieldMap {
+        self.rw_lock.write().unwrap().tag_sort.compare_type = ordering;
         self
     }
 
@@ -284,7 +284,7 @@ impl FieldMap {
         }
 
         to_wlock.tag_sort.tags = m_rlock.tag_sort.tags.clone();
-        to_wlock.tag_sort.compare = m_rlock.tag_sort.compare;
+        to_wlock.tag_sort.compare_type = m_rlock.tag_sort.compare_type.clone();
     }
 
     pub fn add(&mut self, f: &LocalField) {
@@ -328,8 +328,44 @@ impl FieldMap {
 
     fn sorted_tags(&self) -> Vec<Tag> {
         let mut wlock = self.rw_lock.write().unwrap();
-        let compare = wlock.tag_sort.compare;
-        wlock.tag_sort.tags.sort_by(&compare);
+        match wlock.tag_sort.compare_type {
+            // ascending tags
+            TagOrderType::Normal => wlock
+                .tag_sort
+                .tags
+                .sort_by(|i: &Tag, j: &Tag| -> Ordering { i.cmp(j) }),
+            // In the message header, the first 3 tags in the message header must be 8,9,35
+            TagOrderType::Header => wlock.tag_sort.tags.sort_by(|i: &Tag, j: &Tag| -> Ordering {
+                fn ordering(t: &Tag) -> isize {
+                    match *t {
+                        TAG_BEGIN_STRING => 1,
+                        TAG_BODY_LENGTH => 2,
+                        TAG_MSG_TYPE => 3,
+                        _ => 4,
+                    }
+                }
+
+                let orderi = ordering(i);
+                let orderj = ordering(j);
+
+                match orderi.cmp(&orderj) {
+                    Ordering::Less => return Ordering::Less,
+                    Ordering::Equal => return i.cmp(j),
+                    Ordering::Greater => return Ordering::Greater,
+                }
+            }),
+            // In the trailer, CheckSum (tag 10) must be last
+            TagOrderType::Trailer => wlock.tag_sort.tags.sort_by(|i: &Tag, j: &Tag| -> Ordering {
+                if *i == TAG_CHECK_SUM {
+                    return Ordering::Greater;
+                }
+                if *j == TAG_CHECK_SUM {
+                    return Ordering::Less;
+                }
+                i.cmp(j)
+            }),
+            TagOrderType::Custom(tag_order) => wlock.tag_sort.tags.sort_by(tag_order),
+        }
         wlock.tag_sort.tags.clone()
     }
 
@@ -378,7 +414,6 @@ impl FieldMap {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::message::header_field_ordering;
 
     #[test]
     fn test_field_map_clear() {
@@ -526,7 +561,7 @@ mod tests {
 
     #[test]
     fn test_field_map_copy_into() {
-        let f_map_a = FieldMap::default().init_with_ordering(header_field_ordering);
+        let f_map_a = FieldMap::default().init_with_ordering(TagOrderType::Header);
 
         f_map_a.set_string(9, "length");
         f_map_a.set_string(8, "begin");
