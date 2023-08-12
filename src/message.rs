@@ -40,15 +40,9 @@ pub fn header_field_ordering(i: &Tag, j: &Tag) -> Ordering {
 
     match orderi.cmp(&orderj) {
         Ordering::Less => return Ordering::Less,
-        Ordering::Equal => {}
+        Ordering::Equal => return i.cmp(j),
         Ordering::Greater => return Ordering::Greater,
     }
-
-    if i < j {
-        return Ordering::Less;
-    }
-
-    Ordering::Greater
 }
 
 impl Header {
@@ -147,10 +141,7 @@ fn trailer_field_ordering(i: &Tag, j: &Tag) -> Ordering {
     if *j == TAG_CHECK_SUM {
         return Ordering::Less;
     }
-    if i < j {
-        return Ordering::Less;
-    }
-    Ordering::Greater
+    i.cmp(j)
 }
 
 impl Trailer {
