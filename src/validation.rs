@@ -178,7 +178,7 @@ fn validate_walk(
 
         let sent_remaining_fields = remaining_fields.to_owned();
 
-        remaining_fields = validate_visit_field(field_def, &sent_remaining_fields)?;
+        remaining_fields = validate_visit_field(field_def, sent_remaining_fields)?;
     }
 
     if !remaining_fields.is_empty() {
@@ -192,11 +192,10 @@ fn validate_walk(
 
 fn validate_visit_field(
     field_def: &FieldDef,
-    fields: &LocalField,
+    fields: LocalField,
 ) -> Result<LocalField, MessageRejectErrorEnum> {
     if field_def.is_group() {
-        let new_fields = validate_visit_group_field(field_def, fields)?;
-        return Ok(new_fields);
+        return Ok(validate_visit_group_field(field_def, fields)?);
     }
 
     Ok(fields[1..].to_vec())
@@ -204,7 +203,7 @@ fn validate_visit_field(
 
 fn validate_visit_group_field(
     field_def: &FieldDef,
-    field_stack: &LocalField,
+    mut field_stack: LocalField,
 ) -> Result<LocalField, MessageRejectErrorEnum> {
     let first_field_stack = field_stack.get(0).unwrap();
     let num_in_group_tag = first_field_stack.tag;
@@ -214,14 +213,14 @@ fn validate_visit_group_field(
         .read(&first_field_stack.value)
         .map_err(|_| incorrect_data_format_for_value(num_in_group_tag))?;
 
-    let mutable_field_stack = field_stack[1..].to_vec();
+    field_stack = field_stack[1..].to_vec();
 
     let mut child_defs: Vec<FieldDef> = vec![];
     let mut group_count = 0;
 
-    while !mutable_field_stack.is_empty() {
+    while !field_stack.is_empty() {
         // start of repeating group
-        if mutable_field_stack[0].tag == field_def.fields[0].tag() {
+        if field_stack[0].tag == field_def.fields[0].tag() {
             child_defs = field_def.fields.clone();
             group_count += 1;
         }
@@ -231,10 +230,16 @@ fn validate_visit_group_field(
             break;
         }
 
-        if mutable_field_stack[0].tag == child_defs[0].tag() {
-            validate_visit_field(&child_defs[0], &mutable_field_stack)?;
-        } else if child_defs[0].required() {
-            return Err(required_tag_missing(child_defs[0].tag()));
+        if field_stack[0].tag == child_defs[0].tag() {
+            let visit_result = validate_visit_field(&child_defs[0], field_stack);
+            if let Err(err) = visit_result {
+                return Err(err);
+            }
+            field_stack = visit_result.unwrap();
+        } else {
+            if child_defs[0].required() {
+                return Err(required_tag_missing(child_defs[0].tag()));
+            }
         }
 
         child_defs = child_defs[1..].to_vec();
@@ -246,7 +251,7 @@ fn validate_visit_group_field(
         ));
     }
 
-    Ok(mutable_field_stack)
+    Ok(field_stack)
 }
 
 fn validate_order(msg: &Message) -> MessageRejectErrorResult {
@@ -422,7 +427,7 @@ impl ValidatorEnum {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::datadictionary::parse;
+    use crate::datadictionary::{parse, FieldType};
     use chrono::Utc;
 
     struct ValidateTest {
@@ -1003,102 +1008,168 @@ mod tests {
 
     #[test]
     fn test_validate_visit_field() {
-        // 	fieldType0 := datadictionary.NewFieldType("myfield", 11, "STRING")
-        // 	fieldDef0 := &datadictionary.FieldDef{FieldType: fieldType0}
+        let field_type0 = FieldType::new(String::from("myfield"), 11, String::from("STRING"));
+        let field_def0 = FieldDef::new(field_type0, false);
 
-        // 	fieldType1 := datadictionary.NewFieldType("myfield", 2, "STRING")
-        // 	fieldDef1 := &datadictionary.FieldDef{FieldType: fieldType1, Fields: []*datadictionary.FieldDef{}}
+        let field_type1 = FieldType::new(String::from("myfield"), 2, String::from("STRING"));
+        let field_def1 = FieldDef::new(field_type1, false);
 
-        // 	fieldType2 := datadictionary.NewFieldType("myfield", 3, "STRING")
-        // 	fieldDef2 := &datadictionary.FieldDef{FieldType: fieldType2, Fields: []*datadictionary.FieldDef{}}
+        let field_type2 = FieldType::new(String::from("myfield"), 3, String::from("STRING"));
+        let field_def2 = FieldDef::new(field_type2, false);
 
-        // 	groupFieldType := datadictionary.NewFieldType("mygroupfield", 1, "INT")
-        // 	groupFieldDef := &datadictionary.FieldDef{FieldType: groupFieldType, Fields: []*datadictionary.FieldDef{fieldDef1, fieldDef2}}
+        let group_field_type = FieldType::new(String::from("mygroupfield"), 1, String::from("INT"));
+        let mut group_field_def = FieldDef::new(group_field_type, false);
+        group_field_def.fields = vec![field_def1, field_def2];
 
-        // 	var field TagValue
-        // 	field.init(Tag(11), []byte("value"))
+        let field = TagValue::init(11 as Tag, "value".as_bytes());
 
-        // 	var repField1 TagValue
-        // 	var repField2 TagValue
-        // 	repField1.init(Tag(2), []byte("a"))
-        // 	repField2.init(Tag(3), []byte("a"))
+        let rep_field1 = TagValue::init(2 as Tag, "a".as_bytes());
+        let rep_field2 = TagValue::init(3 as Tag, "a".as_bytes());
 
-        // 	var groupID TagValue
-        // 	groupID.init(Tag(1), []byte("1"))
+        let group_id = TagValue::init(1 as Tag, "1".as_bytes());
 
-        // 	var groupID2 TagValue
-        // 	groupID2.init(Tag(1), []byte("2"))
+        let group_id2 = TagValue::init(1 as Tag, "2".as_bytes());
 
-        // 	var groupID3 TagValue
-        // 	groupID3.init(Tag(1), []byte("3"))
+        let group_id3 = TagValue::init(1 as Tag, "3".as_bytes());
 
-        // 	var tests = []struct {
-        // 		fieldDef             *datadictionary.FieldDef
-        // 		fields               []TagValue
-        // 		expectedRemFields    int
-        // 		expectReject         bool
-        // 		expected_reject_reason int
-        // 	}{
-        // 		//non-repeating
-        // 		{expectedRemFields: 0,
-        // 			fieldDef: fieldDef0,
-        // 			fields:   []TagValue{field}},
-        // 		//single field group
-        // 		{expectedRemFields: 0,
-        // 			fieldDef: groupFieldDef,
-        // 			fields:   []TagValue{groupID, repField1}},
-        // 		//multiple field group
-        // 		{expectedRemFields: 0,
-        // 			fieldDef: groupFieldDef,
-        // 			fields:   []TagValue{groupID, repField1, repField2}},
-        // 		//test with trailing tag not in group
-        // 		{expectedRemFields: 1,
-        // 			fieldDef: groupFieldDef,
-        // 			fields:   []TagValue{groupID, repField1, repField2, field}},
-        // 		//repeats
-        // 		{expectedRemFields: 1,
-        // 			fieldDef: groupFieldDef,
-        // 			fields:   []TagValue{groupID2, repField1, repField2, repField1, repField2, field}},
-        // 		//REJECT: group size declared > actual group size
-        // 		{expectReject: true,
-        // 			fieldDef:             groupFieldDef,
-        // 			fields:               []TagValue{groupID3, repField1, repField2, repField1, repField2, field},
-        // 			expected_reject_reason: rejectReasonIncorrectNumInGroupCountForRepeatingGroup,
-        // 		},
-        // 		{expectReject: true,
-        // 			fieldDef:             groupFieldDef,
-        // 			fields:               []TagValue{groupID3, repField1, repField1, field},
-        // 			expected_reject_reason: rejectReasonIncorrectNumInGroupCountForRepeatingGroup,
-        // 		},
-        // 		//REJECT: group size declared < actual group size
-        // 		{expectReject: true,
-        // 			fieldDef:             groupFieldDef,
-        // 			fields:               []TagValue{groupID, repField1, repField2, repField1, repField2, field},
-        // 			expected_reject_reason: rejectReasonIncorrectNumInGroupCountForRepeatingGroup,
-        // 		},
-        // 	}
+        #[derive(Default)]
+        struct TestCase {
+            field_def: FieldDef,
+            fields: Vec<TagValue>,
+            expected_rem_fields: usize,
+            expect_reject: bool,
+            expected_reject_reason: isize,
+        }
+        let test_cases = vec![
+            // non-repeating
+            TestCase {
+                expected_rem_fields: 0,
+                field_def: field_def0,
+                fields: vec![field.clone()],
+                ..Default::default()
+            },
+            // single field group
+            TestCase {
+                expected_rem_fields: 0,
+                field_def: group_field_def.clone(),
+                fields: vec![group_id.clone(), rep_field1.clone()],
+                ..Default::default()
+            },
+            // multiple field group
+            TestCase {
+                expected_rem_fields: 0,
+                field_def: group_field_def.clone(),
+                fields: vec![group_id.clone(), rep_field1.clone(), rep_field2.clone()],
+                ..Default::default()
+            },
+            // test with trailing tag not in group
+            TestCase {
+                expected_rem_fields: 1,
+                field_def: group_field_def.clone(),
+                fields: vec![
+                    group_id.clone(),
+                    rep_field1.clone(),
+                    rep_field2.clone(),
+                    field.clone(),
+                ],
+                ..Default::default()
+            },
+            // repeats
+            TestCase {
+                expected_rem_fields: 1,
+                field_def: group_field_def.clone(),
+                fields: vec![
+                    group_id2,
+                    rep_field1.clone(),
+                    rep_field2.clone(),
+                    rep_field1.clone(),
+                    rep_field2.clone(),
+                    field.clone(),
+                ],
+                ..Default::default()
+            },
+            // REJECT: group size declared > actual group size
+            TestCase {
+                expect_reject: true,
+                field_def: group_field_def.clone(),
+                fields: vec![
+                    group_id3.clone(),
+                    rep_field1.clone(),
+                    rep_field2.clone(),
+                    rep_field1.clone(),
+                    rep_field2.clone(),
+                    field.clone(),
+                ],
+                expected_reject_reason:
+                    REJECT_REASON_INCORRECT_NUM_IN_GROUP_COUNT_FOR_REPEATING_GROUP,
+                ..Default::default()
+            },
+            TestCase {
+                expect_reject: true,
+                field_def: group_field_def.clone(),
+                fields: vec![
+                    group_id3.clone(),
+                    rep_field1.clone(),
+                    rep_field1.clone(),
+                    field.clone(),
+                ],
+                expected_reject_reason:
+                    REJECT_REASON_INCORRECT_NUM_IN_GROUP_COUNT_FOR_REPEATING_GROUP,
+                ..Default::default()
+            },
+            // REJECT: group size declared < actual group size
+            TestCase {
+                expect_reject: true,
+                field_def: group_field_def.clone(),
+                fields: vec![
+                    group_id.clone(),
+                    rep_field1.clone(),
+                    rep_field2.clone(),
+                    rep_field1.clone(),
+                    rep_field2.clone(),
+                    field.clone(),
+                ],
+                expected_reject_reason:
+                    REJECT_REASON_INCORRECT_NUM_IN_GROUP_COUNT_FOR_REPEATING_GROUP,
+                ..Default::default()
+            },
+        ];
 
-        // 	for _, test := range tests {
-        // 		remFields, reject := validateVisitField(test.fieldDef, test.fields)
+        for tc in test_cases.iter() {
+            let validate_result = validate_visit_field(&tc.field_def, tc.fields.clone());
 
-        // 		if test.expectReject {
-        // 			if reject == nil {
-        // 				t.Error("Expected Reject")
-        // 			}
+            match tc.expect_reject {
+                true => {
+                    assert!(validate_result.is_err(), "Expected Reject");
 
-        // 			if reject.RejectReason() != test.expected_reject_reason {
-        // 				t.Errorf("Expected reject reason %v got %v", test.expected_reject_reason, reject.RejectReason())
-        // 			}
-        // 			continue
-        // 		}
+                    let reject = validate_result.unwrap_err();
 
-        // 		if reject != nil {
-        // 			t.Errorf("Unexpected reject: %v", reject)
-        // 		}
+                    assert_eq!(
+                        reject.reject_reason(),
+                        tc.expected_reject_reason,
+                        "Expected reject reason {} got {}",
+                        tc.expected_reject_reason,
+                        reject.reject_reason()
+                    );
+                }
+                false => {
+                    assert!(
+                        validate_result.is_ok(),
+                        "Unexpected reject: {:?}",
+                        validate_result,
+                    );
 
-        // 		if len(remFields) != test.expectedRemFields {
-        // 			t.Errorf("Expected len %v got %v", test.expectedRemFields, len(remFields))
-        // 		}
-        // 	}
+                    let rem_fields = validate_result.unwrap();
+
+                    assert_eq!(
+                        rem_fields.len(),
+                        tc.expected_rem_fields,
+                        "Expected len {} got {}",
+                        tc.expected_rem_fields,
+                        rem_fields.len(),
+                    );
+                }
+            }
+        }
     }
 }
