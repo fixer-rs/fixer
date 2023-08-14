@@ -1,7 +1,7 @@
+use crate::errors::MessageRejectErrorEnum;
 use crate::fix_boolean::FIXBoolean;
 use crate::{field_map::LocalField, tag::Tag};
 use simple_error::SimpleError;
-use std::error::Error;
 
 // FieldValueWriter is an interface for writing field values
 pub trait FieldValueWriter {
@@ -36,14 +36,14 @@ pub trait FieldGroupWriter {
 // FieldGroupReader is an interface for reading a FieldGroup
 pub trait FieldGroupReader {
     fn tag(&self) -> Tag;
-    fn read(&self, tag_value: &LocalField) -> Result<LocalField, Box<dyn Error + Send + Sync>>;
+    fn read(&self, tag_value: &LocalField) -> Result<LocalField, MessageRejectErrorEnum>;
 }
 
 // FieldGroup is the interface implemented by all typed Groups in a Message
 pub trait FieldGroup {
     fn tag(&self) -> Tag;
     fn write(&self) -> LocalField;
-    fn read(&self, tag_value: &LocalField) -> Result<LocalField, Box<dyn Error + Send + Sync>>;
+    fn read(&self, tag_value: &LocalField) -> Result<LocalField, MessageRejectErrorEnum>;
 }
 
 impl dyn FieldValue {
