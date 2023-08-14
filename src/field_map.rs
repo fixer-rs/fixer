@@ -1,6 +1,6 @@
 use crate::errors::{
     conditionally_required_field_missing, incorrect_data_format_for_value, other_error,
-    MessageRejectError, MessageRejectErrorEnum, MessageRejectErrorResult,
+    MessageRejectErrorEnum, MessageRejectErrorResult,
 };
 use crate::field::{
     Field, FieldGroupReader, FieldGroupWriter, FieldValueReader, FieldValueWriter, FieldWriter,
@@ -222,8 +222,8 @@ impl FieldMap {
             .ok_or_else(|| conditionally_required_field_missing(*tag))?;
 
         parser.read(f).map_err(|err| {
-            if err.is::<MessageRejectError>() {
-                return (*(err.downcast::<MessageRejectError>().unwrap())).into();
+            if let MessageRejectErrorEnum::MessageRejectError(_) = err {
+                return err;
             }
             incorrect_data_format_for_value(*tag)
         })?;
