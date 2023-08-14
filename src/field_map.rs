@@ -38,9 +38,10 @@ impl LocalFieldTrait for LocalField {
     }
 
     fn init_field(&mut self, tag: Tag, value: &[u8]) {
-        let tv = TagValue::init(tag, value);
-        self.clear();
-        self.push(tv)
+        if self.is_empty() {
+            self.push(TagValue::default());
+        }
+        self[0].init(tag, value);
     }
 
     fn write_field(&mut self, buffer: &mut Vec<u8>) {
