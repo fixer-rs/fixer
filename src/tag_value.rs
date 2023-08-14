@@ -10,17 +10,14 @@ pub struct TagValue {
 }
 
 impl TagValue {
-    pub fn init(tag: Tag, value: &[u8]) -> Self {
-        let mut self_value = itoa::Buffer::new().format(tag).as_bytes().to_vec();
-        self_value.push(b'=');
-        self_value.extend_from_slice(value);
-        self_value.push(b'');
+    pub fn init(&mut self, tag: Tag, value: &[u8]) {
+        self.bytes = itoa::Buffer::new().format(tag).as_bytes().to_vec();
+        self.bytes.push(b'=');
+        self.bytes.extend_from_slice(value);
+        self.bytes.push(b'');
 
-        TagValue {
-            tag,
-            value: value.to_vec(),
-            bytes: self_value,
-        }
+        self.tag = tag;
+        self.value = value.to_vec();
     }
 
     pub fn parse(&mut self, raw_field_bytes: &[u8]) -> Result<(), String> {
@@ -81,7 +78,8 @@ mod tests {
 
     #[test]
     fn test_tag_value_init() {
-        let tv = TagValue::init(8, "blahblah".as_bytes());
+        let mut tv = TagValue::default();
+        tv.init(8, "blahblah".as_bytes());
         let expected_data = "8=blahblah".as_bytes();
 
         assert_eq!(

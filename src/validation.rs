@@ -1021,16 +1021,22 @@ mod tests {
         let mut group_field_def = FieldDef::new(group_field_type, false);
         group_field_def.fields = vec![field_def1, field_def2];
 
-        let field = TagValue::init(11 as Tag, "value".as_bytes());
+        let mut field = TagValue::default();
+        field.init(11 as Tag, "value".as_bytes());
 
-        let rep_field1 = TagValue::init(2 as Tag, "a".as_bytes());
-        let rep_field2 = TagValue::init(3 as Tag, "a".as_bytes());
+        let mut rep_field1 = TagValue::default();
+        rep_field1.init(2 as Tag, "a".as_bytes());
+        let mut rep_field2 = TagValue::default();
+        rep_field2.init(3 as Tag, "a".as_bytes());
 
-        let group_id = TagValue::init(1 as Tag, "1".as_bytes());
+        let mut group_id = TagValue::default();
+        group_id.init(1 as Tag, "1".as_bytes());
 
-        let group_id2 = TagValue::init(1 as Tag, "2".as_bytes());
+        let mut group_id2 = TagValue::default();
+        group_id2.init(1 as Tag, "2".as_bytes());
 
-        let group_id3 = TagValue::init(1 as Tag, "3".as_bytes());
+        let mut group_id3 = TagValue::default();
+        group_id3.init(1 as Tag, "3".as_bytes());
 
         #[derive(Default)]
         struct TestCase {
