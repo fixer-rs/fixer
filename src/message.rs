@@ -12,10 +12,13 @@ use crate::{
 };
 use chrono::{DateTime, Utc};
 use delegate::delegate;
+use parking_lot::Mutex;
 use std::{
     error::Error,
     fmt::{Display, Formatter},
+    mem::drop,
     string::ToString,
+    sync::Arc,
 };
 
 #[derive(Debug, Default, Clone)]
@@ -52,7 +55,7 @@ impl Header {
             pub fn set_string(&self, tag: Tag, value: &str) -> &FieldMap;
             pub fn clear(&self);
             pub fn copy_into(&self, to: &mut FieldMap);
-            pub fn add(&mut self, f: &LocalField);
+            pub fn add(&mut self, f: LocalField);
             pub fn set<F: FieldWriter>(&self, field: F) -> &FieldMap;
             pub fn set_group<F: FieldGroupWriter>(&mut self, field: F) -> &FieldMap;
             pub fn write(&self, buffer: &mut Vec<u8>);
@@ -96,7 +99,7 @@ impl Body {
             pub fn set_string(&self, tag: Tag, value: &str) -> &FieldMap;
             pub fn clear(&self);
             pub fn copy_into(&self, to: &mut FieldMap);
-            pub fn add(&mut self, f: &LocalField);
+            pub fn add(&mut self, f: LocalField);
             pub fn set<F: FieldWriter>(&self, field: F) -> &FieldMap;
             pub fn set_group<F: FieldGroupWriter>(&mut self, field: F) -> &FieldMap;
             pub fn write(&self, buffer: &mut Vec<u8>);
@@ -140,7 +143,7 @@ impl Trailer {
             pub fn set_string(&self, tag: Tag, value: &str) -> &FieldMap;
             pub fn clear(&self);
             pub fn copy_into(&self, to: &mut FieldMap);
-            pub fn add(&mut self, f: &LocalField);
+            pub fn add(&mut self, f: LocalField);
             pub fn set<F: FieldWriter>(&self, field: F) -> &FieldMap;
             pub fn set_group<F: FieldGroupWriter>(&mut self, field: F) -> &FieldMap;
             pub fn write(&self, buffer: &mut Vec<u8>);
@@ -162,6 +165,7 @@ pub struct Message {
     // slice of Bytes corresponding to the message body
     body_bytes: Vec<u8>,
     // field bytes as they appear in the raw message
+    original_field: Arc<Mutex<Vec<TagValue>>>,
     pub fields: LocalField,
     // flag is true if this message should not be returned to pool after use
     pub keep_message: bool,
@@ -233,41 +237,62 @@ impl Message {
             });
         }
 
-        if self.fields.capacity() < field_count {
-            self.fields = vec![TagValue::default(); field_count];
+        if self.fields.cap() < field_count {
+            self.original_field = Arc::new(Mutex::new(vec![TagValue::default(); field_count]));
+            self.fields = LocalField::new(self.original_field.clone());
         } else {
-            self.fields = self.fields[0..field_count].to_vec();
+            self.original_field.lock().truncate(field_count);
+            self.fields = LocalField::new(self.original_field.clone());
         }
 
         let mut field_index = 0;
 
         // message must start with begin string, body length, msg type
-        let field = self.fields.get_mut(field_index).unwrap();
+        let mut lock = self.fields.data.lock();
+        let field = lock.get_mut(field_index).unwrap();
         let raw_bytes = extract_specific_field(field, TAG_BEGIN_STRING, raw_message)?;
 
-        self.header.add(&vec![field.clone()]);
+        drop(lock);
+
+        self.header.add(LocalField::new_with_start_end(
+            self.original_field.clone(),
+            field_index,
+            field_index + 1,
+        ));
         field_index += 1;
 
-        let parsed_field_bytes = self.fields.get_mut(field_index).unwrap();
+        let mut lock = self.fields.data.lock();
+        let parsed_field_bytes = lock.get_mut(field_index).unwrap();
         let raw_bytes = extract_specific_field(parsed_field_bytes, TAG_BODY_LENGTH, &raw_bytes)?;
+        drop(lock);
 
-        self.header.add(&vec![parsed_field_bytes.clone()]);
+        self.header.add(LocalField::new_with_start_end(
+            self.original_field.clone(),
+            field_index,
+            field_index + 1,
+        ));
         field_index += 1;
 
-        let parsed_field_bytes = self.fields.get_mut(field_index).unwrap();
+        let mut lock = self.fields.data.lock();
+        let parsed_field_bytes = lock.get_mut(field_index).unwrap();
         let mut raw_bytes = extract_specific_field(parsed_field_bytes, TAG_MSG_TYPE, &raw_bytes)?;
 
         let mut xml_data_len = 0_isize;
         let mut xml_data_msg = false;
-
-        self.header.add(&vec![parsed_field_bytes.clone()]);
+        drop(lock);
+        self.header.add(LocalField::new_with_start_end(
+            self.original_field.clone(),
+            field_index,
+            field_index + 1,
+        ));
         field_index += 1;
 
         let mut trailer_bytes = vec![];
         let mut found_body = false;
 
         loop {
-            let parsed_field_bytes = self.fields.get_mut(field_index).unwrap();
+            let mut lock = self.fields.data.lock();
+            let parsed_field_bytes = lock.get_mut(field_index).unwrap();
             raw_bytes = if xml_data_len.is_positive() {
                 let raw_bytes =
                     extract_xml_data_field(parsed_field_bytes, &raw_bytes, xml_data_len)?;
@@ -278,19 +303,52 @@ impl Message {
                 extract_field(parsed_field_bytes, &raw_bytes)?
             };
 
-            let fields = vec![parsed_field_bytes.clone()];
+            let tag = parsed_field_bytes.tag;
 
-            if is_header_field(&parsed_field_bytes.tag, transport_data_dictionary) {
-                self.header.add(&fields);
-            } else if is_trailer_field(&parsed_field_bytes.tag, transport_data_dictionary) {
-                self.trailer.add(&fields);
-            } else {
-                found_body = true;
-                trailer_bytes = raw_bytes.clone();
-                self.body.add(&fields);
+            enum Location {
+                Header,
+                Trailer,
+                Body,
             }
 
-            if parsed_field_bytes.tag == TAG_CHECK_SUM {
+            let location = if is_header_field(&tag, transport_data_dictionary) {
+                Location::Header
+            } else if is_trailer_field(&tag, transport_data_dictionary) {
+                Location::Trailer
+            } else {
+                Location::Body
+            };
+
+            drop(lock);
+
+            match location {
+                Location::Header => {
+                    self.header.add(LocalField::new_with_start_end(
+                        self.original_field.clone(),
+                        field_index,
+                        field_index + 1,
+                    ));
+                }
+                Location::Trailer => {
+                    self.trailer.add(LocalField::new_with_start_end(
+                        self.original_field.clone(),
+                        field_index,
+                        field_index + 1,
+                    ));
+                }
+                Location::Body => {
+                    found_body = true;
+                    trailer_bytes = raw_bytes.clone();
+
+                    self.body.add(LocalField::new_with_start_end(
+                        self.original_field.clone(),
+                        field_index,
+                        field_index + 1,
+                    ));
+                }
+            }
+
+            if tag == TAG_CHECK_SUM {
                 break;
             }
 
@@ -298,7 +356,7 @@ impl Message {
                 self.body_bytes = raw_bytes.clone();
             }
 
-            if parsed_field_bytes.tag == TAG_XML_DATA_LEN {
+            if tag == TAG_XML_DATA_LEN {
                 xml_data_len = self.header.get_int(TAG_XML_DATA_LEN).unwrap();
             }
 
@@ -315,7 +373,14 @@ impl Message {
 
         let mut length = 0;
 
-        for field in self.fields.iter() {
+        for field in self
+            .fields
+            .data
+            .lock()
+            .get(self.fields.s_pos..self.fields.e_pos)
+            .unwrap()
+            .iter()
+        {
             match field.tag {
                 TAG_BEGIN_STRING | TAG_BODY_LENGTH | TAG_CHECK_SUM => continue, // tags do not contribute to length
                 _ => length += field.length(),
@@ -534,7 +599,7 @@ mod tests {
     impl MessageSuite {
         delegate! {
             to self.suite {
-                fn field_equals<'a>(&self, tag: Tag, expected_value: FieldEqual<'a>, field_map: &FieldMap) ;
+                fn field_equals(&self, tag: Tag, expected_value: FieldEqual, field_map: &FieldMap) ;
             }
         }
     }
@@ -822,7 +887,15 @@ mod tests {
         assert_eq!(s.msg.body_bytes, dest.body_bytes);
         assert!(s.msg.is_msg_type_of("D"));
         assert_eq!(s.msg.receive_time, dest.receive_time);
-        assert_eq!(s.msg.fields, dest.fields);
+
+        let orig_lock = s.msg.fields.data.lock();
+        let orig_data = orig_lock.get(..).unwrap().to_vec();
+        drop(orig_lock);
+
+        let next_lock = dest.fields.data.lock();
+        let next_data = next_lock.get(..).unwrap().to_vec();
+        drop(next_lock);
+        assert_eq!(orig_data, next_data);
 
         // update the source message to validate the copy is truly deep
         let new_msg_string =

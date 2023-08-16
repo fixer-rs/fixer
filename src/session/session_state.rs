@@ -4,22 +4,23 @@ use crate::session::{
     resend_state::ResendState,
 };
 use delegate::delegate;
-use std::any::Any;
-use subenum::subenum;
 use tokio::sync::mpsc::UnboundedReceiver;
 
-#[subenum(AfterPendingTimeout)]
 #[derive(Debug, Clone)]
 pub enum SessionStateEnum {
-    #[subenum(AfterPendingTimeout)]
     InSession(InSession),
     LatentState(LatentState),
     LogonState(LogonState),
     LogoutState(LogoutState),
     NotSessionTime(NotSessionTime),
-    #[subenum(AfterPendingTimeout)]
     ResendState(ResendState),
     PendingTimeout(PendingTimeout),
+}
+
+#[derive(Debug, Clone)]
+pub enum AfterPendingTimeout {
+    InSession(InSession),
+    ResendState(ResendState),
 }
 
 impl Default for SessionStateEnum {
@@ -123,7 +124,7 @@ impl StateMachine {
 
 // sessionState is the current state of the session state machine. The session state determines how the session responds to
 // incoming messages, timeouts, and requests to send application messages.
-pub trait SessionState: ToString + Any {
+pub trait SessionState: ToString {
     // fix_msg_in is called by the session on incoming messages from the counter party.
     // The return type is the next session state following message processing.
     // async fn fix_msg_in(self, session: &'_ mut Session, msg: &'_ mut Message) -> SessionStateEnum;

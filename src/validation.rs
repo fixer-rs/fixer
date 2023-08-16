@@ -1,7 +1,7 @@
 use crate::datadictionary::{DataDictionary, FieldDef, TagSet};
 use crate::errors::*;
 use crate::field::*;
-use crate::field_map::{FieldMap, LocalField};
+use crate::field_map::FieldMap;
 use crate::fix_boolean::FIXBoolean;
 use crate::fix_float::FIXFloat;
 use crate::fix_int::FIXInt;
@@ -47,8 +47,8 @@ impl Validator for FixValidator {
         if !msg.header.has(TAG_MSG_TYPE) {
             return Err(required_tag_missing(TAG_MSG_TYPE));
         }
-        let msg_type = msg.header.get_string(TAG_MSG_TYPE)?;
 
+        let msg_type = msg.header.get_string(TAG_MSG_TYPE)?;
         validate_fix(&self.data_dictionary, &self.settings, &msg_type, msg)
     }
 }
@@ -68,7 +68,6 @@ impl Validator for FixtValidator {
         }
 
         let msg_type = msg.header.get_string(TAG_MSG_TYPE)?;
-
         if is_admin_message_type(msg_type.as_bytes()) {
             return validate_fix(
                 &self.transport_data_dictionary,
@@ -150,11 +149,12 @@ fn validate_walk(
     msg_type: &str,
     msg: &Message,
 ) -> MessageRejectErrorResult {
-    let mut remaining_fields = msg.fields.clone();
     let mut iterated_tags = TagSet::new();
+    let lock = msg.fields.data.lock();
+    let mut fields = lock.get(..).unwrap();
 
-    while !remaining_fields.is_empty() {
-        let field = &remaining_fields[0];
+    while !fields.is_empty() {
+        let field = fields.get(0).unwrap();
         let tag = field.tag;
 
         let message_def = if tag.is_header() {
@@ -176,35 +176,33 @@ fn validate_walk(
 
         iterated_tags.add(tag);
 
-        let sent_remaining_fields = remaining_fields.to_owned();
-
-        remaining_fields = validate_visit_field(field_def, sent_remaining_fields)?;
+        fields = validate_visit_field(field_def, fields)?;
     }
 
-    if !remaining_fields.is_empty() {
+    if !fields.is_empty() {
         return Err(tag_not_defined_for_this_message_type(
-            remaining_fields[0].tag,
+            fields.get(0).unwrap().tag,
         ));
     }
 
     Ok(())
 }
 
-fn validate_visit_field(
+fn validate_visit_field<'a>(
     field_def: &FieldDef,
-    fields: LocalField,
-) -> Result<LocalField, MessageRejectErrorEnum> {
+    fields: &'a [TagValue],
+) -> Result<&'a [TagValue], MessageRejectErrorEnum> {
     if field_def.is_group() {
-        return Ok(validate_visit_group_field(field_def, fields)?);
+        return validate_visit_group_field(field_def, fields);
     }
 
-    Ok(fields[1..].to_vec())
+    Ok(fields.get(1..).unwrap())
 }
 
-fn validate_visit_group_field(
+fn validate_visit_group_field<'a>(
     field_def: &FieldDef,
-    mut field_stack: LocalField,
-) -> Result<LocalField, MessageRejectErrorEnum> {
+    field_stack: &'a [TagValue],
+) -> Result<&'a [TagValue], MessageRejectErrorEnum> {
     let first_field_stack = field_stack.get(0).unwrap();
     let num_in_group_tag = first_field_stack.tag;
     let mut num_in_group = FIXInt::default();
@@ -213,14 +211,14 @@ fn validate_visit_group_field(
         .read(&first_field_stack.value)
         .map_err(|_| incorrect_data_format_for_value(num_in_group_tag))?;
 
-    field_stack = field_stack[1..].to_vec();
+    let mut field_stack = field_stack.get(1..).unwrap();
 
     let mut child_defs: Vec<FieldDef> = vec![];
     let mut group_count = 0;
 
     while !field_stack.is_empty() {
         // start of repeating group
-        if field_stack[0].tag == field_def.fields[0].tag() {
+        if field_stack.get(0).unwrap().tag == field_def.fields[0].tag() {
             child_defs = field_def.fields.clone();
             group_count += 1;
         }
@@ -230,16 +228,10 @@ fn validate_visit_group_field(
             break;
         }
 
-        if field_stack[0].tag == child_defs[0].tag() {
-            let visit_result = validate_visit_field(&child_defs[0], field_stack);
-            if let Err(err) = visit_result {
-                return Err(err);
-            }
-            field_stack = visit_result.unwrap();
-        } else {
-            if child_defs[0].required() {
-                return Err(required_tag_missing(child_defs[0].tag()));
-            }
+        if field_stack.get(0).unwrap().tag == child_defs[0].tag() {
+            field_stack = validate_visit_field(&child_defs[0], field_stack)?;
+        } else if child_defs[0].required() {
+            return Err(required_tag_missing(child_defs[0].tag()));
         }
 
         child_defs = child_defs[1..].to_vec();
@@ -257,7 +249,7 @@ fn validate_visit_group_field(
 fn validate_order(msg: &Message) -> MessageRejectErrorResult {
     let mut in_header = true;
     let mut in_trailer = false;
-    for field in msg.fields.iter() {
+    for field in msg.fields.data.lock().get(..).unwrap().iter() {
         let t = field.tag;
         if in_header && t.is_header() {}
         if in_header && !t.is_header() {
@@ -321,7 +313,7 @@ fn validate_fields(
     msg_type: &str,
     msg: &Message,
 ) -> MessageRejectErrorResult {
-    for field in msg.fields.iter() {
+    for field in msg.fields.data.lock().get(..).unwrap().iter() {
         if field.tag.is_header() {
             validate_field(transport_dd, &transport_dd.header.tags, field)?;
         } else if field.tag.is_trailer() {
@@ -427,11 +419,16 @@ impl ValidatorEnum {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::datadictionary::{parse, FieldType};
+    use crate::{
+        datadictionary::{parse, FieldType},
+        field_map::LocalField,
+    };
     use chrono::Utc;
+    use parking_lot::Mutex;
+    use std::sync::Arc;
 
-    struct ValidateTest {
-        test_name: &'static str,
+    struct ValidateTest<'a> {
+        name: &'a str,
         validator: ValidatorEnum,
         message_bytes: Vec<u8>,
         expected_reject_reason: isize,
@@ -466,30 +463,28 @@ mod tests {
         for test in tests.iter() {
             let mut msg = Message::new();
             let parse_error = msg.parse_message(&test.message_bytes);
-
             assert!(parse_error.is_ok());
-            let reject_result = test.validator.validate(&msg);
 
+            let reject_result = test.validator.validate(&msg);
             if reject_result.is_ok() {
                 if test.do_not_expect_reject {
                     continue;
                 }
-                assert!(false, "{}: Expected reject", test.test_name);
+                assert!(false, "{}: Expected reject", test.name);
             } else if reject_result.is_err() && test.do_not_expect_reject {
                 assert!(
                     false,
                     "{}: Unexpected reject: {:?}",
-                    test.test_name, reject_result
+                    test.name, reject_result
                 );
             }
 
             let reject = reject_result.unwrap_err();
-
             assert_eq!(
                 reject.reject_reason(),
                 test.expected_reject_reason,
                 "{}: Expected reason {} got {}",
-                test.test_name,
+                test.name,
                 test.expected_reject_reason,
                 reject.reject_reason(),
             );
@@ -500,14 +495,14 @@ mod tests {
                 assert!(
                     false,
                     "{}: Unexpected RefTag '{}'",
-                    test.test_name,
+                    test.name,
                     reject.ref_tag_id().unwrap()
                 );
             } else if reject.ref_tag_id().is_none() && test.expected_ref_tag_id.is_some() {
                 assert!(
                     false,
                     "{}: Expected RefTag '{}'",
-                    test.test_name,
+                    test.name,
                     test.expected_ref_tag_id.unwrap()
                 );
             } else if reject.ref_tag_id().unwrap() == test.expected_ref_tag_id.unwrap() {
@@ -516,7 +511,7 @@ mod tests {
                 assert!(
                     false,
                     "{}: Expected RefTag '{}' got '{}'",
-                    test.test_name,
+                    test.name,
                     test.expected_ref_tag_id.unwrap(),
                     reject.ref_tag_id().unwrap()
                 );
@@ -524,7 +519,7 @@ mod tests {
         }
     }
 
-    fn create_fix40_new_order_single() -> Message {
+    fn create_fix40_new_order_single<'a>() -> Message {
         let msg = Message::new();
         let now = Utc::now();
         msg.header.set_field(TAG_MSG_TYPE, FIXString::from("D"));
@@ -552,7 +547,7 @@ mod tests {
         msg
     }
 
-    fn create_fix43_new_order_single() -> Message {
+    fn create_fix43_new_order_single<'a>() -> Message {
         let msg = Message::new();
         let now = Utc::now();
         msg.header.set_field(TAG_MSG_TYPE, FIXString::from("D"));
@@ -580,7 +575,7 @@ mod tests {
         msg
     }
 
-    async fn tc_invalid_tag_number_header() -> ValidateTest {
+    async fn tc_invalid_tag_number_header<'a>() -> ValidateTest<'a> {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
         let invalid_header_field_message = create_fix40_new_order_single();
@@ -592,7 +587,7 @@ mod tests {
         let message_bytes = invalid_header_field_message.build();
 
         ValidateTest {
-            test_name: "Invalid Tag Number Header",
+            name: "Invalid Tag Number Header",
             validator,
             message_bytes,
             expected_reject_reason: REJECT_REASON_INVALID_TAG_NUMBER,
@@ -601,7 +596,7 @@ mod tests {
         }
     }
 
-    async fn tc_invalid_tag_number_body() -> ValidateTest {
+    async fn tc_invalid_tag_number_body<'a>() -> ValidateTest<'a> {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
         let invalid_body_field_message = create_fix40_new_order_single();
@@ -612,7 +607,7 @@ mod tests {
         let message_bytes = invalid_body_field_message.build();
 
         ValidateTest {
-            test_name: "Invalid Tag Number Body",
+            name: "Invalid Tag Number Body",
             validator,
             message_bytes: message_bytes,
             expected_reject_reason: REJECT_REASON_INVALID_TAG_NUMBER,
@@ -621,7 +616,7 @@ mod tests {
         }
     }
 
-    async fn tc_invalid_tag_number_trailer() -> ValidateTest {
+    async fn tc_invalid_tag_number_trailer<'a>() -> ValidateTest<'a> {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
         let invalid_trailer_field_message = create_fix40_new_order_single();
@@ -632,7 +627,7 @@ mod tests {
         let message_bytes = invalid_trailer_field_message.build();
 
         ValidateTest {
-            test_name: "Invalid Tag Number Trailer",
+            name: "Invalid Tag Number Trailer",
             validator,
             message_bytes,
             expected_reject_reason: REJECT_REASON_INVALID_TAG_NUMBER,
@@ -641,7 +636,7 @@ mod tests {
         }
     }
 
-    async fn tc_tag_not_defined_for_message() -> ValidateTest {
+    async fn tc_tag_not_defined_for_message<'a>() -> ValidateTest<'a> {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
         let invalid_msg = create_fix40_new_order_single();
@@ -650,7 +645,7 @@ mod tests {
         let message_bytes = invalid_msg.build();
 
         ValidateTest {
-            test_name: "Tag Not Defined For Message",
+            name: "Tag Not Defined For Message",
             validator,
             message_bytes,
             expected_reject_reason: REJECT_REASON_TAG_NOT_DEFINED_FOR_THIS_MESSAGE_TYPE,
@@ -659,7 +654,7 @@ mod tests {
         }
     }
 
-    async fn tc_tag_is_defined_for_message() -> ValidateTest {
+    async fn tc_tag_is_defined_for_message<'a>() -> ValidateTest<'a> {
         // compare to tcTagIsNotDefinedForMessage
         let dict = parse("./spec/FIX43.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
@@ -667,7 +662,7 @@ mod tests {
         let message_bytes = valid_msg.build();
 
         ValidateTest {
-            test_name: "TagIsDefinedForMessage",
+            name: "TagIsDefinedForMessage",
             validator,
             message_bytes,
             do_not_expect_reject: true,
@@ -676,7 +671,7 @@ mod tests {
         }
     }
 
-    async fn tc_field_not_found_body() -> ValidateTest {
+    async fn tc_field_not_found_body<'a>() -> ValidateTest<'a> {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
         let invalid_msg1 = Message::new();
@@ -719,7 +714,7 @@ mod tests {
         let message_bytes = invalid_msg1.build();
 
         ValidateTest {
-            test_name: "FieldNotFoundBody",
+            name: "FieldNotFoundBody",
             validator,
             message_bytes,
             expected_reject_reason: REJECT_REASON_REQUIRED_TAG_MISSING,
@@ -728,7 +723,7 @@ mod tests {
         }
     }
 
-    async fn tc_field_not_found_header() -> ValidateTest {
+    async fn tc_field_not_found_header<'a>() -> ValidateTest<'a> {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
 
@@ -768,7 +763,7 @@ mod tests {
         let message_bytes = invalid_msg2.build();
 
         ValidateTest {
-            test_name: "FieldNotFoundHeader",
+            name: "FieldNotFoundHeader",
             validator,
             message_bytes,
             expected_reject_reason: REJECT_REASON_REQUIRED_TAG_MISSING,
@@ -777,7 +772,7 @@ mod tests {
         }
     }
 
-    async fn tc_tag_specified_without_a_value() -> ValidateTest {
+    async fn tc_tag_specified_without_a_value<'a>() -> ValidateTest<'a> {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
         let builder = create_fix40_new_order_single();
@@ -787,7 +782,7 @@ mod tests {
         let message_bytes = builder.build();
 
         ValidateTest {
-            test_name: "Tag SpecifiedWithoutAValue",
+            name: "Tag SpecifiedWithoutAValue",
             validator,
             message_bytes,
             expected_reject_reason: REJECT_REASON_TAG_SPECIFIED_WITHOUT_A_VALUE,
@@ -796,7 +791,7 @@ mod tests {
         }
     }
 
-    async fn tc_invalid_msg_type() -> ValidateTest {
+    async fn tc_invalid_msg_type<'a>() -> ValidateTest<'a> {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
         let builder = create_fix40_new_order_single();
@@ -804,7 +799,7 @@ mod tests {
         let message_bytes = builder.build();
 
         ValidateTest {
-            test_name: "Invalid MsgType",
+            name: "Invalid MsgType",
             validator,
             message_bytes,
             expected_reject_reason: REJECT_REASON_INVALID_MSG_TYPE,
@@ -813,7 +808,7 @@ mod tests {
         }
     }
 
-    async fn tc_value_is_incorrect() -> ValidateTest {
+    async fn tc_value_is_incorrect<'a>() -> ValidateTest<'a> {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
 
@@ -823,7 +818,7 @@ mod tests {
         let message_bytes = builder.build();
 
         ValidateTest {
-            test_name: "ValueIsIncorrect",
+            name: "ValueIsIncorrect",
             validator,
             message_bytes,
             expected_reject_reason: REJECT_REASON_VALUE_IS_INCORRECT,
@@ -832,7 +827,7 @@ mod tests {
         }
     }
 
-    async fn tc_incorrect_data_format_for_value() -> ValidateTest {
+    async fn tc_incorrect_data_format_for_value<'a>() -> ValidateTest<'a> {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
         let builder = create_fix40_new_order_single();
@@ -841,7 +836,7 @@ mod tests {
         let message_bytes = builder.build();
 
         ValidateTest {
-            test_name: "IncorrectDataFormatForValue",
+            name: "IncorrectDataFormatForValue",
             validator,
             message_bytes,
             expected_reject_reason: REJECT_REASON_INCORRECT_DATA_FORMAT_FOR_VALUE,
@@ -850,7 +845,7 @@ mod tests {
         }
     }
 
-    async fn tc_tag_specified_out_of_required_order_header() -> ValidateTest {
+    async fn tc_tag_specified_out_of_required_order_header<'a>() -> ValidateTest<'a> {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
 
@@ -861,7 +856,7 @@ mod tests {
         let message_bytes = builder.build();
 
         ValidateTest {
-            test_name: "Tag specified out of required order in Header",
+            name: "Tag specified out of required order in Header",
             validator,
             message_bytes,
             expected_reject_reason: REJECT_REASON_TAG_SPECIFIED_OUT_OF_REQUIRED_ORDER,
@@ -870,7 +865,7 @@ mod tests {
         }
     }
 
-    async fn tc_tag_specified_out_of_required_order_trailer() -> ValidateTest {
+    async fn tc_tag_specified_out_of_required_order_trailer<'a>() -> ValidateTest<'a> {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
 
@@ -882,7 +877,7 @@ mod tests {
 
         let ref_tag = 100 as Tag;
         ValidateTest {
-            test_name: "Tag specified out of required order in Trailer",
+            name: "Tag specified out of required order in Trailer",
             validator,
             message_bytes,
             expected_reject_reason: REJECT_REASON_TAG_SPECIFIED_OUT_OF_REQUIRED_ORDER,
@@ -891,7 +886,7 @@ mod tests {
         }
     }
 
-    async fn tc_invalid_tag_check_disabled() -> ValidateTest {
+    async fn tc_invalid_tag_check_disabled<'a>() -> ValidateTest<'a> {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let mut custom_validator_settings = ValidatorSettings::default();
         custom_validator_settings.reject_invalid_message = false;
@@ -903,7 +898,7 @@ mod tests {
         let message_bytes = builder.build();
 
         ValidateTest {
-            test_name: "Invalid Tag Check - Disabled",
+            name: "Invalid Tag Check - Disabled",
             validator,
             message_bytes,
             do_not_expect_reject: true,
@@ -912,7 +907,7 @@ mod tests {
         }
     }
 
-    async fn tc_invalid_tag_check_enabled() -> ValidateTest {
+    async fn tc_invalid_tag_check_enabled<'a>() -> ValidateTest<'a> {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let mut custom_validator_settings = ValidatorSettings::default();
         custom_validator_settings.reject_invalid_message = true;
@@ -924,7 +919,7 @@ mod tests {
         let message_bytes = builder.build();
 
         ValidateTest {
-            test_name: "Invalid Tag Check - Enabled",
+            name: "Invalid Tag Check - Enabled",
             validator,
             message_bytes,
             do_not_expect_reject: false,
@@ -933,7 +928,7 @@ mod tests {
         }
     }
 
-    async fn tc_tag_specified_out_of_required_order_disabled_header() -> ValidateTest {
+    async fn tc_tag_specified_out_of_required_order_disabled_header<'a>() -> ValidateTest<'a> {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let mut custom_validator_settings = ValidatorSettings::default();
         custom_validator_settings.check_fields_out_of_order = false;
@@ -946,7 +941,7 @@ mod tests {
         let message_bytes = builder.build();
 
         ValidateTest {
-            test_name: "Tag specified out of required order in Header - Disabled",
+            name: "Tag specified out of required order in Header - Disabled",
             validator,
             message_bytes,
             do_not_expect_reject: true,
@@ -955,7 +950,7 @@ mod tests {
         }
     }
 
-    async fn tc_tag_specified_out_of_required_order_disabled_trailer() -> ValidateTest {
+    async fn tc_tag_specified_out_of_required_order_disabled_trailer<'a>() -> ValidateTest<'a> {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let mut custom_validator_settings = ValidatorSettings::default();
         custom_validator_settings.check_fields_out_of_order = false;
@@ -968,7 +963,7 @@ mod tests {
         let message_bytes = builder.build();
 
         ValidateTest {
-            test_name: "Tag specified out of required order in Trailer - Disabled",
+            name: "Tag specified out of required order in Trailer - Disabled",
             validator,
             message_bytes,
             do_not_expect_reject: true,
@@ -977,13 +972,13 @@ mod tests {
         }
     }
 
-    async fn tc_tag_appears_more_than_once() -> ValidateTest {
+    async fn tc_tag_appears_more_than_once<'a>() -> ValidateTest<'a> {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
         let tag = 40 as Tag;
 
         ValidateTest {
-        	test_name:  "Tag appears more than once",
+        	name:  "Tag appears more than once",
         	validator,
         	message_bytes: "8=FIX.4.09=10735=D34=249=TW52=20060102-15:04:0556=ISLD11=ID21=140=140=254=138=20055=INTC60=20060102-15:04:0510=234".into(),
         	expected_reject_reason: REJECT_REASON_TAG_APPEARS_MORE_THAN_ONCE,
@@ -992,12 +987,12 @@ mod tests {
         }
     }
 
-    async fn tc_float_validation() -> ValidateTest {
+    async fn tc_float_validation<'a>() -> ValidateTest<'a> {
         let dict = parse("./spec/FIX42.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
         let tag = 38 as Tag;
         ValidateTest{
-            test_name:  "FloatValidation",
+            name:  "FloatValidation",
             validator,
             message_bytes: "8=FIX.4.29=10635=D34=249=TW52=20140329-22:38:4556=ISLD11=ID21=140=154=138=+200.0055=INTC60=20140329-22:38:4510=178".into(),
             expected_reject_reason: REJECT_REASON_INCORRECT_DATA_FORMAT_FOR_VALUE,
@@ -1041,7 +1036,7 @@ mod tests {
         #[derive(Default)]
         struct TestCase {
             field_def: FieldDef,
-            fields: Vec<TagValue>,
+            fields: LocalField,
             expected_rem_fields: usize,
             expect_reject: bool,
             expected_reject_reason: isize,
@@ -1051,61 +1046,68 @@ mod tests {
             TestCase {
                 expected_rem_fields: 0,
                 field_def: field_def0,
-                fields: vec![field.clone()],
+                fields: LocalField::new(Arc::new(Mutex::new(vec![field.clone()]))),
                 ..Default::default()
             },
             // single field group
             TestCase {
                 expected_rem_fields: 0,
                 field_def: group_field_def.clone(),
-                fields: vec![group_id.clone(), rep_field1.clone()],
+                fields: LocalField::new(Arc::new(Mutex::new(vec![
+                    group_id.clone(),
+                    rep_field1.clone(),
+                ]))),
                 ..Default::default()
             },
             // multiple field group
             TestCase {
                 expected_rem_fields: 0,
                 field_def: group_field_def.clone(),
-                fields: vec![group_id.clone(), rep_field1.clone(), rep_field2.clone()],
+                fields: LocalField::new(Arc::new(Mutex::new(vec![
+                    group_id.clone(),
+                    rep_field1.clone(),
+                    rep_field2.clone(),
+                ]))),
                 ..Default::default()
             },
             // test with trailing tag not in group
             TestCase {
                 expected_rem_fields: 1,
                 field_def: group_field_def.clone(),
-                fields: vec![
+                fields: LocalField::new(Arc::new(Mutex::new(vec![
                     group_id.clone(),
                     rep_field1.clone(),
                     rep_field2.clone(),
                     field.clone(),
-                ],
+                ]))),
                 ..Default::default()
             },
             // repeats
             TestCase {
                 expected_rem_fields: 1,
                 field_def: group_field_def.clone(),
-                fields: vec![
+                fields: LocalField::new(Arc::new(Mutex::new(vec![
                     group_id2,
                     rep_field1.clone(),
                     rep_field2.clone(),
                     rep_field1.clone(),
                     rep_field2.clone(),
                     field.clone(),
-                ],
+                ]))),
                 ..Default::default()
             },
             // REJECT: group size declared > actual group size
             TestCase {
                 expect_reject: true,
                 field_def: group_field_def.clone(),
-                fields: vec![
+                fields: LocalField::new(Arc::new(Mutex::new(vec![
                     group_id3.clone(),
                     rep_field1.clone(),
                     rep_field2.clone(),
                     rep_field1.clone(),
                     rep_field2.clone(),
                     field.clone(),
-                ],
+                ]))),
                 expected_reject_reason:
                     REJECT_REASON_INCORRECT_NUM_IN_GROUP_COUNT_FOR_REPEATING_GROUP,
                 ..Default::default()
@@ -1113,12 +1115,12 @@ mod tests {
             TestCase {
                 expect_reject: true,
                 field_def: group_field_def.clone(),
-                fields: vec![
+                fields: LocalField::new(Arc::new(Mutex::new(vec![
                     group_id3.clone(),
                     rep_field1.clone(),
                     rep_field1.clone(),
                     field.clone(),
-                ],
+                ]))),
                 expected_reject_reason:
                     REJECT_REASON_INCORRECT_NUM_IN_GROUP_COUNT_FOR_REPEATING_GROUP,
                 ..Default::default()
@@ -1127,14 +1129,14 @@ mod tests {
             TestCase {
                 expect_reject: true,
                 field_def: group_field_def.clone(),
-                fields: vec![
+                fields: LocalField::new(Arc::new(Mutex::new(vec![
                     group_id.clone(),
                     rep_field1.clone(),
                     rep_field2.clone(),
                     rep_field1.clone(),
                     rep_field2.clone(),
                     field.clone(),
-                ],
+                ]))),
                 expected_reject_reason:
                     REJECT_REASON_INCORRECT_NUM_IN_GROUP_COUNT_FOR_REPEATING_GROUP,
                 ..Default::default()
@@ -1142,7 +1144,9 @@ mod tests {
         ];
 
         for tc in test_cases.iter() {
-            let validate_result = validate_visit_field(&tc.field_def, tc.fields.clone());
+            let lock = tc.fields.data.lock();
+            let fields = lock.get(..).unwrap();
+            let validate_result = validate_visit_field(&tc.field_def, fields);
 
             match tc.expect_reject {
                 true => {

@@ -279,10 +279,10 @@ mod tests {
         let doc = CACHED_XML_DOC.clone();
         assert!(doc.header.is_some(), "Header is nil");
 
-        struct TestCase {
+        struct TestCase<'a> {
             value: XMLComponentEnum,
-            xml_name_local: &'static str,
-            name: &'static str,
+            xml_name_local: &'a str,
+            name: &'a str,
             required: bool,
         }
         let tests = vec![
@@ -427,11 +427,11 @@ mod tests {
     #[test]
     fn test_messages() {
         let doc = CACHED_XML_DOC.clone();
-        struct TestCase {
+        struct TestCase<'a> {
             value: XMLComponent,
-            name: &'static str,
-            msg_cat: &'static str,
-            msg_type: &'static str,
+            name: &'a str,
+            msg_cat: &'a str,
+            msg_type: &'a str,
         }
 
         let tests = vec![TestCase {
