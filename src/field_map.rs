@@ -1,6 +1,6 @@
 use crate::errors::{
-    conditionally_required_field_missing, incorrect_data_format_for_value, other_error,
-    MessageRejectErrorEnum, MessageRejectErrorResult,
+    conditionally_required_field_missing, incorrect_data_format_for_value, MessageRejectErrorEnum,
+    MessageRejectErrorResult,
 };
 use crate::field::{
     Field, FieldGroupReader, FieldGroupWriter, FieldValueReader, FieldValueWriter, FieldWriter,
@@ -12,10 +12,11 @@ use crate::fix_utc_timestamp::FIXUTCTimestamp;
 use crate::tag::{Tag, TAG_BEGIN_STRING, TAG_BODY_LENGTH, TAG_CHECK_SUM, TAG_MSG_TYPE};
 use crate::tag_value::TagValue;
 use chrono::{DateTime, Utc};
+use parking_lot::RwLock;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::vec;
 
 pub type LocalField = Vec<TagValue>;
@@ -120,17 +121,14 @@ impl FieldMap {
     }
 
     pub fn init_with_ordering(self, ordering: TagOrderType) -> FieldMap {
-        self.rw_lock.write().unwrap().tag_sort.compare_type = ordering;
+        self.rw_lock.write().tag_sort.compare_type = ordering;
         self
     }
 
     // tags returns all of the Field Tags in this FieldMap
     pub fn tags(&self) -> Vec<Tag> {
-        let rlock_result = self.rw_lock.read();
-        if rlock_result.is_err() {
-            return vec![];
-        }
-        rlock_result.unwrap().tag_sort.tags.to_vec()
+        let rlock = self.rw_lock.read();
+        rlock.tag_sort.tags.to_vec()
     }
 
     // get parses out a field in this FieldMap. Returned reject may indicate the field is not present, or the field value is invalid.
@@ -140,11 +138,8 @@ impl FieldMap {
 
     // has returns true if the Tag is present in this FieldMap
     pub fn has(&self, tag: Tag) -> bool {
-        let rlock_result = self.rw_lock.read();
-        if rlock_result.is_err() {
-            return false;
-        }
-        rlock_result.unwrap().tag_lookup.contains_key(&tag)
+        let rlock = self.rw_lock.read();
+        rlock.tag_lookup.contains_key(&tag)
     }
 
     // get_field parses of a field with Tag tag. Returned reject may indicate the field is not present, or the field value is invalid.
@@ -153,7 +148,7 @@ impl FieldMap {
         tag: Tag,
         parser: &mut P,
     ) -> MessageRejectErrorResult {
-        let rlock = self.rw_lock.read().map_err(|_| other_error())?;
+        let rlock = self.rw_lock.read();
         let f = rlock
             .tag_lookup
             .get(&tag)
@@ -168,7 +163,7 @@ impl FieldMap {
 
     // get_bytes is a zero-copy get_field wrapper for []bytes fields
     pub fn get_bytes(&self, tag: Tag) -> Result<Vec<u8>, MessageRejectErrorEnum> {
-        let rlock = self.rw_lock.read().map_err(|_| other_error())?;
+        let rlock = self.rw_lock.read();
         let f = rlock
             .tag_lookup
             .get(&tag)
@@ -214,7 +209,7 @@ impl FieldMap {
 
     // get_group is a Get fntion specific to Group Fields.
     pub fn get_group<P: FieldGroupReader>(&self, parser: P) -> MessageRejectErrorResult {
-        let rlock = self.rw_lock.read().map_err(|_| other_error())?;
+        let rlock = self.rw_lock.read();
 
         let tag = &parser.tag();
         let f = rlock
@@ -239,7 +234,7 @@ impl FieldMap {
 
     // set_bytes sets bytes
     pub fn set_bytes(&self, tag: Tag, value: &[u8]) -> &FieldMap {
-        let mut wlock = self.rw_lock.write().unwrap();
+        let mut wlock = self.rw_lock.write();
 
         if let std::collections::hash_map::Entry::Vacant(e) = wlock.tag_lookup.entry(tag) {
             e.insert(vec![]);
@@ -268,15 +263,15 @@ impl FieldMap {
 
     // clear purges all fields from field map
     pub fn clear(&self) {
-        let mut wlock = self.rw_lock.write().unwrap();
+        let mut wlock = self.rw_lock.write();
         wlock.tag_sort.tags.clear();
         wlock.tag_lookup.clear();
     }
 
     // copy_into overwrites the given FieldMap with this one
     pub fn copy_into(&self, to: &mut FieldMap) {
-        let m_rlock = self.rw_lock.read().unwrap();
-        let mut to_wlock = to.rw_lock.write().unwrap();
+        let m_rlock = self.rw_lock.read();
+        let mut to_wlock = to.rw_lock.write();
 
         to_wlock.tag_lookup = HashMap::new();
 
@@ -289,7 +284,7 @@ impl FieldMap {
     }
 
     pub fn add(&mut self, f: &LocalField) {
-        let mut wlock = self.rw_lock.write().unwrap();
+        let mut wlock = self.rw_lock.write();
 
         let t = f.field_tag();
         if !wlock.tag_lookup.contains_key(t) {
@@ -301,7 +296,7 @@ impl FieldMap {
 
     // set is a setter for fields
     pub fn set<F: FieldWriter>(&self, field: F) -> &FieldMap {
-        let mut wlock = self.rw_lock.write().unwrap();
+        let mut wlock = self.rw_lock.write();
 
         let tag = &field.tag();
 
@@ -318,7 +313,7 @@ impl FieldMap {
 
     // set_group is a setter specific to group fields
     pub fn set_group<F: FieldGroupWriter>(&mut self, field: F) -> &FieldMap {
-        let mut wlock = self.rw_lock.write().unwrap();
+        let mut wlock = self.rw_lock.write();
 
         if !wlock.tag_lookup.contains_key(&field.tag()) {
             wlock.tag_sort.tags.push(field.tag());
@@ -328,7 +323,7 @@ impl FieldMap {
     }
 
     fn sorted_tags(&self) -> Vec<Tag> {
-        let mut wlock = self.rw_lock.write().unwrap();
+        let mut wlock = self.rw_lock.write();
         match wlock.tag_sort.compare_type {
             // ascending tags
             TagOrderType::Normal => wlock
@@ -372,7 +367,7 @@ impl FieldMap {
 
     pub fn write(&self, buffer: &mut Vec<u8>) {
         for tag in self.sorted_tags().iter() {
-            let mut wlock = self.rw_lock.write().unwrap();
+            let mut wlock = self.rw_lock.write();
             if wlock.tag_lookup.contains_key(tag) {
                 let field = wlock.tag_lookup.get_mut(tag).unwrap();
                 field.write_field(buffer);
@@ -381,7 +376,7 @@ impl FieldMap {
     }
 
     pub fn total(&self) -> isize {
-        let rlock = self.rw_lock.read().unwrap();
+        let rlock = self.rw_lock.read();
         let mut total = 0;
 
         for fields in rlock.tag_lookup.values() {
@@ -394,7 +389,7 @@ impl FieldMap {
     }
 
     pub fn length(&self) -> isize {
-        let rlock = self.rw_lock.read().unwrap();
+        let rlock = self.rw_lock.read();
         let mut length = 0;
 
         for fields in rlock.tag_lookup.values() {

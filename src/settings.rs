@@ -9,8 +9,7 @@ use crate::{
 };
 use once_cell::sync::Lazy;
 use regex::Regex;
-use std::sync::Arc;
-use std::{collections::HashMap, error::Error};
+use std::{collections::HashMap, error::Error, sync::Arc};
 use tokio::{
     io::{AsyncBufRead, AsyncBufReadExt},
     sync::RwLock,
