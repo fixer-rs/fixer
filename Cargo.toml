@@ -29,6 +29,7 @@ maplit = "1.0"
 memmem = "0.1.1"
 once_cell = "1.17"
 owning_ref = "0.4"
+parking_lot = "0.12.1"
 parse_duration = "2.1"
 quick-xml = {version = "0.23", features = ["serialize"]}
 ramhorns = "0.5"
