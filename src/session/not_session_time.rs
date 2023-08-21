@@ -34,7 +34,7 @@ mod tests {
     }
 
     impl SessionSuite {
-        async fn setup_test() -> Self {
+        fn setup_test() -> Self {
             let mut s = SessionSuite {
                 ssr: SessionSuiteRig::init(),
             };
@@ -45,7 +45,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_preliminary() {
-        let s = SessionSuite::setup_test().await;
+        let s = SessionSuite::setup_test();
         assert!(!s.ssr.session.sm.is_logged_on());
         assert!(!s.ssr.session.sm.is_connected());
         assert!(!s.ssr.session.sm.is_session_time());
@@ -53,14 +53,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_disconnected() {
-        let mut s = SessionSuite::setup_test().await;
+        let mut s = SessionSuite::setup_test();
         s.ssr.session.sm_disconnected().await;
         s.ssr.state(&SessionStateEnum::new_not_session_time());
     }
 
     #[tokio::test]
     async fn test_stop() {
-        let mut s = SessionSuite::setup_test().await;
+        let mut s = SessionSuite::setup_test();
         s.ssr.session.sm_stop().await;
         s.ssr.stopped();
     }

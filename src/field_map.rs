@@ -1,58 +1,77 @@
-use crate::errors::{
-    conditionally_required_field_missing, incorrect_data_format_for_value, MessageRejectErrorEnum,
-    MessageRejectErrorResult,
+use crate::{
+    errors::{
+        conditionally_required_field_missing, incorrect_data_format_for_value,
+        MessageRejectErrorEnum, MessageRejectErrorResult,
+    },
+    field::{
+        Field, FieldGroupReader, FieldGroupWriter, FieldValueReader, FieldValueWriter, FieldWriter,
+    },
+    fix_boolean::FIXBoolean,
+    fix_int::{FIXInt, FIXIntTrait},
+    fix_string::FIXString,
+    fix_utc_timestamp::FIXUTCTimestamp,
+    tag::{Tag, TAG_BEGIN_STRING, TAG_BODY_LENGTH, TAG_CHECK_SUM, TAG_MSG_TYPE},
+    tag_value::TagValue,
 };
-use crate::field::{
-    Field, FieldGroupReader, FieldGroupWriter, FieldValueReader, FieldValueWriter, FieldWriter,
-};
-use crate::fix_boolean::FIXBoolean;
-use crate::fix_int::{FIXInt, FIXIntTrait};
-use crate::fix_string::FIXString;
-use crate::fix_utc_timestamp::FIXUTCTimestamp;
-use crate::tag::{Tag, TAG_BEGIN_STRING, TAG_BODY_LENGTH, TAG_CHECK_SUM, TAG_MSG_TYPE};
-use crate::tag_value::TagValue;
 use chrono::{DateTime, Utc};
-use parking_lot::RwLock;
-use std::cmp::Ordering;
-use std::collections::HashMap;
-use std::fmt;
-use std::sync::Arc;
-use std::vec;
+use parking_lot::{Mutex, RwLock};
+use std::{cmp::Ordering, collections::HashMap, fmt, sync::Arc, vec};
 
-pub type LocalField = Vec<TagValue>;
-
-pub trait LocalFieldTrait {
-    fn new(tag_value_vec: Vec<TagValue>) -> Self;
-    fn field_tag(&self) -> &Tag;
-    fn init_field(&mut self, tag: Tag, value: &[u8]);
-    fn write_field(&mut self, buffer: &mut Vec<u8>);
-    fn first(&self) -> &TagValue;
+#[derive(Debug, Default, Clone)]
+pub struct LocalField {
+    pub data: Arc<Mutex<Vec<TagValue>>>,
+    pub s_pos: usize,
+    pub e_pos: usize,
 }
 
-impl LocalFieldTrait for LocalField {
-    fn new(tag_value_vec: Vec<TagValue>) -> Self {
-        tag_value_vec
-    }
-
-    fn field_tag(&self) -> &Tag {
-        &self.get(0).unwrap().tag
-    }
-
-    fn init_field(&mut self, tag: Tag, value: &[u8]) {
-        if self.is_empty() {
-            self.push(TagValue::default());
+impl LocalField {
+    pub fn new(tag_value: Arc<Mutex<Vec<TagValue>>>) -> Self {
+        let e_pos = tag_value.lock().len();
+        LocalField {
+            data: tag_value,
+            s_pos: 0,
+            e_pos,
         }
-        self[0].init(tag, value);
     }
 
-    fn write_field(&mut self, buffer: &mut Vec<u8>) {
-        for tv in self.iter() {
+    pub fn new_with_start_end(
+        tag_value: Arc<Mutex<Vec<TagValue>>>,
+        s_pos: usize,
+        e_pos: usize,
+    ) -> Self {
+        LocalField {
+            data: tag_value,
+            s_pos,
+            e_pos,
+        }
+    }
+
+    pub fn field_tag(&self) -> Tag {
+        let lock = self.data.lock();
+        lock.get(self.s_pos).unwrap().tag
+    }
+
+    pub fn init_field(&self, tag: Tag, value: &[u8]) {
+        let mut lock = self.data.lock();
+        lock.get_mut(self.s_pos).unwrap().init(tag, value);
+    }
+
+    pub fn write_field(&self, buffer: &mut Vec<u8>) {
+        for tv in self.data.lock().get(self.s_pos..self.e_pos).unwrap().iter() {
             buffer.extend_from_slice(&tv.bytes);
         }
     }
 
-    fn first(&self) -> &TagValue {
-        &self[0]
+    pub fn len(&self) -> usize {
+        self.e_pos - self.s_pos
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn cap(&self) -> usize {
+        self.data.lock().len()
     }
 }
 
@@ -90,7 +109,7 @@ impl TagSort {
 
 #[derive(Debug, Clone)]
 pub struct FieldMapContent {
-    tag_lookup: HashMap<Tag, LocalField>,
+    tag_lookup: HashMap<Tag, Arc<LocalField>>,
     tag_sort: TagSort,
 }
 
@@ -116,11 +135,11 @@ impl Default for FieldMap {
 }
 
 impl FieldMap {
-    pub fn init(self) -> FieldMap {
+    pub fn init(self) -> Self {
         self.init_with_ordering(TagOrderType::Normal)
     }
 
-    pub fn init_with_ordering(self, ordering: TagOrderType) -> FieldMap {
+    pub fn init_with_ordering(self, ordering: TagOrderType) -> Self {
         self.rw_lock.write().tag_sort.compare_type = ordering;
         self
     }
@@ -155,7 +174,7 @@ impl FieldMap {
             .ok_or_else(|| conditionally_required_field_missing(tag))?;
 
         parser
-            .read(&f.first().value)
+            .read(&f.data.lock().get(f.s_pos).unwrap().value)
             .map_err(|_| incorrect_data_format_for_value(tag))?;
 
         Ok(())
@@ -168,7 +187,8 @@ impl FieldMap {
             .tag_lookup
             .get(&tag)
             .ok_or_else(|| conditionally_required_field_missing(tag))?;
-        Ok(f.first().value.clone())
+        let result = f.data.lock().get(f.s_pos).unwrap().value.clone();
+        Ok(result)
     }
 
     // get_bool is a get_field wrapper for bool fields
@@ -234,14 +254,7 @@ impl FieldMap {
 
     // set_bytes sets bytes
     pub fn set_bytes(&self, tag: Tag, value: &[u8]) -> &FieldMap {
-        let mut wlock = self.rw_lock.write();
-
-        if let std::collections::hash_map::Entry::Vacant(e) = wlock.tag_lookup.entry(tag) {
-            e.insert(vec![]);
-            wlock.tag_sort.tags.push(tag);
-        }
-
-        let f = wlock.tag_lookup.get_mut(&tag).unwrap();
+        let f = self.get_or_create(tag);
         f.init_field(tag, value);
         self
     }
@@ -276,36 +289,60 @@ impl FieldMap {
         to_wlock.tag_lookup = HashMap::new();
 
         for (k, v) in m_rlock.tag_lookup.iter() {
-            to_wlock.tag_lookup.insert(*k, vec![v.first().clone()]);
+            let inner_lock = v.data.lock();
+            let cloned_field = inner_lock.to_vec();
+            let cloned_field_wrapper = Arc::new(Mutex::new(cloned_field));
+
+            to_wlock.tag_lookup.insert(
+                *k,
+                Arc::new(LocalField::new_with_start_end(
+                    cloned_field_wrapper,
+                    v.s_pos,
+                    v.s_pos + 1,
+                )),
+            );
         }
 
         to_wlock.tag_sort.tags = m_rlock.tag_sort.tags.clone();
         to_wlock.tag_sort.compare_type = m_rlock.tag_sort.compare_type.clone();
     }
 
-    pub fn add(&mut self, f: &LocalField) {
-        let mut wlock = self.rw_lock.write();
-
+    pub fn add(&mut self, f: LocalField) {
         let t = f.field_tag();
-        if !wlock.tag_lookup.contains_key(t) {
-            wlock.tag_sort.tags.push(*t);
+        let f_arc = Arc::new(f);
+
+        let mut wlock = self.rw_lock.write();
+        if !wlock.tag_lookup.contains_key(&t) {
+            wlock.tag_sort.tags.push(t);
         }
 
-        wlock.tag_lookup.insert(*t, f.to_vec());
+        wlock.tag_lookup.insert(t, f_arc);
+    }
+
+    fn get_or_create(&self, tag: Tag) -> Arc<LocalField> {
+        let mut wlock = self.rw_lock.write();
+        if wlock.tag_lookup.contains_key(&tag) {
+            let f = wlock.tag_lookup.get_mut(&tag).unwrap();
+            return Arc::new(LocalField::new_with_start_end(
+                f.data.clone(),
+                f.s_pos,
+                f.s_pos + 1,
+            ));
+        }
+
+        let f = Arc::new(LocalField::new(Arc::new(Mutex::new(vec![
+            TagValue::default(),
+        ]))));
+        wlock.tag_lookup.insert(tag, f.clone());
+        wlock.tag_sort.tags.push(tag);
+        f
     }
 
     // set is a setter for fields
     pub fn set<F: FieldWriter>(&self, field: F) -> &FieldMap {
-        let mut wlock = self.rw_lock.write();
-
         let tag = &field.tag();
 
-        if !wlock.tag_lookup.contains_key(tag) {
-            wlock.tag_lookup.insert(*tag, vec![]);
-            wlock.tag_sort.tags.push(*tag);
-        }
-
-        let f = wlock.tag_lookup.get_mut(tag).unwrap();
+        let f = self.get_or_create(*tag);
 
         f.init_field(*tag, &field.write());
         self
@@ -318,7 +355,9 @@ impl FieldMap {
         if !wlock.tag_lookup.contains_key(&field.tag()) {
             wlock.tag_sort.tags.push(field.tag());
         }
-        wlock.tag_lookup.insert(field.tag(), field.write());
+        wlock
+            .tag_lookup
+            .insert(field.tag(), Arc::new(field.write()));
         self
     }
 
@@ -345,9 +384,9 @@ impl FieldMap {
                 let orderj = ordering(j);
 
                 match orderi.cmp(&orderj) {
-                    Ordering::Less => return Ordering::Less,
-                    Ordering::Equal => return i.cmp(j),
-                    Ordering::Greater => return Ordering::Greater,
+                    Ordering::Less => Ordering::Less,
+                    Ordering::Equal => i.cmp(j),
+                    Ordering::Greater => Ordering::Greater,
                 }
             }),
             // In the trailer, CheckSum (tag 10) must be last
@@ -381,6 +420,10 @@ impl FieldMap {
 
         for fields in rlock.tag_lookup.values() {
             fields
+                .data
+                .lock()
+                .get(fields.s_pos..fields.e_pos)
+                .unwrap()
                 .iter()
                 .filter(|tv| tv.tag != TAG_CHECK_SUM)
                 .for_each(|tv| total += tv.total());
@@ -394,6 +437,10 @@ impl FieldMap {
 
         for fields in rlock.tag_lookup.values() {
             fields
+                .data
+                .lock()
+                .get(fields.s_pos..fields.e_pos)
+                .unwrap()
                 .iter()
                 .filter(|tv| {
                     tv.tag != TAG_BEGIN_STRING

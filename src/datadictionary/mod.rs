@@ -593,10 +593,10 @@ mod tests {
     async fn test_fields_by_tag() {
         let d = DICT.clone();
 
-        struct TestCase {
+        struct TestCase<'a> {
             tag: isize,
-            name: &'static str,
-            r#type: &'static str,
+            name: &'a str,
+            r#type: &'a str,
             enums_are_nil: bool,
         }
 
@@ -655,9 +655,9 @@ mod tests {
 
         let f = d.field_type_by_tag.get(&658).unwrap();
 
-        struct TestCase {
-            value: &'static str,
-            description: &'static str,
+        struct TestCase<'a> {
+            value: &'a str,
+            description: &'a str,
         }
 
         let tests = vec![

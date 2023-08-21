@@ -40,7 +40,6 @@ rust_decimal = "1.25"
 serde = {version = "1.0", features = ["derive"]}
 serde_derive = "1.0"
 simple-error = "0.3"
-subenum = "1.0"
 thiserror = "1.0"
 tokio = {version = "1.32", features = ["io-util", "io-std", "fs", "rt", "rt-multi-thread", "sync", "macros", "time"]}
 wg = "0.3"

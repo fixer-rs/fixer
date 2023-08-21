@@ -1,8 +1,3 @@
-use once_cell::sync::Lazy;
-use simple_error::{SimpleError, SimpleResult};
-use std::{collections::HashMap, sync::Arc};
-use tokio::sync::RwLock;
-
 use crate::{
     errors::FixerError,
     fix_string::FIXString,
@@ -10,9 +5,13 @@ use crate::{
     session::{session_id::SessionID, Session},
     tag::{TAG_BEGIN_STRING, TAG_SENDER_COMP_ID, TAG_TARGET_COMP_ID},
 };
+use once_cell::sync::Lazy;
+use simple_error::{SimpleError, SimpleResult};
+use std::{collections::HashMap, sync::Arc};
+use tokio::sync::Mutex;
 
-pub static SESSIONS: Lazy<RwLock<HashMap<Arc<SessionID>, Session>>> =
-    Lazy::new(|| RwLock::new(HashMap::new()));
+pub static SESSIONS: Lazy<Mutex<HashMap<Arc<SessionID>, Session>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
 
 pub static ERR_DUPLICATE_SESSION_ID: Lazy<SimpleError> =
     Lazy::new(|| simple_error!("Duplicate SessionID"));
@@ -53,7 +52,7 @@ pub async fn send_to_target(
     session_id: &Arc<SessionID>,
 ) -> Result<(), FixerError> {
     let msg = message.to_message();
-    let mut lock = (*SESSIONS).write().await;
+    let mut lock = (*SESSIONS).lock().await;
     let session = lock
         .get_mut(session_id)
         .ok_or(ERR_UNKNOWN_SESSION.clone())?;
@@ -63,7 +62,7 @@ pub async fn send_to_target(
 
 // unregister_session removes a session from the set of known sessions.
 pub async fn unregister_session(session_id: Arc<SessionID>) -> SimpleResult<()> {
-    let mut lock = (*SESSIONS).write().await;
+    let mut lock = (*SESSIONS).lock().await;
     if (*lock).contains_key(&session_id) {
         (*lock).remove(&session_id);
         return Ok(());
@@ -73,7 +72,7 @@ pub async fn unregister_session(session_id: Arc<SessionID>) -> SimpleResult<()> 
 }
 
 pub async fn register_session(s: Session) -> SimpleResult<()> {
-    let mut lock = (*SESSIONS).write().await;
+    let mut lock = (*SESSIONS).lock().await;
     if (*lock).contains_key(&s.session_id) {
         return Err(ERR_DUPLICATE_SESSION_ID.clone());
     }
