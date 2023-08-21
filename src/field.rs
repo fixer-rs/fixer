@@ -3,6 +3,10 @@ use crate::fix_boolean::FIXBoolean;
 use crate::{field_map::LocalField, tag::Tag};
 use simple_error::SimpleError;
 
+pub trait FieldTag {
+    fn tag(&self) -> Tag;
+}
+
 // FieldValueWriter is an interface for writing field values
 pub trait FieldValueWriter {
     // write writes out the contents of the FieldValue to a []byte
@@ -20,31 +24,23 @@ pub trait FieldValueReader {
 pub trait FieldValue: FieldValueWriter + FieldValueReader {}
 
 // FieldWriter is an interface for a writing a field
-pub trait FieldWriter: FieldValueWriter {
-    fn tag(&self) -> Tag;
-}
+pub trait FieldWriter: FieldValueWriter + FieldTag {}
 
 // Field is the interface implemented by all typed Fields in a Message
 pub trait Field: FieldWriter + FieldValueReader {}
 
 // FieldGroupWriter is an interface for writing a FieldGroup
-pub trait FieldGroupWriter {
-    fn tag(&self) -> Tag;
+pub trait FieldGroupWriter: FieldTag {
     fn write(&self) -> LocalField;
 }
 
 // FieldGroupReader is an interface for reading a FieldGroup
-pub trait FieldGroupReader {
-    fn tag(&self) -> Tag;
-    fn read(&self, tag_value: &LocalField) -> Result<LocalField, MessageRejectErrorEnum>;
+pub trait FieldGroupReader: FieldTag {
+    fn read(&mut self, tag_value: LocalField) -> Result<LocalField, MessageRejectErrorEnum>;
 }
 
 // FieldGroup is the interface implemented by all typed Groups in a Message
-pub trait FieldGroup {
-    fn tag(&self) -> Tag;
-    fn write(&self) -> LocalField;
-    fn read(&self, tag_value: &LocalField) -> Result<LocalField, MessageRejectErrorEnum>;
-}
+pub trait FieldGroup: FieldTag + FieldGroupWriter + FieldGroupReader {}
 
 impl dyn FieldValue {
     pub fn default() -> Box<dyn FieldValue + Send> {

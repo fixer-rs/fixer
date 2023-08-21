@@ -47,7 +47,7 @@ impl Header {
             pub fn get_int(&self, tag: Tag) -> Result<isize, MessageRejectErrorEnum>;
             pub fn get_time(&self, tag: Tag) -> Result<DateTime<Utc>, MessageRejectErrorEnum>;
             pub fn get_string(&self, tag: Tag) -> Result<String, MessageRejectErrorEnum>;
-            pub fn get_group<P: FieldGroupReader>(&self, parser: P) -> MessageRejectErrorResult;
+            pub fn get_group<P: FieldGroupReader>(&self, parser: P) -> Result<P, MessageRejectErrorEnum>;
             pub fn set_field<F: FieldValueWriter>(&self, tag: Tag, field: F) -> &FieldMap;
             pub fn set_bytes(&self, tag: Tag, value: &[u8]) -> &FieldMap;
             pub fn set_bool(&self, tag: Tag, value: bool) -> &FieldMap;
@@ -91,7 +91,7 @@ impl Body {
             pub fn get_int(&self, tag: Tag) -> Result<isize, MessageRejectErrorEnum>;
             pub fn get_time(&self, tag: Tag) -> Result<DateTime<Utc>, MessageRejectErrorEnum>;
             pub fn get_string(&self, tag: Tag) -> Result<String, MessageRejectErrorEnum>;
-            pub fn get_group<P: FieldGroupReader>(&self, parser: P) -> MessageRejectErrorResult;
+            pub fn get_group<P: FieldGroupReader>(&self, parser: P) -> Result<P, MessageRejectErrorEnum>;
             pub fn set_field<F: FieldValueWriter>(&self, tag: Tag, field: F) -> &FieldMap;
             pub fn set_bytes(&self, tag: Tag, value: &[u8]) -> &FieldMap;
             pub fn set_bool(&self, tag: Tag, value: bool) -> &FieldMap;
@@ -135,7 +135,7 @@ impl Trailer {
             pub fn get_int(&self, tag: Tag) -> Result<isize, MessageRejectErrorEnum>;
             pub fn get_time(&self, tag: Tag) -> Result<DateTime<Utc>, MessageRejectErrorEnum>;
             pub fn get_string(&self, tag: Tag) -> Result<String, MessageRejectErrorEnum>;
-            pub fn get_group<P: FieldGroupReader>(&self, parser: P) -> MessageRejectErrorResult;
+            pub fn get_group<P: FieldGroupReader>(&self, parser: P) -> Result<P, MessageRejectErrorEnum>;
             pub fn set_field<F: FieldValueWriter>(&self, tag: Tag, field: F) -> &FieldMap;
             pub fn set_bytes(&self, tag: Tag, value: &[u8]) -> &FieldMap;
             pub fn set_bool(&self, tag: Tag, value: bool) -> &FieldMap;
