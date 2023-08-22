@@ -29,6 +29,25 @@ impl RouteKey {
     }
 }
 
+// struct Tester {
+//     x: i8,
+// }
+
+// impl Tester {
+//     fn traverse<F>(&mut self, mut f: F)
+//     where
+//         F: FnMut(&mut Tester),
+//     {
+//         f(self);
+//     }
+// }
+
+// fn main() {
+//     let mut tester = Tester { x: 8 };
+//     tester.traverse(|z| z.x += 1);
+//     println!("{}", tester.x);
+// }
+
 pub const APPL_VER_ID_FIX27: &str = "0";
 pub const APPL_VER_ID_FIX30: &str = "1";
 pub const APPL_VER_ID_FIX40: &str = "2";
