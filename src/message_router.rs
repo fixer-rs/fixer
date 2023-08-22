@@ -195,11 +195,19 @@ mod tests {
              -> MessageRejectErrorResult {
                 match payload {
                     MessageRoutePayload::MessageRouterTestPayload(pl) => {
+                        let msg_lock = msg.lock();
+                        let msg_clone = msg_lock.clone();
+                        drop(msg_lock);
+                        println!("----------------------------------0");
                         let mut lock = pl.lock();
-                        let reject = lock.return_reject.clone().unwrap();
                         lock.routed_session_id = (*session_id).clone();
-                        lock.routed_message = msg.lock().clone();
-                        return Err(reject);
+                        lock.routed_message = msg_clone;
+                        let reject_result = lock.return_reject.clone();
+                        println!("----------------------------------1");
+                        match reject_result {
+                            Some(err) => return Err(err),
+                            None => return Ok(()),
+                        }
                     }
                     _ => return Ok(()),
                 }
@@ -356,25 +364,28 @@ mod tests {
         }
     }
 
-    // #[tokio::test]
-    // async fn test_simple_route() {
-    //     let mut suite = MessageRouterTestSuite::setup_test().await;
-    //     &mut suite.given_the_route(BEGIN_STRING_FIX42, "D").await;
-    //     // suite.given_the_route(BEGIN_STRING_FIXT11, "A").await;
+    #[tokio::test]
+    async fn test_simple_route() {
+        let mut suite = MessageRouterTestSuite::setup_test().await;
+        suite.given_the_route(
+            Arc::new(String::from(BEGIN_STRING_FIX42)),
+            String::from("D"),
+        );
+        suite.given_the_route(
+            Arc::new(String::from(BEGIN_STRING_FIXT11)),
+            String::from("A"),
+        );
+        suite.given_afix42_new_order_single();
 
-    //     // suite.given_afix42_new_order_single().await;
-    //     // let msg = suite.msg.clone();
-    //     // let session_id = suite.session_id.clone();
-    //     // let rej = suite
-    //     //     .mr
-    //     //     .route(Arc::new(StdMutex::new(msg)), Arc::new(session_id))
-    //     //     .await;
+        let payload = MessageRoutePayload::MessageRouterTestPayload(suite.payload.clone());
+        let suite_msg = Arc::new(StdMutex::new(suite.msg.clone()));
+        let session_id = Arc::new(suite.session_id.clone());
 
-    //     // suite
-    //     //     .verify_message_routed_by(BEGIN_STRING_FIX42, "D")
-    //     //     .await;
-    //     // assert!(rej.is_ok());
-    // }
+        let rej = suite.mr.route(payload, suite_msg, session_id).await;
+
+        suite.verify_message_routed_by(BEGIN_STRING_FIX42, "D");
+        assert!(rej.is_ok());
+    }
 
     // // #[tokio::test]
     // // async fn test_simple_route_with_reject() {
