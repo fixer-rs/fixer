@@ -29,7 +29,7 @@ where
         T: AsyncReadExt,
     {
         Self {
-            big_buffer: Vec::new(),
+            big_buffer: vec![],
             reader,
             last_read: Local::now(),
             start: 0,

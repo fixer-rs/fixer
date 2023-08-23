@@ -129,9 +129,9 @@ impl Default for FieldMap {
     fn default() -> Self {
         FieldMap {
             rw_lock: RwLock::new(FieldMapContent {
-                tag_lookup: HashMap::new(),
+                tag_lookup: hashmap! {},
                 tag_sort: TagSort {
-                    tags: Vec::new(),
+                    tags: vec![],
                     compare_type: TagOrderType::Normal,
                 },
             })
@@ -294,7 +294,7 @@ impl FieldMap {
         let m_rlock = self.rw_lock.read();
         let mut to_wlock = to.rw_lock.write();
 
-        to_wlock.tag_lookup = HashMap::new();
+        to_wlock.tag_lookup = hashmap! {};
 
         for (k, v) in m_rlock.tag_lookup.iter() {
             let inner_lock = v.data.lock();

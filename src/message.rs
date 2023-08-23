@@ -582,7 +582,6 @@ mod tests {
     use crate::tag::Tag;
     use crate::BEGIN_STRING_FIX44;
     use delegate::delegate;
-    use std::collections::HashMap;
 
     struct MessageSuite {
         suite: FixerSuite,
@@ -658,12 +657,12 @@ mod tests {
         let mut s = setup_test();
         let mut dict = DataDictionary::default();
         dict.header = MessageDef::default();
-        let mut hd_fields = HashMap::<isize, FieldDef>::default();
+        let mut hd_fields = hashmap! {};
         let hd_fd = FieldDef::default();
         hd_fields.insert(10030, hd_fd);
         dict.header.fields = hd_fields;
 
-        let mut tr_fields = HashMap::<isize, FieldDef>::default();
+        let mut tr_fields = hashmap! {};
         let tr_fd = FieldDef::default();
         tr_fields.insert(5050, tr_fd);
         dict.trailer.fields = tr_fields;

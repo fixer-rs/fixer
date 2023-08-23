@@ -300,7 +300,7 @@ impl FieldDef {
     }
 
     pub fn child_tags(&self) -> Vec<isize> {
-        let mut tags = Vec::new();
+        let mut tags = vec![];
 
         for field in self.fields.iter() {
             tags.push(field.tag());
@@ -327,7 +327,7 @@ impl FieldType {
             name,
             tag,
             r#type: fix_type,
-            enums: HashMap::new(),
+            enums: hashmap! {},
         }
     }
 
@@ -375,7 +375,7 @@ impl MessageDef {
             required_tags: TagSet(hashset! {}),
             tags: TagSet(hashset! {}),
             parts,
-            required_parts: Vec::new(),
+            required_parts: vec![],
         };
 
         let mut process_field = |field: &FieldDef, allow_required: bool| {
@@ -490,8 +490,8 @@ mod component_type_tests {
                 test_name: String::from("test1"),
                 parts: vec![MessagePart::FieldDef(optional_field1.clone())],
                 expected_fields: vec![optional_field1.clone()],
-                expected_required_parts: Vec::new(),
-                expected_required_fields: Vec::new(),
+                expected_required_parts: vec![],
+                expected_required_fields: vec![],
             },
             TestCase {
                 test_name: String::from("test2"),
@@ -882,7 +882,7 @@ mod group_field_def_tests {
     #[test]
     fn test_new_group_field() {
         let ft = FieldType::new(String::from("aname"), 11, String::from("INT"));
-        let fg = FieldDef::new_group(ft, true, Vec::new());
+        let fg = FieldDef::new_group(ft, true, vec![]);
         assert_eq!(String::from("aname"), fg.name());
         assert!(fg.required());
     }

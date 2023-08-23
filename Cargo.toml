@@ -20,6 +20,7 @@ async-recursion = "1.0"
 async-trait = "0.1"
 atoi_simd = "0.14"
 chrono = {version = "0.4", features = ["default", "serde"]}
+dashmap = {version = "5.5.1", features = ["inline"]}
 defer-lite = "1.0"
 delegate = "0.10"
 dyn-clone = "1.0.12"
