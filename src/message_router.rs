@@ -238,7 +238,7 @@ mod tests {
         msg: Message,
         session_id: SessionID,
         return_reject: Option<MessageRejectErrorEnum>,
-        routed_by: Arc<String>,
+        routed_by: String,
         routed_session_id: SessionID,
         routed_message: Message,
         begin_string: Arc<String>,
@@ -258,10 +258,10 @@ mod tests {
                              msg: Arc<StdMutex<Message>>,
                              session_id: Arc<SessionID>|
              -> MessageRejectErrorResult {
-                payload.routed_by = format!("{}:{}", begin_string, msg_type);
+                payload.routed_by = format!("{}:{}", &*begin_string, msg_type);
                 payload.routed_session_id = (*session_id).clone();
-                payload.routed_message = msg.clone();
-                let reject_result = lock.return_reject.clone();
+                payload.routed_message = msg.lock().clone();
+                let reject_result = payload.return_reject.clone();
                 println!("----------------------------------1");
                 match reject_result {
                     Some(err) => return Err(err),
@@ -270,7 +270,7 @@ mod tests {
             };
 
             self.mr
-                .add_route(begin_string.to_string(), msg_type.to_string(), add_route);
+                .add_route(begin_string.to_string(), msg_clone, add_route);
         }
 
         //     fn given_the_message(&mut self, msg_bytes: &[u8]) {
@@ -349,7 +349,7 @@ mod tests {
 
         fn reset_router(&mut self) {
             self.mr = MessageRouter::new();
-            self.routed_by = Arc::new(String::new());
+            self.routed_by = String::new();
             self.routed_session_id = SessionID::default();
             self.routed_message = Message::new();
             self.return_reject = None;
@@ -361,7 +361,7 @@ mod tests {
                 mr: MessageRouter::new(),
                 msg: Message::new(),
                 session_id: SessionID::default(),
-                routed_by: Arc::new(String::new()),
+                routed_by: String::new(),
                 routed_session_id: SessionID::default(),
                 routed_message: Message::new(),
                 return_reject: None,
