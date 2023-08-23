@@ -141,7 +141,7 @@ impl MessageStoreTrait for Store {
         _begin_seq_num: isize,
         _end_seq_num: isize,
     ) -> SimpleResult<Vec<Vec<u8>>> {
-        Ok(Vec::new())
+        Ok(vec![])
     }
 
     async fn refresh(&mut self) -> SimpleResult<()> {
@@ -679,7 +679,7 @@ impl SessionSuiteRig {
             reconnect_interval: duration,
             logout_timeout: duration,
             logon_timeout: duration,
-            socket_connect_address: Vec::new(),
+            socket_connect_address: vec![],
             reset_on_logon: false,
             refresh_on_logon: false,
             reset_on_logout: false,

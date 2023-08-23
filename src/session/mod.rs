@@ -2127,7 +2127,7 @@ mod tests {
     use chrono::{DateTime, Duration, FixedOffset, Timelike, Utc};
     use delegate::delegate;
     use simple_error::SimpleError;
-    use std::{collections::HashMap, sync::Arc};
+    use std::sync::Arc;
     use tokio::sync::{mpsc::unbounded_channel, RwLock};
 
     struct SessionSuite {
@@ -2903,7 +2903,7 @@ mod tests {
                 sender_msg_seq_num: 0,
                 target_msg_seq_num: 0,
                 creation_time: now,
-                message_map: HashMap::new(),
+                message_map: hashmap! {},
             };
 
             if test.before.is_session_time() {
