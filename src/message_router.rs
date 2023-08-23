@@ -32,6 +32,85 @@ impl RouteKey {
     }
 }
 
+// #![feature(async_await)]
+// #![warn(rust_2018_idioms)]
+// use std::sync::{Arc, Mutex};
+// use std::error::Error;
+// use tokio::{runtime::Runtime};
+
+// #[derive(Clone)]
+// struct OtherLib { }
+
+// impl OtherLib {
+//     pub fn do_something(&self, text1: String, text2: String) {
+//         println!("doing something in other lib: {} + {}", text1, text2);
+//     }
+// }
+
+// type Callback = Arc<Mutex<dyn 'static + FnMut(String, String) + Send + Sync>>;
+
+// struct LibThreaded {
+//     something_threaded: String,
+//     callback: Callback,
+// }
+
+// impl LibThreaded {
+//     pub fn new(callback: Option<Callback>) -> LibThreaded {
+//         LibThreaded {
+//             something_threaded: "I am in a thread: ".to_string(),
+//             callback: callback.unwrap_or_else(|| Arc::new(Mutex::new(|_,_| {})))
+//         }
+//     }
+
+//     async fn receiving(&mut self) {
+//         println!("in receiving loop");
+//             let c = &mut *self.callback.lock().unwrap();
+//             (c)(self.something_threaded.clone(), "hello world".to_string());
+//     }
+// }
+
+// struct Lib {
+//     something: String,
+//     callback: Callback,
+// }
+
+// impl Lib {
+//     pub fn new() -> Lib {
+//         Lib { something: "I am lib: ".to_string(), callback: Arc::new(Mutex::new(|_, _| {})) }
+//     }
+
+//     pub async fn set_callback(&mut self, callback: Option<impl 'static + FnMut(String, String) + Send + Sync>) {
+//         println!("in lib2");
+//         let callback = callback.map(|cb| Arc::new(Mutex::new(cb)) as Callback); //line 1
+//         if let Some(cb) = &callback {  //line 2
+//             self.callback = cb.clone();
+//             let c = &mut *self.callback.lock().unwrap();
+//             (c)(self.something.clone(), "hello world".to_string());
+//         }
+//         let mut t = LibThreaded::new(callback);
+
+//         tokio::spawn(async move {
+//             t.receiving().await;
+//         });
+//     }
+// }
+
+// fn main() -> Result<(), Box<dyn Error>> {
+//     let ol = OtherLib {};
+
+//     let callback = move |text1: String, text2: String| {
+//             ol.do_something(text1, text2);
+//     };
+
+//     let rt = Runtime::new()?;
+//     rt.block_on(async {
+//         let mut lib = Lib::new();
+//         lib.set_callback(Some(callback)).await;
+//     });
+//     rt.shutdown_on_idle();
+//     Ok(())
+// }
+
 pub const APPL_VER_ID_FIX27: &str = "0";
 pub const APPL_VER_ID_FIX30: &str = "1";
 pub const APPL_VER_ID_FIX40: &str = "2";
