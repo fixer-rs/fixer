@@ -69,43 +69,44 @@ impl TagTrait for Tag {
         matches!(*self, TAG_SIGNATURE_LENGTH | TAG_SIGNATURE | TAG_CHECK_SUM)
     }
 
+    // is_header returns true if tag belongs in the message header
     fn is_header(&self) -> bool {
         matches!(
             *self,
-            TAG_BEGIN_STRING |
-            TAG_BODY_LENGTH |
-            TAG_MSG_TYPE |
-            TAG_SENDER_COMP_ID |
-            TAG_TARGET_COMP_ID |
-            TAG_ON_BEHALF_OF_COMP_ID |
-            TAG_DELIVER_TO_COMP_ID |
-            TAG_SECURE_DATA_LEN |
-            TAG_MSG_SEQ_NUM |
-            TAG_SENDER_SUB_ID |
-            TAG_SENDER_LOCATION_ID |
-            TAG_TARGET_SUB_ID |
-            TAG_TARGET_LOCATION_ID |
-            TAG_ON_BEHALF_OF_SUB_ID |
-            TAG_ON_BEHALF_OF_LOCATION_ID |
-            TAG_DELIVER_TO_SUB_ID |
-            TAG_DELIVER_TO_LOCATION_ID |
-            TAG_POSS_DUP_FLAG |
-            TAG_POSS_RESEND |
-            TAG_SENDING_TIME |
-            TAG_ORIG_SENDING_TIME |
-            TAG_XML_DATA_LEN |
-            TAG_XML_DATA |
-            TAG_MESSAGE_ENCODING |
-            TAG_LAST_MSG_SEQ_NUM_PROCESSED |
-            TAG_ON_BEHALF_OF_SENDING_TIME |//IsHeader returns true if tag belongs in the message header
-            TAG_APPL_VER_ID |
-            TAG_CSTM_APPL_VER_ID |
-            TAG_NO_HOPS |
-            TAG_APPL_EXT_ID |
-            TAG_SECURE_DATA |
-            TAG_HOP_COMP_ID |
-            TAG_HOP_SENDING_TIME |
-            TAG_HOP_REF_ID
+            TAG_BEGIN_STRING
+                | TAG_BODY_LENGTH
+                | TAG_MSG_TYPE
+                | TAG_SENDER_COMP_ID
+                | TAG_TARGET_COMP_ID
+                | TAG_ON_BEHALF_OF_COMP_ID
+                | TAG_DELIVER_TO_COMP_ID
+                | TAG_SECURE_DATA_LEN
+                | TAG_MSG_SEQ_NUM
+                | TAG_SENDER_SUB_ID
+                | TAG_SENDER_LOCATION_ID
+                | TAG_TARGET_SUB_ID
+                | TAG_TARGET_LOCATION_ID
+                | TAG_ON_BEHALF_OF_SUB_ID
+                | TAG_ON_BEHALF_OF_LOCATION_ID
+                | TAG_DELIVER_TO_SUB_ID
+                | TAG_DELIVER_TO_LOCATION_ID
+                | TAG_POSS_DUP_FLAG
+                | TAG_POSS_RESEND
+                | TAG_SENDING_TIME
+                | TAG_ORIG_SENDING_TIME
+                | TAG_XML_DATA_LEN
+                | TAG_XML_DATA
+                | TAG_MESSAGE_ENCODING
+                | TAG_LAST_MSG_SEQ_NUM_PROCESSED
+                | TAG_ON_BEHALF_OF_SENDING_TIME
+                | TAG_APPL_VER_ID
+                | TAG_CSTM_APPL_VER_ID
+                | TAG_NO_HOPS
+                | TAG_APPL_EXT_ID
+                | TAG_SECURE_DATA
+                | TAG_HOP_COMP_ID
+                | TAG_HOP_SENDING_TIME
+                | TAG_HOP_REF_ID
         )
     }
 }

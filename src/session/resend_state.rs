@@ -30,13 +30,15 @@ impl ResendState {
 mod tests {
     use crate::{
         field_map::FieldMap,
+        fix_utc_timestamp::FIXUTCTimestamp,
         fixer_test::{FieldEqual, SessionSuiteRig, TestApplication, OVERRIDE_TIMES},
         internal::event::{LOGON_TIMEOUT, LOGOUT_TIMEOUT, NEED_HEARTBEAT, PEER_TIMEOUT},
         message::Message,
         msg_type::MSG_TYPE_RESEND_REQUEST,
         session::session_state::SessionStateEnum,
-        tag::{Tag, TAG_BEGIN_SEQ_NO, TAG_END_SEQ_NO},
+        tag::{Tag, TAG_BEGIN_SEQ_NO, TAG_END_SEQ_NO, TAG_SENDING_TIME},
     };
+    use chrono::Utc;
     use delegate::delegate;
     use std::sync::Arc;
 
@@ -329,5 +331,67 @@ mod tests {
                 .body
                 .field_map,
         );
+    }
+
+    // test_fix_msg_resend_with_old_sending_time tests that we suspend staleness checks during replay
+    // as a replayed message may be arbitrarily old.
+    #[tokio::test]
+    async fn test_fix_msg_resend_with_old_sending_time() {
+        let mut s = SessionSuite::setup_test().await;
+        s.ssr.session.sm.state = SessionStateEnum::new_in_session().await;
+        s.ssr.session.iss.resend_request_chunk_size = 2;
+
+        // In session expects seq number 1, send too high.
+        s.ssr.message_factory.set_next_seq_num(4);
+
+        let mut msg_seq_num4 = s.ssr.message_factory.new_order_single();
+        s.ssr.session.sm_fix_msg_in(&mut msg_seq_num4).await;
+
+        s.ssr.state(&SessionStateEnum::new_resend_state());
+        s.ssr.last_to_admin_message_sent().await;
+        s.message_type(
+            String::from_utf8_lossy(MSG_TYPE_RESEND_REQUEST).to_string(),
+            s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap(),
+        );
+        s.field_equals(
+            TAG_BEGIN_SEQ_NO,
+            FieldEqual::Num(1),
+            &s.ssr
+                .mock_app
+                .read()
+                .await
+                .last_to_admin
+                .as_ref()
+                .unwrap()
+                .body
+                .field_map,
+        );
+        s.field_equals(
+            TAG_END_SEQ_NO,
+            FieldEqual::Num(2),
+            &s.ssr
+                .mock_app
+                .read()
+                .await
+                .last_to_admin
+                .as_ref()
+                .unwrap()
+                .body
+                .field_map,
+        );
+        s.ssr.next_target_msg_seq_num(1).await;
+
+        s.ssr.mock_app.write().await.mock_app.checkpoint();
+
+        let mut msg_seq_num5 = s.ssr.message_factory.new_order_single();
+
+        // Set the sending time far enough in the past to trip the staleness check.
+        msg_seq_num5.header.field_map.set_field(
+            TAG_SENDING_TIME,
+            FIXUTCTimestamp::from_time(Utc::now() - s.ssr.session.iss.max_latency),
+        );
+        s.ssr.session.sm_fix_msg_in(&mut msg_seq_num5).await;
+        s.ssr.state(&SessionStateEnum::new_resend_state());
+        s.ssr.next_target_msg_seq_num(1).await;
     }
 }

@@ -282,6 +282,12 @@ impl FieldMap {
         self.set_bytes(tag, value.as_bytes())
     }
 
+    // remove removes a tag from field map.
+    pub fn remove(&self, tag: Tag) {
+        let mut wlock = self.rw_lock.write();
+        wlock.tag_lookup.remove(&tag);
+    }
+
     // clear purges all fields from field map
     pub fn clear(&self) {
         let mut wlock = self.rw_lock.write();
@@ -662,5 +668,17 @@ mod tests {
         let s = f_map_b.get_string(1);
         assert!(s.is_ok());
         assert_eq!("a", s.unwrap());
+    }
+
+    #[test]
+    fn test_field_map_remove() {
+        let f_map = FieldMap::default().init();
+
+        f_map.set_field(1, FIXString::from("hello"));
+        f_map.set_field(2, FIXString::from("world"));
+
+        f_map.remove(1);
+        assert!(!f_map.has(1));
+        assert!(f_map.has(2));
     }
 }

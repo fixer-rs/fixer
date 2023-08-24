@@ -54,6 +54,7 @@ impl Header {
             pub fn set_bool(&self, tag: Tag, value: bool) -> &FieldMap;
             pub fn set_int(&self, tag: Tag, value: isize) -> &FieldMap;
             pub fn set_string(&self, tag: Tag, value: &str) -> &FieldMap;
+            pub fn remove(&self, tag: Tag);
             pub fn clear(&self);
             pub fn copy_into(&self, to: &mut FieldMap);
             pub fn add(&mut self, f: LocalField);
@@ -98,6 +99,7 @@ impl Body {
             pub fn set_bool(&self, tag: Tag, value: bool) -> &FieldMap;
             pub fn set_int(&self, tag: Tag, value: isize) -> &FieldMap;
             pub fn set_string(&self, tag: Tag, value: &str) -> &FieldMap;
+            pub fn remove(&self, tag: Tag);
             pub fn clear(&self);
             pub fn copy_into(&self, to: &mut FieldMap);
             pub fn add(&mut self, f: LocalField);
@@ -142,6 +144,7 @@ impl Trailer {
             pub fn set_bool(&self, tag: Tag, value: bool) -> &FieldMap;
             pub fn set_int(&self, tag: Tag, value: isize) -> &FieldMap;
             pub fn set_string(&self, tag: Tag, value: &str) -> &FieldMap;
+            pub fn remove(&self, tag: Tag);
             pub fn clear(&self);
             pub fn copy_into(&self, to: &mut FieldMap);
             pub fn add(&mut self, f: LocalField);
@@ -168,8 +171,6 @@ pub struct Message {
     // field bytes as they appear in the raw message
     original_field: Arc<Mutex<Vec<TagValue>>>,
     pub fields: LocalField,
-    // flag is true if this message should not be returned to pool after use
-    pub keep_message: bool,
 }
 
 impl ToString for Message {
@@ -478,6 +479,14 @@ impl Message {
         let check_sum = (self.header.total() + self.body.total() + self.trailer.total()) % 256;
         self.trailer
             .set_string(TAG_CHECK_SUM, &format_check_sum(check_sum));
+    }
+
+    pub fn as_bytes(&self) -> Vec<u8> {
+        if !self.raw_message.is_empty() {
+            return self.raw_message.clone();
+        }
+
+        self.build()
     }
 }
 
@@ -906,9 +915,11 @@ mod tests {
         assert!(parse_result.is_ok());
         assert!(s.msg.is_msg_type_of("A"));
         assert_eq!(s.msg.to_string().as_bytes(), new_msg_string);
+        assert_eq!(s.msg.as_bytes(), new_msg_string);
 
         assert!(&dest.is_msg_type_of("D"));
         assert_eq!(&dest.to_string(), rendered_string);
+        assert_eq!(&dest.as_bytes(), rendered_string.as_bytes());
     }
 
     fn check_field_int(_s: &MessageSuite, fields: &FieldMap, tag: isize, expected: isize) {

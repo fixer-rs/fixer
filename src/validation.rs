@@ -127,9 +127,11 @@ fn validate_fixt(
         validate_order(msg)?;
     }
 
-    validate_walk(transport_dd, app_dd, msg_type, msg)?;
+    if settings.reject_invalid_message {
+        validate_fields(transport_dd, app_dd, msg_type, msg)?;
 
-    validate_fields(transport_dd, app_dd, msg_type, msg)?;
+        validate_walk(transport_dd, app_dd, msg_type, msg)?;
+    }
 
     Ok(())
 }
@@ -322,7 +324,7 @@ fn validate_fields(
             validate_field(transport_dd, &transport_dd.trailer.tags, field)?;
         } else {
             let tags = &app_dd.messages.get(msg_type).unwrap().tags;
-            validate_field(transport_dd, tags, field)?;
+            validate_field(app_dd, tags, field)?;
         }
     }
 
@@ -430,6 +432,7 @@ mod tests {
     use crate::{
         datadictionary::{parse, FieldType},
         field_map::LocalField,
+        fix_utc_timestamp::TimestampPrecision,
     };
     use chrono::Utc;
     use parking_lot::Mutex;
@@ -448,24 +451,43 @@ mod tests {
     async fn test_validate() {
         let tests = vec![
             tc_invalid_tag_number_header().await,
+            tc_invalid_tag_number_header_fix_t().await,
             tc_invalid_tag_number_body().await,
+            tc_invalid_tag_number_body_fix_t().await,
             tc_invalid_tag_number_trailer().await,
+            tc_invalid_tag_number_trailer_fix_t().await,
             tc_tag_specified_without_a_value().await,
+            tc_tag_specified_without_a_value_fix_t().await,
             tc_invalid_msg_type().await,
+            tc_invalid_msg_type_fix_t().await,
             tc_value_is_incorrect().await,
+            tc_value_is_incorrect_fix_t().await,
             tc_incorrect_data_format_for_value().await,
+            tc_incorrect_data_format_for_value_fix_t().await,
             tc_tag_specified_out_of_required_order_header().await,
+            tc_tag_specified_out_of_required_order_header_fix_t().await,
             tc_tag_specified_out_of_required_order_trailer().await,
+            tc_tag_specified_out_of_required_order_trailer_fix_t().await,
             tc_tag_specified_out_of_required_order_disabled_header().await,
+            tc_tag_specified_out_of_required_order_disabled_header_fix_t().await,
             tc_tag_specified_out_of_required_order_disabled_trailer().await,
+            tc_tag_specified_out_of_required_order_disabled_trailer_fix_t().await,
             tc_tag_appears_more_than_once().await,
+            tc_tag_appears_more_than_once_fix_t().await,
             tc_float_validation().await,
+            tc_float_validation_fix_t().await,
             tc_tag_not_defined_for_message().await,
+            tc_tag_not_defined_for_message_fix_t().await,
             tc_tag_is_defined_for_message().await,
+            tc_tag_is_defined_for_message_fix_t().await,
             tc_field_not_found_body().await,
+            tc_field_not_found_body_fix_t().await,
             tc_field_not_found_header().await,
+            tc_field_not_found_header_fix_t().await,
             tc_invalid_tag_check_disabled().await,
+            tc_invalid_tag_check_disabled_fix_t().await,
             tc_invalid_tag_check_enabled().await,
+            tc_invalid_tag_check_enabled_fix_t().await,
         ];
 
         for test in tests.iter() {
@@ -527,7 +549,7 @@ mod tests {
         }
     }
 
-    fn create_fix40_new_order_single<'a>() -> Message {
+    fn create_fix40_new_order_single() -> Message {
         let msg = Message::new();
         let now = Utc::now();
         msg.header.set_field(TAG_MSG_TYPE, FIXString::from("D"));
@@ -555,7 +577,7 @@ mod tests {
         msg
     }
 
-    fn create_fix43_new_order_single<'a>() -> Message {
+    fn create_fix43_new_order_single() -> Message {
         let msg = Message::new();
         let now = Utc::now();
         msg.header.set_field(TAG_MSG_TYPE, FIXString::from("D"));
@@ -583,6 +605,38 @@ mod tests {
         msg
     }
 
+    fn create_fix50sp2_new_order_single() -> Message {
+        let msg = Message::new();
+        let now = Utc::now();
+        msg.header.set_field(TAG_MSG_TYPE, FIXString::from("D"));
+        msg.header
+            .set_field(TAG_BEGIN_STRING, FIXString::from("FIXT.1.1"));
+        msg.header.set_field(TAG_BODY_LENGTH, FIXString::from("0"));
+        msg.header
+            .set_field(TAG_SENDER_COMP_ID, FIXString::from("0"));
+        msg.header
+            .set_field(TAG_TARGET_COMP_ID, FIXString::from("0"));
+        msg.header.set_field(TAG_MSG_SEQ_NUM, FIXString::from("0"));
+        msg.header
+            .set_field(TAG_SENDING_TIME, FIXUTCTimestamp::from_time(now));
+
+        msg.body.set_field(11, FIXString::from("A"));
+        msg.body.set_field(21, FIXString::from("1"));
+        msg.body.set_field(55, FIXString::from("A"));
+        msg.body.set_field(54, FIXString::from("1"));
+        msg.body.set_field(40, FIXString::from("1"));
+        msg.body.set_field(38, 5 as FIXInt);
+        msg.body.set_field(
+            60,
+            FIXUTCTimestamp::from_time_with_precision(now, TimestampPrecision::Nanos),
+        );
+        msg.body.set_field(100, FIXString::from("0"));
+
+        msg.trailer.set_field(TAG_CHECK_SUM, FIXString::from("000"));
+
+        msg
+    }
+
     async fn tc_invalid_tag_number_header<'a>() -> ValidateTest<'a> {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
@@ -604,6 +658,27 @@ mod tests {
         }
     }
 
+    async fn tc_invalid_tag_number_header_fix_t<'a>() -> ValidateTest<'a> {
+        let t_dict = parse("spec/FIXT11.xml").await.unwrap();
+        let app_dict = parse("spec/FIX50SP2.xml").await.unwrap();
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), app_dict, Some(t_dict));
+        let invalid_header_field_message = create_fix50sp2_new_order_single();
+        let tag = 9999 as Tag;
+        invalid_header_field_message
+            .header
+            .set_field(tag, FIXString::from("hello"));
+        let message_bytes = invalid_header_field_message.build();
+
+        ValidateTest {
+            name: "Invalid Tag Number Header FIXT",
+            validator,
+            message_bytes,
+            expected_reject_reason: REJECT_REASON_INVALID_TAG_NUMBER,
+            expected_ref_tag_id: Some(tag),
+            do_not_expect_reject: false,
+        }
+    }
+
     async fn tc_invalid_tag_number_body<'a>() -> ValidateTest<'a> {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
@@ -617,7 +692,28 @@ mod tests {
         ValidateTest {
             name: "Invalid Tag Number Body",
             validator,
-            message_bytes: message_bytes,
+            message_bytes,
+            expected_reject_reason: REJECT_REASON_INVALID_TAG_NUMBER,
+            expected_ref_tag_id: Some(tag),
+            do_not_expect_reject: false,
+        }
+    }
+
+    async fn tc_invalid_tag_number_body_fix_t<'a>() -> ValidateTest<'a> {
+        let t_dict = parse("spec/FIXT11.xml").await.unwrap();
+        let app_dict = parse("spec/FIX50SP2.xml").await.unwrap();
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), app_dict, Some(t_dict));
+        let invalid_body_field_message = create_fix50sp2_new_order_single();
+        let tag = 9999 as Tag;
+        invalid_body_field_message
+            .body
+            .set_field(tag, FIXString::from("hello"));
+        let message_bytes = invalid_body_field_message.build();
+
+        ValidateTest {
+            name: "Invalid Tag Number Body FIXT",
+            validator,
+            message_bytes,
             expected_reject_reason: REJECT_REASON_INVALID_TAG_NUMBER,
             expected_ref_tag_id: Some(tag),
             do_not_expect_reject: false,
@@ -644,6 +740,27 @@ mod tests {
         }
     }
 
+    async fn tc_invalid_tag_number_trailer_fix_t<'a>() -> ValidateTest<'a> {
+        let t_dict = parse("spec/FIXT11.xml").await.unwrap();
+        let app_dict = parse("spec/FIX50SP2.xml").await.unwrap();
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), app_dict, Some(t_dict));
+        let invalid_trailer_field_message = create_fix50sp2_new_order_single();
+        let tag = 9999 as Tag;
+        invalid_trailer_field_message
+            .trailer
+            .set_field(tag, FIXString::from("hello"));
+        let message_bytes = invalid_trailer_field_message.build();
+
+        ValidateTest {
+            name: "Invalid Tag Number Trailer FIXT",
+            validator,
+            message_bytes,
+            expected_reject_reason: REJECT_REASON_INVALID_TAG_NUMBER,
+            expected_ref_tag_id: Some(tag),
+            do_not_expect_reject: false,
+        }
+    }
+
     async fn tc_tag_not_defined_for_message<'a>() -> ValidateTest<'a> {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
@@ -662,8 +779,27 @@ mod tests {
         }
     }
 
+    async fn tc_tag_not_defined_for_message_fix_t<'a>() -> ValidateTest<'a> {
+        let t_dict = parse("spec/FIXT11.xml").await.unwrap();
+        let app_dict = parse("spec/FIX50SP2.xml").await.unwrap();
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), app_dict, Some(t_dict));
+        let invalid_msg = create_fix50sp2_new_order_single();
+        let tag = 41 as Tag;
+        invalid_msg.body.set_field(tag, FIXString::from("hello"));
+        let message_bytes = invalid_msg.build();
+
+        ValidateTest {
+            name: "Tag Not Defined For Message FIXT",
+            validator,
+            message_bytes,
+            expected_reject_reason: REJECT_REASON_TAG_NOT_DEFINED_FOR_THIS_MESSAGE_TYPE,
+            expected_ref_tag_id: Some(tag),
+            do_not_expect_reject: false,
+        }
+    }
+
     async fn tc_tag_is_defined_for_message<'a>() -> ValidateTest<'a> {
-        // compare to tcTagIsNotDefinedForMessage
+        // compare to `tc_tag_is_not_defined_for_message`
         let dict = parse("./spec/FIX43.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
         let valid_msg = create_fix43_new_order_single();
@@ -671,6 +807,24 @@ mod tests {
 
         ValidateTest {
             name: "TagIsDefinedForMessage",
+            validator,
+            message_bytes,
+            do_not_expect_reject: true,
+            expected_reject_reason: REJECT_REASON_OTHER,
+            expected_ref_tag_id: None,
+        }
+    }
+
+    async fn tc_tag_is_defined_for_message_fix_t<'a>() -> ValidateTest<'a> {
+        // Compare to `tc_tag_is_not_defined_for_message`.
+        let t_dict = parse("spec/FIXT11.xml").await.unwrap();
+        let app_dict = parse("spec/FIX50SP2.xml").await.unwrap();
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), app_dict, Some(t_dict));
+        let valid_msg = create_fix50sp2_new_order_single();
+        let message_bytes = valid_msg.build();
+
+        ValidateTest {
+            name: "TagIsDefinedForMessage FIXT",
             validator,
             message_bytes,
             do_not_expect_reject: true,
@@ -717,12 +871,63 @@ mod tests {
 
         let tag = 40 as Tag;
 
-        // ord type is required
-        // invalid_msg1.body.set_field(Tag(40), "A"))
+        // ord type is required. invalid_msg1.body.set_field(40 as Tag, "A"))
         let message_bytes = invalid_msg1.build();
 
         ValidateTest {
             name: "FieldNotFoundBody",
+            validator,
+            message_bytes,
+            expected_reject_reason: REJECT_REASON_REQUIRED_TAG_MISSING,
+            expected_ref_tag_id: Some(tag),
+            do_not_expect_reject: false,
+        }
+    }
+
+    async fn tc_field_not_found_body_fix_t<'a>() -> ValidateTest<'a> {
+        let t_dict = parse("spec/FIXT11.xml").await.unwrap();
+        let app_dict = parse("spec/FIX50SP2.xml").await.unwrap();
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), app_dict, Some(t_dict));
+        let invalid_msg1 = Message::new();
+        invalid_msg1
+            .header
+            .set_field(TAG_MSG_TYPE, FIXString::from("D"));
+        invalid_msg1
+            .header
+            .set_field(TAG_BEGIN_STRING, FIXString::from("FIXT.1.1"));
+        invalid_msg1
+            .header
+            .set_field(TAG_BODY_LENGTH, FIXString::from("0"));
+        invalid_msg1
+            .header
+            .set_field(TAG_SENDER_COMP_ID, FIXString::from("0"));
+        invalid_msg1
+            .header
+            .set_field(TAG_TARGET_COMP_ID, FIXString::from("0"));
+        invalid_msg1
+            .header
+            .set_field(TAG_MSG_SEQ_NUM, FIXString::from("0"));
+        invalid_msg1
+            .header
+            .set_field(TAG_SENDING_TIME, FIXUTCTimestamp::from_time(Utc::now()));
+        invalid_msg1
+            .trailer
+            .set_field(TAG_CHECK_SUM, FIXString::from("000"));
+
+        invalid_msg1.body.set_field(11 as Tag, FIXString::from("A"));
+        invalid_msg1.body.set_field(21 as Tag, FIXString::from("A"));
+        invalid_msg1.body.set_field(55 as Tag, FIXString::from("A"));
+        invalid_msg1.body.set_field(54 as Tag, FIXString::from("A"));
+        invalid_msg1.body.set_field(38 as Tag, FIXString::from("A"));
+        invalid_msg1
+            .body
+            .set_field(60 as Tag, FIXUTCTimestamp::from_time(Utc::now()));
+        let tag = 40 as Tag;
+        // Ord type is required. invalid_msg1.body.set_field(40 as Tag, "A")).
+        let message_bytes = invalid_msg1.build();
+
+        ValidateTest {
+            name: "FieldNotFoundBody FIXT",
             validator,
             message_bytes,
             expected_reject_reason: REJECT_REASON_REQUIRED_TAG_MISSING,
@@ -764,14 +969,61 @@ mod tests {
         invalid_msg2
             .header
             .set_field(TAG_MSG_SEQ_NUM, FIXString::from("0"));
-        // sending time is required
-        // invalid_msg2.Header.FieldMap.set_field(tag.SendingTime, "0"))
+        // sending time is required. invalid_msg2.Header.FieldMap.set_field(tag.SendingTime, "0"))
 
         let tag = TAG_SENDING_TIME;
         let message_bytes = invalid_msg2.build();
 
         ValidateTest {
             name: "FieldNotFoundHeader",
+            validator,
+            message_bytes,
+            expected_reject_reason: REJECT_REASON_REQUIRED_TAG_MISSING,
+            expected_ref_tag_id: Some(tag),
+            do_not_expect_reject: false,
+        }
+    }
+
+    async fn tc_field_not_found_header_fix_t<'a>() -> ValidateTest<'a> {
+        let t_dict = parse("spec/FIXT11.xml").await.unwrap();
+        let app_dict = parse("spec/FIX50SP2.xml").await.unwrap();
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), app_dict, Some(t_dict));
+
+        let invalid_msg2 = Message::new();
+        invalid_msg2
+            .trailer
+            .set_field(TAG_CHECK_SUM, FIXString::from("000"));
+        invalid_msg2.body.set_field(11 as Tag, FIXString::from("A"));
+        invalid_msg2.body.set_field(21 as Tag, FIXString::from("A"));
+        invalid_msg2.body.set_field(55 as Tag, FIXString::from("A"));
+        invalid_msg2.body.set_field(54 as Tag, FIXString::from("A"));
+        invalid_msg2.body.set_field(38 as Tag, FIXString::from("A"));
+
+        invalid_msg2
+            .header
+            .set_field(TAG_MSG_TYPE, FIXString::from("D"));
+        invalid_msg2
+            .header
+            .set_field(TAG_BEGIN_STRING, FIXString::from("FIXT.1.1"));
+        invalid_msg2
+            .header
+            .set_field(TAG_BODY_LENGTH, FIXString::from("0"));
+        invalid_msg2
+            .header
+            .set_field(TAG_SENDER_COMP_ID, FIXString::from("0"));
+        invalid_msg2
+            .header
+            .set_field(TAG_TARGET_COMP_ID, FIXString::from("0"));
+        invalid_msg2
+            .header
+            .set_field(TAG_MSG_SEQ_NUM, FIXString::from("0"));
+
+        // Sending time is required. invalid_msg2.Header.FieldMap.SetField(tag.SendingTime, "0")).
+        let tag = TAG_SENDING_TIME;
+        let message_bytes = invalid_msg2.build();
+
+        ValidateTest {
+            name: "FieldNotFoundHeader FIXT",
             validator,
             message_bytes,
             expected_reject_reason: REJECT_REASON_REQUIRED_TAG_MISSING,
@@ -799,6 +1051,26 @@ mod tests {
         }
     }
 
+    async fn tc_tag_specified_without_a_value_fix_t<'a>() -> ValidateTest<'a> {
+        let t_dict = parse("spec/FIXT11.xml").await.unwrap();
+        let app_dict = parse("spec/FIX50SP2.xml").await.unwrap();
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), app_dict, Some(t_dict));
+        let builder = create_fix50sp2_new_order_single();
+
+        let bogus_tag = 109 as Tag;
+        builder.body.set_field(bogus_tag, FIXString::from(""));
+        let message_bytes = builder.build();
+
+        ValidateTest {
+            name: "Tag SpecifiedWithoutAValue FIXT",
+            validator,
+            message_bytes,
+            expected_reject_reason: REJECT_REASON_TAG_SPECIFIED_WITHOUT_A_VALUE,
+            expected_ref_tag_id: Some(bogus_tag),
+            do_not_expect_reject: false,
+        }
+    }
+
     async fn tc_invalid_msg_type<'a>() -> ValidateTest<'a> {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
@@ -808,6 +1080,26 @@ mod tests {
 
         ValidateTest {
             name: "Invalid MsgType",
+            validator,
+            message_bytes,
+            expected_reject_reason: REJECT_REASON_INVALID_MSG_TYPE,
+            expected_ref_tag_id: None,
+            do_not_expect_reject: false,
+        }
+    }
+
+    async fn tc_invalid_msg_type_fix_t<'a>() -> ValidateTest<'a> {
+        let t_dict = parse("spec/FIXT11.xml").await.unwrap();
+        let app_dict = parse("spec/FIX50SP2.xml").await.unwrap();
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), app_dict, Some(t_dict));
+        let builder = create_fix50sp2_new_order_single();
+        builder
+            .header
+            .set_field(TAG_MSG_TYPE, FIXString::from("zz"));
+        let message_bytes = builder.build();
+
+        ValidateTest {
+            name: "Invalid MsgType FIXT",
             validator,
             message_bytes,
             expected_reject_reason: REJECT_REASON_INVALID_MSG_TYPE,
@@ -835,6 +1127,26 @@ mod tests {
         }
     }
 
+    async fn tc_value_is_incorrect_fix_t<'a>() -> ValidateTest<'a> {
+        let t_dict = parse("spec/FIXT11.xml").await.unwrap();
+        let app_dict = parse("spec/FIX50SP2.xml").await.unwrap();
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), app_dict, Some(t_dict));
+
+        let tag = 21 as Tag;
+        let builder = create_fix50sp2_new_order_single();
+        builder.body.set_field(tag, FIXString::from("4"));
+        let message_bytes = builder.build();
+
+        ValidateTest {
+            name: "ValueIsIncorrect FIXT",
+            validator,
+            message_bytes,
+            expected_reject_reason: REJECT_REASON_VALUE_IS_INCORRECT,
+            expected_ref_tag_id: Some(tag),
+            do_not_expect_reject: false,
+        }
+    }
+
     async fn tc_incorrect_data_format_for_value<'a>() -> ValidateTest<'a> {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
@@ -853,18 +1165,58 @@ mod tests {
         }
     }
 
+    async fn tc_incorrect_data_format_for_value_fix_t<'a>() -> ValidateTest<'a> {
+        let t_dict = parse("spec/FIXT11.xml").await.unwrap();
+        let app_dict = parse("spec/FIX50SP2.xml").await.unwrap();
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), app_dict, Some(t_dict));
+        let builder = create_fix50sp2_new_order_single();
+        let tag = 38 as Tag;
+        builder.body.set_field(tag, FIXString::from("+200.00"));
+        let message_bytes = builder.build();
+
+        ValidateTest {
+            name: "IncorrectDataFormatForValue FIXT",
+            validator,
+            message_bytes,
+            expected_reject_reason: REJECT_REASON_INCORRECT_DATA_FORMAT_FOR_VALUE,
+            expected_ref_tag_id: Some(tag),
+            do_not_expect_reject: false,
+        }
+    }
+
     async fn tc_tag_specified_out_of_required_order_header<'a>() -> ValidateTest<'a> {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
 
         let builder = create_fix40_new_order_single();
         let tag = TAG_ON_BEHALF_OF_COMP_ID;
-        // 	should be in header
+        // should be in header
         builder.body.set_field(tag, FIXString::from("CWB"));
         let message_bytes = builder.build();
 
         ValidateTest {
             name: "Tag specified out of required order in Header",
+            validator,
+            message_bytes,
+            expected_reject_reason: REJECT_REASON_TAG_SPECIFIED_OUT_OF_REQUIRED_ORDER,
+            expected_ref_tag_id: Some(tag),
+            do_not_expect_reject: false,
+        }
+    }
+
+    async fn tc_tag_specified_out_of_required_order_header_fix_t<'a>() -> ValidateTest<'a> {
+        let t_dict = parse("spec/FIXT11.xml").await.unwrap();
+        let app_dict = parse("spec/FIX50SP2.xml").await.unwrap();
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), app_dict, Some(t_dict));
+
+        let builder = create_fix50sp2_new_order_single();
+        let tag = TAG_ON_BEHALF_OF_COMP_ID;
+        // should be in header.
+        builder.body.set_field(tag, FIXString::from("CWB"));
+        let message_bytes = builder.build();
+
+        ValidateTest {
+            name: "Tag specified out of required order in Header FIXT",
             validator,
             message_bytes,
             expected_reject_reason: REJECT_REASON_TAG_SPECIFIED_OUT_OF_REQUIRED_ORDER,
@@ -894,6 +1246,28 @@ mod tests {
         }
     }
 
+    async fn tc_tag_specified_out_of_required_order_trailer_fix_t<'a>() -> ValidateTest<'a> {
+        let t_dict = parse("spec/FIXT11.xml").await.unwrap();
+        let app_dict = parse("spec/FIX50SP2.xml").await.unwrap();
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), app_dict, Some(t_dict));
+
+        let builder = create_fix50sp2_new_order_single();
+        let tag = TAG_SIGNATURE;
+        // should be in trailer.
+        builder.body.set_field(tag, FIXString::from("SIG"));
+        let message_bytes = builder.build();
+
+        let ref_tag = 100 as Tag;
+        ValidateTest {
+            name: "Tag specified out of required order in Trailer FIXT",
+            validator,
+            message_bytes,
+            expected_reject_reason: REJECT_REASON_TAG_SPECIFIED_OUT_OF_REQUIRED_ORDER,
+            expected_ref_tag_id: Some(ref_tag),
+            do_not_expect_reject: false,
+        }
+    }
+
     async fn tc_invalid_tag_check_disabled<'a>() -> ValidateTest<'a> {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let mut custom_validator_settings = ValidatorSettings::default();
@@ -915,6 +1289,28 @@ mod tests {
         }
     }
 
+    async fn tc_invalid_tag_check_disabled_fix_t<'a>() -> ValidateTest<'a> {
+        let t_dict = parse("spec/FIXT11.xml").await.unwrap();
+        let app_dict = parse("spec/FIX50SP2.xml").await.unwrap();
+        let mut custom_validator_settings = ValidatorSettings::default();
+        custom_validator_settings.reject_invalid_message = false;
+        let validator = ValidatorEnum::new(custom_validator_settings, app_dict, Some(t_dict));
+
+        let builder = create_fix50sp2_new_order_single();
+        let tag = 9999 as Tag;
+        builder.body.set_field(tag, FIXString::from("hello"));
+        let message_bytes = builder.build();
+
+        ValidateTest {
+            name: "Invalid Tag Check - Disabled FIXT",
+            validator,
+            message_bytes,
+            do_not_expect_reject: true,
+            expected_reject_reason: REJECT_REASON_OTHER, // fake reason
+            expected_ref_tag_id: Some(666),              // fake tag
+        }
+    }
+
     async fn tc_invalid_tag_check_enabled<'a>() -> ValidateTest<'a> {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let mut custom_validator_settings = ValidatorSettings::default();
@@ -928,6 +1324,28 @@ mod tests {
 
         ValidateTest {
             name: "Invalid Tag Check - Enabled",
+            validator,
+            message_bytes,
+            do_not_expect_reject: false,
+            expected_ref_tag_id: Some(tag),
+            expected_reject_reason: REJECT_REASON_INVALID_TAG_NUMBER, // fake reason
+        }
+    }
+
+    async fn tc_invalid_tag_check_enabled_fix_t<'a>() -> ValidateTest<'a> {
+        let t_dict = parse("spec/FIXT11.xml").await.unwrap();
+        let app_dict = parse("spec/FIX50SP2.xml").await.unwrap();
+        let mut custom_validator_settings = ValidatorSettings::default();
+        custom_validator_settings.reject_invalid_message = true;
+        let validator = ValidatorEnum::new(custom_validator_settings, app_dict, Some(t_dict));
+
+        let builder = create_fix50sp2_new_order_single();
+        let tag = 9999 as Tag;
+        builder.body.set_field(tag, FIXString::from("hello"));
+        let message_bytes = builder.build();
+
+        ValidateTest {
+            name: "Invalid Tag Check - Enabled FIXT",
             validator,
             message_bytes,
             do_not_expect_reject: false,
@@ -958,6 +1376,31 @@ mod tests {
         }
     }
 
+    async fn tc_tag_specified_out_of_required_order_disabled_header_fix_t<'a>() -> ValidateTest<'a>
+    {
+        let t_dict = parse("spec/FIXT11.xml").await.unwrap();
+        let app_dict = parse("spec/FIX50SP2.xml").await.unwrap();
+
+        let mut custom_validator_settings = ValidatorSettings::default();
+        custom_validator_settings.check_fields_out_of_order = false;
+        let validator = ValidatorEnum::new(custom_validator_settings, app_dict, Some(t_dict));
+
+        let builder = create_fix50sp2_new_order_single();
+        let tag = TAG_ON_BEHALF_OF_COMP_ID;
+        // should be in header.
+        builder.body.set_field(tag, FIXString::from("CWB"));
+        let message_bytes = builder.build();
+
+        ValidateTest {
+            name: "Tag specified out of required order in Header - Disabled FIXT",
+            validator,
+            message_bytes,
+            do_not_expect_reject: true,
+            expected_reject_reason: REJECT_REASON_OTHER, // fake reason
+            expected_ref_tag_id: Some(666),              // fake tag
+        }
+    }
+
     async fn tc_tag_specified_out_of_required_order_disabled_trailer<'a>() -> ValidateTest<'a> {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let mut custom_validator_settings = ValidatorSettings::default();
@@ -980,17 +1423,57 @@ mod tests {
         }
     }
 
+    async fn tc_tag_specified_out_of_required_order_disabled_trailer_fix_t<'a>() -> ValidateTest<'a>
+    {
+        let t_dict = parse("spec/FIXT11.xml").await.unwrap();
+        let app_dict = parse("spec/FIX50SP2.xml").await.unwrap();
+        let mut custom_validator_settings = ValidatorSettings::default();
+        custom_validator_settings.check_fields_out_of_order = false;
+        let validator = ValidatorEnum::new(custom_validator_settings, app_dict, Some(t_dict));
+
+        let builder = create_fix50sp2_new_order_single();
+        let tag = TAG_SIGNATURE;
+        // Should be in trailer.
+        builder.body.set_field(tag, FIXString::from("SIG"));
+        let message_bytes = builder.build();
+
+        ValidateTest {
+            name: "Tag specified out of required order in Trailer - Disabled FIXT",
+            validator,
+            message_bytes,
+            do_not_expect_reject: true,
+            expected_reject_reason: REJECT_REASON_OTHER, // fake reason
+            expected_ref_tag_id: Some(666),              // fake tag
+        }
+    }
+
     async fn tc_tag_appears_more_than_once<'a>() -> ValidateTest<'a> {
         let dict = parse("./spec/FIX40.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
         let tag = 40 as Tag;
 
         ValidateTest {
-        	name:  "Tag appears more than once",
-        	validator,
-        	message_bytes: "8=FIX.4.09=10735=D34=249=TW52=20060102-15:04:0556=ISLD11=ID21=140=140=254=138=20055=INTC60=20060102-15:04:0510=234".into(),
-        	expected_reject_reason: REJECT_REASON_TAG_APPEARS_MORE_THAN_ONCE,
-        	expected_ref_tag_id: Some(tag),
+            name:  "Tag appears more than once",
+            validator,
+            message_bytes: "8=FIX.4.09=10735=D34=249=TW52=20060102-15:04:0556=ISLD11=ID21=140=140=254=138=20055=INTC60=20060102-15:04:0510=234".into(),
+            expected_reject_reason: REJECT_REASON_TAG_APPEARS_MORE_THAN_ONCE,
+            expected_ref_tag_id: Some(tag),
+            do_not_expect_reject: false,
+        }
+    }
+
+    async fn tc_tag_appears_more_than_once_fix_t<'a>() -> ValidateTest<'a> {
+        let t_dict = parse("spec/FIXT11.xml").await.unwrap();
+        let app_dict = parse("spec/FIX50SP2.xml").await.unwrap();
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), app_dict, Some(t_dict));
+        let tag = 40 as Tag;
+
+        ValidateTest {
+            name: "Tag appears more than once FIXT",
+            validator,
+            message_bytes: "8=FIXT.1.19=10735=D34=249=TW52=20060102-15:04:0556=ISLD11=ID21=140=140=254=138=20055=INTC60=20060102-15:04:0510=234".into(),
+            expected_reject_reason: REJECT_REASON_TAG_APPEARS_MORE_THAN_ONCE,
+            expected_ref_tag_id: Some(tag),
             do_not_expect_reject: false,
         }
     }
@@ -999,12 +1482,27 @@ mod tests {
         let dict = parse("./spec/FIX42.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
         let tag = 38 as Tag;
-        ValidateTest{
+        ValidateTest {
             name:  "FloatValidation",
             validator,
             message_bytes: "8=FIX.4.29=10635=D34=249=TW52=20140329-22:38:4556=ISLD11=ID21=140=154=138=+200.0055=INTC60=20140329-22:38:4510=178".into(),
             expected_reject_reason: REJECT_REASON_INCORRECT_DATA_FORMAT_FOR_VALUE,
             expected_ref_tag_id: Some(tag),
+            do_not_expect_reject: false,
+        }
+    }
+
+    async fn tc_float_validation_fix_t<'a>() -> ValidateTest<'a> {
+        let t_dict = parse("spec/FIXT11.xml").await.unwrap();
+        let app_dict = parse("spec/FIX50SP2.xml").await.unwrap();
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), app_dict, Some(t_dict));
+        let tag = 38 as Tag;
+        ValidateTest {
+            name: "FloatValidation FIXT",
+            validator,
+            message_bytes: "8=FIXT.1.19=10635=D34=249=TW52=20140329-22:38:4556=ISLD11=ID21=140=154=138=+200.0055=INTC60=20140329-22:38:4510=178".into(),
+            expected_reject_reason: REJECT_REASON_INCORRECT_DATA_FORMAT_FOR_VALUE,
+            expected_ref_tag_id:     Some(tag),
             do_not_expect_reject: false,
         }
     }
