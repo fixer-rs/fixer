@@ -164,13 +164,13 @@ impl MessageRouter {
             let (new_key, mut route) = remove_result.unwrap();
             let res = route(g, msg, session_id.clone());
             g.routes.insert(new_key, Box::new(route));
-            return res;
+            res
         } else {
             if is_admin_msg || msg_type == "j" {
                 return Ok(());
             }
 
-            return Err(unsupported_message_type());
+            Err(unsupported_message_type())
         }
     }
 
@@ -217,10 +217,11 @@ impl MessageRouter {
 
         if fix_version == BEGIN_STRING_FIXT11 && !is_admin_msg {
             let mut appl_ver_id = FIXString::new();
-            if let Err(_) = msg
+            if msg
                 .lock()
                 .header
                 .get_field(TAG_APPL_VER_ID, &mut appl_ver_id)
+                .is_err()
             {
                 if let Some(session) = (*SESSIONS).get(&session_id) {
                     appl_ver_id = session.lock().await.target_default_application_version_id();

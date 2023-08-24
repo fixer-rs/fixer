@@ -36,7 +36,7 @@ impl FieldValueReader for FIXFloat {
 
 impl FieldValueWriter for FIXFloat {
     fn write(&self) -> Vec<u8> {
-        format!("{}", self).into_bytes()
+        self.to_string().into_bytes()
     }
 }
 

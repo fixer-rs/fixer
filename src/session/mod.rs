@@ -595,8 +595,8 @@ impl Session {
             .on_eventf(
                 "MsgSeqNum too high, expecting {{expect}} but received {{received}}",
                 hashmap! {
-                    String::from("expect") => format!("{}", reject.expected_target),
-                    String::from("received") => format!("{}", reject.received_target),
+                    String::from("expect") => reject.expected_target.to_string(),
+                    String::from("received") => reject.received_target.to_string(),
                 },
             )
             .await;
@@ -644,8 +644,8 @@ impl Session {
             .on_eventf(
                 "Sent ResendRequest FROM: {{from}} TO: {{to}}",
                 hashmap! {
-                    String::from("from") => format!("{}", begin_seq),
-                    String::from("to") => format!("{}", end_seq_no),
+                    String::from("from") => begin_seq.to_string(),
+                    String::from("to") => end_seq_no.to_string(),
                 },
             )
             .await;
@@ -1459,8 +1459,8 @@ impl Session {
                 .on_eventf(
                     "MsReceived SequenceReset FROM: {{from}} TO: {{to}}",
                     hashmap! {
-                        String::from("from") => format!("{}", expected_seq_num),
-                        String::from("to") => format!("{}", new_seq_no),
+                        String::from("from") => expected_seq_num.to_string(),
+                        String::from("to") =>  new_seq_no.to_string(),
                     },
                 )
                 .await;
@@ -1516,8 +1516,8 @@ impl Session {
             .on_eventf(
                 "Received ResendRequest FROM: {{from}} TO: {{to}}",
                 hashmap! {
-                    String::from("from") => format!("{}", begin_seq_no),
-                    String::from("to") => format!("{}", end_seq_no),
+                    String::from("from") =>  begin_seq_no.to_string(),
+                    String::from("to") =>  end_seq_no.to_string(),
                 },
             )
             .await;
@@ -1619,7 +1619,7 @@ impl Session {
                 .on_eventf(
                     "Resending Message: {{msg}}",
                     hashmap! {
-                        String::from("msg") => format!("{}", sent_message_seq_num),
+                        String::from("msg") => sent_message_seq_num.to_string(),
                     },
                 )
                 .await;
@@ -1827,7 +1827,7 @@ impl Session {
             .on_eventf(
                 "Sent SequenceReset TO: {{to}}",
                 hashmap! {
-                     String::from("to") => format!("{}", end_seq_no),
+                     String::from("to") => end_seq_no.to_string(),
                 },
             )
             .await;
@@ -1950,7 +1950,7 @@ impl Session {
             self.log
                 .on_eventf(
                     "Invalid Session State: Received Msg {{msg}} while waiting for Logon",
-                    hashmap! {String::from("msg") => format!("{:?}", msg)},
+                    hashmap! {String::from("msg") =>  msg.to_string()},
                 )
                 .await;
             return SessionStateEnum::new_latent_state();
@@ -2050,7 +2050,7 @@ impl Session {
         self.log
             .on_eventf(
                 "Invalid Session State: Unexpected Msg {{msg}} while in Latent state",
-                hashmap! {String::from("msg") => format!("{:?}", msg)},
+                hashmap! {String::from("msg") => msg.to_string()},
             )
             .await;
         SessionStateEnum::new_latent_state()
@@ -2060,7 +2060,7 @@ impl Session {
         self.log
             .on_eventf(
                 "Invalid Session State: Unexpected Msg {{msg}} while in Latent state",
-                hashmap! {String::from("msg") => format!("{:?}", msg)},
+                hashmap! {String::from("msg") => msg.to_string()},
             )
             .await;
         SessionStateEnum::new_not_session_time()
@@ -3895,9 +3895,10 @@ mod tests {
             .is_ok());
 
         s.ssr.no_message_sent().await;
-        s.ssr
-            .message_persisted(&s.ssr.mock_app.write().await.last_to_app.as_mut().unwrap())
-            .await;
+        let wlock = s.ssr.mock_app.read().await;
+        let mut msg = wlock.last_to_app.as_ref().unwrap().clone();
+        drop(wlock);
+        s.ssr.message_persisted(&mut msg).await;
         s.field_equals(
             TAG_MSG_SEQ_NUM,
             FieldEqual::Num(1),
@@ -3944,9 +3945,10 @@ mod tests {
             .is_ok());
 
         s.ssr.last_to_admin_message_sent().await;
-        s.ssr
-            .message_persisted(s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap())
-            .await;
+        let wlock = s.ssr.mock_app.read().await;
+        let mut msg = wlock.last_to_admin.as_ref().unwrap().clone();
+        drop(wlock);
+        s.ssr.message_persisted(&mut msg).await;
         s.ssr.next_sender_msg_seq_num(2).await;
     }
 
@@ -3960,9 +3962,10 @@ mod tests {
             .await
             .is_ok());
 
-        s.ssr
-            .message_persisted(s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap())
-            .await;
+        let wlock = s.ssr.mock_app.read().await;
+        let mut msg = wlock.last_to_admin.as_ref().unwrap().clone();
+        drop(wlock);
+        s.ssr.message_persisted(&mut msg).await;
         s.ssr.no_message_sent().await;
         s.ssr.next_sender_msg_seq_num(2).await;
     }
@@ -3976,10 +3979,10 @@ mod tests {
             .send(&s.ssr.message_factory.new_order_single())
             .await
             .is_ok());
-
-        s.ssr
-            .message_persisted(s.ssr.mock_app.read().await.last_to_app.as_ref().unwrap())
-            .await;
+        let wlock = s.ssr.mock_app.read().await;
+        let mut msg = wlock.last_to_app.as_ref().unwrap().clone();
+        drop(wlock);
+        s.ssr.message_persisted(&mut msg).await;
         s.ssr.last_to_app_message_sent().await;
         s.ssr.next_sender_msg_seq_num(2).await;
     }
@@ -4017,9 +4020,10 @@ mod tests {
             .is_ok());
 
         s.ssr.last_to_admin_message_sent().await;
-        s.ssr
-            .message_persisted(s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap())
-            .await;
+        let wlock = s.ssr.mock_app.read().await;
+        let mut msg = wlock.last_to_admin.as_ref().unwrap().clone();
+        drop(wlock);
+        s.ssr.message_persisted(&mut msg).await;
     }
 
     #[tokio::test]
@@ -4178,10 +4182,10 @@ mod tests {
             .drop_and_send(&s.ssr.message_factory.heartbeat())
             .await
             .is_ok());
-
-        s.ssr
-            .message_persisted(&s.ssr.mock_app.write().await.last_to_admin.as_mut().unwrap())
-            .await;
+        let wlock = s.ssr.mock_app.read().await;
+        let mut msg = wlock.last_to_admin.as_ref().unwrap().clone();
+        drop(wlock);
+        s.ssr.message_persisted(&mut msg).await;
         s.ssr.last_to_admin_message_sent().await;
     }
 
