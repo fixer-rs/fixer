@@ -560,7 +560,14 @@ impl Session {
     }
 
     async fn send_queued(&mut self) {
-        for msg_bytes in self.to_send.lock().await.iter_mut() {
+        for msg_bytes in self.to_send.lock().await.iter() {
+            if self.message_out.is_closed() {
+                self.log
+                    .on_eventf("Failed to send: disconnected", hashmap! {})
+                    .await;
+                continue;
+            }
+
             self.log.on_outgoing(msg_bytes).await;
             // TODO: check this error
             let _ = self.message_out.send(msg_bytes.to_vec());
@@ -759,7 +766,12 @@ impl Session {
 
         self.check_comp_id(msg)?;
 
-        self.check_sending_time(msg)?;
+        match self.sm.state {
+            SessionStateEnum::ResendState(_) => {}
+            _ => {
+                self.check_sending_time(msg)?;
+            }
+        }
 
         if check_too_low {
             self.check_target_too_low(msg).await?;
@@ -1653,7 +1665,6 @@ impl Session {
                 }
             };
 
-            msg.keep_message = true;
             rs.message_stash.insert(tth.received_target, msg.clone());
 
             return SessionStateEnum::ResendState(rs);

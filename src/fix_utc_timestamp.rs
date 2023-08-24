@@ -102,6 +102,10 @@ impl FIXUTCTimestamp {
             precision: TimestampPrecision::default(),
         }
     }
+
+    pub fn from_time_with_precision(time: DateTime<Utc>, precision: TimestampPrecision) -> Self {
+        FIXUTCTimestamp { time, precision }
+    }
 }
 
 #[cfg(test)]

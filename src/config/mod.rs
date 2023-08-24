@@ -47,6 +47,7 @@ pub const HEART_BT_INT: &str = "HeartBtInt";
 pub const HEART_BT_INT_OVERRIDE: &str = "HeartBtIntOverride";
 pub const FILE_LOG_PATH: &str = "FileLogPath";
 pub const FILE_STORE_PATH: &str = "FileStorePath";
+pub const FILE_STORE_SYNC: &str = "FileStoreSync";
 pub const SQL_STORE_DRIVER: &str = "SQLStoreDriver";
 pub const SQL_STORE_DATA_SOURCE_NAME: &str = "SQLStoreDataSourceName";
 pub const SQL_STORE_CONN_MAX_LIFETIME: &str = "SQLStoreConnMaxLifetime";

@@ -772,7 +772,7 @@ DataDictionary=somewhere/FIX42.xml
         let reader = r#"[DEFAULT]
 ConnectionType=initiator
 SQLDriver=mysql
-SQLDataSourceName=root:root@/quickfix?parseTime=true&loc=UTC
+SQLDataSourceName=root:root@/fixer?parseTime=true&loc=UTC
 [SESSION]
 
 BeginString=FIX.4.2
@@ -799,7 +799,7 @@ TargetCompID=TARGET
         let val_result = inner_session_settings.setting("SQLDataSourceName");
         assert!(val_result.is_ok());
         assert_eq!(
-            "root:root@/quickfix?parseTime=true&loc=UTC",
+            "root:root@/fixer?parseTime=true&loc=UTC",
             val_result.unwrap()
         )
     }
