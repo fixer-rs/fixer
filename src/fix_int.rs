@@ -1,5 +1,5 @@
 use crate::field::{FieldValue, FieldValueReader, FieldValueWriter};
-use simple_error::{SimpleError, SimpleResult};
+use simple_error::SimpleResult;
 
 //-
 const ASCII_MINUS: u8 = 45;
@@ -35,7 +35,7 @@ impl FIXIntTrait for FIXInt {
 }
 
 impl FieldValueReader for FIXInt {
-    fn read(&mut self, input: &[u8]) -> Result<(), SimpleError> {
+    fn read(&mut self, input: &[u8]) -> SimpleResult<()> {
         let f = atoi_simd::parse::<isize>(input).map_err(|err| simple_error!("{}", err))?;
 
         *self = f;

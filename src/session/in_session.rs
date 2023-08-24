@@ -24,8 +24,6 @@ impl InSession {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use crate::{
         errors::ERR_DO_NOT_SEND,
         field_map::FieldMap,
@@ -51,6 +49,7 @@ mod tests {
     };
     use chrono::{Duration, Utc};
     use delegate::delegate;
+    use std::sync::Arc;
 
     struct SessionSuite {
         ssr: SessionSuiteRig,

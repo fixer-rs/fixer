@@ -1,3 +1,5 @@
+#[cfg(test)]
+use crate::application::DummyApplication;
 use crate::{
     application::Application,
     datadictionary::DataDictionary,
@@ -44,7 +46,7 @@ use crate::{
 };
 use async_recursion::async_recursion;
 use chrono::{DateTime, Duration as ChronoDuration, FixedOffset, Utc};
-use simple_error::SimpleError;
+use simple_error::SimpleResult;
 use std::sync::Arc;
 use tokio::sync::{
     mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
@@ -85,7 +87,7 @@ pub struct SessionEvent {
 pub struct Connect {
     pub message_out: UnboundedSender<Vec<u8>>,
     pub message_in: UnboundedReceiver<FixIn>,
-    pub err: UnboundedSender<Result<(), SimpleError>>,
+    pub err: UnboundedSender<SimpleResult<()>>,
 }
 
 pub struct Admin {
@@ -130,6 +132,54 @@ pub struct Session {
     pub timestamp_precision: TimestampPrecision,
 }
 
+#[cfg(test)]
+impl Default for Session {
+    fn default() -> Self {
+        let (message_out_tx, _) = unbounded_channel::<Vec<u8>>();
+        let (admin_tx, admin_rx) = unbounded_channel::<AdminEnum>();
+        let (message_event_tx, message_event_rx) = unbounded_channel::<bool>();
+        let (_, message_in_rx) = unbounded_channel::<FixIn>();
+        let (session_event_tx, session_event_rx) = unbounded_channel::<Event>();
+        Session {
+            store: MessageStoreEnum::default(),
+            log: LogEnum::default(),
+            session_id: Arc::new(SessionID::default()),
+            message_out: message_out_tx,
+            message_in: message_in_rx,
+            to_send: Default::default(),
+            session_event: SessionEvent {
+                tx: session_event_tx,
+                rx: session_event_rx,
+            },
+            message_event: MessageEvent {
+                tx: message_event_tx,
+                rx: message_event_rx,
+            },
+            application: Arc::new(RwLock::new(DummyApplication::new())),
+            validator: Some(ValidatorEnum::default()),
+            sm: StateMachine {
+                state: SessionStateEnum::new_not_session_time(),
+                pending_stop: false,
+                stopped: false,
+                notify_on_in_session_time: None,
+            },
+            state_timer: EventTimer::new(Arc::new(|| {})),
+            peer_timer: EventTimer::new(Arc::new(|| {})),
+            sent_reset: Default::default(),
+            stop_once: Default::default(),
+            target_default_appl_ver_id: Default::default(),
+            admin: Admin {
+                tx: admin_tx,
+                rx: admin_rx,
+            },
+            iss: SessionSettings::default(),
+            transport_data_dictionary: Default::default(),
+            app_data_dictionary: Default::default(),
+            timestamp_precision: TimestampPrecision::default(),
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct FixIn {
     pub bytes: Vec<u8>,
@@ -165,8 +215,8 @@ impl Session {
         &self,
         message_in: UnboundedReceiver<FixIn>,
         message_out: UnboundedSender<Vec<u8>>,
-    ) -> Result<(), SimpleError> {
-        let (tx, mut rx) = unbounded_channel::<Result<(), SimpleError>>();
+    ) -> SimpleResult<()> {
+        let (tx, mut rx) = unbounded_channel::<SimpleResult<()>>();
         let _ = self.admin.tx.send(AdminEnum::Connect(Connect {
             message_out,
             message_in,
@@ -2126,7 +2176,7 @@ mod tests {
     };
     use chrono::{DateTime, Duration, FixedOffset, Timelike, Utc};
     use delegate::delegate;
-    use simple_error::SimpleError;
+    use simple_error::SimpleResult;
     use std::sync::Arc;
     use tokio::sync::{mpsc::unbounded_channel, RwLock};
 
@@ -3507,7 +3557,7 @@ mod tests {
         let mut s = SessionSuite::setup_test().await;
 
         let (_, in_rx) = unbounded_channel::<FixIn>();
-        let (err_tx, _) = unbounded_channel::<Result<(), SimpleError>>();
+        let (err_tx, _) = unbounded_channel::<SimpleResult<()>>();
 
         let admin_message = Connect {
             message_out: s.ssr.receiver.send_channel.tx.clone(),
@@ -3571,7 +3621,7 @@ mod tests {
         let mut s = SessionSuite::setup_test().await;
 
         let (_, in_rx) = unbounded_channel::<FixIn>();
-        let (err_tx, _) = unbounded_channel::<Result<(), SimpleError>>();
+        let (err_tx, _) = unbounded_channel::<SimpleResult<()>>();
 
         let admin_message = Connect {
             message_out: s.ssr.receiver.send_channel.tx.clone(),
@@ -3647,7 +3697,7 @@ mod tests {
         s.ssr.session.iss.initiate_logon = true;
 
         let (_, in_rx) = unbounded_channel::<FixIn>();
-        let (err_tx, _) = unbounded_channel::<Result<(), SimpleError>>();
+        let (err_tx, _) = unbounded_channel::<SimpleResult<()>>();
 
         let admin_message = Connect {
             message_out: s.ssr.receiver.send_channel.tx.clone(),
@@ -3693,7 +3743,7 @@ mod tests {
             s.ssr.session.iss.refresh_on_logon = do_refresh;
 
             let (_, in_rx) = unbounded_channel::<FixIn>();
-            let (err_tx, _) = unbounded_channel::<Result<(), SimpleError>>();
+            let (err_tx, _) = unbounded_channel::<SimpleResult<()>>();
 
             let admin_message = Connect {
                 message_out: s.ssr.receiver.send_channel.tx.clone(),
@@ -3723,7 +3773,7 @@ mod tests {
     async fn test_on_admin_connect_accept() {
         let mut s = SessionSuite::setup_test().await;
         let (_, in_rx) = unbounded_channel::<FixIn>();
-        let (err_tx, _) = unbounded_channel::<Result<(), SimpleError>>();
+        let (err_tx, _) = unbounded_channel::<SimpleResult<()>>();
 
         let admin_message = Connect {
             message_out: s.ssr.receiver.send_channel.tx.clone(),
@@ -3754,7 +3804,7 @@ mod tests {
             s.ssr.incr_next_sender_msg_seq_num().await;
 
             let (_, in_rx) = unbounded_channel::<FixIn>();
-            let (err_tx, _) = unbounded_channel::<Result<(), SimpleError>>();
+            let (err_tx, _) = unbounded_channel::<SimpleResult<()>>();
 
             let admin_message = Connect {
                 message_out: s.ssr.receiver.send_channel.tx.clone(),

@@ -23,6 +23,7 @@ pub mod fix_utc_timestamp;
 pub mod internal;
 pub mod log;
 pub mod message;
+pub mod message_router;
 pub mod msg_type;
 pub mod parser;
 pub mod registry;

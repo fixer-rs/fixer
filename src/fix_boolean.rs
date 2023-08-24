@@ -1,5 +1,5 @@
 use crate::field::{FieldValue, FieldValueReader, FieldValueWriter};
-use simple_error::SimpleError;
+use simple_error::SimpleResult;
 
 // FIXBoolean is a FIX Boolean value, implements FieldValue.
 pub type FIXBoolean = bool;
@@ -15,7 +15,7 @@ impl FixBooleanTrait for FIXBoolean {
 }
 
 impl FieldValueReader for FIXBoolean {
-    fn read(&mut self, input: &[u8]) -> Result<(), SimpleError> {
+    fn read(&mut self, input: &[u8]) -> SimpleResult<()> {
         if input[0] as char == 'Y' {
             *self = true;
             return Ok(());

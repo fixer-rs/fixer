@@ -24,8 +24,6 @@ impl LogonState {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use crate::{
         errors::{MessageRejectErrorEnum, RejectLogon},
         field_map::FieldMap,
@@ -47,6 +45,7 @@ mod tests {
     };
     use chrono::Duration;
     use delegate::delegate;
+    use std::sync::Arc;
 
     struct SessionSuite {
         ssr: SessionSuiteRig,

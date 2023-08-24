@@ -9,8 +9,10 @@ use dashmap::DashMap;
 use once_cell::sync::Lazy;
 use simple_error::{SimpleError, SimpleResult};
 use std::sync::Arc;
-pub static SESSIONS: Lazy<DashMap<Arc<SessionID>, Session>> = Lazy::new(|| DashMap::new());
+use tokio::sync::Mutex;
 
+pub static SESSIONS: Lazy<DashMap<Arc<SessionID>, Arc<Mutex<Session>>>> =
+    Lazy::new(|| DashMap::new());
 pub static ERR_DUPLICATE_SESSION_ID: Lazy<SimpleError> =
     Lazy::new(|| simple_error!("Duplicate SessionID"));
 pub static ERR_UNKNOWN_SESSION: Lazy<SimpleError> = Lazy::new(|| simple_error!("Unknown session"));
@@ -50,28 +52,35 @@ pub async fn send_to_target(
     session_id: &Arc<SessionID>,
 ) -> Result<(), FixerError> {
     let msg = message.to_message();
-    let mut session = (*SESSIONS)
+    let session = (*SESSIONS)
         .get_mut(session_id)
         .ok_or(ERR_UNKNOWN_SESSION.clone())?;
 
-    session.queue_for_send(msg).await
+    let mut lock = session.lock().await;
+    lock.queue_for_send(msg).await
 }
 
 // unregister_session removes a session from the set of known sessions.
-pub fn unregister_session(session_id: Arc<SessionID>) -> SimpleResult<()> {
-    if (*SESSIONS).contains_key(&session_id) {
-        (*SESSIONS).remove(&session_id);
+pub fn unregister_session(session_id: &Arc<SessionID>) -> SimpleResult<()> {
+    if (*SESSIONS).contains_key(session_id) {
+        (*SESSIONS).remove(session_id);
         return Ok(());
     }
 
     Err(ERR_UNKNOWN_SESSION.clone())
 }
 
-pub fn register_session(s: Session) -> SimpleResult<()> {
-    if (*SESSIONS).contains_key(&s.session_id) {
+pub async fn register_session(s: Arc<Mutex<Session>>) -> SimpleResult<()> {
+    let session_id = s.lock().await.session_id.clone();
+    if (*SESSIONS).contains_key(&session_id) {
         return Err(ERR_DUPLICATE_SESSION_ID.clone());
     }
 
-    (*SESSIONS).insert(s.session_id.clone(), s);
+    (*SESSIONS).insert(session_id, s);
     Ok(())
+}
+
+pub fn lookup_session(session_id: &Arc<SessionID>) -> Option<Arc<Mutex<Session>>> {
+    let session = (*SESSIONS).get(session_id)?;
+    Some(session.clone())
 }
