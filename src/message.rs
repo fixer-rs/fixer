@@ -184,8 +184,8 @@ impl ToString for Message {
 }
 
 impl Messageable for Message {
-    fn to_message<'a>(&'a self) -> &'a Message {
-        &self
+    fn to_message(&self) -> &Message {
+        self
     }
 }
 
@@ -395,7 +395,7 @@ impl Message {
             .header
             .get_int(TAG_BODY_LENGTH)
             .map_err(|e| ParseError {
-                orig_error: format!("{}", e),
+                orig_error: e.to_string(),
             });
 
         if let Ok(bl) = body_length {

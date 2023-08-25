@@ -11,8 +11,7 @@ use simple_error::{SimpleError, SimpleResult};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-pub static SESSIONS: Lazy<DashMap<Arc<SessionID>, Arc<Mutex<Session>>>> =
-    Lazy::new(|| DashMap::new());
+pub static SESSIONS: Lazy<DashMap<Arc<SessionID>, Arc<Mutex<Session>>>> = Lazy::new(DashMap::new);
 pub static ERR_DUPLICATE_SESSION_ID: Lazy<SimpleError> =
     Lazy::new(|| simple_error!("Duplicate SessionID"));
 pub static ERR_UNKNOWN_SESSION: Lazy<SimpleError> = Lazy::new(|| simple_error!("Unknown session"));

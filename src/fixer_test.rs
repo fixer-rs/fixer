@@ -137,7 +137,7 @@ impl MessageStoreTrait for Store {
     }
 
     async fn get_messages(
-        &self,
+        &mut self,
         _begin_seq_num: isize,
         _end_seq_num: isize,
     ) -> SimpleResult<Vec<Vec<u8>>> {
@@ -205,7 +205,7 @@ impl MessageStoreTrait for MockStoreExtended {
     }
 
     async fn get_messages(
-        &self,
+        &mut self,
         begin_seq_num: isize,
         end_seq_num: isize,
     ) -> SimpleResult<Vec<Vec<u8>>> {
@@ -283,7 +283,7 @@ impl MessageStoreTrait for MockStoreShared {
     }
 
     async fn get_messages(
-        &self,
+        &mut self,
         begin_seq_num: isize,
         end_seq_num: isize,
     ) -> SimpleResult<Vec<Vec<u8>>> {
@@ -846,7 +846,7 @@ impl SessionSuiteRig {
             .is_ok());
     }
 
-    pub async fn no_message_persisted(&self, seq_num: isize) {
+    pub async fn no_message_persisted(&mut self, seq_num: isize) {
         let persisted_messages_result = self.session.store.get_messages(seq_num, seq_num).await;
         assert!(persisted_messages_result.is_ok());
         assert!(
@@ -855,7 +855,7 @@ impl SessionSuiteRig {
         );
     }
 
-    pub async fn message_persisted(&self, msg: &Message) {
+    pub async fn message_persisted(&mut self, msg: &mut Message) {
         let seq_num_result = msg.header.get_int(TAG_MSG_SEQ_NUM);
         assert!(seq_num_result.is_ok(), "message should have seq num");
 
