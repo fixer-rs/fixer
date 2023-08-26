@@ -436,7 +436,7 @@ impl Session {
         self.application
             .write()
             .await
-            .to_app(msg, &self.session_id)
+            .to_app(msg, self.session_id.clone())
             .is_ok()
     }
 
@@ -519,7 +519,7 @@ impl Session {
             self.application
                 .write()
                 .await
-                .to_admin(msg, &self.session_id);
+                .to_admin(msg, self.session_id.clone());
 
             if msg_type == MSG_TYPE_LOGON {
                 let mut reset_seq_num_flag = FIXBoolean::default();
@@ -540,7 +540,7 @@ impl Session {
             self.application
                 .write()
                 .await
-                .to_app(msg, &self.session_id)?;
+                .to_app(msg, self.session_id.clone())?;
         }
 
         let msg_bytes = msg.build();
@@ -713,7 +713,10 @@ impl Session {
             (1.2_f64 * (self.iss.heart_bt_int.num_nanoseconds().unwrap() as f64)).round() as u64;
 
         self.peer_timer.reset(Duration::from_nanos(duration)).await;
-        self.application.write().await.on_logon(&self.session_id);
+        self.application
+            .write()
+            .await
+            .on_logon(self.session_id.clone());
 
         self.check_target_too_high(msg).await?;
 
@@ -796,13 +799,13 @@ impl Session {
                 .application
                 .write()
                 .await
-                .from_admin(msg, &self.session_id);
+                .from_admin(msg, self.session_id.clone());
         }
 
         self.application
             .write()
             .await
-            .from_app(msg, &self.session_id)
+            .from_app(msg, self.session_id.clone())
     }
 
     async fn check_target_too_low(&mut self, msg: &Message) -> MessageRejectErrorResult {
@@ -1319,7 +1322,10 @@ impl Session {
         }
 
         if do_on_logout {
-            self.application.write().await.on_logout(&self.session_id);
+            self.application
+                .write()
+                .await
+                .on_logout(self.session_id.clone());
         }
         self.on_disconnect().await;
     }
@@ -1818,7 +1824,7 @@ impl Session {
         self.application
             .write()
             .await
-            .to_admin(&sequence_reset, &self.session_id);
+            .to_admin(&sequence_reset, self.session_id.clone());
 
         let msg_bytes = sequence_reset.build();
 
@@ -2171,7 +2177,6 @@ mod tests {
         message::Message,
         msg_type::{MSG_TYPE_LOGON, MSG_TYPE_LOGOUT},
         session::{
-            session_id::SessionID,
             session_state::{SessionState, SessionStateEnum},
             AdminEnum, Connect, FixIn, StopReq,
         },
@@ -4194,7 +4199,7 @@ mod tests {
         let mut s = SessionSendTestSuite::setup_test().await;
         s.ssr
             .mock_app
-            .to_admin(&Message::default(), &SessionID::default());
+            .to_admin(&Message::default(), s.ssr.session.session_id.clone());
         assert!(s
             .ssr
             .session

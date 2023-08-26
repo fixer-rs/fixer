@@ -25,7 +25,7 @@ pub static SETTING_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^([^=]*)=(.*)$
 #[derive(Default, Debug)]
 pub struct Settings {
     global_settings: Arc<RwLock<Option<SessionSettings>>>,
-    session_settings: HashMap<Arc<SessionID>, SessionSettings>, // TODO: convert this to &SessionID
+    session_settings: HashMap<Arc<SessionID>, SessionSettings>,
 }
 
 impl Settings {
