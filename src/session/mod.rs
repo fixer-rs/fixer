@@ -238,11 +238,11 @@ impl Session {
         let _ = self.admin.tx.send(AdminEnum::StopReq(StopReq));
     }
 
-    async fn stop(&self) {
+    pub(crate) async fn stop(&self) {
         self.stop_once.get_or_init(|| self.send_stop_req()).await;
     }
 
-    async fn wait_for_in_session_time(&self) {
+    pub(crate) async fn wait_for_in_session_time(&self) {
         let (tx, mut rx) = unbounded_channel::<WaitChan>();
 
         let _ = self
@@ -1039,7 +1039,7 @@ impl Session {
     }
 
     // TODO: use tokio::spawn instead of tokio::select! in order to run parallelly
-    async fn run(&mut self) {
+    pub(crate) async fn run(&mut self) {
         self.sm_start().await;
         let tx = self.session_event.tx.clone();
 

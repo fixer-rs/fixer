@@ -19,6 +19,7 @@ use crate::{
         time_range::{TimeOfDay, TimeRange},
     },
     log::{LogFactoryTrait, LogTrait},
+    net::host_and_port_to_addr,
     registry::register_session,
     session::{
         session_id::SessionID,
@@ -31,18 +32,11 @@ use crate::{
     BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIX42, BEGIN_STRING_FIX43,
     BEGIN_STRING_FIX44,
 };
-use addr::parse_domain_name;
 use chrono::{offset::Offset, Duration, FixedOffset, Local, TimeZone, Weekday};
 use chrono_tz::Tz;
 use once_cell::sync::Lazy;
 use simple_error::{SimpleError, SimpleResult};
-use std::{
-    collections::HashMap,
-    net::{IpAddr, SocketAddr, SocketAddrV4, SocketAddrV6},
-    ops::Deref,
-    str::FromStr,
-    sync::Arc,
-};
+use std::{collections::HashMap, ops::Deref, sync::Arc};
 use tokio::sync::{
     mpsc::{channel, unbounded_channel},
     Mutex,
@@ -520,25 +514,8 @@ impl SessionFactory {
                 atoi_simd::parse::<u16>(socket_connect_port_string.as_bytes())
                     .map_err(SimpleError::from)?;
 
-            let host_ip = IpAddr::from_str(socket_connect_host_string.as_str());
-
-            let socket_connect_address_result: Result<String, SimpleError> = match host_ip {
-                Ok(ip_addr) => {
-                    let socket = match ip_addr {
-                        IpAddr::V4(ip) => {
-                            SocketAddr::V4(SocketAddrV4::new(ip, socket_connect_port))
-                        }
-                        IpAddr::V6(ip) => {
-                            SocketAddr::V6(SocketAddrV6::new(ip, socket_connect_port, 0, 0))
-                        }
-                    };
-                    Ok(format!("{}", socket))
-                }
-                Err(_) => match parse_domain_name(socket_connect_host_string.as_str()) {
-                    Ok(name) => Ok(format!("{}:{}", name.as_str(), socket_connect_port)),
-                    Err(err) => Err(SimpleError::from(err)),
-                },
-            };
+            let socket_connect_address_result =
+                host_and_port_to_addr(socket_connect_host_string.as_str(), socket_connect_port);
             if let Err(err) = socket_connect_address_result {
                 return Err(err);
             }

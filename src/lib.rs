@@ -18,7 +18,6 @@ pub mod fix_float;
 pub mod fix_int;
 pub mod fix_string;
 pub mod fix_utc_timestamp;
-pub mod initiator;
 pub mod internal;
 pub mod log;
 pub mod message;
@@ -34,6 +33,9 @@ pub mod store;
 pub mod tag;
 pub mod tag_value;
 pub mod validation;
+
+pub mod acceptor;
+pub mod initiator;
 
 #[cfg(test)]
 pub mod fixer_test;

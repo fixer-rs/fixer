@@ -1,5 +1,5 @@
 use crate::field::{FieldValue, FieldValueReader, FieldValueWriter};
-use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
+use chrono::{DateTime, NaiveDateTime, Utc};
 use simple_error::SimpleResult;
 
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
