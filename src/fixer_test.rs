@@ -30,7 +30,7 @@ use mockall::*;
 use simple_error::{SimpleError, SimpleResult};
 use std::sync::Arc;
 use tokio::sync::{
-    mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
+    mpsc::{channel, unbounded_channel, UnboundedReceiver, UnboundedSender},
     Mutex,
 };
 use tokio::time::timeout;
@@ -316,7 +316,7 @@ impl NewMockMemory for MockStoreShared {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct App {}
 
 #[automock]
@@ -675,7 +675,7 @@ impl SessionSuiteRig {
 
         let (_, message_in_rx) = unbounded_channel::<FixIn>();
         let (session_event_tx, session_event_rx) = unbounded_channel::<Event>();
-        let (message_event_tx, message_event_rx) = unbounded_channel::<bool>();
+        let (message_event_tx, message_event_rx) = channel::<bool>(1);
         let (admin_tx, admin_rx) = unbounded_channel::<AdminEnum>();
 
         let max_latency_duration = Duration::seconds(120);

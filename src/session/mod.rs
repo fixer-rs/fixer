@@ -1,5 +1,5 @@
 #[cfg(test)]
-use crate::application::DummyApplication;
+use crate::fixer_test::MockApp;
 use crate::{
     application::Application,
     datadictionary::DataDictionary,
@@ -48,16 +48,19 @@ use async_recursion::async_recursion;
 use chrono::{DateTime, Duration as ChronoDuration, FixedOffset, Utc};
 use simple_error::SimpleResult;
 use std::sync::Arc;
+#[cfg(test)]
+use tokio::sync::mpsc::channel;
 use tokio::sync::{
-    mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
+    mpsc::{unbounded_channel, Receiver, Sender, UnboundedReceiver, UnboundedSender},
     Mutex, OnceCell,
 };
 use tokio::time::{interval, sleep, Duration};
 
 // session main
+pub mod factory;
 pub mod session_id;
-pub mod session_settings;
 pub mod session_state;
+pub mod settings;
 
 // states
 pub mod in_session;
@@ -69,8 +72,8 @@ pub mod pending_timeout;
 pub mod resend_state;
 
 pub struct MessageEvent {
-    pub tx: UnboundedSender<bool>,
-    pub rx: UnboundedReceiver<bool>,
+    pub tx: Sender<bool>,
+    pub rx: Receiver<bool>,
 }
 
 impl MessageEvent {
@@ -137,7 +140,7 @@ impl Default for Session {
     fn default() -> Self {
         let (message_out_tx, _) = unbounded_channel::<Vec<u8>>();
         let (admin_tx, admin_rx) = unbounded_channel::<AdminEnum>();
-        let (message_event_tx, message_event_rx) = unbounded_channel::<bool>();
+        let (message_event_tx, message_event_rx) = channel::<bool>(1);
         let (_, message_in_rx) = unbounded_channel::<FixIn>();
         let (session_event_tx, session_event_rx) = unbounded_channel::<Event>();
         Session {
@@ -155,7 +158,7 @@ impl Default for Session {
                 tx: message_event_tx,
                 rx: message_event_rx,
             },
-            application: Arc::new(Mutex::new(DummyApplication::new())),
+            application: Arc::new(Mutex::new(MockApp::new())),
             validator: Some(ValidatorEnum::default()),
             sm: StateMachine {
                 state: SessionStateEnum::new_not_session_time(),

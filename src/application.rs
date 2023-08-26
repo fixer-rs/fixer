@@ -30,11 +30,10 @@ pub trait Application: Send + Sync {
     fn from_app(&mut self, msg: &Message, session_id: Arc<SessionID>) -> MessageRejectErrorResult;
 }
 
-#[cfg(test)]
-pub struct DummyApplication {}
+pub struct NOPApp {}
 
 #[cfg(test)]
-impl Application for DummyApplication {
+impl Application for NOPApp {
     fn on_create(&mut self, _session_id: Arc<SessionID>) {}
 
     fn on_logon(&mut self, _session_id: Arc<SessionID>) {}
@@ -64,9 +63,8 @@ impl Application for DummyApplication {
     }
 }
 
-#[cfg(test)]
-impl DummyApplication {
+impl NOPApp {
     pub fn new() -> Self {
-        DummyApplication {}
+        NOPApp {}
     }
 }

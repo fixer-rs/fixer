@@ -61,6 +61,7 @@ impl LogTrait for ScreenLog {
     }
 }
 
+#[derive(Clone)]
 pub struct ScreenLogFactory {}
 
 impl ScreenLogFactory {

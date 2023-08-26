@@ -64,9 +64,16 @@ impl Default for MessageStoreEnum {
 }
 
 #[enum_dispatch(MessageStoreFactoryTrait)]
+#[derive(Clone)]
 pub enum MessageStoreFactoryEnum {
     MemoryStoreFactory,
     FileStoreFactory,
+}
+
+impl Default for MessageStoreFactoryEnum {
+    fn default() -> Self {
+        MemoryStoreFactory::new()
+    }
 }
 
 #[derive(Default)]
@@ -161,6 +168,7 @@ impl MessageStoreTrait for MemoryStore {
     }
 }
 
+#[derive(Clone)]
 pub struct MemoryStoreFactory;
 
 #[async_trait]

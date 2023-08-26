@@ -85,7 +85,7 @@ impl FileLog {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct FileLogFactory {
     global_log_path: String,
     session_log_paths: HashMap<Arc<SessionID>, String>,

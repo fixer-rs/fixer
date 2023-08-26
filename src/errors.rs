@@ -1,5 +1,5 @@
 use crate::message::ParseError;
-use crate::session::session_settings::{ConditionallyRequiredSetting, IncorrectFormatForSetting};
+use crate::session::settings::{ConditionallyRequiredSetting, IncorrectFormatForSetting};
 use crate::tag::Tag;
 use delegate::delegate;
 use enum_dispatch::enum_dispatch;
@@ -457,6 +457,12 @@ impl Display for FixerError {
         } {
             fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult;
         }
+    }
+}
+
+impl From<FixerError> for SimpleError {
+    fn from(err: FixerError) -> SimpleError {
+        SimpleError::from(err)
     }
 }
 

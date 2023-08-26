@@ -38,13 +38,13 @@ impl Error for IncorrectFormatForSetting {}
 // SessionSettings maps session settings to values with typed accessors.
 #[derive(Default, Debug, PartialEq, Eq, Clone)]
 pub struct SessionSettings {
-    settings: HashMap<String, String>,
+    pub(crate) settings: HashMap<String, String>,
 }
 
 impl SessionSettings {
     // new returns a newly initialized SessionSettings instance
     pub fn new() -> Self {
-        SessionSettings {
+        Self {
             settings: hashmap! {},
         }
     }
@@ -116,7 +116,7 @@ impl SessionSettings {
         self.settings.clear();
     }
 
-    pub fn overlay(&mut self, overlay: &SessionSettings) {
+    pub fn overlay(&mut self, overlay: &Self) {
         for (k, v) in overlay.settings.iter() {
             let _ = self.settings.insert(k.clone(), v.clone());
         }
@@ -125,8 +125,7 @@ impl SessionSettings {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::config;
+    use crate::{config, session::settings::SessionSettings};
 
     #[test]
     fn test_session_settings_string_settings() {
