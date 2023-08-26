@@ -65,6 +65,12 @@ impl Display for MessageRejectErrorEnum {
     }
 }
 
+impl From<MessageRejectErrorEnum> for SimpleError {
+    fn from(err: MessageRejectErrorEnum) -> SimpleError {
+        SimpleError::from(err)
+    }
+}
+
 // RejectLogon indicates the application is rejecting permission to logon. Implements MessageRejectError
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RejectLogon {
