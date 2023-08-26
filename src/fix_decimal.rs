@@ -1,6 +1,6 @@
 use crate::field::{FieldValue, FieldValueReader, FieldValueWriter};
 use rust_decimal::Decimal;
-use simple_error::SimpleResult;
+use simple_error::{SimpleError, SimpleResult};
 
 // FIXDecimal is a FIX Float Value that implements an arbitrary precision fixed-point decimal.  Implements FieldValue
 pub struct FIXDecimal {
@@ -10,8 +10,8 @@ pub struct FIXDecimal {
 
 impl FieldValueReader for FIXDecimal {
     fn read(&mut self, input: &[u8]) -> SimpleResult<()> {
-        let fix_decimal = Decimal::from_str_exact(&String::from_utf8_lossy(input))
-            .map_err(|err| simple_error!("{}", err))?;
+        let fix_decimal =
+            Decimal::from_str_exact(&String::from_utf8_lossy(input)).map_err(SimpleError::from)?;
         self.decimal = fix_decimal;
         Ok(())
     }

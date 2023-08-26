@@ -1,10 +1,9 @@
 use crate::field::{FieldValue, FieldValueReader, FieldValueWriter};
-use simple_error::SimpleResult;
+use simple_error::{SimpleError, SimpleResult};
 
-//-
 const ASCII_MINUS: u8 = 45;
 
-//atoi is similar to the function in strconv, but is tuned for ints appearing in FIX field types.
+// atoi is similar to the function in strconv, but is tuned for ints appearing in FIX field types.
 pub fn atoi(d: &[u8]) -> SimpleResult<isize> {
     if d[0] == ASCII_MINUS {
         return parse_int(&d[1..]).map(|res| -res);
@@ -12,13 +11,13 @@ pub fn atoi(d: &[u8]) -> SimpleResult<isize> {
     parse_int(d)
 }
 
-//parse_uint is similar to the function in strconv, but is tuned for ints appearing in FIX field types.
+// parse_int is similar to the function in strconv, but is tuned for ints appearing in FIX field types.
 fn parse_int(d: &[u8]) -> SimpleResult<isize> {
     if d.is_empty() {
         return Err(simple_error!("empty bytes"));
     }
 
-    atoi_simd::parse::<isize>(d).map_err(|_| simple_error!("invalid format"))
+    atoi_simd::parse::<isize>(d).map_err(SimpleError::from)
 }
 
 // FIXInt is a FIX Int Value, implements FieldValue
@@ -36,7 +35,7 @@ impl FIXIntTrait for FIXInt {
 
 impl FieldValueReader for FIXInt {
     fn read(&mut self, input: &[u8]) -> SimpleResult<()> {
-        let f = atoi_simd::parse::<isize>(input).map_err(|err| simple_error!("{}", err))?;
+        let f = atoi_simd::parse::<isize>(input).map_err(SimpleError::from)?;
 
         *self = f;
 

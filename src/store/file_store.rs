@@ -10,7 +10,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use chrono::{DateTime, TimeZone, Utc};
-use simple_error::SimpleResult;
+use simple_error::{SimpleError, SimpleResult};
 // TODO: check windows os
 use sscanf::sscanf;
 use std::{
@@ -565,12 +565,12 @@ impl MessageStoreFactoryTrait for FileStoreFactory {
 
         let dirname = session_settings
             .setting(FILE_STORE_PATH)
-            .map_err(|err| simple_error!("{}", &err))?;
+            .map_err(SimpleError::from)?;
 
         let fsync = if session_settings.has_setting(FILE_STORE_SYNC) {
             session_settings
                 .bool_setting(FILE_STORE_SYNC)
-                .map_err(|err| simple_error!("{}", &err))?
+                .map_err(SimpleError::from)?
         } else {
             true
         };
