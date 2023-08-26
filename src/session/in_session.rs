@@ -92,7 +92,7 @@ mod tests {
         s.ssr.last_to_admin_message_sent().await;
         s.message_type(
             String::from_utf8_lossy(MSG_TYPE_LOGOUT).to_string(),
-            s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap(),
+            s.ssr.mock_app.lock().await.last_to_admin.as_ref().unwrap(),
         );
         s.ssr.next_sender_msg_seq_num(2).await;
         s.ssr.next_target_msg_seq_num(2).await;
@@ -109,14 +109,14 @@ mod tests {
 
         s.message_type(
             String::from_utf8_lossy(MSG_TYPE_LOGOUT).to_string(),
-            s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap(),
+            s.ssr.mock_app.lock().await.last_to_admin.as_ref().unwrap(),
         );
         s.field_equals(
             TAG_LAST_MSG_SEQ_NUM_PROCESSED,
             FieldEqual::Num(1),
             &s.ssr
                 .mock_app
-                .read()
+                .lock()
                 .await
                 .last_to_admin
                 .as_ref()
@@ -141,7 +141,7 @@ mod tests {
         s.ssr.last_to_admin_message_sent().await;
         s.message_type(
             String::from_utf8_lossy(MSG_TYPE_LOGOUT).to_string(),
-            s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap(),
+            s.ssr.mock_app.lock().await.last_to_admin.as_ref().unwrap(),
         );
 
         s.ssr.next_target_msg_seq_num(1).await;
@@ -158,7 +158,7 @@ mod tests {
         s.ssr.last_to_admin_message_sent().await;
         s.message_type(
             String::from_utf8_lossy(MSG_TYPE_HEARTBEAT).to_string(),
-            s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap(),
+            s.ssr.mock_app.lock().await.last_to_admin.as_ref().unwrap(),
         );
         s.ssr.next_sender_msg_seq_num(2).await;
     }
@@ -173,7 +173,7 @@ mod tests {
         s.ssr.last_to_admin_message_sent().await;
         s.message_type(
             String::from_utf8_lossy(MSG_TYPE_TEST_REQUEST).to_string(),
-            s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap(),
+            s.ssr.mock_app.lock().await.last_to_admin.as_ref().unwrap(),
         );
         s.ssr.next_sender_msg_seq_num(2).await;
     }
@@ -194,7 +194,7 @@ mod tests {
         s.ssr.last_to_admin_message_sent().await;
         s.message_type(
             String::from_utf8_lossy(MSG_TYPE_LOGOUT).to_string(),
-            s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap(),
+            s.ssr.mock_app.lock().await.last_to_admin.as_ref().unwrap(),
         );
 
         let event = s.ssr.session.session_event.rx.recv().await.unwrap();
@@ -215,14 +215,14 @@ mod tests {
         s.ssr.last_to_admin_message_sent().await;
         s.message_type(
             String::from_utf8_lossy(MSG_TYPE_RESEND_REQUEST).to_string(),
-            s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap(),
+            s.ssr.mock_app.lock().await.last_to_admin.as_ref().unwrap(),
         );
         s.field_equals(
             TAG_LAST_MSG_SEQ_NUM_PROCESSED,
             FieldEqual::Num(0),
             &s.ssr
                 .mock_app
-                .read()
+                .lock()
                 .await
                 .last_to_admin
                 .as_ref()
@@ -243,14 +243,14 @@ mod tests {
         s.ssr.last_to_admin_message_sent().await;
         s.message_type(
             String::from_utf8_lossy(MSG_TYPE_RESEND_REQUEST).to_string(),
-            s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap(),
+            s.ssr.mock_app.lock().await.last_to_admin.as_ref().unwrap(),
         );
         s.field_equals(
             TAG_BEGIN_SEQ_NO,
             FieldEqual::Num(1),
             &s.ssr
                 .mock_app
-                .read()
+                .lock()
                 .await
                 .last_to_admin
                 .as_ref()
@@ -263,7 +263,7 @@ mod tests {
             FieldEqual::Num(0),
             &s.ssr
                 .mock_app
-                .read()
+                .lock()
                 .await
                 .last_to_admin
                 .as_ref()
@@ -332,14 +332,14 @@ mod tests {
             s.ssr.last_to_admin_message_sent().await;
             s.message_type(
                 String::from_utf8_lossy(MSG_TYPE_RESEND_REQUEST).to_string(),
-                s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap(),
+                s.ssr.mock_app.lock().await.last_to_admin.as_ref().unwrap(),
             );
             s.field_equals(
                 TAG_BEGIN_SEQ_NO,
                 FieldEqual::Num(1),
                 &s.ssr
                     .mock_app
-                    .read()
+                    .lock()
                     .await
                     .last_to_admin
                     .as_ref()
@@ -352,7 +352,7 @@ mod tests {
                 FieldEqual::Num(test.expected_end_seq_no),
                 &s.ssr
                     .mock_app
-                    .read()
+                    .lock()
                     .await
                     .last_to_admin
                     .as_ref()
@@ -399,7 +399,7 @@ mod tests {
         s.ssr.session.sm_timeout(NEED_HEARTBEAT).await;
         s.ssr.last_to_admin_message_sent().await;
 
-        s.ssr.mock_app.write().await.mock_app.checkpoint();
+        s.ssr.mock_app.lock().await.mock_app.checkpoint();
         s.ssr.next_sender_msg_seq_num(4).await;
 
         let mut session_id = (*s.ssr.session.session_id).clone();
@@ -414,14 +414,14 @@ mod tests {
         s.ssr.last_to_admin_message_sent().await;
         s.message_type(
             String::from_utf8_lossy(MSG_TYPE_SEQUENCE_RESET).to_string(),
-            s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap(),
+            s.ssr.mock_app.lock().await.last_to_admin.as_ref().unwrap(),
         );
         s.field_equals(
             TAG_MSG_SEQ_NUM,
             FieldEqual::Num(1),
             &s.ssr
                 .mock_app
-                .read()
+                .lock()
                 .await
                 .last_to_admin
                 .as_ref()
@@ -434,7 +434,7 @@ mod tests {
             FieldEqual::Bool(true),
             &s.ssr
                 .mock_app
-                .read()
+                .lock()
                 .await
                 .last_to_admin
                 .as_ref()
@@ -447,7 +447,7 @@ mod tests {
             FieldEqual::Num(4),
             &s.ssr
                 .mock_app
-                .read()
+                .lock()
                 .await
                 .last_to_admin
                 .as_ref()
@@ -460,7 +460,7 @@ mod tests {
             FieldEqual::Bool(true),
             &s.ssr
                 .mock_app
-                .read()
+                .lock()
                 .await
                 .last_to_admin
                 .as_ref()
@@ -497,7 +497,7 @@ mod tests {
             .is_ok());
         s.ssr.last_to_app_message_sent().await;
         // 2 calls for to_admin, 1 call for to_app
-        s.ssr.mock_app.write().await.mock_app.checkpoint();
+        s.ssr.mock_app.lock().await.mock_app.checkpoint();
         s.ssr.next_sender_msg_seq_num(4).await;
 
         s.ssr.mock_app.set_to_admin(1);
@@ -508,19 +508,19 @@ mod tests {
             .await;
 
         // 1 calls for to_admin, 1 calls for to_app
-        s.ssr.mock_app.write().await.mock_app.checkpoint();
+        s.ssr.mock_app.lock().await.mock_app.checkpoint();
 
         s.ssr.last_to_admin_message_sent().await;
         s.message_type(
             String::from_utf8_lossy(MSG_TYPE_SEQUENCE_RESET).to_string(),
-            s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap(),
+            s.ssr.mock_app.lock().await.last_to_admin.as_ref().unwrap(),
         );
         s.field_equals(
             TAG_MSG_SEQ_NUM,
             FieldEqual::Num(1),
             &s.ssr
                 .mock_app
-                .read()
+                .lock()
                 .await
                 .last_to_admin
                 .as_ref()
@@ -533,7 +533,7 @@ mod tests {
             FieldEqual::Bool(true),
             &s.ssr
                 .mock_app
-                .read()
+                .lock()
                 .await
                 .last_to_admin
                 .as_ref()
@@ -546,7 +546,7 @@ mod tests {
             FieldEqual::Num(3),
             &s.ssr
                 .mock_app
-                .read()
+                .lock()
                 .await
                 .last_to_admin
                 .as_ref()
@@ -559,7 +559,7 @@ mod tests {
             FieldEqual::Bool(true),
             &s.ssr
                 .mock_app
-                .read()
+                .lock()
                 .await
                 .last_to_admin
                 .as_ref()
@@ -571,7 +571,7 @@ mod tests {
         s.ssr.last_to_app_message_sent().await;
         s.message_type(
             "D".to_string(),
-            s.ssr.mock_app.read().await.last_to_app.as_ref().unwrap(),
+            s.ssr.mock_app.lock().await.last_to_app.as_ref().unwrap(),
         );
 
         s.field_equals(
@@ -579,7 +579,7 @@ mod tests {
             FieldEqual::Num(3),
             &s.ssr
                 .mock_app
-                .read()
+                .lock()
                 .await
                 .last_to_app
                 .as_ref()
@@ -592,7 +592,7 @@ mod tests {
             FieldEqual::Bool(true),
             &s.ssr
                 .mock_app
-                .read()
+                .lock()
                 .await
                 .last_to_app
                 .as_ref()
@@ -623,7 +623,7 @@ mod tests {
         s.ssr.last_to_app_message_sent().await;
 
         // 1 call of to_app
-        s.ssr.mock_app.write().await.mock_app.checkpoint();
+        s.ssr.mock_app.lock().await.mock_app.checkpoint();
         s.ssr.next_sender_msg_seq_num(2).await;
 
         s.ssr.mock_app.set_to_admin(1);
@@ -632,19 +632,19 @@ mod tests {
             .sm_fix_msg_in(&mut s.ssr.message_factory.resend_request(1))
             .await;
         // 1 call of to_admin
-        s.ssr.mock_app.write().await.mock_app.checkpoint();
+        s.ssr.mock_app.lock().await.mock_app.checkpoint();
 
         s.ssr.last_to_admin_message_sent().await;
         s.message_type(
             String::from_utf8_lossy(MSG_TYPE_SEQUENCE_RESET).to_string(),
-            s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap(),
+            s.ssr.mock_app.lock().await.last_to_admin.as_ref().unwrap(),
         );
         s.field_equals(
             TAG_MSG_SEQ_NUM,
             FieldEqual::Num(1),
             &s.ssr
                 .mock_app
-                .read()
+                .lock()
                 .await
                 .last_to_admin
                 .as_ref()
@@ -657,7 +657,7 @@ mod tests {
             FieldEqual::Bool(true),
             &s.ssr
                 .mock_app
-                .read()
+                .lock()
                 .await
                 .last_to_admin
                 .as_ref()
@@ -670,7 +670,7 @@ mod tests {
             FieldEqual::Num(2),
             &s.ssr
                 .mock_app
-                .read()
+                .lock()
                 .await
                 .last_to_admin
                 .as_ref()
@@ -683,7 +683,7 @@ mod tests {
             FieldEqual::Bool(true),
             &s.ssr
                 .mock_app
-                .read()
+                .lock()
                 .await
                 .last_to_admin
                 .as_ref()
@@ -720,7 +720,7 @@ mod tests {
         s.ssr.last_to_admin_message_sent().await;
 
         // 2 calls of to_admin, 1 call of to_app
-        s.ssr.mock_app.write().await.mock_app.checkpoint();
+        s.ssr.mock_app.lock().await.mock_app.checkpoint();
         s.ssr.next_sender_msg_seq_num(4).await;
 
         // NOTE: a cheat here, need to reset mock.
@@ -737,19 +737,19 @@ mod tests {
             .await;
 
         // 1 call of to_admin, 1 call of to_app
-        s.ssr.mock_app.write().await.mock_app.checkpoint();
+        s.ssr.mock_app.lock().await.mock_app.checkpoint();
 
         s.ssr.last_to_admin_message_sent().await;
         s.message_type(
             String::from_utf8_lossy(MSG_TYPE_SEQUENCE_RESET).to_string(),
-            s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap(),
+            s.ssr.mock_app.lock().await.last_to_admin.as_ref().unwrap(),
         );
         s.field_equals(
             TAG_MSG_SEQ_NUM,
             FieldEqual::Num(1),
             &s.ssr
                 .mock_app
-                .read()
+                .lock()
                 .await
                 .last_to_admin
                 .as_ref()
@@ -762,7 +762,7 @@ mod tests {
             FieldEqual::Bool(true),
             &s.ssr
                 .mock_app
-                .read()
+                .lock()
                 .await
                 .last_to_admin
                 .as_ref()
@@ -775,7 +775,7 @@ mod tests {
             FieldEqual::Num(4),
             &s.ssr
                 .mock_app
-                .read()
+                .lock()
                 .await
                 .last_to_admin
                 .as_ref()
@@ -788,7 +788,7 @@ mod tests {
             FieldEqual::Bool(true),
             &s.ssr
                 .mock_app
-                .read()
+                .lock()
                 .await
                 .last_to_admin
                 .as_ref()
@@ -814,14 +814,14 @@ mod tests {
         s.ssr.last_to_admin_message_sent().await;
         s.message_type(
             String::from_utf8_lossy(MSG_TYPE_LOGOUT).to_string(),
-            s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap(),
+            s.ssr.mock_app.lock().await.last_to_admin.as_ref().unwrap(),
         );
         s.field_equals(
             TAG_TEXT,
             FieldEqual::Str("MsgSeqNum too low, expecting 2 but received 1"),
             &s.ssr
                 .mock_app
-                .read()
+                .lock()
                 .await
                 .last_to_admin
                 .as_ref()
@@ -845,14 +845,14 @@ mod tests {
         s.ssr.last_to_admin_message_sent().await;
         s.message_type(
             String::from_utf8_lossy(MSG_TYPE_REJECT).to_string(),
-            s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap(),
+            s.ssr.mock_app.lock().await.last_to_admin.as_ref().unwrap(),
         );
         s.field_equals(
             TAG_TEXT,
             FieldEqual::Str("Required tag missing"),
             &s.ssr
                 .mock_app
-                .read()
+                .lock()
                 .await
                 .last_to_admin
                 .as_ref()
@@ -865,7 +865,7 @@ mod tests {
             FieldEqual::Num(TAG_ORIG_SENDING_TIME),
             &s.ssr
                 .mock_app
-                .read()
+                .lock()
                 .await
                 .last_to_admin
                 .as_ref()

@@ -31,7 +31,7 @@ use simple_error::{SimpleError, SimpleResult};
 use std::sync::Arc;
 use tokio::sync::{
     mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
-    RwLock,
+    Mutex,
 };
 use tokio::time::timeout;
 
@@ -229,46 +229,46 @@ impl MessageStoreTrait for MockStoreExtended {
     }
 }
 
-pub type MockStoreShared = Arc<RwLock<MockStoreExtended>>;
+pub type MockStoreShared = Arc<Mutex<MockStoreExtended>>;
 
 #[async_trait]
 impl MessageStoreTrait for MockStoreShared {
     async fn next_sender_msg_seq_num(&mut self) -> isize {
-        self.write().await.next_sender_msg_seq_num().await
+        self.lock().await.next_sender_msg_seq_num().await
     }
 
     async fn next_target_msg_seq_num(&mut self) -> isize {
-        self.write().await.next_target_msg_seq_num().await
+        self.lock().await.next_target_msg_seq_num().await
     }
 
     async fn incr_next_sender_msg_seq_num(&mut self) -> SimpleResult<()> {
-        self.write().await.incr_next_sender_msg_seq_num().await
+        self.lock().await.incr_next_sender_msg_seq_num().await
     }
 
     async fn incr_next_target_msg_seq_num(&mut self) -> SimpleResult<()> {
-        self.write().await.incr_next_target_msg_seq_num().await
+        self.lock().await.incr_next_target_msg_seq_num().await
     }
 
     async fn set_next_sender_msg_seq_num(&mut self, next_seq_num: isize) -> SimpleResult<()> {
-        self.write()
+        self.lock()
             .await
             .set_next_sender_msg_seq_num(next_seq_num)
             .await
     }
 
     async fn set_next_target_msg_seq_num(&mut self, next_seq_num: isize) -> SimpleResult<()> {
-        self.write()
+        self.lock()
             .await
             .set_next_target_msg_seq_num(next_seq_num)
             .await
     }
 
     async fn creation_time(&self) -> DateTime<Utc> {
-        self.write().await.creation_time().await
+        self.lock().await.creation_time().await
     }
 
     async fn save_message(&mut self, seq_num: isize, msg: Vec<u8>) -> SimpleResult<()> {
-        self.write().await.save_message(seq_num, msg).await
+        self.lock().await.save_message(seq_num, msg).await
     }
 
     async fn save_message_and_incr_next_sender_msg_seq_num(
@@ -276,7 +276,7 @@ impl MessageStoreTrait for MockStoreShared {
         seq_num: isize,
         msg: Vec<u8>,
     ) -> SimpleResult<()> {
-        self.write()
+        self.lock()
             .await
             .save_message_and_incr_next_sender_msg_seq_num(seq_num, msg)
             .await
@@ -287,22 +287,22 @@ impl MessageStoreTrait for MockStoreShared {
         begin_seq_num: isize,
         end_seq_num: isize,
     ) -> SimpleResult<Vec<Vec<u8>>> {
-        self.write()
+        self.lock()
             .await
             .get_messages(begin_seq_num, end_seq_num)
             .await
     }
 
     async fn refresh(&mut self) -> SimpleResult<()> {
-        self.write().await.refresh().await
+        self.lock().await.refresh().await
     }
 
     async fn reset(&mut self) -> SimpleResult<()> {
-        self.write().await.reset().await
+        self.lock().await.reset().await
     }
 
     async fn close(&mut self) -> SimpleResult<()> {
-        self.write().await.close().await
+        self.lock().await.close().await
     }
 }
 
@@ -312,7 +312,7 @@ pub trait NewMockMemory {
 
 impl NewMockMemory for MockStoreShared {
     fn new_mock_store(mock_store_extended: MockStoreExtended) -> Self {
-        Arc::new(RwLock::new(mock_store_extended))
+        Arc::new(Mutex::new(mock_store_extended))
     }
 }
 
@@ -447,27 +447,27 @@ impl Application for MockAppExtended {
     }
 }
 
-type MockAppShared = Arc<RwLock<MockAppExtended>>;
+type MockAppShared = Arc<Mutex<MockAppExtended>>;
 
 impl Application for MockAppShared {
     fn on_create(&mut self, session_id: Arc<SessionID>) {
-        self.try_write().unwrap().on_create(session_id)
+        self.try_lock().unwrap().on_create(session_id)
     }
 
     fn on_logon(&mut self, session_id: Arc<SessionID>) {
-        self.try_write().unwrap().on_logon(session_id)
+        self.try_lock().unwrap().on_logon(session_id)
     }
 
     fn on_logout(&mut self, session_id: Arc<SessionID>) {
-        self.try_write().unwrap().on_logout(session_id)
+        self.try_lock().unwrap().on_logout(session_id)
     }
 
     fn to_admin(&mut self, msg: &Message, session_id: Arc<SessionID>) {
-        self.try_write().unwrap().to_admin(msg, session_id)
+        self.try_lock().unwrap().to_admin(msg, session_id)
     }
 
     fn to_app(&mut self, msg: &Message, session_id: Arc<SessionID>) -> SimpleResult<()> {
-        self.try_write().unwrap().to_app(msg, session_id)
+        self.try_lock().unwrap().to_app(msg, session_id)
     }
 
     fn from_admin(
@@ -475,11 +475,11 @@ impl Application for MockAppShared {
         msg: &Message,
         session_id: Arc<SessionID>,
     ) -> MessageRejectErrorResult {
-        self.try_write().unwrap().from_admin(msg, session_id)
+        self.try_lock().unwrap().from_admin(msg, session_id)
     }
 
     fn from_app(&mut self, msg: &Message, session_id: Arc<SessionID>) -> MessageRejectErrorResult {
-        self.try_write().unwrap().from_app(msg, session_id)
+        self.try_lock().unwrap().from_app(msg, session_id)
     }
 }
 
@@ -496,19 +496,15 @@ pub trait TestApplication {
 
 impl TestApplication for MockAppShared {
     fn never_on_logout(&mut self) {
-        self.try_write()
-            .unwrap()
-            .mock_app
-            .expect_on_logout()
-            .never();
+        self.try_lock().unwrap().mock_app.expect_on_logout().never();
     }
 
     fn never_to_admin(&mut self) {
-        self.try_write().unwrap().mock_app.expect_to_admin().never();
+        self.try_lock().unwrap().mock_app.expect_to_admin().never();
     }
 
     fn set_to_admin(&mut self, times: usize) {
-        self.try_write()
+        self.try_lock()
             .unwrap()
             .mock_app
             .expect_to_admin()
@@ -517,7 +513,7 @@ impl TestApplication for MockAppShared {
     }
 
     fn set_to_app(&mut self, times: usize) {
-        self.try_write()
+        self.try_lock()
             .unwrap()
             .mock_app
             .expect_to_app()
@@ -526,7 +522,7 @@ impl TestApplication for MockAppShared {
     }
 
     fn set_from_app(&mut self, times: usize) {
-        self.try_write()
+        self.try_lock()
             .unwrap()
             .mock_app
             .expect_from_app()
@@ -536,7 +532,7 @@ impl TestApplication for MockAppShared {
 
     fn set_to_app_return_error(&mut self, times: usize, err: &SimpleError) {
         let new_err = err.clone();
-        self.try_write()
+        self.try_lock()
             .unwrap()
             .mock_app
             .expect_to_app()
@@ -545,7 +541,7 @@ impl TestApplication for MockAppShared {
     }
 
     fn set_from_admin_return_error(&mut self, times: usize, err: MessageRejectErrorEnum) {
-        self.try_write()
+        self.try_lock()
             .unwrap()
             .mock_app
             .expect_from_admin()
@@ -554,7 +550,7 @@ impl TestApplication for MockAppShared {
     }
 
     fn set_from_app_return_error(&mut self, times: usize, err: MessageRejectErrorEnum) {
-        self.try_write()
+        self.try_lock()
             .unwrap()
             .mock_app
             .expect_from_app()
@@ -663,7 +659,7 @@ pub struct SessionSuiteRig {
 
 impl SessionSuiteRig {
     pub fn init() -> Self {
-        let mock_app_shared = Arc::new(RwLock::new(MockAppExtended {
+        let mock_app_shared = Arc::new(Mutex::new(MockAppExtended {
             mock_app: MockApp::default(),
             decorate_to_admin: None,
             last_to_admin: None,
@@ -778,7 +774,7 @@ impl SessionSuiteRig {
     }
 
     pub async fn last_to_app_message_sent(&mut self) {
-        let last_to_app = self.mock_app.as_ref().read().await.last_to_app.clone();
+        let last_to_app = self.mock_app.as_ref().lock().await.last_to_app.clone();
         assert!(last_to_app.is_some(), "Should be connected");
 
         self.message_sent_equals(&last_to_app.as_ref().unwrap())
@@ -786,7 +782,7 @@ impl SessionSuiteRig {
     }
 
     pub async fn last_to_admin_message_sent(&mut self) {
-        let last_to_admin = self.mock_app.as_ref().read().await.last_to_admin.clone();
+        let last_to_admin = self.mock_app.as_ref().lock().await.last_to_admin.clone();
         assert!(last_to_admin.is_some(), "No ToAdmin received");
         self.message_sent_equals(&last_to_admin.as_ref().unwrap())
             .await;
