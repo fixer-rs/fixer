@@ -2,7 +2,7 @@ use super::{
     xml::{XMLComponent, XMLComponentEnum, XMLDoc, XMLField},
     Component, ComponentType, DataDictionary, Enum, FieldDef, FieldType, MessageDef, MessagePart,
 };
-use anyhow::Error;
+use simple_error::{SimpleError, SimpleResult};
 use std::collections::HashMap;
 
 #[derive(Default)]
@@ -13,9 +13,9 @@ pub struct Builder {
 }
 
 impl Builder {
-    pub fn build<'a>(&'a mut self, doc: &'a XMLDoc) -> Result<DataDictionary, Error> {
+    pub fn build<'a>(&'a mut self, doc: &'a XMLDoc) -> SimpleResult<DataDictionary> {
         if doc.r#type != "FIX" && doc.r#type != "FIXT" {
-            return Err(anyhow!("type attribute must be FIX or FIXT"));
+            return Err(simple_error!("type attribute must be FIX or FIXT"));
         }
 
         self.doc = doc.clone();
@@ -27,12 +27,12 @@ impl Builder {
 
         let major = match doc.major.parse::<isize>() {
             Ok(i) => Ok(i),
-            Err(_e) => Err(anyhow!("major attribute not valid on <fix>")),
+            Err(_e) => Err(simple_error!("major attribute not valid on <fix>")),
         }?;
 
         let minor = match doc.minor.parse::<isize>() {
             Ok(i) => Ok(i),
-            Err(_e) => Err(anyhow!("minor attribute not valid on <fix>")),
+            Err(_e) => Err(simple_error!("minor attribute not valid on <fix>")),
         }?;
 
         self.dict.major = major;
@@ -73,7 +73,7 @@ impl Builder {
     fn find_or_build_component_type(
         &mut self,
         xml_member: XMLComponentEnum,
-    ) -> Result<ComponentType, Error> {
+    ) -> SimpleResult<ComponentType> {
         if self.dict.component_types.contains_key(xml_member.name()) {
             return Ok(self
                 .dict
@@ -96,10 +96,7 @@ impl Builder {
         Ok(comp)
     }
 
-    fn build_component_type(
-        &mut self,
-        xml_component: XMLComponent,
-    ) -> Result<ComponentType, Error> {
+    fn build_component_type(&mut self, xml_component: XMLComponent) -> SimpleResult<ComponentType> {
         let mut parts: Vec<MessagePart> = vec![];
 
         if xml_component.members.is_some() {
@@ -121,7 +118,7 @@ impl Builder {
         ))
     }
 
-    fn build_components(&mut self) -> Result<(), Error> {
+    fn build_components(&mut self) -> SimpleResult<()> {
         self.dict.component_types = hashmap! {};
         if self.doc.components.is_some() {
             let inner_components = self.doc.components.as_ref().unwrap().clone();
@@ -144,7 +141,7 @@ impl Builder {
         Ok(())
     }
 
-    fn build_message_defs(&mut self) -> Result<(), Error> {
+    fn build_message_defs(&mut self) -> SimpleResult<()> {
         self.dict.messages = hashmap! {};
 
         if self.doc.messages.is_some() {
@@ -161,7 +158,7 @@ impl Builder {
         Ok(())
     }
 
-    fn build_message_def(&mut self, xml_message: &XMLComponent) -> Result<MessageDef, Error> {
+    fn build_message_def(&mut self, xml_message: &XMLComponent) -> SimpleResult<MessageDef> {
         let mut parts: Vec<MessagePart> = vec![];
 
         if xml_message.members.is_some() {
@@ -194,7 +191,7 @@ impl Builder {
         &mut self,
         xml_field: &XMLComponentEnum,
         group_field_type: FieldType,
-    ) -> Result<FieldDef, Error> {
+    ) -> SimpleResult<FieldDef> {
         let mut parts: Vec<MessagePart> = vec![];
 
         let required = xml_field.is_required();
@@ -223,7 +220,7 @@ impl Builder {
         Ok(FieldDef::new_group(group_field_type, required, parts))
     }
 
-    fn build_field_def(&mut self, xml_field: &XMLComponentEnum) -> Result<FieldDef, Error> {
+    fn build_field_def(&mut self, xml_field: &XMLComponentEnum) -> SimpleResult<FieldDef> {
         if !self.dict.field_type_by_name.contains_key(xml_field.name()) {
             return Err(new_unknown_field(xml_field.name()));
         }
@@ -280,12 +277,12 @@ fn build_field_type(xml_field: &XMLField) -> FieldType {
     field
 }
 
-fn new_unknown_component(name: &str) -> Error {
-    anyhow!("unknown component {}", name)
+fn new_unknown_component(name: &str) -> SimpleError {
+    simple_error!("unknown component {}", name)
 }
 
-fn new_unknown_field(name: &str) -> Error {
-    anyhow!("unknown field {}", name)
+fn new_unknown_field(name: &str) -> SimpleError {
+    simple_error!("unknown field {}", name)
 }
 
 #[cfg(test)]

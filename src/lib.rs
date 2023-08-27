@@ -2,8 +2,6 @@
 extern crate simple_error;
 #[macro_use]
 extern crate maplit;
-#[macro_use]
-extern crate anyhow;
 
 pub mod application;
 pub mod config;
