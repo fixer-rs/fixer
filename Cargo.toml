@@ -15,7 +15,6 @@ name = "fixer"
 path = "src/lib.rs"
 
 [dependencies]
-anyhow = "1.0"
 async-recursion = "1.0"
 async-trait = "0.1"
 atoi_simd = "0.14"

@@ -1,6 +1,6 @@
-use anyhow::Error;
 use delegate::delegate;
 use quick_xml::de::from_reader;
+use simple_error::{SimpleError, SimpleResult};
 use std::{
     collections::{HashMap, HashSet},
     fmt,
@@ -11,21 +11,6 @@ use tokio::io::AsyncReadExt;
 
 pub mod build;
 pub mod xml;
-
-// DataDictionary models FIX messages, components, and fields.
-#[derive(Default, Debug, Clone, PartialEq, Eq)]
-pub struct DataDictionary {
-    pub fix_type: String,
-    pub major: isize,
-    pub minor: isize,
-    pub service_pack: isize,
-    pub field_type_by_tag: HashMap<isize, FieldType>,
-    pub field_type_by_name: HashMap<String, FieldType>,
-    pub messages: HashMap<String, MessageDef>,
-    pub component_types: HashMap<String, ComponentType>,
-    pub header: MessageDef,
-    pub trailer: MessageDef,
-}
 
 // MessagePart can represent a Field, Repeating Group, or Component
 #[derive(Clone, Eq)]
@@ -423,28 +408,45 @@ impl MessageDef {
     }
 }
 
-// parse loads and build a datadictionary instance from an xml file.
-pub async fn parse(path: &'_ str) -> Result<DataDictionary, Error> {
-    let mut file = File::open(path).await?;
-
-    let mut contents = vec![];
-    file.read_to_end(&mut contents).await.map_err(|err| {
-        let err_string = format!("problem opening file: {}", path);
-        Error::new(err).context(err_string)
-    })?;
-
-    parse_src(&*contents)
+// DataDictionary models FIX messages, components, and fields.
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
+pub struct DataDictionary {
+    pub fix_type: String,
+    pub major: isize,
+    pub minor: isize,
+    pub service_pack: isize,
+    pub field_type_by_tag: HashMap<isize, FieldType>,
+    pub field_type_by_name: HashMap<String, FieldType>,
+    pub messages: HashMap<String, MessageDef>,
+    pub component_types: HashMap<String, ComponentType>,
+    pub header: MessageDef,
+    pub trailer: MessageDef,
 }
 
-// parse_src loads and build a datadictionary instance from an xml source.
-pub fn parse_src<R: BufRead>(xml_src: R) -> Result<DataDictionary, Error> {
-    let xml_doc: xml::XMLDoc =
-        from_reader(xml_src).map_err(|err| Error::new(err).context("problem parsing XML file"))?;
+impl DataDictionary {
+    // parse loads and build a datadictionary instance from an xml file.
+    pub async fn parse(path: &str) -> SimpleResult<Self> {
+        let mut file = File::open(path).await.map_err(SimpleError::from)?;
 
-    let mut builder = build::Builder::default();
-    let dict = builder.build(&xml_doc)?;
+        let mut contents = vec![];
+        map_err_with!(
+            file.read_to_end(&mut contents).await,
+            "problem opening file: {}",
+            path
+        )?;
 
-    Ok(dict)
+        Self::parse_src(&*contents)
+    }
+
+    // parse_src loads and build a datadictionary instance from an xml source.
+    pub fn parse_src<R: BufRead>(xml_src: R) -> SimpleResult<Self> {
+        let xml_doc: xml::XMLDoc = map_err_with!(from_reader(xml_src), "problem parsing XML file")?;
+
+        let mut builder = build::Builder::default();
+        let dict = builder.build(&xml_doc)?;
+
+        Ok(dict)
+    }
 }
 
 #[cfg(test)]
@@ -565,20 +567,20 @@ mod tests {
 
     #[tokio::test]
     async fn test_parse_bad_path() {
-        let result = parse("../spec/bogus.xml").await;
+        let result = DataDictionary::parse("../spec/bogus.xml").await;
         assert!(result.is_err(), "Expected err");
     }
 
     #[tokio::test]
     async fn test_parse_recursive_components() {
-        let result = parse("./spec/FIX44.xml").await;
+        let result = DataDictionary::parse("./spec/FIX44.xml").await;
         assert!(!result.is_err(), "Unexpected err: {:?}", result);
         assert!(result.is_ok(), "Dictionary is nil");
     }
 
     // global variable
     static DICT: Lazy<DataDictionary> =
-        Lazy::new(|| block_on(async { parse("./spec/FIX43.xml").await.unwrap() }));
+        Lazy::new(|| block_on(async { DataDictionary::parse("./spec/FIX43.xml").await.unwrap() }));
 
     #[tokio::test]
     async fn test_components() {
