@@ -1,5 +1,5 @@
 #[cfg(test)]
-use crate::application::DummyApplication;
+use crate::fixer_test::MockApp;
 use crate::{
     application::Application,
     datadictionary::DataDictionary,
@@ -48,16 +48,19 @@ use async_recursion::async_recursion;
 use chrono::{DateTime, Duration as ChronoDuration, FixedOffset, Utc};
 use simple_error::SimpleResult;
 use std::sync::Arc;
+#[cfg(test)]
+use tokio::sync::mpsc::channel;
 use tokio::sync::{
-    mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
-    Mutex, OnceCell, RwLock,
+    mpsc::{unbounded_channel, Receiver, Sender, UnboundedReceiver, UnboundedSender},
+    Mutex, OnceCell,
 };
 use tokio::time::{interval, sleep, Duration};
 
 // session main
+pub mod factory;
 pub mod session_id;
-pub mod session_settings;
 pub mod session_state;
+pub mod settings;
 
 // states
 pub mod in_session;
@@ -69,8 +72,8 @@ pub mod pending_timeout;
 pub mod resend_state;
 
 pub struct MessageEvent {
-    pub tx: UnboundedSender<bool>,
-    pub rx: UnboundedReceiver<bool>,
+    pub tx: Sender<bool>,
+    pub rx: Receiver<bool>,
 }
 
 impl MessageEvent {
@@ -116,7 +119,7 @@ pub struct Session {
     pub to_send: Arc<Mutex<Vec<Vec<u8>>>>,
     pub session_event: SessionEvent,
     pub message_event: MessageEvent,
-    pub application: Arc<RwLock<dyn Application>>,
+    pub application: Arc<Mutex<dyn Application>>,
     pub validator: Option<ValidatorEnum>,
     pub sm: StateMachine,
     pub state_timer: EventTimer,
@@ -137,7 +140,7 @@ impl Default for Session {
     fn default() -> Self {
         let (message_out_tx, _) = unbounded_channel::<Vec<u8>>();
         let (admin_tx, admin_rx) = unbounded_channel::<AdminEnum>();
-        let (message_event_tx, message_event_rx) = unbounded_channel::<bool>();
+        let (message_event_tx, message_event_rx) = channel::<bool>(1);
         let (_, message_in_rx) = unbounded_channel::<FixIn>();
         let (session_event_tx, session_event_rx) = unbounded_channel::<Event>();
         Session {
@@ -155,7 +158,7 @@ impl Default for Session {
                 tx: message_event_tx,
                 rx: message_event_rx,
             },
-            application: Arc::new(RwLock::new(DummyApplication::new())),
+            application: Arc::new(Mutex::new(MockApp::new())),
             validator: Some(ValidatorEnum::default()),
             sm: StateMachine {
                 state: SessionStateEnum::new_not_session_time(),
@@ -434,9 +437,9 @@ impl Session {
         self.insert_sending_time(msg);
 
         self.application
-            .write()
+            .lock()
             .await
-            .to_app(msg, &self.session_id)
+            .to_app(msg, self.session_id.clone())
             .is_ok()
     }
 
@@ -517,9 +520,9 @@ impl Session {
 
         if is_admin_message_type(&msg_type) {
             self.application
-                .write()
+                .lock()
                 .await
-                .to_admin(msg, &self.session_id);
+                .to_admin(msg, self.session_id.clone());
 
             if msg_type == MSG_TYPE_LOGON {
                 let mut reset_seq_num_flag = FIXBoolean::default();
@@ -538,9 +541,9 @@ impl Session {
             }
         } else {
             self.application
-                .write()
+                .lock()
                 .await
-                .to_app(msg, &self.session_id)?;
+                .to_app(msg, self.session_id.clone())?;
         }
 
         let msg_bytes = msg.build();
@@ -713,7 +716,10 @@ impl Session {
             (1.2_f64 * (self.iss.heart_bt_int.num_nanoseconds().unwrap() as f64)).round() as u64;
 
         self.peer_timer.reset(Duration::from_nanos(duration)).await;
-        self.application.write().await.on_logon(&self.session_id);
+        self.application
+            .lock()
+            .await
+            .on_logon(self.session_id.clone());
 
         self.check_target_too_high(msg).await?;
 
@@ -794,15 +800,15 @@ impl Session {
         if is_admin_message_type(&msg_type) {
             return self
                 .application
-                .write()
+                .lock()
                 .await
-                .from_admin(msg, &self.session_id);
+                .from_admin(msg, self.session_id.clone());
         }
 
         self.application
-            .write()
+            .lock()
             .await
-            .from_app(msg, &self.session_id)
+            .from_app(msg, self.session_id.clone())
     }
 
     async fn check_target_too_low(&mut self, msg: &Message) -> MessageRejectErrorResult {
@@ -1319,7 +1325,10 @@ impl Session {
         }
 
         if do_on_logout {
-            self.application.write().await.on_logout(&self.session_id);
+            self.application
+                .lock()
+                .await
+                .on_logout(self.session_id.clone());
         }
         self.on_disconnect().await;
     }
@@ -1816,9 +1825,9 @@ impl Session {
         }
 
         self.application
-            .write()
+            .lock()
             .await
-            .to_admin(&sequence_reset, &self.session_id);
+            .to_admin(&sequence_reset, self.session_id.clone());
 
         let msg_bytes = sequence_reset.build();
 
@@ -2171,7 +2180,6 @@ mod tests {
         message::Message,
         msg_type::{MSG_TYPE_LOGON, MSG_TYPE_LOGOUT},
         session::{
-            session_id::SessionID,
             session_state::{SessionState, SessionStateEnum},
             AdminEnum, Connect, FixIn, StopReq,
         },
@@ -2189,7 +2197,7 @@ mod tests {
     use delegate::delegate;
     use simple_error::SimpleResult;
     use std::sync::Arc;
-    use tokio::sync::{mpsc::unbounded_channel, RwLock};
+    use tokio::sync::{mpsc::unbounded_channel, Mutex};
 
     struct SessionSuite {
         ssr: SessionSuiteRig,
@@ -2978,7 +2986,7 @@ mod tests {
                 ms: store,
             };
 
-            let mock_store_shared = Arc::new(RwLock::new(mock_store_extended));
+            let mock_store_shared = Arc::new(Mutex::new(mock_store_extended));
 
             s.ssr.mock_store = MessageStoreEnum::MockMemoryStore(mock_store_shared.clone());
             s.ssr.session.store = MessageStoreEnum::MockMemoryStore(mock_store_shared.clone());
@@ -3116,7 +3124,7 @@ mod tests {
             }
 
             s.ssr.session.sm_check_session_time(&mut now.into()).await;
-            s.ssr.mock_app.write().await.mock_app.checkpoint();
+            s.ssr.mock_app.lock().await.mock_app.checkpoint();
 
             s.ssr.state(&SessionStateEnum::new_not_session_time());
             s.ssr.next_target_msg_seq_num(2).await;
@@ -3125,7 +3133,7 @@ mod tests {
                 s.ssr.last_to_admin_message_sent().await;
                 s.message_type(
                     String::from_utf8_lossy(MSG_TYPE_LOGOUT).to_string(),
-                    s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap(),
+                    s.ssr.mock_app.lock().await.last_to_admin.as_ref().unwrap(),
                 );
                 s.ssr.next_sender_msg_seq_num(3).await;
             } else {
@@ -3239,7 +3247,7 @@ mod tests {
                 .session
                 .sm_check_session_time(&mut tomorrow.into())
                 .await;
-            s.ssr.mock_app.write().await.mock_app.checkpoint();
+            s.ssr.mock_app.lock().await.mock_app.checkpoint();
 
             s.ssr.state(&SessionStateEnum::new_latent_state());
 
@@ -3247,14 +3255,14 @@ mod tests {
                 s.ssr.last_to_admin_message_sent().await;
                 s.message_type(
                     String::from_utf8_lossy(MSG_TYPE_LOGOUT).to_string(),
-                    s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap(),
+                    s.ssr.mock_app.lock().await.last_to_admin.as_ref().unwrap(),
                 );
                 s.ssr.suite.field_equals(
                     TAG_MSG_SEQ_NUM,
                     FieldEqual::Num(2),
                     &s.ssr
                         .mock_app
-                        .read()
+                        .lock()
                         .await
                         .last_to_admin
                         .as_ref()
@@ -3363,7 +3371,7 @@ mod tests {
                     receive_time: Utc::now(),
                 })
                 .await;
-            s.ssr.mock_app.write().await.mock_app.checkpoint();
+            s.ssr.mock_app.lock().await.mock_app.checkpoint();
             s.ssr.state(&SessionStateEnum::new_not_session_time());
         }
     }
@@ -3461,7 +3469,7 @@ mod tests {
                 s.ssr.mock_app.never_to_admin();
             }
             s.ssr.session.sm_send_app_messages().await;
-            s.ssr.mock_app.write().await.mock_app.checkpoint();
+            s.ssr.mock_app.lock().await.mock_app.checkpoint();
             s.ssr.state(&SessionStateEnum::new_not_session_time());
         }
     }
@@ -3586,7 +3594,7 @@ mod tests {
             .on_admin(AdminEnum::Connect(admin_message))
             .await;
 
-        s.ssr.mock_app.write().await.mock_app.checkpoint();
+        s.ssr.mock_app.lock().await.mock_app.checkpoint();
 
         assert!(s.ssr.session.iss.initiate_logon);
         assert!(!s.ssr.session.sent_reset);
@@ -3595,14 +3603,14 @@ mod tests {
 
         s.message_type(
             String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
-            s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap(),
+            s.ssr.mock_app.lock().await.last_to_admin.as_ref().unwrap(),
         );
         s.field_equals(
             TAG_HEART_BT_INT,
             FieldEqual::Num(45),
             &s.ssr
                 .mock_app
-                .read()
+                .lock()
                 .await
                 .last_to_admin
                 .as_ref()
@@ -3615,7 +3623,7 @@ mod tests {
             FieldEqual::Num(2),
             &s.ssr
                 .mock_app
-                .read()
+                .lock()
                 .await
                 .last_to_admin
                 .as_ref()
@@ -3650,7 +3658,7 @@ mod tests {
             msg.body
                 .set_field(TAG_RESET_SEQ_NUM_FLAG, true as FIXBoolean);
         }
-        s.ssr.mock_app.write().await.decorate_to_admin = Some(decorate_to_admin);
+        s.ssr.mock_app.lock().await.decorate_to_admin = Some(decorate_to_admin);
         s.ssr
             .session
             .on_admin(AdminEnum::Connect(admin_message))
@@ -3663,14 +3671,14 @@ mod tests {
 
         s.message_type(
             String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
-            s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap(),
+            s.ssr.mock_app.lock().await.last_to_admin.as_ref().unwrap(),
         );
         s.field_equals(
             TAG_MSG_SEQ_NUM,
             FieldEqual::Num(1),
             &s.ssr
                 .mock_app
-                .read()
+                .lock()
                 .await
                 .last_to_admin
                 .as_ref()
@@ -3683,7 +3691,7 @@ mod tests {
             FieldEqual::Bool(true),
             &s.ssr
                 .mock_app
-                .read()
+                .lock()
                 .await
                 .last_to_admin
                 .as_ref()
@@ -3728,14 +3736,14 @@ mod tests {
         s.ssr.last_to_admin_message_sent().await;
         s.message_type(
             String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
-            s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap(),
+            s.ssr.mock_app.lock().await.last_to_admin.as_ref().unwrap(),
         );
         s.field_equals(
             TAG_DEFAULT_APPL_VER_ID,
             FieldEqual::Str("8"),
             &s.ssr
                 .mock_app
-                .read()
+                .lock()
                 .await
                 .last_to_admin
                 .as_ref()
@@ -3775,7 +3783,7 @@ mod tests {
                 .await;
 
             if let MessageStoreEnum::MockMemoryStore(ms) = s.ssr.mock_store {
-                ms.write().await.mock.checkpoint();
+                ms.lock().await.mock.checkpoint();
             }
         }
     }
@@ -3895,7 +3903,7 @@ mod tests {
             .is_ok());
 
         s.ssr.no_message_sent().await;
-        let wlock = s.ssr.mock_app.read().await;
+        let wlock = s.ssr.mock_app.lock().await;
         let mut msg = wlock.last_to_app.as_ref().unwrap().clone();
         drop(wlock);
         s.ssr.message_persisted(&mut msg).await;
@@ -3904,7 +3912,7 @@ mod tests {
             FieldEqual::Num(1),
             &s.ssr
                 .mock_app
-                .read()
+                .lock()
                 .await
                 .last_to_app
                 .as_ref()
@@ -3945,7 +3953,7 @@ mod tests {
             .is_ok());
 
         s.ssr.last_to_admin_message_sent().await;
-        let wlock = s.ssr.mock_app.read().await;
+        let wlock = s.ssr.mock_app.lock().await;
         let mut msg = wlock.last_to_admin.as_ref().unwrap().clone();
         drop(wlock);
         s.ssr.message_persisted(&mut msg).await;
@@ -3962,7 +3970,7 @@ mod tests {
             .await
             .is_ok());
 
-        let wlock = s.ssr.mock_app.read().await;
+        let wlock = s.ssr.mock_app.lock().await;
         let mut msg = wlock.last_to_admin.as_ref().unwrap().clone();
         drop(wlock);
         s.ssr.message_persisted(&mut msg).await;
@@ -3979,7 +3987,7 @@ mod tests {
             .send(&s.ssr.message_factory.new_order_single())
             .await
             .is_ok());
-        let wlock = s.ssr.mock_app.read().await;
+        let wlock = s.ssr.mock_app.lock().await;
         let mut msg = wlock.last_to_app.as_ref().unwrap().clone();
         drop(wlock);
         s.ssr.message_persisted(&mut msg).await;
@@ -4020,7 +4028,7 @@ mod tests {
             .is_ok());
 
         s.ssr.last_to_admin_message_sent().await;
-        let wlock = s.ssr.mock_app.read().await;
+        let wlock = s.ssr.mock_app.lock().await;
         let mut msg = wlock.last_to_admin.as_ref().unwrap().clone();
         drop(wlock);
         s.ssr.message_persisted(&mut msg).await;
@@ -4045,7 +4053,7 @@ mod tests {
         let order_1 = s
             .ssr
             .mock_app
-            .read()
+            .lock()
             .await
             .last_to_app
             .as_ref()
@@ -4054,7 +4062,7 @@ mod tests {
         let heartbeat = s
             .ssr
             .mock_app
-            .read()
+            .lock()
             .await
             .last_to_admin
             .as_ref()
@@ -4072,7 +4080,7 @@ mod tests {
         let order_2 = s
             .ssr
             .mock_app
-            .read()
+            .lock()
             .await
             .last_to_app
             .as_ref()
@@ -4146,7 +4154,7 @@ mod tests {
             FieldEqual::Num(44),
             &s.ssr
                 .mock_app
-                .read()
+                .lock()
                 .await
                 .last_to_app
                 .as_ref()
@@ -4182,7 +4190,7 @@ mod tests {
             .drop_and_send(&s.ssr.message_factory.heartbeat())
             .await
             .is_ok());
-        let wlock = s.ssr.mock_app.read().await;
+        let wlock = s.ssr.mock_app.lock().await;
         let mut msg = wlock.last_to_admin.as_ref().unwrap().clone();
         drop(wlock);
         s.ssr.message_persisted(&mut msg).await;
@@ -4194,7 +4202,7 @@ mod tests {
         let mut s = SessionSendTestSuite::setup_test().await;
         s.ssr
             .mock_app
-            .to_admin(&Message::default(), &SessionID::default());
+            .to_admin(&Message::default(), s.ssr.session.session_id.clone());
         assert!(s
             .ssr
             .session
@@ -4219,14 +4227,14 @@ mod tests {
 
         s.message_type(
             String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
-            s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap(),
+            s.ssr.mock_app.lock().await.last_to_admin.as_ref().unwrap(),
         );
         s.field_equals(
             TAG_MSG_SEQ_NUM,
             FieldEqual::Num(3),
             &s.ssr
                 .mock_app
-                .read()
+                .lock()
                 .await
                 .last_to_admin
                 .as_ref()
@@ -4264,18 +4272,18 @@ mod tests {
             .drop_and_send(&s.ssr.message_factory.logon())
             .await
             .is_ok());
-        s.ssr.mock_app.write().await.mock_app.checkpoint();
+        s.ssr.mock_app.lock().await.mock_app.checkpoint();
 
         s.message_type(
             String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
-            s.ssr.mock_app.read().await.last_to_admin.as_ref().unwrap(),
+            s.ssr.mock_app.lock().await.last_to_admin.as_ref().unwrap(),
         );
         s.field_equals(
             TAG_MSG_SEQ_NUM,
             FieldEqual::Num(1),
             &s.ssr
                 .mock_app
-                .read()
+                .lock()
                 .await
                 .last_to_admin
                 .as_ref()

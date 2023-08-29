@@ -531,6 +531,7 @@ impl FileStore {
     }
 }
 
+#[derive(Clone)]
 pub struct FileStoreFactory {
     settings: Arc<Mutex<Settings>>,
 }

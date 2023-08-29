@@ -28,10 +28,9 @@ pub struct SessionSettings {
     pub socket_connect_address: Vec<String>,
 }
 
-#[cfg(test)]
 impl Default for SessionSettings {
     fn default() -> Self {
-        let duration = Duration::seconds(1);
+        let duration = Duration::seconds(0);
         SessionSettings {
             max_latency: duration,
             heart_bt_int: duration,

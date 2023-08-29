@@ -3,7 +3,7 @@ use crate::{
         BEGIN_STRING, SENDER_COMP_ID, SENDER_LOCATION_ID, SENDER_SUB_ID, SESSION_QUALIFIER,
         TARGET_COMP_ID, TARGET_LOCATION_ID, TARGET_SUB_ID,
     },
-    session::{session_id::SessionID, session_settings::SessionSettings},
+    session::{session_id::SessionID, settings::SessionSettings},
     BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIX42, BEGIN_STRING_FIX43,
     BEGIN_STRING_FIX44, BEGIN_STRING_FIXT11,
 };
@@ -25,7 +25,7 @@ pub static SETTING_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^([^=]*)=(.*)$
 #[derive(Default, Debug)]
 pub struct Settings {
     global_settings: Arc<RwLock<Option<SessionSettings>>>,
-    session_settings: HashMap<Arc<SessionID>, SessionSettings>, // TODO: convert this to &SessionID
+    session_settings: HashMap<Arc<SessionID>, SessionSettings>,
 }
 
 impl Settings {
@@ -220,7 +220,7 @@ mod tests {
             BEGIN_STRING, RESET_ON_LOGON, SENDER_COMP_ID, SESSION_QUALIFIER, SOCKET_ACCEPT_PORT,
             TARGET_COMP_ID,
         },
-        session::{session_id::SessionID, session_settings::SessionSettings},
+        session::{session_id::SessionID, settings::SessionSettings},
         settings::{session_id_from_session_settings, Settings},
         BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIX42, BEGIN_STRING_FIX43,
         BEGIN_STRING_FIX44, BEGIN_STRING_FIXT11,

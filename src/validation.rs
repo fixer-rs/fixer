@@ -255,7 +255,6 @@ fn validate_order(msg: &Message) -> MessageRejectErrorResult {
     let mut in_trailer = false;
     for field in msg.fields.data.lock().get(..).unwrap().iter() {
         let t = field.tag;
-        if in_header && t.is_header() {}
         if in_header && !t.is_header() {
             in_header = false;
         }

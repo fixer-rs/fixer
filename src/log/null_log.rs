@@ -15,6 +15,7 @@ impl LogTrait for NullLog {
     async fn on_eventf(&mut self, _format: &str, _params: HashMap<String, String>) {}
 }
 
+#[derive(Clone)]
 pub struct NullLogFactory;
 
 impl NullLogFactory {
