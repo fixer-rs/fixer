@@ -54,21 +54,6 @@ impl Validator for FixValidator {
     }
 }
 
-// NewValidator creates a FIX message validator from the given data dictionaries.
-// func NewValidator(settings ValidatorSettings, appDataDictionary, transportDataDictionary *datadictionary.DataDictionary) Validator {
-// 	if transportDataDictionary != nil {
-// 		return &fixtValidator{
-// 			transportDataDictionary: transportDataDictionary,
-// 			appDataDictionary:       appDataDictionary,
-// 			settings:                settings,
-// 		}
-// 	}
-// 	return &fixValidator{
-// 		dataDictionary: appDataDictionary,
-// 		settings:       settings,
-// 	}
-// }
-
 #[derive(Default)]
 pub struct FixtValidator {
     transport_data_dictionary: DataDictionary,
