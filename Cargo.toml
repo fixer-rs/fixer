@@ -2,11 +2,11 @@
 authors = ["Karuna Murti <karuna.murti@gmail.com>"]
 description = "A full featured messaging engine for the FIX protocol implemented in Rust"
 edition = "2021"
-homepage = "https://github.com/karuna/fixer.git"
+homepage = "https://github.com/fixer-rs/fixer.git"
 license = "Apache-2.0"
 name = "fixer"
 readme = "README.md"
-repository = "https://github.com/karuna/fixer.git"
+repository = "https://github.com/fixer-rs/fixer.git"
 rust-version = "1.70"
 version = "0.1.0"
 
@@ -39,7 +39,7 @@ parse_duration = "2.1"
 quick-xml = { version = "0.23", features = ["serialize"] }
 ramhorns = "0.14"
 regex = "1.7"
-rust_decimal = "1.25"
+rust_decimal = "1.29"
 serde = { version = "1.0", features = ["derive"] }
 serde_derive = "1.0"
 simple-error = "0.3"
