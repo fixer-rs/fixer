@@ -1,5 +1,5 @@
 use crate::internal::switching_sleep::ASwitchingSleep;
-use defer_lite::defer;
+use scopeguard::defer;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::time::Duration;
