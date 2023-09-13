@@ -2,38 +2,35 @@ use crate::internal::switching_sleep::ASwitchingSleep;
 use scopeguard::defer;
 use std::sync::Arc;
 use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 use tokio::time::Duration;
-use wg::AsyncWaitGroup;
 
 type EventTimerFunc = Arc<dyn Fn() + Send + Sync>;
 
 pub struct EventTimer {
     timer: ASwitchingSleep,
     done: mpsc::UnboundedSender<()>,
-    wg: AsyncWaitGroup,
+    wg: Option<JoinHandle<()>>,
 }
 
 impl EventTimer {
     pub fn new(task: EventTimerFunc) -> Self {
         let (tx, mut rx) = mpsc::unbounded_channel();
 
-        let t = EventTimer {
+        let mut t = EventTimer {
             timer: ASwitchingSleep::new(Duration::from_secs(1)),
             done: tx,
-            wg: AsyncWaitGroup::new(),
+            wg: None,
         };
 
         let mut timer = t.timer.clone();
-        let wg_done = t.wg.add(1);
 
-        tokio::spawn(async move {
-            defer! {
-                wg_done.done()
-            };
+        let join = tokio::spawn(async move {
             loop {
                 tokio::select! {
                     Some(_) = rx.recv() => {
                         timer.stop().await;
+                        rx.close();
                         return
                     }
                     () = &mut timer => {
@@ -42,12 +39,15 @@ impl EventTimer {
                 }
             }
         });
+
+        t.wg = Some(join);
         t
     }
 
-    pub async fn stop(&self) {
-        // no need to close self.done as Rust automatically close channel after all sender is closed.
-        self.wg.wait().await;
+    pub async fn stop(&mut self) {
+        let _ = self.done.send(());
+        let wg = self.wg.take();
+        let _ = wg.unwrap().await;
     }
 
     pub async fn reset(&self, timeout: Duration) {
