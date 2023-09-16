@@ -98,8 +98,7 @@ impl FileLogFactory {
         let mut log_factory = FileLogFactory::default();
 
         let gs_option = settings.global_settings().await;
-        let gs = gs_option.read().await;
-        let gss = gs.as_ref().unwrap();
+        let gss = gs_option.as_ref().unwrap();
         let res = gss.setting(FILE_LOG_PATH)?;
         log_factory.global_log_path = res;
 

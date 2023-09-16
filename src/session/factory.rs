@@ -39,6 +39,7 @@ use simple_error::{SimpleError, SimpleResult};
 use std::{
     collections::HashMap,
     net::{IpAddr, SocketAddr, SocketAddrV4, SocketAddrV6},
+    ops::Deref,
     str::FromStr,
     sync::Arc,
 };
@@ -179,14 +180,20 @@ impl SessionFactory {
                         .settings
                         .get(TRANSPORT_DATA_DICTIONARY)
                         .as_ref()
-                        .unwrap(),
+                        .unwrap()
+                        .deref(),
                     TRANSPORT_DATA_DICTIONARY
                 )?;
 
                 let app_data_dictionary_inner = map_err_with!(
                     DataDictionary::parse(&app_data_dictionary_path).await,
                     "problem parsing XML datadictionary path '{}' for setting '{}'",
-                    settings.settings.get(APP_DATA_DICTIONARY).as_ref().unwrap(),
+                    settings
+                        .settings
+                        .get(APP_DATA_DICTIONARY)
+                        .as_ref()
+                        .unwrap()
+                        .deref(),
                     APP_DATA_DICTIONARY
                 )?;
 
@@ -208,7 +215,12 @@ impl SessionFactory {
                 let app_data_dictionary_inner = map_err_with!(
                     DataDictionary::parse(&data_dictionary_path).await,
                     "problem parsing XML datadictionary path '{}' for setting '{}'",
-                    settings.settings.get(DATA_DICTIONARY).as_ref().unwrap(),
+                    settings
+                        .settings
+                        .get(DATA_DICTIONARY)
+                        .as_ref()
+                        .unwrap()
+                        .deref(),
                     DATA_DICTIONARY
                 )?;
 
@@ -276,13 +288,13 @@ impl SessionFactory {
             let start_time = map_err_with!(
                 TimeOfDay::parse(&start_time_string),
                 "problem parsing time of day '{}' for setting '{}'",
-                settings.settings.get(START_TIME).as_ref().unwrap(),
+                settings.settings.get(START_TIME).as_ref().unwrap().deref(),
                 START_TIME
             )?;
             let end_time = map_err_with!(
                 TimeOfDay::parse(&end_time_string),
                 "problem parsing time of day '{}' for setting '{}'",
-                settings.settings.get(END_TIME).as_ref().unwrap(),
+                settings.settings.get(END_TIME).as_ref().unwrap().deref(),
                 END_TIME
             )?;
 
@@ -292,7 +304,7 @@ impl SessionFactory {
                 let loc_str = map_err_with!(
                     settings.setting(TIME_ZONE),
                     "problem parsing time zone '{}' for setting '{}'",
-                    settings.settings.get(TIME_ZONE).as_ref().unwrap(),
+                    settings.settings.get(TIME_ZONE).as_ref().unwrap().deref(),
                     TIME_ZONE
                 )?;
 
@@ -300,7 +312,7 @@ impl SessionFactory {
                     let tz: Tz = map_err_with!(
                         (&loc_str).parse().map_err(|err| simple_error!("{}", err)),
                         "problem parsing time zone '{}' for setting '{}'",
-                        settings.settings.get(TIME_ZONE).as_ref().unwrap(),
+                        settings.settings.get(TIME_ZONE).as_ref().unwrap().deref(),
                         TIME_ZONE
                     )?;
 

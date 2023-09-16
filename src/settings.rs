@@ -7,13 +7,11 @@ use crate::{
     BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIX42, BEGIN_STRING_FIX43,
     BEGIN_STRING_FIX44, BEGIN_STRING_FIXT11,
 };
+use dashmap::DashMap;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use std::{collections::HashMap, error::Error, sync::Arc};
-use tokio::{
-    io::{AsyncBufRead, AsyncBufReadExt},
-    sync::RwLock,
-};
+use tokio::io::{AsyncBufRead, AsyncBufReadExt};
 
 pub static BLANK_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^\s*$").unwrap());
 pub static COMMENT_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^#.*").unwrap());
@@ -24,8 +22,8 @@ pub static SETTING_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^([^=]*)=(.*)$
 // The Settings type represents a collection of global and session settings.
 #[derive(Default, Debug)]
 pub struct Settings {
-    global_settings: Arc<RwLock<Option<SessionSettings>>>,
-    session_settings: HashMap<Arc<SessionID>, SessionSettings>,
+    global_settings: Option<SessionSettings>,
+    session_settings: DashMap<Arc<SessionID>, SessionSettings>,
 }
 
 impl Settings {
@@ -37,12 +35,12 @@ impl Settings {
     }
 
     fn init(&mut self) {
-        self.global_settings = Arc::new(RwLock::new(Some(SessionSettings::new())));
+        self.global_settings = Some(SessionSettings::new());
         self.session_settings.clear();
     }
 
     async fn lazy_init(&mut self) {
-        if self.global_settings.read().await.is_none() {
+        if self.global_settings.is_none() {
             self.init()
         }
     }
@@ -55,7 +53,8 @@ impl Settings {
     {
         let mut s = Settings::new();
 
-        let mut settings: Arc<RwLock<Option<SessionSettings>>> = Arc::new(RwLock::new(None));
+        let mut settings: Option<SessionSettings> = None;
+        let mut is_global_settings = false;
 
         let mut line_number = 0;
 
@@ -68,15 +67,13 @@ impl Settings {
                 continue;
             } else if DEFAULT_REGEX.is_match(&line) {
                 settings = s.global_settings().await;
+                is_global_settings = true;
             } else if SESSION_REGEX.is_match(&line) {
-                if settings.read().await.is_some()
-                    && settings.read().await.as_ref().unwrap()
-                        != s.global_settings().await.read().await.as_ref().unwrap()
-                {
-                    s.add_session(settings.read().await.clone().unwrap())
-                        .await?;
+                if settings.is_some() && !is_global_settings {
+                    s.add_session(settings.clone().unwrap()).await?;
                 }
-                settings = Arc::new(RwLock::new(Some(SessionSettings::new())));
+                settings = Some(SessionSettings::new());
+                is_global_settings = false;
             } else if SETTING_REGEX.is_match(&line) {
                 let parts = SETTING_REGEX
                     .captures(&line)
@@ -90,8 +87,6 @@ impl Settings {
                 let val = parts.get(2).map(|m| m.as_str()).unwrap();
 
                 settings
-                    .write()
-                    .await
                     .as_mut()
                     .unwrap()
                     .set(key.to_string(), val.to_string());
@@ -100,21 +95,16 @@ impl Settings {
             }
         }
 
-        if settings.read().await.is_none()
-            || settings.read().await.as_ref().unwrap()
-                == s.global_settings().await.read().await.as_ref().unwrap()
-        {
+        if settings.is_none() || is_global_settings {
             return Err(simple_error!("no sessions declared").into());
         }
 
-        let _ = s
-            .add_session(settings.read().await.clone().unwrap())
-            .await?;
+        let _ = s.add_session(settings.clone().unwrap()).await?;
         Ok(s)
     }
 
     // global_settings are default setting inherited by all session settings.
-    pub async fn global_settings(&mut self) -> Arc<RwLock<Option<SessionSettings>>> {
+    pub async fn global_settings(&mut self) -> Option<SessionSettings> {
         self.lazy_init().await;
         self.global_settings.clone()
     }
@@ -123,11 +113,12 @@ impl Settings {
     pub async fn session_settings(&self) -> HashMap<Arc<SessionID>, SessionSettings> {
         let mut all_session_settings = hashmap! {};
 
-        for (session_id, settings) in &self.session_settings {
+        for entry in self.session_settings.iter() {
+            let (session_id, settings) = entry.pair();
             let global_clone = self.global_settings.clone();
-            let mut clone_settings = global_clone.read().await.as_ref().unwrap().clone();
+            let mut clone_settings = global_clone.as_ref().unwrap().clone();
 
-            clone_settings.overlay(settings);
+            clone_settings.overlay(&settings);
             all_session_settings.insert(session_id.clone(), clone_settings);
         }
 
@@ -141,7 +132,7 @@ impl Settings {
     ) -> Result<Arc<SessionID>, Box<dyn Error + Send + Sync>> {
         self.lazy_init().await;
         let session_id = session_id_from_session_settings(
-            self.global_settings().await.read().await.as_ref().unwrap(),
+            self.global_settings().await.as_ref().unwrap(),
             &session_settings,
         );
 
@@ -242,7 +233,7 @@ mod tests {
         let mut s = Settings::new();
 
         let global_settings = s.global_settings().await;
-        assert!(global_settings.read().await.is_some());
+        assert!(global_settings.is_some());
 
         let session_settings = s.session_settings().await;
         assert!(session_settings.is_empty());
@@ -290,16 +281,12 @@ mod tests {
     #[tokio::test]
     async fn test_global_overlay() {
         let mut s = setup_test();
-        let global_settings = s.settings.global_settings().await;
+        let mut global_settings = s.settings.global_settings().await;
         global_settings
-            .write()
-            .await
             .as_mut()
             .unwrap()
             .set(BEGIN_STRING.to_string(), "FIX.4.0".to_string());
         global_settings
-            .write()
-            .await
             .as_mut()
             .unwrap()
             .set(SOCKET_ACCEPT_PORT.to_string(), "1000".to_string());
@@ -519,12 +506,7 @@ DataDictionary=somewhere/FIX42.xml
 
         let global_settings = s.global_settings().await;
         for tc in global_t_cs.iter() {
-            let actual_result = global_settings
-                .read()
-                .await
-                .as_ref()
-                .unwrap()
-                .setting(tc.setting);
+            let actual_result = global_settings.as_ref().unwrap().setting(tc.setting);
             assert!(actual_result.is_ok());
             assert_eq!(tc.expected, actual_result.unwrap());
         }

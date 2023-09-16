@@ -1,6 +1,6 @@
 use crate::errors::FixerError;
+use dashmap::DashMap;
 use parse_duration::parse;
-use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use tokio::time::Duration;
@@ -36,22 +36,22 @@ impl Display for IncorrectFormatForSetting {
 impl Error for IncorrectFormatForSetting {}
 
 // SessionSettings maps session settings to values with typed accessors.
-#[derive(Default, Debug, PartialEq, Eq, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct SessionSettings {
-    pub(crate) settings: HashMap<String, String>,
+    pub(crate) settings: DashMap<String, String>,
 }
 
 impl SessionSettings {
     // new returns a newly initialized SessionSettings instance
     pub fn new() -> Self {
         Self {
-            settings: hashmap! {},
+            settings: DashMap::new(),
         }
     }
 
     // init resets SessionSettings
     pub fn init(&mut self) {
-        self.settings = hashmap! {};
+        self.settings = DashMap::new();
     }
 
     // set assigns a value to a setting on SessionSettings.
@@ -117,7 +117,8 @@ impl SessionSettings {
     }
 
     pub fn overlay(&mut self, overlay: &Self) {
-        for (k, v) in overlay.settings.iter() {
+        for entry in overlay.settings.iter() {
+            let (k, v) = entry.pair();
             let _ = self.settings.insert(k.clone(), v.clone());
         }
     }

@@ -540,8 +540,7 @@ pub struct FileStoreFactory {
 impl MessageStoreFactoryTrait for FileStoreFactory {
     async fn create(&self, session_id: Arc<SessionID>) -> SimpleResult<MessageStoreEnum> {
         let mut lock = self.settings.lock().await;
-        let global_lock = lock.global_settings().await;
-        let global_settings_wrapper = global_lock.read().await;
+        let global_settings_wrapper = lock.global_settings().await;
         let global_settings = global_settings_wrapper.as_ref().unwrap();
 
         let dynamic_sessions = global_settings
