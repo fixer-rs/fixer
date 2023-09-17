@@ -98,12 +98,12 @@ impl FileLogFactory {
         let mut log_factory = FileLogFactory::default();
 
         let gs_option = settings.global_settings().await;
-        let gs = gs_option.read().await;
-        let gss = gs.as_ref().unwrap();
+        let gss = gs_option.as_ref().unwrap();
         let res = gss.setting(FILE_LOG_PATH)?;
         log_factory.global_log_path = res;
 
-        for (sid, session_settings) in settings.session_settings().await.iter() {
+        for entry in settings.session_settings().await.iter() {
+            let (sid, session_settings) = entry.pair();
             let log_path = session_settings.setting(FILE_LOG_PATH)?;
             log_factory.session_log_paths.insert(sid.clone(), log_path);
         }

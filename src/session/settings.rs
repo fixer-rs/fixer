@@ -1,8 +1,9 @@
 use crate::errors::FixerError;
+use dashmap::DashMap;
 use parse_duration::parse;
-use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::{Display, Formatter, Result as FmtResult};
+use std::sync::Arc;
 use tokio::time::Duration;
 
 // ConditionallyRequiredSetting indicates a missing setting
@@ -36,22 +37,22 @@ impl Display for IncorrectFormatForSetting {
 impl Error for IncorrectFormatForSetting {}
 
 // SessionSettings maps session settings to values with typed accessors.
-#[derive(Default, Debug, PartialEq, Eq, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct SessionSettings {
-    pub(crate) settings: HashMap<String, String>,
+    pub settings: Arc<DashMap<String, String>>,
 }
 
 impl SessionSettings {
     // new returns a newly initialized SessionSettings instance
     pub fn new() -> Self {
         Self {
-            settings: hashmap! {},
+            settings: Arc::new(DashMap::new()),
         }
     }
 
     // init resets SessionSettings
     pub fn init(&mut self) {
-        self.settings = hashmap! {};
+        self.settings = Arc::new(DashMap::new());
     }
 
     // set assigns a value to a setting on SessionSettings.
@@ -117,8 +118,9 @@ impl SessionSettings {
     }
 
     pub fn overlay(&mut self, overlay: &Self) {
-        for (k, v) in overlay.settings.iter() {
-            let _ = self.settings.insert(k.clone(), v.clone());
+        for entry in overlay.settings.iter() {
+            let (k, v) = entry.pair();
+            self.settings.insert(k.clone(), v.clone());
         }
     }
 }

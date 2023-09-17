@@ -16,7 +16,7 @@ use crate::{
     fix_utc_timestamp::{FIXUTCTimestamp, TimestampPrecision},
     internal::event::{Event, LOGON_TIMEOUT, LOGOUT_TIMEOUT, NEED_HEARTBEAT, PEER_TIMEOUT},
     internal::event_timer::EventTimer,
-    internal::{session_settings::SessionSettings, time_range::gen_now},
+    internal::{session_settings::SessionSettings as InternalSessionSettings, time_range::gen_now},
     log::{LogEnum, LogTrait},
     message::Message,
     msg_type::{
@@ -129,7 +129,7 @@ pub struct Session {
     pub target_default_appl_ver_id: String,
 
     pub admin: Admin,
-    pub iss: SessionSettings,
+    pub iss: InternalSessionSettings,
     pub transport_data_dictionary: Option<DataDictionary>,
     pub app_data_dictionary: Option<DataDictionary>,
     pub timestamp_precision: TimestampPrecision,
@@ -175,7 +175,7 @@ impl Default for Session {
                 tx: admin_tx,
                 rx: admin_rx,
             },
-            iss: SessionSettings::default(),
+            iss: InternalSessionSettings::default(),
             transport_data_dictionary: Default::default(),
             app_data_dictionary: Default::default(),
             timestamp_precision: TimestampPrecision::default(),
