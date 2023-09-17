@@ -208,32 +208,30 @@ impl SessionFactory {
             } else {
                 None
             }
+        } else if settings.has_setting(DATA_DICTIONARY) {
+            let data_dictionary_path = settings.setting(DATA_DICTIONARY)?;
+
+            let app_data_dictionary_inner = map_err_with!(
+                DataDictionary::parse(&data_dictionary_path).await,
+                "problem parsing XML datadictionary path '{}' for setting '{}'",
+                settings
+                    .settings
+                    .get(DATA_DICTIONARY)
+                    .as_ref()
+                    .unwrap()
+                    .deref(),
+                DATA_DICTIONARY
+            )?;
+
+            app_data_dictionary = Some(app_data_dictionary_inner.clone());
+
+            Some(ValidatorEnum::new(
+                validator_settings,
+                app_data_dictionary_inner.clone(),
+                None,
+            ))
         } else {
-            if settings.has_setting(DATA_DICTIONARY) {
-                let data_dictionary_path = settings.setting(DATA_DICTIONARY)?;
-
-                let app_data_dictionary_inner = map_err_with!(
-                    DataDictionary::parse(&data_dictionary_path).await,
-                    "problem parsing XML datadictionary path '{}' for setting '{}'",
-                    settings
-                        .settings
-                        .get(DATA_DICTIONARY)
-                        .as_ref()
-                        .unwrap()
-                        .deref(),
-                    DATA_DICTIONARY
-                )?;
-
-                app_data_dictionary = Some(app_data_dictionary_inner.clone());
-
-                Some(ValidatorEnum::new(
-                    validator_settings,
-                    app_data_dictionary_inner.clone(),
-                    None,
-                ))
-            } else {
-                None
-            }
+            None
         };
 
         if settings.has_setting(RESET_ON_LOGON) {
@@ -310,7 +308,7 @@ impl SessionFactory {
 
                 if loc_str != "Local" {
                     let tz: Tz = map_err_with!(
-                        (&loc_str).parse().map_err(|err| simple_error!("{}", err)),
+                        loc_str.parse().map_err(|err| simple_error!("{}", err)),
                         "problem parsing time zone '{}' for setting '{}'",
                         settings.settings.get(TIME_ZONE).as_ref().unwrap().deref(),
                         TIME_ZONE
@@ -519,7 +517,7 @@ impl SessionFactory {
             let socket_connect_port_string = settings.setting(&port_config)?;
 
             let socket_connect_port =
-                atoi_simd::parse::<u16>(&socket_connect_port_string.as_bytes())
+                atoi_simd::parse::<u16>(socket_connect_port_string.as_bytes())
                     .map_err(SimpleError::from)?;
 
             let host_ip = IpAddr::from_str(socket_connect_host_string.as_str());

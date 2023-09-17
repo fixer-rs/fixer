@@ -102,7 +102,8 @@ impl FileLogFactory {
         let res = gss.setting(FILE_LOG_PATH)?;
         log_factory.global_log_path = res;
 
-        for (sid, session_settings) in settings.session_settings().await.iter() {
+        for entry in settings.session_settings().await.iter() {
+            let (sid, session_settings) = entry.pair();
             let log_path = session_settings.setting(FILE_LOG_PATH)?;
             log_factory.session_log_paths.insert(sid.clone(), log_path);
         }

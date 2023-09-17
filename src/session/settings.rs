@@ -3,6 +3,7 @@ use dashmap::DashMap;
 use parse_duration::parse;
 use std::error::Error;
 use std::fmt::{Display, Formatter, Result as FmtResult};
+use std::sync::Arc;
 use tokio::time::Duration;
 
 // ConditionallyRequiredSetting indicates a missing setting
@@ -38,20 +39,20 @@ impl Error for IncorrectFormatForSetting {}
 // SessionSettings maps session settings to values with typed accessors.
 #[derive(Default, Debug, Clone)]
 pub struct SessionSettings {
-    pub(crate) settings: DashMap<String, String>,
+    pub settings: Arc<DashMap<String, String>>,
 }
 
 impl SessionSettings {
     // new returns a newly initialized SessionSettings instance
     pub fn new() -> Self {
         Self {
-            settings: DashMap::new(),
+            settings: Arc::new(DashMap::new()),
         }
     }
 
     // init resets SessionSettings
     pub fn init(&mut self) {
-        self.settings = DashMap::new();
+        self.settings = Arc::new(DashMap::new());
     }
 
     // set assigns a value to a setting on SessionSettings.
@@ -119,7 +120,7 @@ impl SessionSettings {
     pub fn overlay(&mut self, overlay: &Self) {
         for entry in overlay.settings.iter() {
             let (k, v) = entry.pair();
-            let _ = self.settings.insert(k.clone(), v.clone());
+            self.settings.insert(k.clone(), v.clone());
         }
     }
 }

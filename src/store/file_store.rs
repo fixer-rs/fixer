@@ -2,6 +2,7 @@ use crate::{
     config::{DYNAMIC_SESSIONS, FILE_STORE_PATH, FILE_STORE_SYNC},
     fileutil::{close_file, open_or_create_file, remove_file, session_id_filename_prefix},
     session::session_id::SessionID,
+    session::settings::SessionSettings,
     settings::Settings,
     store::{
         MemoryStore, MessageStoreEnum, MessageStoreFactoryEnum, MessageStoreFactoryTrait,
@@ -549,11 +550,14 @@ impl MessageStoreFactoryTrait for FileStoreFactory {
 
         let session_settings_wrapper = lock.session_settings().await;
         let session_settings_option = session_settings_wrapper.get(&session_id);
-        let session_settings = match session_settings_option {
-            Some(session_settings) => session_settings,
+        match session_settings_option {
+            Some(session_settings_pair) => {
+                let session_settings = session_settings_pair.value();
+                return create_file_store(session_id, session_settings).await;
+            }
             None => {
                 if dynamic_sessions {
-                    global_settings
+                    return create_file_store(session_id, global_settings).await;
                 } else {
                     return Err(simple_error!(
                         "unknown session: {}",
@@ -562,22 +566,28 @@ impl MessageStoreFactoryTrait for FileStoreFactory {
                 }
             }
         };
-
-        let dirname = session_settings
-            .setting(FILE_STORE_PATH)
-            .map_err(SimpleError::from)?;
-
-        let fsync = if session_settings.has_setting(FILE_STORE_SYNC) {
-            session_settings
-                .bool_setting(FILE_STORE_SYNC)
-                .map_err(SimpleError::from)?
-        } else {
-            true
-        };
-        Ok(MessageStoreEnum::FileStore(
-            FileStore::new(session_id, dirname, fsync).await?,
-        ))
     }
+}
+
+async fn create_file_store(
+    session_id: Arc<SessionID>,
+    session_settings: &SessionSettings,
+) -> SimpleResult<MessageStoreEnum> {
+    let dirname = session_settings
+        .setting(FILE_STORE_PATH)
+        .map_err(SimpleError::from)?;
+
+    let fsync = if session_settings.has_setting(FILE_STORE_SYNC) {
+        session_settings
+            .bool_setting(FILE_STORE_SYNC)
+            .map_err(SimpleError::from)?
+    } else {
+        true
+    };
+
+    Ok(MessageStoreEnum::FileStore(
+        FileStore::new(session_id, dirname, fsync).await?,
+    ))
 }
 
 impl FileStoreFactory {

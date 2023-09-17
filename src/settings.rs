@@ -10,7 +10,8 @@ use crate::{
 use dashmap::DashMap;
 use once_cell::sync::Lazy;
 use regex::Regex;
-use std::{collections::HashMap, error::Error, sync::Arc};
+use simple_error::{SimpleError, SimpleResult};
+use std::sync::Arc;
 use tokio::io::{AsyncBufRead, AsyncBufReadExt};
 
 pub static BLANK_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^\s*$").unwrap());
@@ -23,7 +24,7 @@ pub static SETTING_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^([^=]*)=(.*)$
 #[derive(Default, Debug)]
 pub struct Settings {
     global_settings: Option<SessionSettings>,
-    session_settings: DashMap<Arc<SessionID>, SessionSettings>,
+    session_settings: Arc<DashMap<Arc<SessionID>, SessionSettings>>,
 }
 
 impl Settings {
@@ -47,7 +48,7 @@ impl Settings {
 
     // parse creates and initializes a Settings instance with config parsed from a Reader.
     // Returns error if the config is has parse errors.
-    pub async fn parse<F>(reader: F) -> Result<Self, Box<dyn Error + Send + Sync>>
+    pub async fn parse<F>(reader: F) -> SimpleResult<Self>
     where
         F: AsyncBufRead,
     {
@@ -60,7 +61,7 @@ impl Settings {
 
         let mut lines = Box::pin(reader).lines();
 
-        while let Some(line) = lines.next_line().await? {
+        while let Some(line) = lines.next_line().await.map_err(SimpleError::from)? {
             line_number += 1;
 
             if COMMENT_REGEX.is_match(&line) || BLANK_REGEX.is_match(&line) {
@@ -70,7 +71,9 @@ impl Settings {
                 is_global_settings = true;
             } else if SESSION_REGEX.is_match(&line) {
                 if settings.is_some() && !is_global_settings {
-                    s.add_session(settings.clone().unwrap()).await?;
+                    s.add_session(settings.unwrap())
+                        .await
+                        .map_err(SimpleError::from)?;
                 }
                 settings = Some(SessionSettings::new());
                 is_global_settings = false;
@@ -80,7 +83,7 @@ impl Settings {
                     .ok_or(simple_error!("error parsing line: {}", line_number))?;
 
                 if parts.len() != 3 {
-                    return Err(simple_error!("error parsing line: {}", line_number).into());
+                    return Err(simple_error!("error parsing line: {}", line_number));
                 }
 
                 let key = parts.get(1).map(|m| m.as_str()).unwrap();
@@ -91,34 +94,37 @@ impl Settings {
                     .unwrap()
                     .set(key.to_string(), val.to_string());
             } else {
-                return Err(simple_error!("error parsing line: {}", line_number).into());
+                return Err(simple_error!("error parsing line: {}", line_number));
             }
         }
 
         if settings.is_none() || is_global_settings {
-            return Err(simple_error!("no sessions declared").into());
+            return Err(simple_error!("no sessions declared"));
         }
 
-        let _ = s.add_session(settings.clone().unwrap()).await?;
+        let _ = s
+            .add_session(settings.unwrap())
+            .await
+            .map_err(SimpleError::from)?;
         Ok(s)
     }
 
     // global_settings are default setting inherited by all session settings.
     pub async fn global_settings(&mut self) -> Option<SessionSettings> {
         self.lazy_init().await;
-        self.global_settings.clone()
+        Some(self.global_settings.as_ref().unwrap().clone())
     }
 
     // session_settings return all session settings overlaying globalsettings.
-    pub async fn session_settings(&self) -> HashMap<Arc<SessionID>, SessionSettings> {
-        let mut all_session_settings = hashmap! {};
+    pub async fn session_settings(&self) -> DashMap<Arc<SessionID>, SessionSettings> {
+        let all_session_settings = DashMap::new();
 
         for entry in self.session_settings.iter() {
             let (session_id, settings) = entry.pair();
-            let global_clone = self.global_settings.clone();
-            let mut clone_settings = global_clone.as_ref().unwrap().clone();
+            let mut clone_settings = SessionSettings::new();
+            clone_settings.overlay(self.global_settings.as_ref().unwrap());
 
-            clone_settings.overlay(&settings);
+            clone_settings.overlay(settings);
             all_session_settings.insert(session_id.clone(), clone_settings);
         }
 
@@ -129,7 +135,7 @@ impl Settings {
     pub async fn add_session(
         &mut self,
         session_settings: SessionSettings,
-    ) -> Result<Arc<SessionID>, Box<dyn Error + Send + Sync>> {
+    ) -> SimpleResult<Arc<SessionID>> {
         self.lazy_init().await;
         let session_id = session_id_from_session_settings(
             self.global_settings().await.as_ref().unwrap(),
@@ -140,9 +146,9 @@ impl Settings {
             BEGIN_STRING_FIX40 | BEGIN_STRING_FIX41 | BEGIN_STRING_FIX42 | BEGIN_STRING_FIX43
             | BEGIN_STRING_FIX44 | BEGIN_STRING_FIXT11 => {}
             _ => {
-                return Err(
-                    simple_error!("BeginString must be FIX.4.0 to FIX.4.4 or FIXT.1.1").into(),
-                );
+                return Err(simple_error!(
+                    "BeginString must be FIX.4.0 to FIX.4.4 or FIXT.1.1"
+                ));
             }
         }
 
@@ -150,8 +156,7 @@ impl Settings {
             return Err(simple_error!(
                 "duplicate session configured for {}",
                 &session_id.to_string()
-            )
-            .into());
+            ));
         }
 
         self.session_settings
@@ -167,7 +172,7 @@ fn session_id_from_session_settings(
 ) -> Arc<SessionID> {
     let mut session_id = SessionID::default();
 
-    for settings in &[global_settings, session_settings] {
+    for settings in [global_settings, session_settings] {
         if settings.has_setting(BEGIN_STRING) {
             session_id.begin_string = settings.setting(BEGIN_STRING).unwrap();
         }
