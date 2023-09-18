@@ -10,7 +10,7 @@ use crate::{
     },
 };
 use async_trait::async_trait;
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, Utc};
 use simple_error::{SimpleError, SimpleResult};
 // TODO: check windows os
 use sscanf::sscanf;
@@ -401,8 +401,9 @@ impl FileStore {
             let mut time_bytes: Vec<u8> = Vec::new();
             if file.read_to_end(&mut time_bytes).await.is_ok() {
                 let input_str = String::from_utf8_lossy(&time_bytes).to_string();
-                if let Ok(time) = Utc.datetime_from_str(&input_str, TIMESTAMP_FORMAT) {
-                    self.cache.creation_time = time;
+                if let Ok(time) = DateTime::parse_from_str(&input_str, TIMESTAMP_FORMAT) {
+                    self.cache.creation_time =
+                        DateTime::from_naive_utc_and_offset(time.naive_utc(), Utc);
                     creation_time_populated = true;
                 }
             }
@@ -618,7 +619,7 @@ mod tests {
 
     async fn setup_test() -> FileStoreTestSuite<MessageStoreEnum> {
         let path = Path::new(&temp_dir()).join(format!("FileStoreTestSuite-{}", id()));
-        let file_store_path = path.join(format!("{}", Utc::now().timestamp_nanos()));
+        let file_store_path = path.join(format!("{}", Utc::now().timestamp_nanos_opt().unwrap()));
         let session_id = SessionID {
             begin_string: String::from("FIX.4.4"),
             sender_comp_id: String::from("SENDER"),
