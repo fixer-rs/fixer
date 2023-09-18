@@ -401,8 +401,8 @@ impl FileStore {
             let mut time_bytes: Vec<u8> = Vec::new();
             if file.read_to_end(&mut time_bytes).await.is_ok() {
                 let input_str = String::from_utf8_lossy(&time_bytes).to_string();
-                if let Ok(time) = Utc.datetime_from_str(&input_str, TIMESTAMP_FORMAT) {
-                    self.cache.creation_time = time;
+                if let Ok(time) = DateTime::parse_from_str(&input_str, TIMESTAMP_FORMAT) {
+                    self.cache.creation_time = time.into();
                     creation_time_populated = true;
                 }
             }

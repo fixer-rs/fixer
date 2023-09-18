@@ -35,30 +35,30 @@ impl FieldValueReader for FIXUTCTimestamp {
         match input_str.len() {
             17 => {
                 self.precision = TimestampPrecision::Seconds;
-                self.time = Utc
-                    .datetime_from_str(&input_str, UTC_TIMESTAMP_SECONDS_FORMAT)
-                    .map_err(res)?;
+                self.time = DateTime::parse_from_str(&input_str, UTC_TIMESTAMP_SECONDS_FORMAT)
+                    .map_err(res)?
+                    .into();
                 Ok(())
             }
             21 => {
                 self.precision = TimestampPrecision::Millis;
-                self.time = Utc
-                    .datetime_from_str(&input_str, UTC_TIMESTAMP_MILLIS_FORMAT)
-                    .map_err(res)?;
+                self.time = DateTime::parse_from_str(&input_str, UTC_TIMESTAMP_MILLIS_FORMAT)
+                    .map_err(res)?
+                    .into();
                 Ok(())
             }
             24 => {
                 self.precision = TimestampPrecision::Micros;
-                self.time = Utc
-                    .datetime_from_str(&input_str, UTC_TIMESTAMP_MICROS_FORMAT)
-                    .map_err(res)?;
+                self.time = DateTime::parse_from_str(&input_str, UTC_TIMESTAMP_MICROS_FORMAT)
+                    .map_err(res)?
+                    .into();
                 Ok(())
             }
             27 => {
                 self.precision = TimestampPrecision::Nanos;
-                self.time = Utc
-                    .datetime_from_str(&input_str, UTC_TIMESTAMP_NANOS_FORMAT)
-                    .map_err(res)?;
+                self.time = DateTime::parse_from_str(&input_str, UTC_TIMESTAMP_NANOS_FORMAT)
+                    .map_err(res)?
+                    .into();
                 Ok(())
             }
             _ => Ok(()),
