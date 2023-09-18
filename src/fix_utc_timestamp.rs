@@ -1,5 +1,5 @@
 use crate::field::{FieldValue, FieldValueReader, FieldValueWriter};
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
 use simple_error::SimpleResult;
 
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
@@ -35,30 +35,30 @@ impl FieldValueReader for FIXUTCTimestamp {
         match input_str.len() {
             17 => {
                 self.precision = TimestampPrecision::Seconds;
-                self.time = Utc
-                    .datetime_from_str(&input_str, UTC_TIMESTAMP_SECONDS_FORMAT)
+                let time = NaiveDateTime::parse_from_str(&input_str, UTC_TIMESTAMP_SECONDS_FORMAT)
                     .map_err(res)?;
+                self.time = DateTime::from_naive_utc_and_offset(time, Utc);
                 Ok(())
             }
             21 => {
                 self.precision = TimestampPrecision::Millis;
-                self.time = Utc
-                    .datetime_from_str(&input_str, UTC_TIMESTAMP_MILLIS_FORMAT)
+                let time = NaiveDateTime::parse_from_str(&input_str, UTC_TIMESTAMP_MILLIS_FORMAT)
                     .map_err(res)?;
+                self.time = DateTime::from_naive_utc_and_offset(time, Utc);
                 Ok(())
             }
             24 => {
                 self.precision = TimestampPrecision::Micros;
-                self.time = Utc
-                    .datetime_from_str(&input_str, UTC_TIMESTAMP_MICROS_FORMAT)
+                let time = NaiveDateTime::parse_from_str(&input_str, UTC_TIMESTAMP_MICROS_FORMAT)
                     .map_err(res)?;
+                self.time = DateTime::from_naive_utc_and_offset(time, Utc);
                 Ok(())
             }
             27 => {
                 self.precision = TimestampPrecision::Nanos;
-                self.time = Utc
-                    .datetime_from_str(&input_str, UTC_TIMESTAMP_NANOS_FORMAT)
+                let time = NaiveDateTime::parse_from_str(&input_str, UTC_TIMESTAMP_NANOS_FORMAT)
                     .map_err(res)?;
+                self.time = DateTime::from_naive_utc_and_offset(time, Utc);
                 Ok(())
             }
             _ => Ok(()),
@@ -112,7 +112,7 @@ impl FIXUTCTimestamp {
 mod tests {
     use super::*;
     use crate::internal::time_range::utc;
-    use chrono::{naive::NaiveDate, Timelike};
+    use chrono::{naive::NaiveDate, TimeZone, Timelike};
 
     #[test]
     fn test_fixutc_timestamp_write() {
