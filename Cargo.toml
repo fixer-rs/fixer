@@ -55,7 +55,7 @@ tokio = { version = "1.32", features = [
   "macros",
   "time",
 ] }
-wg = "0.3"
+wg = "0.4"
 
 [dev-dependencies]
 async_once = "0.2"
