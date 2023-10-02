@@ -18,7 +18,7 @@ path = "src/lib.rs"
 addr = "0.15"
 async-recursion = "1.0"
 async-trait = "0.1"
-atoi_simd = "0.14"
+atoi_simd = "0.15"
 chrono = { version = "0.4", features = ["default", "serde"] }
 chrono-tz = "0.8"
 dashmap = { version = "5.5" }
