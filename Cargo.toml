@@ -22,7 +22,7 @@ atoi_simd = "0.15"
 chrono = { version = "0.4", features = ["default", "serde"] }
 chrono-tz = "0.8"
 dashmap = { version = "5.5" }
-delegate = "0.10"
+delegate = "0.11"
 dyn-clone = "1.0"
 enum_dispatch = "0.3"
 fast-float = "0.2"
