@@ -60,7 +60,7 @@ wg = "0.4"
 [dev-dependencies]
 async_once = "0.2"
 criterion = "0.5"
-mockall = "0.11"
+mockall = "0.12"
 pprof = { version = "0.13", features = ["flamegraph", "criterion"] }
 serial_test = "2.0"
 
