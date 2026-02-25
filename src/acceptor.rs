@@ -5,10 +5,12 @@ use crate::{
     log::{LogEnum, LogFactoryEnum},
     message::Message,
     parser::Parser,
-    registry::lookup_session,
+    registry::{lookup_session, unregister_session},
     session::{
-        factory::SessionFactory, session_id::SessionID, AdminEnum, Connect, FixIn, Session,
-        StopReq,
+        factory::SessionFactory,
+        session_id::SessionID,
+        settings::SessionSettings,
+        AdminEnum, Connect, FixIn, Session, StopReq,
     },
     settings::Settings,
     store::MessageStoreFactoryEnum,
@@ -18,11 +20,17 @@ use crate::{
     },
 };
 use simple_error::SimpleResult;
-use std::{net::SocketAddr, sync::Arc};
+use std::{
+    net::SocketAddr,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+};
 use tokio::{
     io::BufReader,
     net::TcpListener,
-    sync::{mpsc::UnboundedSender, watch, Mutex},
+    sync::{mpsc, mpsc::UnboundedSender, watch, Mutex},
     task::JoinHandle,
 };
 
@@ -33,6 +41,44 @@ use tokio::{
 pub trait ConnectionValidator: Send + Sync + 'static {
     /// Validate the connection. Return `Ok(())` to accept, `Err` to reject.
     fn validate(&self, remote_addr: SocketAddr, session_id: &SessionID) -> SimpleResult<()>;
+}
+
+// DynSessionCreator type-erases the Application generic so the Acceptor can
+// create dynamic sessions without being generic itself.
+trait DynSessionCreator: Send + Sync {
+    fn create_session<'a>(
+        &'a self,
+        session_id: Arc<SessionID>,
+        settings: &'a SessionSettings,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = SimpleResult<Arc<Mutex<Session>>>> + Send + 'a>>;
+}
+
+struct SessionCreator<A: Application + 'static> {
+    factory: SessionFactory,
+    store_factory: MessageStoreFactoryEnum,
+    log_factory: LogFactoryEnum,
+    app: Arc<Mutex<A>>,
+}
+
+impl<A: Application + 'static> DynSessionCreator for SessionCreator<A> {
+    fn create_session<'a>(
+        &'a self,
+        session_id: Arc<SessionID>,
+        settings: &'a SessionSettings,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = SimpleResult<Arc<Mutex<Session>>>> + Send + 'a>>
+    {
+        Box::pin(async move {
+            self.factory
+                .create_session(
+                    session_id,
+                    self.store_factory.clone(),
+                    settings,
+                    self.log_factory.clone(),
+                    self.app.clone(),
+                )
+                .await
+        })
+    }
 }
 
 struct SessionHandle {
@@ -48,6 +94,12 @@ pub struct Acceptor {
     listen_address: String,
     local_address: Option<SocketAddr>,
     connection_validator: Option<Arc<dyn ConnectionValidator>>,
+    dynamic_sessions: bool,
+    dynamic_qualifier: bool,
+    dynamic_qualifier_count: Arc<AtomicUsize>,
+    dynamic_session_tx: Option<mpsc::UnboundedSender<Arc<Mutex<Session>>>>,
+    session_creator: Arc<dyn DynSessionCreator>,
+    global_settings: SessionSettings,
 }
 
 impl Acceptor {
@@ -78,6 +130,20 @@ impl Acceptor {
             format!("{}:{}", host, port)
         };
 
+        // Read dynamic sessions config
+        let dynamic_sessions = if global.has_setting(config::DYNAMIC_SESSIONS) {
+            global.bool_setting(config::DYNAMIC_SESSIONS).unwrap_or(false)
+        } else {
+            false
+        };
+        let dynamic_qualifier = if global.has_setting(config::DYNAMIC_QUALIFIER) {
+            global.bool_setting(config::DYNAMIC_QUALIFIER).unwrap_or(false)
+        } else {
+            false
+        };
+
+        let global_settings = global;
+
         let mut sessions = Vec::new();
         let session_settings = settings.session_settings().await;
 
@@ -103,6 +169,13 @@ impl Acceptor {
 
         let (stop_tx, stop_rx) = watch::channel(false);
 
+        let session_creator: Arc<dyn DynSessionCreator> = Arc::new(SessionCreator {
+            factory,
+            store_factory,
+            log_factory,
+            app,
+        });
+
         Ok(Acceptor {
             sessions,
             stop_tx,
@@ -111,6 +184,12 @@ impl Acceptor {
             listen_address,
             local_address: None,
             connection_validator: None,
+            dynamic_sessions,
+            dynamic_qualifier,
+            dynamic_qualifier_count: Arc::new(AtomicUsize::new(0)),
+            dynamic_session_tx: None,
+            session_creator,
+            global_settings,
         })
     }
 
@@ -124,6 +203,15 @@ impl Acceptor {
             self.task_handles.push(run_handle);
         }
 
+        // Start dynamic sessions loop if enabled
+        if self.dynamic_sessions {
+            let (tx, rx) = mpsc::unbounded_channel::<Arc<Mutex<Session>>>();
+            self.dynamic_session_tx = Some(tx);
+
+            let dynamic_handle = tokio::spawn(dynamic_sessions_loop(rx));
+            self.task_handles.push(dynamic_handle);
+        }
+
         // Bind TCP listener
         let listener = TcpListener::bind(&self.listen_address)
             .await
@@ -133,6 +221,17 @@ impl Acceptor {
 
         let mut stop_rx = self.stop_rx.clone();
         let validator = self.connection_validator.clone();
+        let dynamic_ctx = if self.dynamic_sessions {
+            Some(Arc::new(DynamicContext {
+                session_creator: self.session_creator.clone(),
+                global_settings: self.global_settings.clone(),
+                dynamic_qualifier: self.dynamic_qualifier,
+                qualifier_count: self.dynamic_qualifier_count.clone(),
+                dynamic_session_tx: self.dynamic_session_tx.clone().unwrap(),
+            }))
+        } else {
+            None
+        };
 
         // Spawn accept loop
         let accept_handle = tokio::spawn(async move {
@@ -142,7 +241,8 @@ impl Acceptor {
                         match accept_result {
                             Ok((stream, _remote_addr)) => {
                                 let validator = validator.clone();
-                                tokio::spawn(handle_acceptor_connection(stream, validator));
+                                let dynamic_ctx = dynamic_ctx.clone();
+                                tokio::spawn(handle_acceptor_connection(stream, validator, dynamic_ctx));
                             }
                             Err(_) => {}
                         }
@@ -161,6 +261,11 @@ impl Acceptor {
     pub async fn stop(&mut self) {
         // Signal accept loop to stop
         let _ = self.stop_tx.send(true);
+
+        // Close dynamic session channel to signal the loop to shut down
+        if self.dynamic_sessions {
+            self.dynamic_session_tx.take();
+        }
 
         // Stop all sessions
         for handle in &self.sessions {
@@ -186,13 +291,23 @@ impl Acceptor {
     }
 }
 
+struct DynamicContext {
+    session_creator: Arc<dyn DynSessionCreator>,
+    global_settings: SessionSettings,
+    dynamic_qualifier: bool,
+    qualifier_count: Arc<AtomicUsize>,
+    dynamic_session_tx: mpsc::UnboundedSender<Arc<Mutex<Session>>>,
+}
+
 // handle_acceptor_connection reads the first FIX message from an incoming TCP
 // connection, identifies the session (sender/target swapped), optionally validates
 // via ConnectionValidator, wires up channels, and runs read_loop/write_loop until
-// disconnect.
+// disconnect. If the session is not found and dynamic sessions are enabled, creates
+// a new session on-the-fly.
 async fn handle_acceptor_connection(
     stream: tokio::net::TcpStream,
     validator: Option<Arc<dyn ConnectionValidator>>,
+    dynamic_ctx: Option<Arc<DynamicContext>>,
 ) {
     let remote_addr = match stream.peer_addr() {
         Ok(addr) => addr,
@@ -243,6 +358,17 @@ async fn handle_acceptor_connection(
     // IMPORTANT: Swap sender/target for session lookup.
     // The incoming message's SenderCompID is the remote peer — our TargetCompID.
     // The incoming message's TargetCompID is us — our SenderCompID.
+    let qualifier = if let Some(ref ctx) = dynamic_ctx {
+        if ctx.dynamic_qualifier {
+            let count = ctx.qualifier_count.fetch_add(1, Ordering::SeqCst) + 1;
+            count.to_string()
+        } else {
+            String::new()
+        }
+    } else {
+        String::new()
+    };
+
     let session_id = Arc::new(SessionID {
         begin_string,
         sender_comp_id: target_comp_id,
@@ -251,7 +377,7 @@ async fn handle_acceptor_connection(
         target_comp_id: sender_comp_id,
         target_sub_id: sender_sub_id,
         target_location_id: sender_location_id,
-        qualifier: String::new(),
+        qualifier,
     });
 
     // Validate the connection if a validator is configured.
@@ -263,10 +389,30 @@ async fn handle_acceptor_connection(
         }
     }
 
-    // Look up the session in the global registry
+    // Look up the session in the global registry, or create a dynamic session
+    let is_dynamic;
     let session = match lookup_session(&session_id) {
-        Some(s) => s,
-        None => return,
+        Some(s) => {
+            is_dynamic = false;
+            s
+        }
+        None => {
+            // Session not found — try dynamic session creation
+            let Some(ref ctx) = dynamic_ctx else {
+                return;
+            };
+            let Ok(s) = ctx
+                .session_creator
+                .create_session(session_id.clone(), &ctx.global_settings)
+                .await
+            else {
+                return;
+            };
+            // Send the dynamic session to the lifecycle loop
+            let _ = ctx.dynamic_session_tx.send(s.clone());
+            is_dynamic = true;
+            s
+        }
     };
 
     // Get admin_tx to send Connect message
@@ -306,6 +452,41 @@ async fn handle_acceptor_connection(
     tokio::select! {
         _ = read_task => {},
         _ = write_task => {},
+    }
+
+    // Stop dynamic sessions when the connection handler returns,
+    // equivalent to Go's `defer session.stop()`.
+    if is_dynamic {
+        let _ = admin_tx.send(AdminEnum::StopReq(StopReq));
+    }
+}
+
+// dynamic_sessions_loop manages the lifecycle of dynamically created sessions.
+// It receives sessions via channel, spawns their run() loop, and unregisters
+// them from the global registry when they complete. Equivalent to Go's
+// Acceptor.dynamicSessionsLoop().
+async fn dynamic_sessions_loop(mut rx: mpsc::UnboundedReceiver<Arc<Mutex<Session>>>) {
+    let mut run_handles: Vec<JoinHandle<()>> = Vec::new();
+
+    // Receive dynamic sessions until the channel is closed (Acceptor::stop)
+    while let Some(session) = rx.recv().await {
+        let session_for_run = session.clone();
+        let handle = tokio::spawn(async move {
+            // Run the session
+            session_for_run.lock().await.run().await;
+
+            // Unregister from the global registry after run() completes
+            let session_id = session_for_run.lock().await.session_id.clone();
+            let _ = unregister_session(&session_id);
+        });
+        run_handles.push(handle);
+    }
+
+    // Channel closed — stop all remaining dynamic sessions and wait for completion
+    // (The connection handler already sent StopReq via admin_tx, so run() will
+    // eventually return. We just need to wait.)
+    for handle in run_handles {
+        let _ = handle.await;
     }
 }
 
@@ -568,6 +749,214 @@ TargetCompID=INITIATOR
 
         assert!(acceptor.connection_validator.is_none());
 
+        acceptor.stop().await;
+        clean_sessions();
+    }
+
+    async fn make_dynamic_acceptor_settings(port: &str, dynamic_qualifier: bool) -> Settings {
+        let dq = if dynamic_qualifier { "DynamicQualifier=Y\n" } else { "" };
+        let cfg = format!(
+            r#"
+[DEFAULT]
+SocketAcceptPort={}
+DynamicSessions=Y
+{}
+[SESSION]
+BeginString=FIX.4.2
+SenderCompID=ACCEPTOR
+TargetCompID=INITIATOR
+"#,
+            port, dq
+        );
+        Settings::parse(BufReader::new(cfg.as_bytes())).await.unwrap()
+    }
+
+    // Verifies that DynamicSessions=Y config is read correctly.
+    #[tokio::test]
+    #[serial]
+    async fn test_dynamic_sessions_config() {
+        clean_sessions();
+
+        let app = Arc::new(Mutex::new(NOPApp::new()));
+        let store_factory = MessageStoreFactoryEnum::default();
+        let log_factory = LogFactoryEnum::default();
+        let settings = make_dynamic_acceptor_settings("0", false).await;
+
+        let acceptor = Acceptor::new(app, store_factory, settings, log_factory)
+            .await
+            .unwrap();
+
+        assert!(acceptor.dynamic_sessions, "dynamic_sessions should be true");
+        assert!(!acceptor.dynamic_qualifier, "dynamic_qualifier should be false");
+
+        clean_sessions();
+    }
+
+    // Verifies that a connection from an unknown session is accepted when
+    // DynamicSessions=Y, creating a session on-the-fly.
+    #[tokio::test]
+    #[serial]
+    async fn test_dynamic_session_creation() {
+        clean_sessions();
+
+        let app = Arc::new(Mutex::new(NOPApp::new()));
+        let store_factory = MessageStoreFactoryEnum::default();
+        let log_factory = LogFactoryEnum::default();
+        let settings = make_dynamic_acceptor_settings("0", false).await;
+
+        let mut acceptor = Acceptor::new(app, store_factory, settings, log_factory)
+            .await
+            .unwrap();
+
+        acceptor.start().await.unwrap();
+        let addr = acceptor.local_address().unwrap();
+
+        // Send a logon from an UNKNOWN session (SENDER2/TARGET2).
+        // This session is not pre-configured, so it should be created dynamically.
+        let logon_msg = "8=FIX.4.2\x019=65\x0135=A\x0149=SENDER2\x0156=TARGET2\x0134=1\x0152=20240101-00:00:00\x0198=0\x01108=30\x0110=007\x01";
+        let mut stream = TcpStream::connect(addr).await.unwrap();
+        tokio::io::AsyncWriteExt::write_all(&mut stream, logon_msg.as_bytes())
+            .await
+            .unwrap();
+
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+
+        // The dynamic session should have been registered with swapped IDs:
+        // SenderCompID=TARGET2 (us), TargetCompID=SENDER2 (them)
+        let dynamic_id = Arc::new(SessionID {
+            begin_string: "FIX.4.2".to_string(),
+            sender_comp_id: "TARGET2".to_string(),
+            sender_sub_id: String::new(),
+            sender_location_id: String::new(),
+            target_comp_id: "SENDER2".to_string(),
+            target_sub_id: String::new(),
+            target_location_id: String::new(),
+            qualifier: String::new(),
+        });
+        assert!(
+            lookup_session(&dynamic_id).is_some(),
+            "dynamic session should be registered"
+        );
+
+        drop(stream);
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+
+        acceptor.stop().await;
+        clean_sessions();
+    }
+
+    // Verifies that DynamicQualifier=Y assigns unique qualifiers to dynamic sessions.
+    #[tokio::test]
+    #[serial]
+    async fn test_dynamic_qualifier() {
+        clean_sessions();
+
+        let app = Arc::new(Mutex::new(NOPApp::new()));
+        let store_factory = MessageStoreFactoryEnum::default();
+        let log_factory = LogFactoryEnum::default();
+        let settings = make_dynamic_acceptor_settings("0", true).await;
+
+        let mut acceptor = Acceptor::new(app, store_factory, settings, log_factory)
+            .await
+            .unwrap();
+
+        acceptor.start().await.unwrap();
+        let addr = acceptor.local_address().unwrap();
+
+        // Two connections from the same unknown session — each should get a unique qualifier.
+        let logon_msg = "8=FIX.4.2\x019=65\x0135=A\x0149=SENDER2\x0156=TARGET2\x0134=1\x0152=20240101-00:00:00\x0198=0\x01108=30\x0110=007\x01";
+
+        let mut stream1 = TcpStream::connect(addr).await.unwrap();
+        tokio::io::AsyncWriteExt::write_all(&mut stream1, logon_msg.as_bytes())
+            .await
+            .unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+
+        let mut stream2 = TcpStream::connect(addr).await.unwrap();
+        tokio::io::AsyncWriteExt::write_all(&mut stream2, logon_msg.as_bytes())
+            .await
+            .unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+
+        // Both should be registered with different qualifiers
+        let id1 = Arc::new(SessionID {
+            begin_string: "FIX.4.2".to_string(),
+            sender_comp_id: "TARGET2".to_string(),
+            sender_sub_id: String::new(),
+            sender_location_id: String::new(),
+            target_comp_id: "SENDER2".to_string(),
+            target_sub_id: String::new(),
+            target_location_id: String::new(),
+            qualifier: "1".to_string(),
+        });
+        let id2 = Arc::new(SessionID {
+            begin_string: "FIX.4.2".to_string(),
+            sender_comp_id: "TARGET2".to_string(),
+            sender_sub_id: String::new(),
+            sender_location_id: String::new(),
+            target_comp_id: "SENDER2".to_string(),
+            target_sub_id: String::new(),
+            target_location_id: String::new(),
+            qualifier: "2".to_string(),
+        });
+
+        assert!(lookup_session(&id1).is_some(), "first dynamic session (qualifier=1) should exist");
+        assert!(lookup_session(&id2).is_some(), "second dynamic session (qualifier=2) should exist");
+
+        drop(stream1);
+        drop(stream2);
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+
+        acceptor.stop().await;
+        clean_sessions();
+    }
+
+    // Verifies that when DynamicSessions is not enabled, unknown sessions are rejected.
+    #[tokio::test]
+    #[serial]
+    async fn test_no_dynamic_sessions_rejects_unknown() {
+        clean_sessions();
+
+        let app = Arc::new(Mutex::new(NOPApp::new()));
+        let store_factory = MessageStoreFactoryEnum::default();
+        let log_factory = LogFactoryEnum::default();
+        // Use standard settings (no DynamicSessions)
+        let settings = make_acceptor_settings("0").await;
+
+        let mut acceptor = Acceptor::new(app, store_factory, settings, log_factory)
+            .await
+            .unwrap();
+
+        assert!(!acceptor.dynamic_sessions);
+
+        acceptor.start().await.unwrap();
+        let addr = acceptor.local_address().unwrap();
+
+        // Send a logon from an unknown session — should be silently rejected.
+        let logon_msg = "8=FIX.4.2\x019=65\x0135=A\x0149=SENDER2\x0156=TARGET2\x0134=1\x0152=20240101-00:00:00\x0198=0\x01108=30\x0110=007\x01";
+        let mut stream = TcpStream::connect(addr).await.unwrap();
+        tokio::io::AsyncWriteExt::write_all(&mut stream, logon_msg.as_bytes())
+            .await
+            .unwrap();
+
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+
+        let unknown_id = Arc::new(SessionID {
+            begin_string: "FIX.4.2".to_string(),
+            sender_comp_id: "TARGET2".to_string(),
+            sender_sub_id: String::new(),
+            sender_location_id: String::new(),
+            target_comp_id: "SENDER2".to_string(),
+            target_sub_id: String::new(),
+            target_location_id: String::new(),
+            qualifier: String::new(),
+        });
+        assert!(
+            lookup_session(&unknown_id).is_none(),
+            "unknown session should not be registered"
+        );
+
+        drop(stream);
         acceptor.stop().await;
         clean_sessions();
     }
