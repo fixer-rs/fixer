@@ -1008,7 +1008,7 @@ TargetCompID=INITIATOR
         tempfile::NamedTempFile,
         tempfile::NamedTempFile,
     ) {
-        use rcgen::{CertificateParams, KeyPair};
+        use rcgen::{CertificateParams, Issuer, KeyPair};
         use std::io::Write;
 
         let ca_key = KeyPair::generate().unwrap();
@@ -1018,8 +1018,9 @@ TargetCompID=INITIATOR
 
         let server_key = KeyPair::generate().unwrap();
         let server_params = CertificateParams::new(vec!["localhost".to_string()]).unwrap();
+        let ca_issuer = Issuer::from_params(&ca_params, &ca_key);
         let server_cert = server_params
-            .signed_by(&server_key, &ca_cert, &ca_key)
+            .signed_by(&server_key, &ca_issuer)
             .unwrap();
 
         let mut ca_file = tempfile::NamedTempFile::new().unwrap();

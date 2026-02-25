@@ -268,7 +268,7 @@ mod tests {
 
     // Generate a self-signed CA + server cert for testing using rcgen.
     fn generate_test_certs() -> (NamedTempFile, NamedTempFile, NamedTempFile) {
-        use rcgen::{CertificateParams, KeyPair};
+        use rcgen::{CertificateParams, Issuer, KeyPair};
 
         // Generate CA
         let ca_key = KeyPair::generate().unwrap();
@@ -280,7 +280,8 @@ mod tests {
         let server_key = KeyPair::generate().unwrap();
         let server_params =
             CertificateParams::new(vec!["localhost".to_string()]).unwrap();
-        let server_cert = server_params.signed_by(&server_key, &ca_cert, &ca_key).unwrap();
+        let ca_issuer = Issuer::from_params(&ca_params, &ca_key);
+        let server_cert = server_params.signed_by(&server_key, &ca_issuer).unwrap();
 
         let mut ca_file = NamedTempFile::new().unwrap();
         ca_file.write_all(ca_cert.pem().as_bytes()).unwrap();
