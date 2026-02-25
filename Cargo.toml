@@ -36,6 +36,7 @@ rust_decimal = "1.40"
 serde = { version = "1.0", features = ["derive"] }
 rustls-pemfile = "2"
 simple-error = "0.3"
+sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "postgres", "mysql"], optional = true }
 sscanf = "0.4"
 thiserror = "2.0"
 tokio-rustls = "0.26"
@@ -50,6 +51,10 @@ tokio = { version = "1.49", features = [
   "time",
   "net",
 ] }
+
+[features]
+default = []
+sql_store = ["sqlx"]
 
 [dev-dependencies]
 criterion = "0.5"

@@ -1,5 +1,7 @@
 use crate::session::session_id::SessionID;
 use crate::store::file_store::{FileStore, FileStoreFactory};
+#[cfg(feature = "sql_store")]
+use crate::store::sql_store::{SqlStore, SqlStoreFactory};
 use enum_dispatch::enum_dispatch;
 use jiff::Timestamp;
 use simple_error::SimpleResult;
@@ -7,6 +9,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 pub mod file_store;
+#[cfg(feature = "sql_store")]
+pub mod sql_store;
 
 // The MessageStoreTrait interface provides methods to record and retrieve messages for resend purposes
 #[allow(async_fn_in_trait)] // dispatched via enum_dispatch, not used as trait object
@@ -53,6 +57,8 @@ pub trait MessageStoreFactoryTrait {
 pub enum MessageStoreEnum {
     MemoryStore,
     FileStore,
+    #[cfg(feature = "sql_store")]
+    SqlStore,
     #[cfg(test)]
     MockMemoryStore(crate::fixer_test::MockStoreShared),
 }
@@ -68,6 +74,8 @@ impl Default for MessageStoreEnum {
 pub enum MessageStoreFactoryEnum {
     MemoryStoreFactory,
     FileStoreFactory,
+    #[cfg(feature = "sql_store")]
+    SqlStoreFactory,
 }
 
 impl Default for MessageStoreFactoryEnum {
