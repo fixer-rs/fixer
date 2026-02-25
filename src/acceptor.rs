@@ -54,14 +54,14 @@ trait DynSessionCreator: Send + Sync {
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = SimpleResult<Arc<Mutex<Session>>>> + Send + 'a>>;
 }
 
-struct SessionCreator<A: Application + 'static> {
+struct SessionCreator {
     factory: SessionFactory,
     store_factory: MessageStoreFactoryEnum,
     log_factory: LogFactoryEnum,
-    app: Arc<Mutex<A>>,
+    app: Arc<dyn Application>,
 }
 
-impl<A: Application + 'static> DynSessionCreator for SessionCreator<A> {
+impl DynSessionCreator for SessionCreator {
     fn create_session<'a>(
         &'a self,
         session_id: Arc<SessionID>,
@@ -105,8 +105,8 @@ pub struct Acceptor {
 }
 
 impl Acceptor {
-    pub async fn new<A: Application + 'static>(
-        app: Arc<Mutex<A>>,
+    pub async fn new(
+        app: Arc<dyn Application>,
         store_factory: MessageStoreFactoryEnum,
         mut settings: Settings,
         log_factory: LogFactoryEnum,
@@ -557,7 +557,7 @@ TargetCompID=INITIATOR
     async fn test_acceptor_start() {
         clean_sessions();
 
-        let app = Arc::new(Mutex::new(NOPApp::new()));
+        let app: Arc<dyn Application> = Arc::new(NOPApp::new());
         let store_factory = MessageStoreFactoryEnum::default();
         let log_factory = LogFactoryEnum::default();
         let settings = make_acceptor_settings("0").await;
@@ -593,7 +593,7 @@ SenderCompID=ACCEPTOR
 TargetCompID=INITIATOR
 "#;
         let settings = Settings::parse(BufReader::new(cfg.as_bytes())).await.unwrap();
-        let app = Arc::new(Mutex::new(NOPApp::new()));
+        let app: Arc<dyn Application> = Arc::new(NOPApp::new());
         let store_factory = MessageStoreFactoryEnum::default();
         let log_factory = LogFactoryEnum::default();
 
@@ -610,7 +610,7 @@ TargetCompID=INITIATOR
     async fn test_acceptor_session_identification() {
         clean_sessions();
 
-        let app = Arc::new(Mutex::new(NOPApp::new()));
+        let app: Arc<dyn Application> = Arc::new(NOPApp::new());
         let store_factory = MessageStoreFactoryEnum::default();
         let log_factory = LogFactoryEnum::default();
         let settings = make_acceptor_settings("0").await;
@@ -676,7 +676,7 @@ TargetCompID=INITIATOR
     async fn test_connection_validator_rejects() {
         clean_sessions();
 
-        let app = Arc::new(Mutex::new(NOPApp::new()));
+        let app: Arc<dyn Application> = Arc::new(NOPApp::new());
         let store_factory = MessageStoreFactoryEnum::default();
         let log_factory = LogFactoryEnum::default();
         let settings = make_acceptor_settings("0").await;
@@ -715,7 +715,7 @@ TargetCompID=INITIATOR
     async fn test_connection_validator_accepts() {
         clean_sessions();
 
-        let app = Arc::new(Mutex::new(NOPApp::new()));
+        let app: Arc<dyn Application> = Arc::new(NOPApp::new());
         let store_factory = MessageStoreFactoryEnum::default();
         let log_factory = LogFactoryEnum::default();
         let settings = make_acceptor_settings("0").await;
@@ -755,7 +755,7 @@ TargetCompID=INITIATOR
     async fn test_set_connection_validator_none() {
         clean_sessions();
 
-        let app = Arc::new(Mutex::new(NOPApp::new()));
+        let app: Arc<dyn Application> = Arc::new(NOPApp::new());
         let store_factory = MessageStoreFactoryEnum::default();
         let log_factory = LogFactoryEnum::default();
         let settings = make_acceptor_settings("0").await;
@@ -801,7 +801,7 @@ TargetCompID=INITIATOR
     async fn test_dynamic_sessions_config() {
         clean_sessions();
 
-        let app = Arc::new(Mutex::new(NOPApp::new()));
+        let app: Arc<dyn Application> = Arc::new(NOPApp::new());
         let store_factory = MessageStoreFactoryEnum::default();
         let log_factory = LogFactoryEnum::default();
         let settings = make_dynamic_acceptor_settings("0", false).await;
@@ -823,7 +823,7 @@ TargetCompID=INITIATOR
     async fn test_dynamic_session_creation() {
         clean_sessions();
 
-        let app = Arc::new(Mutex::new(NOPApp::new()));
+        let app: Arc<dyn Application> = Arc::new(NOPApp::new());
         let store_factory = MessageStoreFactoryEnum::default();
         let log_factory = LogFactoryEnum::default();
         let settings = make_dynamic_acceptor_settings("0", false).await;
@@ -875,7 +875,7 @@ TargetCompID=INITIATOR
     async fn test_dynamic_qualifier() {
         clean_sessions();
 
-        let app = Arc::new(Mutex::new(NOPApp::new()));
+        let app: Arc<dyn Application> = Arc::new(NOPApp::new());
         let store_factory = MessageStoreFactoryEnum::default();
         let log_factory = LogFactoryEnum::default();
         let settings = make_dynamic_acceptor_settings("0", true).await;
@@ -941,7 +941,7 @@ TargetCompID=INITIATOR
     async fn test_no_dynamic_sessions_rejects_unknown() {
         clean_sessions();
 
-        let app = Arc::new(Mutex::new(NOPApp::new()));
+        let app: Arc<dyn Application> = Arc::new(NOPApp::new());
         let store_factory = MessageStoreFactoryEnum::default();
         let log_factory = LogFactoryEnum::default();
         // Use standard settings (no DynamicSessions)
@@ -1039,7 +1039,7 @@ TargetCompID=INITIATOR
         clean_sessions();
 
         let (_ca, cert, key) = generate_test_certs();
-        let app = Arc::new(Mutex::new(NOPApp::new()));
+        let app: Arc<dyn Application> = Arc::new(NOPApp::new());
         let store_factory = MessageStoreFactoryEnum::default();
         let log_factory = LogFactoryEnum::default();
         let settings = make_tls_acceptor_settings(
@@ -1071,7 +1071,7 @@ TargetCompID=INITIATOR
         clean_sessions();
 
         let (ca, cert, key) = generate_test_certs();
-        let app = Arc::new(Mutex::new(NOPApp::new()));
+        let app: Arc<dyn Application> = Arc::new(NOPApp::new());
         let store_factory = MessageStoreFactoryEnum::default();
         let log_factory = LogFactoryEnum::default();
         let settings = make_tls_acceptor_settings(
@@ -1129,7 +1129,7 @@ TargetCompID=INITIATOR
         clean_sessions();
 
         let (_ca, cert, key) = generate_test_certs();
-        let app = Arc::new(Mutex::new(NOPApp::new()));
+        let app: Arc<dyn Application> = Arc::new(NOPApp::new());
         let store_factory = MessageStoreFactoryEnum::default();
         let log_factory = LogFactoryEnum::default();
         let settings = make_tls_acceptor_settings(

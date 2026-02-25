@@ -1,14 +1,15 @@
 #[cfg(test)]
 use crate::fixer_test::MockApp;
 use crate::{
+    BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIX42, BEGIN_STRING_FIXT11,
     application::Application,
     datadictionary::DataDictionary,
     errors::{
-        comp_id_problem, required_tag_missing, sending_time_accuracy_problem,
-        tag_specified_without_a_value, value_is_incorrect_no_tag, FixerError, IncorrectBeginString,
-        MessageRejectErrorEnum, MessageRejectErrorResult, MessageRejectErrorTrait, TargetTooHigh,
-        TargetTooLow, REJECT_REASON_COMP_ID_PROBLEM, REJECT_REASON_INVALID_MSG_TYPE,
-        REJECT_REASON_SENDING_TIME_ACCURACY_PROBLEM,
+        FixerError, IncorrectBeginString, MessageRejectErrorEnum, MessageRejectErrorResult,
+        MessageRejectErrorTrait, REJECT_REASON_COMP_ID_PROBLEM, REJECT_REASON_INVALID_MSG_TYPE,
+        REJECT_REASON_SENDING_TIME_ACCURACY_PROBLEM, TargetTooHigh, TargetTooLow, comp_id_problem,
+        required_tag_missing, sending_time_accuracy_problem, tag_specified_without_a_value,
+        value_is_incorrect_no_tag,
     },
     fix_boolean::FIXBoolean,
     fix_int::FIXInt,
@@ -20,8 +21,8 @@ use crate::{
     log::{LogEnum, LogTrait},
     message::Message,
     msg_type::{
-        is_admin_message_type, MSG_TYPE_LOGON, MSG_TYPE_LOGOUT, MSG_TYPE_RESEND_REQUEST,
-        MSG_TYPE_SEQUENCE_RESET, MSG_TYPE_TEST_REQUEST,
+        MSG_TYPE_LOGON, MSG_TYPE_LOGOUT, MSG_TYPE_RESEND_REQUEST, MSG_TYPE_SEQUENCE_RESET,
+        MSG_TYPE_TEST_REQUEST, is_admin_message_type,
     },
     session::{
         pending_timeout::PendingTimeout,
@@ -33,16 +34,15 @@ use crate::{
     },
     store::{MessageStoreEnum, MessageStoreTrait},
     tag::{
-        Tag, TAG_BEGIN_SEQ_NO, TAG_BEGIN_STRING, TAG_BUSINESS_REJECT_REASON,
-        TAG_BUSINESS_REJECT_REF_ID, TAG_DEFAULT_APPL_VER_ID, TAG_ENCRYPT_METHOD, TAG_END_SEQ_NO,
-        TAG_GAP_FILL_FLAG, TAG_HEART_BT_INT, TAG_LAST_MSG_SEQ_NUM_PROCESSED, TAG_MSG_SEQ_NUM,
-        TAG_MSG_TYPE, TAG_NEW_SEQ_NO, TAG_ORIG_SENDING_TIME, TAG_POSS_DUP_FLAG, TAG_REF_MSG_TYPE,
-        TAG_REF_TAG_ID, TAG_RESET_SEQ_NUM_FLAG, TAG_SENDER_COMP_ID, TAG_SENDER_LOCATION_ID,
-        TAG_SENDER_SUB_ID, TAG_SENDING_TIME, TAG_SESSION_REJECT_REASON, TAG_TARGET_COMP_ID,
-        TAG_TARGET_LOCATION_ID, TAG_TARGET_SUB_ID, TAG_TEST_REQ_ID, TAG_TEXT,
+        TAG_BEGIN_SEQ_NO, TAG_BEGIN_STRING, TAG_BUSINESS_REJECT_REASON, TAG_BUSINESS_REJECT_REF_ID,
+        TAG_DEFAULT_APPL_VER_ID, TAG_ENCRYPT_METHOD, TAG_END_SEQ_NO, TAG_GAP_FILL_FLAG,
+        TAG_HEART_BT_INT, TAG_LAST_MSG_SEQ_NUM_PROCESSED, TAG_MSG_SEQ_NUM, TAG_MSG_TYPE,
+        TAG_NEW_SEQ_NO, TAG_ORIG_SENDING_TIME, TAG_POSS_DUP_FLAG, TAG_REF_MSG_TYPE, TAG_REF_TAG_ID,
+        TAG_RESET_SEQ_NUM_FLAG, TAG_SENDER_COMP_ID, TAG_SENDER_LOCATION_ID, TAG_SENDER_SUB_ID,
+        TAG_SENDING_TIME, TAG_SESSION_REJECT_REASON, TAG_TARGET_COMP_ID, TAG_TARGET_LOCATION_ID,
+        TAG_TARGET_SUB_ID, TAG_TEST_REQ_ID, TAG_TEXT, Tag,
     },
     validation::{Validator, ValidatorEnum},
-    BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIX42, BEGIN_STRING_FIXT11,
 };
 use async_recursion::async_recursion;
 use jiff::{SignedDuration, Timestamp, Zoned};
@@ -51,10 +51,10 @@ use std::sync::Arc;
 #[cfg(test)]
 use tokio::sync::mpsc::channel;
 use tokio::sync::{
-    mpsc::{unbounded_channel, Receiver, Sender, UnboundedReceiver, UnboundedSender},
     Mutex, OnceCell,
+    mpsc::{Receiver, Sender, UnboundedReceiver, UnboundedSender, unbounded_channel},
 };
-use tokio::time::{interval, sleep, Duration};
+use tokio::time::{Duration, interval, sleep};
 
 // session main
 pub mod factory;
@@ -119,7 +119,7 @@ pub struct Session {
     pub to_send: Arc<Mutex<Vec<Vec<u8>>>>,
     pub session_event: SessionEvent,
     pub message_event: MessageEvent,
-    pub application: Arc<Mutex<dyn Application>>,
+    pub application: Arc<dyn Application>,
     pub validator: Option<ValidatorEnum>,
     pub sm: StateMachine,
     pub state_timer: EventTimer,
@@ -158,7 +158,7 @@ impl Default for Session {
                 tx: message_event_tx,
                 rx: message_event_rx,
             },
-            application: Arc::new(Mutex::new(MockApp::new())),
+            application: Arc::new(MockApp::new()),
             validator: Some(ValidatorEnum::default()),
             sm: StateMachine {
                 state: SessionStateEnum::new_not_session_time(),
@@ -370,10 +370,9 @@ impl Session {
         logon
             .body
             .set_field(TAG_ENCRYPT_METHOD, FIXString::from("0"));
-        logon.body.set_field(
-            TAG_HEART_BT_INT,
-            self.iss.heart_bt_int.as_secs() as FIXInt,
-        );
+        logon
+            .body
+            .set_field(TAG_HEART_BT_INT, self.iss.heart_bt_int.as_secs() as FIXInt);
 
         if set_reset_seq_num {
             logon
@@ -440,11 +439,7 @@ impl Session {
 
         self.insert_sending_time(msg);
 
-        self.application
-            .lock()
-            .await
-            .to_app(msg, &self.session_id)
-            .is_ok()
+        self.application.to_app(msg, &self.session_id).is_ok()
     }
 
     // queue_for_send will validate, persist, and queue the message for send
@@ -524,10 +519,7 @@ impl Session {
         let msg_type = msg.header.get_bytes(TAG_MSG_TYPE)?;
 
         if is_admin_message_type(&msg_type) {
-            self.application
-                .lock()
-                .await
-                .to_admin(msg, &self.session_id);
+            self.application.to_admin(msg, &self.session_id);
 
             if msg_type == MSG_TYPE_LOGON {
                 let mut reset_seq_num_flag = FIXBoolean::default();
@@ -545,10 +537,7 @@ impl Session {
                 }
             }
         } else {
-            self.application
-                .lock()
-                .await
-                .to_app(msg, &self.session_id)?;
+            self.application.to_app(msg, &self.session_id)?;
         }
 
         let msg_bytes = msg.build();
@@ -717,14 +706,10 @@ impl Session {
         }
         self.sent_reset = false;
 
-        let duration =
-            (1.2_f64 * (self.iss.heart_bt_int.as_nanos() as f64)).round() as u64;
+        let duration = (1.2_f64 * (self.iss.heart_bt_int.as_nanos() as f64)).round() as u64;
 
         self.peer_timer.reset(Duration::from_nanos(duration)).await;
-        self.application
-            .lock()
-            .await
-            .on_logon(&self.session_id);
+        self.application.on_logon(&self.session_id);
 
         self.check_target_too_high(msg).await?;
 
@@ -803,17 +788,10 @@ impl Session {
         let msg_type = msg.header.get_bytes(TAG_MSG_TYPE)?;
 
         if is_admin_message_type(&msg_type) {
-            return self
-                .application
-                .lock()
-                .await
-                .from_admin(msg, &self.session_id);
+            return self.application.from_admin(msg, &self.session_id);
         }
 
-        self.application
-            .lock()
-            .await
-            .from_app(msg, &self.session_id)
+        self.application.from_app(msg, &self.session_id)
     }
 
     async fn check_target_too_low(&mut self, msg: &Message) -> MessageRejectErrorResult {
@@ -1191,8 +1169,7 @@ impl Session {
             self.sm_fix_msg_in(&mut msg).await;
         }
 
-        let duration =
-            (1.2_f64 * (self.iss.heart_bt_int.as_nanos() as f64)).round() as u64;
+        let duration = (1.2_f64 * (self.iss.heart_bt_int.as_nanos() as f64)).round() as u64;
 
         self.peer_timer.reset(Duration::from_nanos(duration)).await;
     }
@@ -1330,10 +1307,7 @@ impl Session {
         }
 
         if do_on_logout {
-            self.application
-                .lock()
-                .await
-                .on_logout(&self.session_id);
+            self.application.on_logout(&self.session_id);
         }
         self.on_disconnect().await;
     }
@@ -1832,10 +1806,7 @@ impl Session {
                 .set_field(TAG_ORIG_SENDING_TIME, orig_sending_time);
         }
 
-        self.application
-            .lock()
-            .await
-            .to_admin(&sequence_reset, &self.session_id);
+        self.application.to_admin(&sequence_reset, &self.session_id);
 
         let msg_bytes = sequence_reset.build();
 
@@ -1875,8 +1846,7 @@ impl Session {
             }
 
             self.log.on_event("Sent test request TEST").await;
-            let duration = (1.2_f64 * (self.iss.heart_bt_int.as_nanos() as f64))
-                .round() as u64;
+            let duration = (1.2_f64 * (self.iss.heart_bt_int.as_nanos() as f64)).round() as u64;
 
             self.peer_timer.reset(Duration::from_nanos(duration)).await;
 
@@ -2167,9 +2137,11 @@ fn optionally_set_id(msg: &Message, tag: Tag, value: &str) {
 #[cfg(test)]
 mod tests {
     use crate::{
+        BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIX42, BEGIN_STRING_FIX43,
+        BEGIN_STRING_FIX44, BEGIN_STRING_FIXT11,
         application::Application,
         errors::{
-            MessageRejectErrorEnum, MessageRejectErrorTrait, ERR_DO_NOT_SEND,
+            ERR_DO_NOT_SEND, MessageRejectErrorEnum, MessageRejectErrorTrait,
             REJECT_REASON_COMP_ID_PROBLEM, REJECT_REASON_REQUIRED_TAG_MISSING,
             REJECT_REASON_SENDING_TIME_ACCURACY_PROBLEM,
         },
@@ -2178,34 +2150,32 @@ mod tests {
         fix_string::FIXString,
         fix_utc_timestamp::{FIXUTCTimestamp, TimestampPrecision},
         fixer_test::{
-            FieldEqual, MockStore, MockStoreExtended, SessionSuiteRig, TestApplication,
-            TO_APP_RETURN_ERROR,
+            FieldEqual, MockStore, MockStoreExtended, SessionSuiteRig, TO_APP_RETURN_ERROR,
+            TestApplication,
         },
         internal::{
             event::{LOGON_TIMEOUT, LOGOUT_TIMEOUT, NEED_HEARTBEAT, PEER_TIMEOUT},
-            time_range::{gen_now, TimeOfDay, TimeRange},
+            time_range::{TimeOfDay, TimeRange, gen_now},
         },
         message::Message,
         msg_type::{MSG_TYPE_LOGON, MSG_TYPE_LOGOUT},
         session::{
-            session_state::{SessionState, SessionStateEnum},
             AdminEnum, Connect, FixIn, StopReq,
+            session_state::{SessionState, SessionStateEnum},
         },
         store::{MemoryStore, MessageStoreEnum, MessageStoreTrait},
         tag::{
-            Tag, TAG_BEGIN_STRING, TAG_DEFAULT_APPL_VER_ID, TAG_HEART_BT_INT,
+            TAG_BEGIN_STRING, TAG_DEFAULT_APPL_VER_ID, TAG_HEART_BT_INT,
             TAG_LAST_MSG_SEQ_NUM_PROCESSED, TAG_MSG_SEQ_NUM, TAG_RESET_SEQ_NUM_FLAG,
             TAG_SENDER_COMP_ID, TAG_SENDER_LOCATION_ID, TAG_SENDER_SUB_ID, TAG_SENDING_TIME,
-            TAG_TARGET_COMP_ID, TAG_TARGET_LOCATION_ID, TAG_TARGET_SUB_ID,
+            TAG_TARGET_COMP_ID, TAG_TARGET_LOCATION_ID, TAG_TARGET_SUB_ID, Tag,
         },
-        BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIX42, BEGIN_STRING_FIX43,
-        BEGIN_STRING_FIX44, BEGIN_STRING_FIXT11,
     };
-    use jiff::{SignedDuration, Timestamp, Zoned};
     use delegate::delegate;
+    use jiff::{SignedDuration, Timestamp, Zoned};
     use simple_error::SimpleResult;
     use std::sync::Arc;
-    use tokio::sync::{mpsc::unbounded_channel, Mutex};
+    use tokio::sync::{Mutex, mpsc::unbounded_channel};
 
     struct SessionSuite {
         ssr: SessionSuiteRig,
@@ -2479,13 +2449,14 @@ mod tests {
     async fn test_check_target_too_high() {
         let mut s = SessionSuite::setup_test().await;
         let msg = Message::new();
-        assert!(s
-            .ssr
-            .session
-            .store
-            .set_next_target_msg_seq_num(45)
-            .await
-            .is_ok());
+        assert!(
+            s.ssr
+                .session
+                .store
+                .set_next_target_msg_seq_num(45)
+                .await
+                .is_ok()
+        );
 
         let mut check_result = s.ssr.session.check_target_too_high(&msg).await;
         assert!(
@@ -2527,7 +2498,9 @@ mod tests {
             check_result.unwrap_err().reject_reason()
         );
 
-        let mut sending_time = Timestamp::now().checked_sub(SignedDuration::from_secs(200)).unwrap();
+        let mut sending_time = Timestamp::now()
+            .checked_sub(SignedDuration::from_secs(200))
+            .unwrap();
         msg.header
             .set_field(TAG_SENDING_TIME, FIXUTCTimestamp::from_time(sending_time));
 
@@ -2541,7 +2514,9 @@ mod tests {
             check_result.unwrap_err().reject_reason()
         );
 
-        sending_time = Timestamp::now().checked_add(SignedDuration::from_secs(200)).unwrap();
+        sending_time = Timestamp::now()
+            .checked_add(SignedDuration::from_secs(200))
+            .unwrap();
         msg.header
             .set_field(TAG_SENDING_TIME, FIXUTCTimestamp::from_time(sending_time));
 
@@ -2562,7 +2537,9 @@ mod tests {
         assert!(check_result.is_ok(), "sending time should be ok");
 
         s.ssr.session.iss.skip_check_latency = true;
-        sending_time = Timestamp::now().checked_sub(SignedDuration::from_secs(200)).unwrap();
+        sending_time = Timestamp::now()
+            .checked_sub(SignedDuration::from_secs(200))
+            .unwrap();
         msg.header
             .set_field(TAG_SENDING_TIME, FIXUTCTimestamp::from_time(sending_time));
 
@@ -2574,13 +2551,14 @@ mod tests {
     async fn test_check_target_too_low() {
         let mut s = SessionSuite::setup_test().await;
         let msg = Message::new();
-        assert!(s
-            .ssr
-            .session
-            .store
-            .set_next_target_msg_seq_num(45)
-            .await
-            .is_ok());
+        assert!(
+            s.ssr
+                .session
+                .store
+                .set_next_target_msg_seq_num(45)
+                .await
+                .is_ok()
+        );
 
         let mut check_result = s.ssr.session.check_target_too_low(&msg).await;
         assert!(check_result.is_err(), "sequence number is required");
@@ -2848,18 +2826,20 @@ mod tests {
             s.ssr.session.iss.reset_on_disconnect = test.reset_on_disconnect;
             s.ssr.session.iss.reset_on_logout = test.reset_on_logout;
 
-            assert!(s
-                .ssr
-                .mock_store
-                .set_next_sender_msg_seq_num(test.next_sender_msg_seq_num)
-                .await
-                .is_ok());
-            assert!(s
-                .ssr
-                .mock_store
-                .set_next_target_msg_seq_num(test.next_target_msg_seq_num)
-                .await
-                .is_ok());
+            assert!(
+                s.ssr
+                    .mock_store
+                    .set_next_sender_msg_seq_num(test.next_sender_msg_seq_num)
+                    .await
+                    .is_ok()
+            );
+            assert!(
+                s.ssr
+                    .mock_store
+                    .set_next_target_msg_seq_num(test.next_target_msg_seq_num)
+                    .await
+                    .is_ok()
+            );
             assert_eq!(s.ssr.session.should_send_reset().await, test.expected);
         }
     }
@@ -3133,7 +3113,7 @@ mod tests {
             }
 
             s.ssr.session.sm_check_session_time(&mut now.clone()).await;
-            s.ssr.mock_app.lock().await.mock_app.checkpoint();
+            s.ssr.mock_app.mock_app.lock().unwrap().checkpoint();
 
             s.ssr.state(&SessionStateEnum::new_not_session_time());
             s.ssr.next_target_msg_seq_num(2).await;
@@ -3142,7 +3122,7 @@ mod tests {
                 s.ssr.last_to_admin_message_sent().await;
                 s.message_type(
                     String::from_utf8_lossy(MSG_TYPE_LOGOUT).to_string(),
-                    s.ssr.mock_app.lock().await.last_to_admin.as_ref().unwrap(),
+                    s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap(),
                 );
                 s.ssr.next_sender_msg_seq_num(3).await;
             } else {
@@ -3255,7 +3235,7 @@ mod tests {
                 .session
                 .sm_check_session_time(&mut tomorrow.clone())
                 .await;
-            s.ssr.mock_app.lock().await.mock_app.checkpoint();
+            s.ssr.mock_app.mock_app.lock().unwrap().checkpoint();
 
             s.ssr.state(&SessionStateEnum::new_latent_state());
 
@@ -3263,16 +3243,16 @@ mod tests {
                 s.ssr.last_to_admin_message_sent().await;
                 s.message_type(
                     String::from_utf8_lossy(MSG_TYPE_LOGOUT).to_string(),
-                    s.ssr.mock_app.lock().await.last_to_admin.as_ref().unwrap(),
+                    s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap(),
                 );
                 s.ssr.suite.field_equals(
                     TAG_MSG_SEQ_NUM,
                     FieldEqual::Num(2),
                     &s.ssr
                         .mock_app
-                        .lock()
-                        .await
                         .last_to_admin
+                        .lock()
+                        .unwrap()
                         .as_ref()
                         .unwrap()
                         .header
@@ -3379,7 +3359,7 @@ mod tests {
                     receive_time: Timestamp::now(),
                 })
                 .await;
-            s.ssr.mock_app.lock().await.mock_app.checkpoint();
+            s.ssr.mock_app.mock_app.lock().unwrap().checkpoint();
             s.ssr.state(&SessionStateEnum::new_not_session_time());
         }
     }
@@ -3446,12 +3426,13 @@ mod tests {
             s.ssr.incr_next_sender_msg_seq_num().await;
             s.ssr.incr_next_target_msg_seq_num().await;
 
-            assert!(s
-                .ssr
-                .session
-                .queue_for_send(&s.ssr.message_factory.new_order_single())
-                .await
-                .is_ok());
+            assert!(
+                s.ssr
+                    .session
+                    .queue_for_send(&s.ssr.message_factory.new_order_single())
+                    .await
+                    .is_ok()
+            );
 
             let now = Zoned::now();
             let one_hour_from_now = now.checked_add(SignedDuration::from_hours(1)).unwrap();
@@ -3477,7 +3458,7 @@ mod tests {
                 s.ssr.mock_app.never_to_admin();
             }
             s.ssr.session.sm_send_app_messages().await;
-            s.ssr.mock_app.lock().await.mock_app.checkpoint();
+            s.ssr.mock_app.mock_app.lock().unwrap().checkpoint();
             s.ssr.state(&SessionStateEnum::new_not_session_time());
         }
     }
@@ -3602,7 +3583,7 @@ mod tests {
             .on_admin(AdminEnum::Connect(admin_message))
             .await;
 
-        s.ssr.mock_app.lock().await.mock_app.checkpoint();
+        s.ssr.mock_app.mock_app.lock().unwrap().checkpoint();
 
         assert!(s.ssr.session.iss.initiate_logon);
         assert!(!s.ssr.session.sent_reset);
@@ -3611,16 +3592,16 @@ mod tests {
 
         s.message_type(
             String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
-            s.ssr.mock_app.lock().await.last_to_admin.as_ref().unwrap(),
+            s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap(),
         );
         s.field_equals(
             TAG_HEART_BT_INT,
             FieldEqual::Num(45),
             &s.ssr
                 .mock_app
-                .lock()
-                .await
                 .last_to_admin
+                .lock()
+                .unwrap()
                 .as_ref()
                 .unwrap()
                 .body
@@ -3631,9 +3612,9 @@ mod tests {
             FieldEqual::Num(2),
             &s.ssr
                 .mock_app
-                .lock()
-                .await
                 .last_to_admin
+                .lock()
+                .unwrap()
                 .as_ref()
                 .unwrap()
                 .header
@@ -3666,7 +3647,7 @@ mod tests {
             msg.body
                 .set_field(TAG_RESET_SEQ_NUM_FLAG, true as FIXBoolean);
         }
-        s.ssr.mock_app.lock().await.decorate_to_admin = Some(decorate_to_admin);
+        *s.ssr.mock_app.decorate_to_admin.lock().unwrap() = Some(decorate_to_admin);
         s.ssr
             .session
             .on_admin(AdminEnum::Connect(admin_message))
@@ -3679,16 +3660,16 @@ mod tests {
 
         s.message_type(
             String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
-            s.ssr.mock_app.lock().await.last_to_admin.as_ref().unwrap(),
+            s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap(),
         );
         s.field_equals(
             TAG_MSG_SEQ_NUM,
             FieldEqual::Num(1),
             &s.ssr
                 .mock_app
-                .lock()
-                .await
                 .last_to_admin
+                .lock()
+                .unwrap()
                 .as_ref()
                 .unwrap()
                 .header
@@ -3699,9 +3680,9 @@ mod tests {
             FieldEqual::Bool(true),
             &s.ssr
                 .mock_app
-                .lock()
-                .await
                 .last_to_admin
+                .lock()
+                .unwrap()
                 .as_ref()
                 .unwrap()
                 .body
@@ -3744,16 +3725,16 @@ mod tests {
         s.ssr.last_to_admin_message_sent().await;
         s.message_type(
             String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
-            s.ssr.mock_app.lock().await.last_to_admin.as_ref().unwrap(),
+            s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap(),
         );
         s.field_equals(
             TAG_DEFAULT_APPL_VER_ID,
             FieldEqual::Str("8"),
             &s.ssr
                 .mock_app
-                .lock()
-                .await
                 .last_to_admin
+                .lock()
+                .unwrap()
                 .as_ref()
                 .unwrap()
                 .body
@@ -3903,26 +3884,25 @@ mod tests {
     #[tokio::test]
     async fn test_queue_for_send_app_message() {
         let mut s = SessionSendTestSuite::setup_test().await;
-        assert!(s
-            .ssr
-            .session
-            .queue_for_send(&s.ssr.message_factory.new_order_single())
-            .await
-            .is_ok());
+        assert!(
+            s.ssr
+                .session
+                .queue_for_send(&s.ssr.message_factory.new_order_single())
+                .await
+                .is_ok()
+        );
 
         s.ssr.no_message_sent().await;
-        let wlock = s.ssr.mock_app.lock().await;
-        let mut msg = wlock.last_to_app.as_ref().unwrap().clone();
-        drop(wlock);
+        let mut msg = s.ssr.mock_app.last_to_app.lock().unwrap().as_ref().unwrap().clone();
         s.ssr.message_persisted(&mut msg).await;
         s.field_equals(
             TAG_MSG_SEQ_NUM,
             FieldEqual::Num(1),
             &s.ssr
                 .mock_app
-                .lock()
-                .await
                 .last_to_app
+                .lock()
+                .unwrap()
                 .as_ref()
                 .unwrap()
                 .header
@@ -3953,17 +3933,16 @@ mod tests {
         s.ssr.no_message_sent().await;
         s.ssr.next_sender_msg_seq_num(1).await;
 
-        assert!(s
-            .ssr
-            .session
-            .send(&s.ssr.message_factory.heartbeat())
-            .await
-            .is_ok());
+        assert!(
+            s.ssr
+                .session
+                .send(&s.ssr.message_factory.heartbeat())
+                .await
+                .is_ok()
+        );
 
         s.ssr.last_to_admin_message_sent().await;
-        let wlock = s.ssr.mock_app.lock().await;
-        let mut msg = wlock.last_to_admin.as_ref().unwrap().clone();
-        drop(wlock);
+        let mut msg = s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap().clone();
         s.ssr.message_persisted(&mut msg).await;
         s.ssr.next_sender_msg_seq_num(2).await;
     }
@@ -3971,16 +3950,15 @@ mod tests {
     #[tokio::test]
     async fn test_queue_for_send_admin_message() {
         let mut s = SessionSendTestSuite::setup_test().await;
-        assert!(s
-            .ssr
-            .session
-            .queue_for_send(&s.ssr.message_factory.heartbeat())
-            .await
-            .is_ok());
+        assert!(
+            s.ssr
+                .session
+                .queue_for_send(&s.ssr.message_factory.heartbeat())
+                .await
+                .is_ok()
+        );
 
-        let wlock = s.ssr.mock_app.lock().await;
-        let mut msg = wlock.last_to_admin.as_ref().unwrap().clone();
-        drop(wlock);
+        let mut msg = s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap().clone();
         s.ssr.message_persisted(&mut msg).await;
         s.ssr.no_message_sent().await;
         s.ssr.next_sender_msg_seq_num(2).await;
@@ -3989,15 +3967,14 @@ mod tests {
     #[tokio::test]
     async fn test_send_app_message() {
         let mut s = SessionSendTestSuite::setup_test().await;
-        assert!(s
-            .ssr
-            .session
-            .send(&s.ssr.message_factory.new_order_single())
-            .await
-            .is_ok());
-        let wlock = s.ssr.mock_app.lock().await;
-        let mut msg = wlock.last_to_app.as_ref().unwrap().clone();
-        drop(wlock);
+        assert!(
+            s.ssr
+                .session
+                .send(&s.ssr.message_factory.new_order_single())
+                .await
+                .is_ok()
+        );
+        let mut msg = s.ssr.mock_app.last_to_app.lock().unwrap().as_ref().unwrap().clone();
         s.ssr.message_persisted(&mut msg).await;
         s.ssr.last_to_app_message_sent().await;
         s.ssr.next_sender_msg_seq_num(2).await;
@@ -4028,69 +4005,71 @@ mod tests {
     #[tokio::test]
     async fn test_send_admin_message() {
         let mut s = SessionSendTestSuite::setup_test().await;
-        assert!(s
-            .ssr
-            .session
-            .send(&s.ssr.message_factory.heartbeat())
-            .await
-            .is_ok());
+        assert!(
+            s.ssr
+                .session
+                .send(&s.ssr.message_factory.heartbeat())
+                .await
+                .is_ok()
+        );
 
         s.ssr.last_to_admin_message_sent().await;
-        let wlock = s.ssr.mock_app.lock().await;
-        let mut msg = wlock.last_to_admin.as_ref().unwrap().clone();
-        drop(wlock);
+        let mut msg = s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap().clone();
         s.ssr.message_persisted(&mut msg).await;
     }
 
     #[tokio::test]
     async fn test_send_flushes_queue() {
         let mut s = SessionSendTestSuite::setup_test().await;
-        assert!(s
-            .ssr
-            .session
-            .queue_for_send(&s.ssr.message_factory.new_order_single())
-            .await
-            .is_ok());
-        assert!(s
-            .ssr
-            .session
-            .queue_for_send(&s.ssr.message_factory.heartbeat())
-            .await
-            .is_ok());
+        assert!(
+            s.ssr
+                .session
+                .queue_for_send(&s.ssr.message_factory.new_order_single())
+                .await
+                .is_ok()
+        );
+        assert!(
+            s.ssr
+                .session
+                .queue_for_send(&s.ssr.message_factory.heartbeat())
+                .await
+                .is_ok()
+        );
 
         let order_1 = s
             .ssr
             .mock_app
-            .lock()
-            .await
             .last_to_app
+            .lock()
+            .unwrap()
             .as_ref()
             .unwrap()
             .clone();
         let heartbeat = s
             .ssr
             .mock_app
-            .lock()
-            .await
             .last_to_admin
+            .lock()
+            .unwrap()
             .as_ref()
             .unwrap()
             .clone();
 
         s.ssr.no_message_sent().await;
 
-        assert!(s
-            .ssr
-            .session
-            .send(&s.ssr.message_factory.new_order_single())
-            .await
-            .is_ok());
+        assert!(
+            s.ssr
+                .session
+                .send(&s.ssr.message_factory.new_order_single())
+                .await
+                .is_ok()
+        );
         let order_2 = s
             .ssr
             .mock_app
-            .lock()
-            .await
             .last_to_app
+            .lock()
+            .unwrap()
             .as_ref()
             .unwrap()
             .clone();
@@ -4104,18 +4083,20 @@ mod tests {
     async fn test_send_not_logged_on() {
         let mut s = SessionSendTestSuite::setup_test().await;
 
-        assert!(s
-            .ssr
-            .session
-            .queue_for_send(&s.ssr.message_factory.new_order_single())
-            .await
-            .is_ok());
-        assert!(s
-            .ssr
-            .session
-            .queue_for_send(&s.ssr.message_factory.heartbeat())
-            .await
-            .is_ok());
+        assert!(
+            s.ssr
+                .session
+                .queue_for_send(&s.ssr.message_factory.new_order_single())
+                .await
+                .is_ok()
+        );
+        assert!(
+            s.ssr
+                .session
+                .queue_for_send(&s.ssr.message_factory.heartbeat())
+                .await
+                .is_ok()
+        );
 
         s.ssr.no_message_sent().await;
 
@@ -4127,12 +4108,13 @@ mod tests {
 
         for test in tests {
             s.ssr.session.sm.state = test;
-            assert!(s
-                .ssr
-                .session
-                .send(&s.ssr.message_factory.new_order_single())
-                .await
-                .is_ok());
+            assert!(
+                s.ssr
+                    .session
+                    .send(&s.ssr.message_factory.new_order_single())
+                    .await
+                    .is_ok()
+            );
             s.ssr.no_message_sent().await;
         }
     }
@@ -4142,29 +4124,31 @@ mod tests {
         let mut s = SessionSendTestSuite::setup_test().await;
         s.ssr.session.sm.state = SessionStateEnum::new_in_session().await;
         s.ssr.session.iss.enable_last_msg_seq_num_processed = true;
-        assert!(s
-            .ssr
-            .session
-            .store
-            .set_next_target_msg_seq_num(45)
-            .await
-            .is_ok());
+        assert!(
+            s.ssr
+                .session
+                .store
+                .set_next_target_msg_seq_num(45)
+                .await
+                .is_ok()
+        );
 
-        assert!(s
-            .ssr
-            .session
-            .send(&s.ssr.message_factory.new_order_single())
-            .await
-            .is_ok());
+        assert!(
+            s.ssr
+                .session
+                .send(&s.ssr.message_factory.new_order_single())
+                .await
+                .is_ok()
+        );
         s.ssr.last_to_app_message_sent().await;
         s.field_equals(
             TAG_LAST_MSG_SEQ_NUM_PROCESSED,
             FieldEqual::Num(44),
             &s.ssr
                 .mock_app
-                .lock()
-                .await
                 .last_to_app
+                .lock()
+                .unwrap()
                 .as_ref()
                 .unwrap()
                 .header
@@ -4178,12 +4162,13 @@ mod tests {
         s.ssr.session.sm.state = SessionStateEnum::new_in_session().await;
         s.ssr.session.iss.disable_message_persist = true;
 
-        assert!(s
-            .ssr
-            .session
-            .send(&s.ssr.message_factory.new_order_single())
-            .await
-            .is_ok());
+        assert!(
+            s.ssr
+                .session
+                .send(&s.ssr.message_factory.new_order_single())
+                .await
+                .is_ok()
+        );
         s.ssr.last_to_app_message_sent().await;
         s.ssr.no_message_persisted(1).await;
         s.ssr.next_sender_msg_seq_num(2).await;
@@ -4192,15 +4177,14 @@ mod tests {
     #[tokio::test]
     async fn test_drop_and_send_admin_message() {
         let mut s = SessionSendTestSuite::setup_test().await;
-        assert!(s
-            .ssr
-            .session
-            .drop_and_send(&s.ssr.message_factory.heartbeat())
-            .await
-            .is_ok());
-        let wlock = s.ssr.mock_app.lock().await;
-        let mut msg = wlock.last_to_admin.as_ref().unwrap().clone();
-        drop(wlock);
+        assert!(
+            s.ssr
+                .session
+                .drop_and_send(&s.ssr.message_factory.heartbeat())
+                .await
+                .is_ok()
+        );
+        let mut msg = s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap().clone();
         s.ssr.message_persisted(&mut msg).await;
         s.ssr.last_to_admin_message_sent().await;
     }
@@ -4211,40 +4195,43 @@ mod tests {
         s.ssr
             .mock_app
             .to_admin(&Message::default(), &s.ssr.session.session_id);
-        assert!(s
-            .ssr
-            .session
-            .queue_for_send(&s.ssr.message_factory.new_order_single())
-            .await
-            .is_ok());
-        assert!(s
-            .ssr
-            .session
-            .queue_for_send(&s.ssr.message_factory.heartbeat())
-            .await
-            .is_ok());
+        assert!(
+            s.ssr
+                .session
+                .queue_for_send(&s.ssr.message_factory.new_order_single())
+                .await
+                .is_ok()
+        );
+        assert!(
+            s.ssr
+                .session
+                .queue_for_send(&s.ssr.message_factory.heartbeat())
+                .await
+                .is_ok()
+        );
 
         s.ssr.no_message_sent().await;
 
-        assert!(s
-            .ssr
-            .session
-            .drop_and_send(&s.ssr.message_factory.logon())
-            .await
-            .is_ok());
+        assert!(
+            s.ssr
+                .session
+                .drop_and_send(&s.ssr.message_factory.logon())
+                .await
+                .is_ok()
+        );
 
         s.message_type(
             String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
-            s.ssr.mock_app.lock().await.last_to_admin.as_ref().unwrap(),
+            s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap(),
         );
         s.field_equals(
             TAG_MSG_SEQ_NUM,
             FieldEqual::Num(3),
             &s.ssr
                 .mock_app
-                .lock()
-                .await
                 .last_to_admin
+                .lock()
+                .unwrap()
                 .as_ref()
                 .unwrap()
                 .header
@@ -4259,41 +4246,44 @@ mod tests {
     #[tokio::test]
     async fn test_drop_and_send_drops_queue_with_reset() {
         let mut s = SessionSendTestSuite::setup_test().await;
-        assert!(s
-            .ssr
-            .session
-            .queue_for_send(&s.ssr.message_factory.new_order_single())
-            .await
-            .is_ok());
-        assert!(s
-            .ssr
-            .session
-            .queue_for_send(&s.ssr.message_factory.heartbeat())
-            .await
-            .is_ok());
+        assert!(
+            s.ssr
+                .session
+                .queue_for_send(&s.ssr.message_factory.new_order_single())
+                .await
+                .is_ok()
+        );
+        assert!(
+            s.ssr
+                .session
+                .queue_for_send(&s.ssr.message_factory.heartbeat())
+                .await
+                .is_ok()
+        );
         s.ssr.no_message_sent().await;
 
         assert!(s.ssr.mock_store.reset().await.is_ok());
-        assert!(s
-            .ssr
-            .session
-            .drop_and_send(&s.ssr.message_factory.logon())
-            .await
-            .is_ok());
-        s.ssr.mock_app.lock().await.mock_app.checkpoint();
+        assert!(
+            s.ssr
+                .session
+                .drop_and_send(&s.ssr.message_factory.logon())
+                .await
+                .is_ok()
+        );
+        s.ssr.mock_app.mock_app.lock().unwrap().checkpoint();
 
         s.message_type(
             String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
-            s.ssr.mock_app.lock().await.last_to_admin.as_ref().unwrap(),
+            s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap(),
         );
         s.field_equals(
             TAG_MSG_SEQ_NUM,
             FieldEqual::Num(1),
             &s.ssr
                 .mock_app
-                .lock()
-                .await
                 .last_to_admin
+                .lock()
+                .unwrap()
                 .as_ref()
                 .unwrap()
                 .header

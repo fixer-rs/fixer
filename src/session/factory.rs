@@ -90,7 +90,6 @@ impl SessionFactory {
     // creates Session, associates with internal session registry.
     pub async fn create_session<
         F: MessageStoreFactoryTrait,
-        A: Application + 'static,
         L: LogFactoryTrait,
     >(
         &self,
@@ -98,7 +97,7 @@ impl SessionFactory {
         store_factory: F,
         settings: &SessionSettings,
         log_factory: L,
-        application: Arc<Mutex<A>>,
+        application: Arc<dyn Application>,
     ) -> SimpleResult<Arc<Mutex<Session>>> {
         let session = self
             .new_session(
@@ -115,8 +114,7 @@ impl SessionFactory {
 
         register_session(arc_session.clone()).await?;
 
-        let mut application_lock = application.lock().await;
-        application_lock.on_create(&session_id);
+        application.on_create(&session_id);
 
         arc_session
             .lock()
@@ -130,7 +128,6 @@ impl SessionFactory {
 
     async fn new_session<
         F: MessageStoreFactoryTrait,
-        A: Application + 'static,
         L: LogFactoryTrait,
     >(
         &self,
@@ -138,7 +135,7 @@ impl SessionFactory {
         store_factory: F,
         settings: &SessionSettings,
         mut log_factory: L,
-        application: Arc<Mutex<A>>,
+        application: Arc<dyn Application>,
     ) -> SimpleResult<Session> {
         let mut iss = InternalSessionSetting::default();
 
@@ -590,6 +587,7 @@ mod tests {
             TIME_ZONE,
         },
         fix_utc_timestamp::TimestampPrecision,
+        application::Application,
         fixer_test::MockApp,
         internal::time_range::{TimeOfDay, TimeRange},
         log::LogFactoryEnum,
@@ -601,7 +599,6 @@ mod tests {
     };
     use jiff::{civil::Weekday, tz::TimeZone, SignedDuration};
     use std::sync::Arc;
-    use tokio::sync::Mutex;
 
     struct SessionFactorySuite {
         factory: SessionFactory,
@@ -609,7 +606,7 @@ mod tests {
         store_factory: MessageStoreFactoryEnum,
         ss: SessionSettings,
         log_factory: LogFactoryEnum,
-        app: Arc<Mutex<MockApp>>,
+        app: Arc<dyn Application>,
     }
 
     impl SessionFactorySuite {
@@ -624,7 +621,7 @@ mod tests {
             let store_factory = MemoryStoreFactory::new();
             let ss = SessionSettings::default();
             let log_factory = LogFactoryEnum::default();
-            let app = Arc::new(Mutex::new(MockApp::default()));
+            let app: Arc<dyn Application> = Arc::new(MockApp::default());
             SessionFactorySuite {
                 factory,
                 session_id,

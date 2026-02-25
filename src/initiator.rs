@@ -33,8 +33,8 @@ pub struct Initiator {
 }
 
 impl Initiator {
-    pub async fn new<A: Application + 'static>(
-        app: Arc<Mutex<A>>,
+    pub async fn new(
+        app: Arc<dyn Application>,
         store_factory: MessageStoreFactoryEnum,
         settings: Settings,
         log_factory: LogFactoryEnum,
@@ -283,7 +283,7 @@ SocketConnectPort={}
     async fn test_initiator_new_creates_sessions() {
         clean_sessions();
 
-        let app = Arc::new(Mutex::new(NOPApp::new()));
+        let app: Arc<dyn Application> = Arc::new(NOPApp::new());
         let store_factory = MessageStoreFactoryEnum::default();
         let log_factory = LogFactoryEnum::default();
         let settings = make_initiator_settings("127.0.0.1", "5000").await;
@@ -313,7 +313,7 @@ SocketConnectPort={}
     async fn test_initiator_start_stop() {
         clean_sessions();
 
-        let app = Arc::new(Mutex::new(NOPApp::new()));
+        let app: Arc<dyn Application> = Arc::new(NOPApp::new());
         let store_factory = MessageStoreFactoryEnum::default();
         let log_factory = LogFactoryEnum::default();
         // Use a port that is almost certainly not listening
@@ -358,7 +358,7 @@ SocketConnectPort={}
             drop(stream);
         });
 
-        let app = Arc::new(Mutex::new(NOPApp::new()));
+        let app: Arc<dyn Application> = Arc::new(NOPApp::new());
         let store_factory = MessageStoreFactoryEnum::default();
         let log_factory = LogFactoryEnum::default();
         let settings = make_initiator_settings("127.0.0.1", &port).await;

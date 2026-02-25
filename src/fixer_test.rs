@@ -318,28 +318,28 @@ pub struct App {}
 
 #[automock]
 impl Application for App {
-    fn on_create(&mut self, _session_id: &Arc<SessionID>) {}
+    fn on_create(&self, _session_id: &Arc<SessionID>) {}
 
-    fn on_logon(&mut self, _session_id: &Arc<SessionID>) {}
+    fn on_logon(&self, _session_id: &Arc<SessionID>) {}
 
-    fn on_logout(&mut self, _session_id: &Arc<SessionID>) {}
+    fn on_logout(&self, _session_id: &Arc<SessionID>) {}
 
     fn from_admin(
-        &mut self,
+        &self,
         _msg: &Message,
         _session_id: &Arc<SessionID>,
     ) -> MessageRejectErrorResult {
         Ok(())
     }
 
-    fn to_admin(&mut self, _msg: &Message, _session_id: &Arc<SessionID>) {}
+    fn to_admin(&self, _msg: &Message, _session_id: &Arc<SessionID>) {}
 
-    fn to_app(&mut self, _msg: &Message, _session_id: &Arc<SessionID>) -> SimpleResult<()> {
+    fn to_app(&self, _msg: &Message, _session_id: &Arc<SessionID>) -> SimpleResult<()> {
         Ok(())
     }
 
     fn from_app(
-        &mut self,
+        &self,
         _msg: &Message,
         _session_id: &Arc<SessionID>,
     ) -> MessageRejectErrorResult {
@@ -348,25 +348,29 @@ impl Application for App {
 }
 
 pub struct MockAppExtended {
-    pub mock_app: MockApp,
-    pub decorate_to_admin: Option<fn(msg: &Message)>,
-    pub last_to_admin: Option<Message>,
-    pub last_to_app: Option<Message>,
+    pub mock_app: std::sync::Mutex<MockApp>,
+    pub decorate_to_admin: std::sync::Mutex<Option<fn(msg: &Message)>>,
+    pub last_to_admin: std::sync::Mutex<Option<Message>>,
+    pub last_to_app: std::sync::Mutex<Option<Message>>,
 }
 
 impl Application for MockAppExtended {
-    fn on_create(&mut self, _session_id: &Arc<SessionID>) {}
+    fn on_create(&self, _session_id: &Arc<SessionID>) {}
 
-    fn on_logon(&mut self, session_id: &Arc<SessionID>) {
+    fn on_logon(&self, session_id: &Arc<SessionID>) {
         self.mock_app
+            .lock()
+            .unwrap()
             .expect_on_logon()
             .once()
             .return_const(())
             .call(session_id);
     }
 
-    fn on_logout(&mut self, session_id: &Arc<SessionID>) {
+    fn on_logout(&self, session_id: &Arc<SessionID>) {
         self.mock_app
+            .lock()
+            .unwrap()
             .expect_on_logout()
             .once()
             .return_const(())
@@ -374,14 +378,18 @@ impl Application for MockAppExtended {
     }
 
     fn from_admin(
-        &mut self,
+        &self,
         msg: &Message,
         session_id: &Arc<SessionID>,
     ) -> MessageRejectErrorResult {
         match session_id.qualifier.as_str() {
-            OVERRIDE_TIMES_FROM_ADMIN_RETURN_ERROR => self.mock_app.from_admin(msg, session_id),
+            OVERRIDE_TIMES_FROM_ADMIN_RETURN_ERROR => {
+                self.mock_app.lock().unwrap().from_admin(msg, session_id)
+            }
             _ => self
                 .mock_app
+                .lock()
+                .unwrap()
                 .expect_from_admin()
                 .once()
                 .returning(|_, _| -> MessageRejectErrorResult { Ok(()) })
@@ -389,13 +397,15 @@ impl Application for MockAppExtended {
         }
     }
 
-    fn to_admin(&mut self, msg: &Message, session_id: &Arc<SessionID>) {
+    fn to_admin(&self, msg: &Message, session_id: &Arc<SessionID>) {
         match session_id.qualifier.as_str() {
             OVERRIDE_TIMES | OVERRIDE_TIMES_TO_APP_RETURN_ERROR => {
-                self.mock_app.to_admin(msg, session_id);
+                self.mock_app.lock().unwrap().to_admin(msg, session_id);
             }
             _ => {
                 self.mock_app
+                    .lock()
+                    .unwrap()
                     .expect_to_admin()
                     .once()
                     .return_const(())
@@ -403,27 +413,31 @@ impl Application for MockAppExtended {
             }
         }
 
-        if let Some(decorate_to_admin) = self.decorate_to_admin {
+        if let Some(decorate_to_admin) = *self.decorate_to_admin.lock().unwrap() {
             decorate_to_admin(msg);
         }
 
-        self.last_to_admin = Some(msg.clone());
+        *self.last_to_admin.lock().unwrap() = Some(msg.clone());
     }
 
-    fn to_app(&mut self, msg: &Message, session_id: &Arc<SessionID>) -> SimpleResult<()> {
-        self.last_to_app = Some(msg.clone());
+    fn to_app(&self, msg: &Message, session_id: &Arc<SessionID>) -> SimpleResult<()> {
+        *self.last_to_app.lock().unwrap() = Some(msg.clone());
         match session_id.qualifier.as_str() {
             TO_APP_RETURN_ERROR => self
                 .mock_app
+                .lock()
+                .unwrap()
                 .expect_to_app()
                 .once()
                 .returning(|_, _| -> SimpleResult<()> { Err(ERR_DO_NOT_SEND.clone()) })
                 .call(msg, session_id),
             OVERRIDE_TIMES | OVERRIDE_TIMES_TO_APP_RETURN_ERROR => {
-                self.mock_app.to_app(msg, session_id)
+                self.mock_app.lock().unwrap().to_app(msg, session_id)
             }
             _ => self
                 .mock_app
+                .lock()
+                .unwrap()
                 .expect_to_app()
                 .once()
                 .returning(|_, _| -> SimpleResult<()> { Ok(()) })
@@ -431,11 +445,15 @@ impl Application for MockAppExtended {
         }
     }
 
-    fn from_app(&mut self, msg: &Message, session_id: &Arc<SessionID>) -> MessageRejectErrorResult {
+    fn from_app(&self, msg: &Message, session_id: &Arc<SessionID>) -> MessageRejectErrorResult {
         match session_id.qualifier.as_str() {
-            OVERRIDE_TIMES | FROM_APP_RETURN_ERROR => self.mock_app.from_app(msg, session_id),
+            OVERRIDE_TIMES | FROM_APP_RETURN_ERROR => {
+                self.mock_app.lock().unwrap().from_app(msg, session_id)
+            }
             _ => self
                 .mock_app
+                .lock()
+                .unwrap()
                 .expect_from_app()
                 .once()
                 .returning(|_, _| -> MessageRejectErrorResult { Ok(()) })
@@ -444,112 +462,78 @@ impl Application for MockAppExtended {
     }
 }
 
-type MockAppShared = Arc<Mutex<MockAppExtended>>;
-
-impl Application for MockAppShared {
-    fn on_create(&mut self, session_id: &Arc<SessionID>) {
-        self.try_lock().unwrap().on_create(session_id)
-    }
-
-    fn on_logon(&mut self, session_id: &Arc<SessionID>) {
-        self.try_lock().unwrap().on_logon(session_id)
-    }
-
-    fn on_logout(&mut self, session_id: &Arc<SessionID>) {
-        self.try_lock().unwrap().on_logout(session_id)
-    }
-
-    fn to_admin(&mut self, msg: &Message, session_id: &Arc<SessionID>) {
-        self.try_lock().unwrap().to_admin(msg, session_id)
-    }
-
-    fn to_app(&mut self, msg: &Message, session_id: &Arc<SessionID>) -> SimpleResult<()> {
-        self.try_lock().unwrap().to_app(msg, session_id)
-    }
-
-    fn from_admin(
-        &mut self,
-        msg: &Message,
-        session_id: &Arc<SessionID>,
-    ) -> MessageRejectErrorResult {
-        self.try_lock().unwrap().from_admin(msg, session_id)
-    }
-
-    fn from_app(&mut self, msg: &Message, session_id: &Arc<SessionID>) -> MessageRejectErrorResult {
-        self.try_lock().unwrap().from_app(msg, session_id)
-    }
-}
+pub type MockAppShared = Arc<MockAppExtended>;
 
 pub trait TestApplication {
-    fn never_on_logout(&mut self);
-    fn never_to_admin(&mut self);
-    fn set_to_admin(&mut self, times: usize);
-    fn set_to_app(&mut self, times: usize);
-    fn set_from_app(&mut self, times: usize);
-    fn set_to_app_return_error(&mut self, times: usize, err: &SimpleError);
-    fn set_from_admin_return_error(&mut self, times: usize, err: MessageRejectErrorEnum);
-    fn set_from_app_return_error(&mut self, times: usize, err: MessageRejectErrorEnum);
+    fn never_on_logout(&self);
+    fn never_to_admin(&self);
+    fn set_to_admin(&self, times: usize);
+    fn set_to_app(&self, times: usize);
+    fn set_from_app(&self, times: usize);
+    fn set_to_app_return_error(&self, times: usize, err: &SimpleError);
+    fn set_from_admin_return_error(&self, times: usize, err: MessageRejectErrorEnum);
+    fn set_from_app_return_error(&self, times: usize, err: MessageRejectErrorEnum);
 }
 
 impl TestApplication for MockAppShared {
-    fn never_on_logout(&mut self) {
-        self.try_lock().unwrap().mock_app.expect_on_logout().never();
+    fn never_on_logout(&self) {
+        self.mock_app.lock().unwrap().expect_on_logout().never();
     }
 
-    fn never_to_admin(&mut self) {
-        self.try_lock().unwrap().mock_app.expect_to_admin().never();
+    fn never_to_admin(&self) {
+        self.mock_app.lock().unwrap().expect_to_admin().never();
     }
 
-    fn set_to_admin(&mut self, times: usize) {
-        self.try_lock()
+    fn set_to_admin(&self, times: usize) {
+        self.mock_app
+            .lock()
             .unwrap()
-            .mock_app
             .expect_to_admin()
             .times(times)
             .return_const(());
     }
 
-    fn set_to_app(&mut self, times: usize) {
-        self.try_lock()
+    fn set_to_app(&self, times: usize) {
+        self.mock_app
+            .lock()
             .unwrap()
-            .mock_app
             .expect_to_app()
             .times(times)
             .returning(|_, _| -> SimpleResult<()> { Ok(()) });
     }
 
-    fn set_from_app(&mut self, times: usize) {
-        self.try_lock()
+    fn set_from_app(&self, times: usize) {
+        self.mock_app
+            .lock()
             .unwrap()
-            .mock_app
             .expect_from_app()
             .times(times)
             .returning(|_, _| -> MessageRejectErrorResult { Ok(()) });
     }
 
-    fn set_to_app_return_error(&mut self, times: usize, err: &SimpleError) {
+    fn set_to_app_return_error(&self, times: usize, err: &SimpleError) {
         let new_err = err.clone();
-        self.try_lock()
+        self.mock_app
+            .lock()
             .unwrap()
-            .mock_app
             .expect_to_app()
             .times(times)
             .return_once(|_, _| -> SimpleResult<()> { Err(new_err) });
     }
 
-    fn set_from_admin_return_error(&mut self, times: usize, err: MessageRejectErrorEnum) {
-        self.try_lock()
+    fn set_from_admin_return_error(&self, times: usize, err: MessageRejectErrorEnum) {
+        self.mock_app
+            .lock()
             .unwrap()
-            .mock_app
             .expect_from_admin()
             .times(times)
             .return_once(|_, _| -> MessageRejectErrorResult { Err(err) });
     }
 
-    fn set_from_app_return_error(&mut self, times: usize, err: MessageRejectErrorEnum) {
-        self.try_lock()
+    fn set_from_app_return_error(&self, times: usize, err: MessageRejectErrorEnum) {
+        self.mock_app
+            .lock()
             .unwrap()
-            .mock_app
             .expect_from_app()
             .times(times)
             .return_once(|_, _| -> MessageRejectErrorResult { Err(err) });
@@ -656,12 +640,12 @@ pub struct SessionSuiteRig {
 
 impl SessionSuiteRig {
     pub fn init() -> Self {
-        let mock_app_shared = Arc::new(Mutex::new(MockAppExtended {
-            mock_app: MockApp::default(),
-            decorate_to_admin: None,
-            last_to_admin: None,
-            last_to_app: None,
-        }));
+        let mock_app_shared: MockAppShared = Arc::new(MockAppExtended {
+            mock_app: std::sync::Mutex::new(MockApp::default()),
+            decorate_to_admin: std::sync::Mutex::new(None),
+            last_to_admin: std::sync::Mutex::new(None),
+            last_to_app: std::sync::Mutex::new(None),
+        });
 
         let mock_store_extended = MockStoreExtended {
             mock: MockStore::default(),
@@ -771,7 +755,7 @@ impl SessionSuiteRig {
     }
 
     pub async fn last_to_app_message_sent(&mut self) {
-        let last_to_app = self.mock_app.as_ref().lock().await.last_to_app.clone();
+        let last_to_app = self.mock_app.last_to_app.lock().unwrap().clone();
         assert!(last_to_app.is_some(), "Should be connected");
 
         self.message_sent_equals(&last_to_app.as_ref().unwrap())
@@ -779,7 +763,7 @@ impl SessionSuiteRig {
     }
 
     pub async fn last_to_admin_message_sent(&mut self) {
-        let last_to_admin = self.mock_app.as_ref().lock().await.last_to_admin.clone();
+        let last_to_admin = self.mock_app.last_to_admin.lock().unwrap().clone();
         assert!(last_to_admin.is_some(), "No ToAdmin received");
         self.message_sent_equals(&last_to_admin.as_ref().unwrap())
             .await;
