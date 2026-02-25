@@ -130,8 +130,8 @@ mod tests {
     async fn test_logout_reset_on_logout() {
         let mut s = SessionSuite::setup_test().await;
         s.ssr.session.iss.reset_on_logout = true;
-        let msg = s.ssr.message_factory.new_order_single();
-        assert!(s.ssr.session.queue_for_send(&msg).await.is_ok());
+        let mut msg = s.ssr.message_factory.new_order_single();
+        assert!(s.ssr.session.queue_for_send(&mut msg).await.is_ok());
 
         let mut msg = s.ssr.message_factory.logout();
         s.ssr.session.sm_fix_msg_in(&mut msg).await;
@@ -283,7 +283,7 @@ mod tests {
             let stashed_msg = stashed_msg_option.unwrap();
 
             let raw_msg = msg_seq_num_too_high.build();
-            let stashed_raw_msg = stashed_msg.build();
+            let stashed_raw_msg = stashed_msg.clone().build();
 
             assert_eq!(raw_msg, stashed_raw_msg);
         } else {
@@ -372,7 +372,7 @@ mod tests {
                 let stashed_msg = stashed_msg_option.unwrap();
 
                 let raw_msg = msg_seq_num_too_high.build();
-                let stashed_raw_msg = stashed_msg.build();
+                let stashed_raw_msg = stashed_msg.clone().build();
 
                 assert_eq!(raw_msg, stashed_raw_msg);
             } else {
@@ -492,7 +492,7 @@ mod tests {
         assert!(s
             .ssr
             .session
-            .send(&s.ssr.message_factory.new_order_single())
+            .send(&mut s.ssr.message_factory.new_order_single())
             .await
             .is_ok());
         s.ssr.last_to_app_message_sent().await;
@@ -617,7 +617,7 @@ mod tests {
         assert!(s
             .ssr
             .session
-            .send(&s.ssr.message_factory.new_order_single())
+            .send(&mut s.ssr.message_factory.new_order_single())
             .await
             .is_ok());
         s.ssr.last_to_app_message_sent().await;
@@ -711,7 +711,7 @@ mod tests {
         assert!(s
             .ssr
             .session
-            .send(&s.ssr.message_factory.new_order_single())
+            .send(&mut s.ssr.message_factory.new_order_single())
             .await
             .is_ok());
         s.ssr.last_to_app_message_sent().await;

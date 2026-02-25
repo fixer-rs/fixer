@@ -29,7 +29,8 @@ pub struct Header {
 
 impl Header {
     pub fn init() -> Self {
-        let field_map = FieldMap::default().init_with_ordering(TagOrderType::Header);
+        let mut field_map = FieldMap::default();
+        field_map.init_with_ordering(TagOrderType::Header);
         Header { field_map }
     }
 
@@ -49,18 +50,18 @@ impl Header {
             pub fn get_time(&self, tag: Tag) -> Result<Timestamp, MessageRejectErrorEnum>;
             pub fn get_string(&self, tag: Tag) -> Result<String, MessageRejectErrorEnum>;
             pub fn get_group<P: FieldGroupReader>(&self, parser: P) -> Result<P, MessageRejectErrorEnum>;
-            pub fn set_field<F: FieldValueWriter>(&self, tag: Tag, field: F) -> &FieldMap;
-            pub fn set_bytes(&self, tag: Tag, value: &[u8]) -> &FieldMap;
-            pub fn set_bool(&self, tag: Tag, value: bool) -> &FieldMap;
-            pub fn set_int(&self, tag: Tag, value: isize) -> &FieldMap;
-            pub fn set_string(&self, tag: Tag, value: &str) -> &FieldMap;
-            pub fn remove(&self, tag: Tag);
-            pub fn clear(&self);
+            pub fn set_field<F: FieldValueWriter>(&mut self, tag: Tag, field: F) -> &FieldMap;
+            pub fn set_bytes(&mut self, tag: Tag, value: &[u8]) -> &FieldMap;
+            pub fn set_bool(&mut self, tag: Tag, value: bool) -> &FieldMap;
+            pub fn set_int(&mut self, tag: Tag, value: isize) -> &FieldMap;
+            pub fn set_string(&mut self, tag: Tag, value: &str) -> &FieldMap;
+            pub fn remove(&mut self, tag: Tag);
+            pub fn clear(&mut self);
             pub fn copy_into(&self, to: &mut FieldMap);
             pub fn add(&mut self, f: LocalField);
-            pub fn set<F: FieldWriter>(&self, field: F) -> &FieldMap;
+            pub fn set<F: FieldWriter>(&mut self, field: F) -> &FieldMap;
             pub fn set_group<F: FieldGroupWriter>(&mut self, field: F) -> &FieldMap;
-            pub fn write(&self, buffer: &mut Vec<u8>);
+            pub fn write(&mut self, buffer: &mut Vec<u8>);
             pub fn total(&self) -> isize;
             pub fn length(&self) -> isize;
         }
@@ -94,18 +95,18 @@ impl Body {
             pub fn get_time(&self, tag: Tag) -> Result<Timestamp, MessageRejectErrorEnum>;
             pub fn get_string(&self, tag: Tag) -> Result<String, MessageRejectErrorEnum>;
             pub fn get_group<P: FieldGroupReader>(&self, parser: P) -> Result<P, MessageRejectErrorEnum>;
-            pub fn set_field<F: FieldValueWriter>(&self, tag: Tag, field: F) -> &FieldMap;
-            pub fn set_bytes(&self, tag: Tag, value: &[u8]) -> &FieldMap;
-            pub fn set_bool(&self, tag: Tag, value: bool) -> &FieldMap;
-            pub fn set_int(&self, tag: Tag, value: isize) -> &FieldMap;
-            pub fn set_string(&self, tag: Tag, value: &str) -> &FieldMap;
-            pub fn remove(&self, tag: Tag);
-            pub fn clear(&self);
+            pub fn set_field<F: FieldValueWriter>(&mut self, tag: Tag, field: F) -> &FieldMap;
+            pub fn set_bytes(&mut self, tag: Tag, value: &[u8]) -> &FieldMap;
+            pub fn set_bool(&mut self, tag: Tag, value: bool) -> &FieldMap;
+            pub fn set_int(&mut self, tag: Tag, value: isize) -> &FieldMap;
+            pub fn set_string(&mut self, tag: Tag, value: &str) -> &FieldMap;
+            pub fn remove(&mut self, tag: Tag);
+            pub fn clear(&mut self);
             pub fn copy_into(&self, to: &mut FieldMap);
             pub fn add(&mut self, f: LocalField);
-            pub fn set<F: FieldWriter>(&self, field: F) -> &FieldMap;
+            pub fn set<F: FieldWriter>(&mut self, field: F) -> &FieldMap;
             pub fn set_group<F: FieldGroupWriter>(&mut self, field: F) -> &FieldMap;
-            pub fn write(&self, buffer: &mut Vec<u8>);
+            pub fn write(&mut self, buffer: &mut Vec<u8>);
             pub fn total(&self) -> isize;
             pub fn length(&self) -> isize;
         }
@@ -119,7 +120,8 @@ pub struct Trailer {
 
 impl Trailer {
     pub fn init() -> Self {
-        let field_map = FieldMap::default().init_with_ordering(TagOrderType::Trailer);
+        let mut field_map = FieldMap::default();
+        field_map.init_with_ordering(TagOrderType::Trailer);
         Trailer { field_map }
     }
 
@@ -139,18 +141,18 @@ impl Trailer {
             pub fn get_time(&self, tag: Tag) -> Result<Timestamp, MessageRejectErrorEnum>;
             pub fn get_string(&self, tag: Tag) -> Result<String, MessageRejectErrorEnum>;
             pub fn get_group<P: FieldGroupReader>(&self, parser: P) -> Result<P, MessageRejectErrorEnum>;
-            pub fn set_field<F: FieldValueWriter>(&self, tag: Tag, field: F) -> &FieldMap;
-            pub fn set_bytes(&self, tag: Tag, value: &[u8]) -> &FieldMap;
-            pub fn set_bool(&self, tag: Tag, value: bool) -> &FieldMap;
-            pub fn set_int(&self, tag: Tag, value: isize) -> &FieldMap;
-            pub fn set_string(&self, tag: Tag, value: &str) -> &FieldMap;
-            pub fn remove(&self, tag: Tag);
-            pub fn clear(&self);
+            pub fn set_field<F: FieldValueWriter>(&mut self, tag: Tag, field: F) -> &FieldMap;
+            pub fn set_bytes(&mut self, tag: Tag, value: &[u8]) -> &FieldMap;
+            pub fn set_bool(&mut self, tag: Tag, value: bool) -> &FieldMap;
+            pub fn set_int(&mut self, tag: Tag, value: isize) -> &FieldMap;
+            pub fn set_string(&mut self, tag: Tag, value: &str) -> &FieldMap;
+            pub fn remove(&mut self, tag: Tag);
+            pub fn clear(&mut self);
             pub fn copy_into(&self, to: &mut FieldMap);
             pub fn add(&mut self, f: LocalField);
-            pub fn set<F: FieldWriter>(&self, field: F) -> &FieldMap;
+            pub fn set<F: FieldWriter>(&mut self, field: F) -> &FieldMap;
             pub fn set_group<F: FieldGroupWriter>(&mut self, field: F) -> &FieldMap;
-            pub fn write(&self, buffer: &mut Vec<u8>);
+            pub fn write(&mut self, buffer: &mut Vec<u8>);
             pub fn total(&self) -> isize;
             pub fn length(&self) -> isize;
         }
@@ -179,7 +181,7 @@ impl ToString for Message {
             return String::from_utf8_lossy(&self.raw_message).to_string();
         }
 
-        String::from_utf8_lossy(&self.build()).to_string()
+        String::from_utf8_lossy(&self.clone().build()).to_string()
     }
 }
 
@@ -424,42 +426,42 @@ impl Message {
 
     // reverseRoute returns a message builder with routing header fields initialized as the reverse of this message.
     pub fn reverse_route(&self) -> Message {
-        let reverse_msg = Message::default();
+        let mut reverse_msg = Message::default();
 
-        let copy = |src: Tag, dest: Tag| {
+        let copy = |reverse_header: &mut Header, src: Tag, dest: Tag, self_header: &Header| {
             let mut field = FIXString::new();
-            let get_field = self.header.get_field(src, &mut field);
+            let get_field = self_header.get_field(src, &mut field);
             if get_field.is_ok() && !field.is_empty() {
-                reverse_msg.header.set_field(dest, field);
+                reverse_header.set_field(dest, field);
             }
         };
 
-        copy(TAG_SENDER_COMP_ID, TAG_TARGET_COMP_ID);
-        copy(TAG_SENDER_SUB_ID, TAG_TARGET_SUB_ID);
-        copy(TAG_SENDER_LOCATION_ID, TAG_TARGET_LOCATION_ID);
+        copy(&mut reverse_msg.header, TAG_SENDER_COMP_ID, TAG_TARGET_COMP_ID, &self.header);
+        copy(&mut reverse_msg.header, TAG_SENDER_SUB_ID, TAG_TARGET_SUB_ID, &self.header);
+        copy(&mut reverse_msg.header, TAG_SENDER_LOCATION_ID, TAG_TARGET_LOCATION_ID, &self.header);
 
-        copy(TAG_TARGET_COMP_ID, TAG_SENDER_COMP_ID);
-        copy(TAG_TARGET_SUB_ID, TAG_SENDER_SUB_ID);
-        copy(TAG_TARGET_LOCATION_ID, TAG_SENDER_LOCATION_ID);
+        copy(&mut reverse_msg.header, TAG_TARGET_COMP_ID, TAG_SENDER_COMP_ID, &self.header);
+        copy(&mut reverse_msg.header, TAG_TARGET_SUB_ID, TAG_SENDER_SUB_ID, &self.header);
+        copy(&mut reverse_msg.header, TAG_TARGET_LOCATION_ID, TAG_SENDER_LOCATION_ID, &self.header);
 
-        copy(TAG_ON_BEHALF_OF_COMP_ID, TAG_DELIVER_TO_COMP_ID);
-        copy(TAG_ON_BEHALF_OF_SUB_ID, TAG_DELIVER_TO_SUB_ID);
-        copy(TAG_DELIVER_TO_COMP_ID, TAG_ON_BEHALF_OF_COMP_ID);
-        copy(TAG_DELIVER_TO_SUB_ID, TAG_ON_BEHALF_OF_SUB_ID);
+        copy(&mut reverse_msg.header, TAG_ON_BEHALF_OF_COMP_ID, TAG_DELIVER_TO_COMP_ID, &self.header);
+        copy(&mut reverse_msg.header, TAG_ON_BEHALF_OF_SUB_ID, TAG_DELIVER_TO_SUB_ID, &self.header);
+        copy(&mut reverse_msg.header, TAG_DELIVER_TO_COMP_ID, TAG_ON_BEHALF_OF_COMP_ID, &self.header);
+        copy(&mut reverse_msg.header, TAG_DELIVER_TO_SUB_ID, TAG_ON_BEHALF_OF_SUB_ID, &self.header);
 
         // tags added in 4.1
         let mut begin_string = FIXString::new();
         let get_field = self.header.get_field(TAG_BEGIN_STRING, &mut begin_string);
         if get_field.is_ok() && begin_string != BEGIN_STRING_FIX40 {
-            copy(TAG_ON_BEHALF_OF_LOCATION_ID, TAG_DELIVER_TO_LOCATION_ID);
-            copy(TAG_DELIVER_TO_LOCATION_ID, TAG_ON_BEHALF_OF_LOCATION_ID);
+            copy(&mut reverse_msg.header, TAG_ON_BEHALF_OF_LOCATION_ID, TAG_DELIVER_TO_LOCATION_ID, &self.header);
+            copy(&mut reverse_msg.header, TAG_DELIVER_TO_LOCATION_ID, TAG_ON_BEHALF_OF_LOCATION_ID, &self.header);
         }
 
         reverse_msg
     }
 
     // build constructs a []byte from a Message instance
-    pub fn build(&self) -> Vec<u8> {
+    pub fn build(&mut self) -> Vec<u8> {
         self.cook();
 
         let mut b = vec![];
@@ -469,7 +471,7 @@ impl Message {
         b
     }
 
-    fn cook(&self) {
+    fn cook(&mut self) {
         let body_length = self.header.length() + self.body.length() + self.trailer.length();
         self.header.set_int(TAG_BODY_LENGTH, body_length);
         let check_sum = (self.header.total() + self.body.total() + self.trailer.total()) % 256;
@@ -482,7 +484,7 @@ impl Message {
             return self.raw_message.clone();
         }
 
-        self.build()
+        self.clone().build()
     }
 }
 
@@ -709,7 +711,7 @@ mod tests {
 
     #[test]
     fn test_build() {
-        let s = setup_test();
+        let mut s = setup_test();
         s.msg
             .header
             .set_field(TAG_BEGIN_STRING, FIXString::from(BEGIN_STRING_FIX44));

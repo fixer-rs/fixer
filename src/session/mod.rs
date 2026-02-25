@@ -273,7 +273,7 @@ impl Session {
         }
     }
 
-    fn insert_sending_time(&self, msg: &Message) {
+    fn insert_sending_time(&self, msg: &mut Message) {
         let sending_time = Timestamp::now();
 
         if matches!(
@@ -298,7 +298,7 @@ impl Session {
         }
     }
 
-    async fn fill_default_header(&mut self, msg: &Message, in_reply_to: Option<&Message>) {
+    async fn fill_default_header(&mut self, msg: &mut Message, in_reply_to: Option<&Message>) {
         msg.header
             .set_string(TAG_BEGIN_STRING, &self.session_id.begin_string);
         msg.header
@@ -364,7 +364,7 @@ impl Session {
         set_reset_seq_num: bool,
         in_reply_to: Option<&Message>,
     ) -> Result<(), FixerError> {
-        let logon = Message::new();
+        let mut logon = Message::new();
         logon.header.set_field(TAG_MSG_TYPE, FIXString::from("A"));
         logon.header.set_field(
             TAG_BEGIN_STRING,
@@ -398,11 +398,11 @@ impl Session {
             );
         }
 
-        self.drop_and_send_in_reply_to(&logon, in_reply_to).await
+        self.drop_and_send_in_reply_to(&mut logon, in_reply_to).await
     }
 
     fn build_logout(&self, reason: &str) -> Message {
-        let logout = Message::new();
+        let mut logout = Message::new();
         logout.header.set_field(TAG_MSG_TYPE, FIXString::from("5"));
         logout.header.set_field(
             TAG_BEGIN_STRING,
@@ -432,11 +432,11 @@ impl Session {
         reason: &str,
         in_reply_to: Option<&Message>,
     ) -> Result<(), FixerError> {
-        let logout = self.build_logout(reason);
-        self.send_in_reply_to(&logout, in_reply_to).await
+        let mut logout = self.build_logout(reason);
+        self.send_in_reply_to(&mut logout, in_reply_to).await
     }
 
-    async fn resend(&mut self, msg: &Message) -> bool {
+    async fn resend(&mut self, msg: &mut Message) -> bool {
         msg.header.set_field(TAG_POSS_DUP_FLAG, true as FIXBoolean);
 
         let mut orig_sending_time = FIXString::new();
@@ -454,7 +454,7 @@ impl Session {
     }
 
     // queue_for_send will validate, persist, and queue the message for send
-    pub async fn queue_for_send(&mut self, msg: &Message) -> Result<(), FixerError> {
+    pub async fn queue_for_send(&mut self, msg: &mut Message) -> Result<(), FixerError> {
         let msg_bytes = self.prep_message_for_send(msg, None).await?;
         self.to_send.push(msg_bytes);
 
@@ -467,13 +467,13 @@ impl Session {
     }
 
     // send will validate, persist, queue the message. If the session is logged on, send all messages in the queue
-    async fn send(&mut self, msg: &Message) -> Result<(), FixerError> {
+    async fn send(&mut self, msg: &mut Message) -> Result<(), FixerError> {
         self.send_in_reply_to(msg, None).await
     }
 
     async fn send_in_reply_to(
         &mut self,
-        msg: &Message,
+        msg: &mut Message,
         in_reply_to: Option<&Message>,
     ) -> Result<(), FixerError> {
         if !self.sm.is_logged_on() {
@@ -494,13 +494,13 @@ impl Session {
 
     // drop_and_send will validate and persist the message, then drops the send queue and sends the message.
     #[allow(dead_code)] // exists in Go quickfix session.go, used internally and in tests
-    async fn drop_and_send(&mut self, msg: &Message) -> Result<(), FixerError> {
+    async fn drop_and_send(&mut self, msg: &mut Message) -> Result<(), FixerError> {
         self.drop_and_send_in_reply_to(msg, None).await
     }
 
     async fn drop_and_send_in_reply_to(
         &mut self,
-        msg: &Message,
+        msg: &mut Message,
         in_reply_to: Option<&Message>,
     ) -> Result<(), FixerError> {
         let msg_bytes = self.prep_message_for_send(msg, in_reply_to).await?;
@@ -513,7 +513,7 @@ impl Session {
 
     async fn prep_message_for_send(
         &mut self,
-        msg: &Message,
+        msg: &mut Message,
         in_reply_to: Option<&Message>,
     ) -> Result<Vec<u8>, FixerError> {
         self.fill_default_header(msg, in_reply_to).await;
@@ -616,7 +616,7 @@ impl Session {
             ..Default::default()
         };
 
-        let resend = Message::new();
+        let mut resend = Message::new();
         resend
             .header
             .set_bytes(TAG_MSG_TYPE, MSG_TYPE_RESEND_REQUEST);
@@ -640,7 +640,7 @@ impl Session {
         }
         resend.body.set_field(TAG_END_SEQ_NO, end_seq_no);
 
-        self.send(&resend).await?;
+        self.send(&mut resend).await?;
         self.log
             .on_eventf(
                 "Sent ResendRequest FROM: {{from}} TO: {{to}}",
@@ -896,10 +896,10 @@ impl Session {
 
     async fn do_reject(
         &mut self,
-        msg: &Message,
+        msg: &mut Message,
         rej: MessageRejectErrorEnum,
     ) -> Result<(), FixerError> {
-        let reply = msg.reverse_route();
+        let mut reply = msg.reverse_route();
 
         if !matches!(
             self.session_id.begin_string.as_str(),
@@ -964,7 +964,7 @@ impl Session {
                 },
             )
             .await;
-        self.send_in_reply_to(&reply, Some(msg)).await
+        self.send_in_reply_to(&mut reply, Some(msg)).await
     }
 
     async fn on_disconnect(&mut self) {
@@ -1013,8 +1013,8 @@ impl Session {
             AdminEnum::StopReq(_) => {
                 self.sm_stop().await;
             }
-            AdminEnum::QueueForSend(qfs) => {
-                let result = self.queue_for_send(&qfs.msg).await;
+            AdminEnum::QueueForSend(mut qfs) => {
+                let result = self.queue_for_send(&mut qfs.msg).await;
                 let _ = qfs.result.send(result);
             }
             AdminEnum::WaitForInSessionReq(wfisr) => {
@@ -1417,12 +1417,12 @@ impl Session {
                 .on_event("Test Request with no testRequestID")
                 .await;
         } else {
-            let heart_bt = Message::new();
+            let mut heart_bt = Message::new();
             heart_bt
                 .header
                 .set_field(TAG_MSG_TYPE, FIXString::from("0"));
             heart_bt.body.set_field(TAG_TEST_REQ_ID, test_req);
-            let send_result = self.send_in_reply_to(&heart_bt, Some(msg)).await;
+            let send_result = self.send_in_reply_to(&mut heart_bt, Some(msg)).await;
             if let Err(err) = send_result {
                 return self.handle_state_error(&err.to_string()).await;
             }
@@ -1604,7 +1604,7 @@ impl Session {
                 continue;
             }
 
-            if !self.resend(&msg).await {
+            if !self.resend(&mut msg).await {
                 next_seq_num = sent_message_seq_num + 1;
                 continue;
             }
@@ -1785,8 +1785,8 @@ impl Session {
         end_seq_no: isize,
         in_reply_to: &Message,
     ) -> MessageRejectErrorResult {
-        let sequence_reset = Message::new();
-        self.fill_default_header(&sequence_reset, Some(in_reply_to))
+        let mut sequence_reset = Message::new();
+        self.fill_default_header(&mut sequence_reset, Some(in_reply_to))
             .await;
 
         sequence_reset
@@ -1814,7 +1814,7 @@ impl Session {
                 .set_field(TAG_ORIG_SENDING_TIME, orig_sending_time);
         }
 
-        self.application.to_admin(&sequence_reset, &self.session_id);
+        self.application.to_admin(&mut sequence_reset, &self.session_id);
 
         let msg_bytes = sequence_reset.build();
 
@@ -1832,23 +1832,23 @@ impl Session {
 
     async fn in_session_timeout(&mut self, event: Event) -> SessionStateEnum {
         if event == NEED_HEARTBEAT {
-            let heart_beat = Message::new();
+            let mut heart_beat = Message::new();
             heart_beat
                 .header
                 .set_field(TAG_MSG_TYPE, FIXString::from("0"));
-            let send_result = self.send(&heart_beat).await;
+            let send_result = self.send(&mut heart_beat).await;
             if let Err(err) = send_result {
                 return self.handle_state_error(&err.to_string()).await;
             }
         } else if event == PEER_TIMEOUT {
-            let test_req = Message::new();
+            let mut test_req = Message::new();
             test_req
                 .header
                 .set_field(TAG_MSG_TYPE, FIXString::from("1"));
             test_req
                 .body
                 .set_field(TAG_TEST_REQ_ID, FIXString::from("TEST"));
-            let send_result = self.send(&test_req).await;
+            let send_result = self.send(&mut test_req).await;
             if let Err(err) = send_result {
                 return self.handle_state_error(&err.to_string()).await;
             }
@@ -1917,9 +1917,9 @@ impl Session {
         reason: &str,
     ) -> SessionStateEnum {
         self.log.on_event(reason).await;
-        let logout = self.build_logout(reason);
+        let mut logout = self.build_logout(reason);
 
-        let drop_result = self.drop_and_send_in_reply_to(&logout, Some(msg)).await;
+        let drop_result = self.drop_and_send_in_reply_to(&mut logout, Some(msg)).await;
         if let Err(err) = drop_result {
             self.log_error(&err.to_string()).await;
         }
@@ -2136,7 +2136,7 @@ impl Session {
     }
 }
 
-fn optionally_set_id(msg: &Message, tag: Tag, value: &str) {
+fn optionally_set_id(msg: &mut Message, tag: Tag, value: &str) {
     if !value.is_empty() {
         msg.header.set_string(tag, value);
     }
@@ -2218,7 +2218,7 @@ mod tests {
         s.ssr.session.session_id = Arc::new(session_id);
 
         let mut msg = Message::new();
-        s.ssr.session.fill_default_header(&msg, None).await;
+        s.ssr.session.fill_default_header(&mut msg, None).await;
         s.field_equals(
             TAG_BEGIN_STRING,
             FieldEqual::Str("FIX.4.2"),
@@ -2250,7 +2250,7 @@ mod tests {
         s.ssr.session.session_id = Arc::new(session_id);
 
         msg = Message::new();
-        s.ssr.session.fill_default_header(&msg, None).await;
+        s.ssr.session.fill_default_header(&mut msg, None).await;
         s.field_equals(
             TAG_BEGIN_STRING,
             FieldEqual::Str("FIX.4.3"),
@@ -2347,8 +2347,8 @@ mod tests {
 
             s.ssr.session.timestamp_precision = test.precision;
 
-            let msg = Message::new();
-            s.ssr.session.insert_sending_time(&msg);
+            let mut msg = Message::new();
+            s.ssr.session.insert_sending_time(&mut msg);
 
             let mut f = FIXUTCTimestamp::default();
             assert!(msg.header.get_field(TAG_SENDING_TIME, &mut f).is_ok());
@@ -2406,7 +2406,7 @@ mod tests {
         ];
 
         for test in &mut tests {
-            let msg = Message::new();
+            let mut msg = Message::new();
             if test.sender_comp_id.is_some() {
                 let sender_comp_id = test.sender_comp_id.take().unwrap();
                 msg.header.set_field(TAG_SENDER_COMP_ID, sender_comp_id);
@@ -2431,7 +2431,7 @@ mod tests {
     #[tokio::test]
     async fn test_check_begin_string() {
         let s = SessionSuite::setup_test().await;
-        let msg = Message::new();
+        let mut msg = Message::new();
 
         msg.header
             .set_field(TAG_BEGIN_STRING, FIXString::from("FIX.4.4"));
@@ -2456,7 +2456,7 @@ mod tests {
     #[tokio::test]
     async fn test_check_target_too_high() {
         let mut s = SessionSuite::setup_test().await;
-        let msg = Message::new();
+        let mut msg = Message::new();
         assert!(
             s.ssr
                 .session
@@ -2497,7 +2497,7 @@ mod tests {
     async fn test_check_sending_time() {
         let mut s = SessionSuite::setup_test().await;
         s.ssr.session.iss.max_latency = SignedDuration::from_secs(120);
-        let msg = Message::new();
+        let mut msg = Message::new();
 
         let mut check_result = s.ssr.session.check_sending_time(&msg);
         assert!(check_result.is_err(), "sending time is a required field");
@@ -2558,7 +2558,7 @@ mod tests {
     #[tokio::test]
     async fn test_check_target_too_low() {
         let mut s = SessionSuite::setup_test().await;
-        let msg = Message::new();
+        let mut msg = Message::new();
         assert!(
             s.ssr
                 .session
@@ -3369,7 +3369,7 @@ mod tests {
                 s.ssr.mock_app.never_to_admin();
             }
 
-            let msg = s.ssr.message_factory.new_order_single();
+            let mut msg = s.ssr.message_factory.new_order_single();
             let msg_bytes = msg.build();
 
             s.ssr
@@ -3449,7 +3449,7 @@ mod tests {
             assert!(
                 s.ssr
                     .session
-                    .queue_for_send(&s.ssr.message_factory.new_order_single())
+                    .queue_for_send(&mut s.ssr.message_factory.new_order_single())
                     .await
                     .is_ok()
             );
@@ -3669,7 +3669,7 @@ mod tests {
         s.ssr.incr_next_sender_msg_seq_num().await;
         s.ssr.session.iss.initiate_logon = true;
 
-        fn decorate_to_admin(msg: &Message) {
+        fn decorate_to_admin(msg: &mut Message) {
             msg.body
                 .set_field(TAG_RESET_SEQ_NUM_FLAG, true as FIXBoolean);
         }
@@ -3925,7 +3925,7 @@ mod tests {
         assert!(
             s.ssr
                 .session
-                .queue_for_send(&s.ssr.message_factory.new_order_single())
+                .queue_for_send(&mut s.ssr.message_factory.new_order_single())
                 .await
                 .is_ok()
         );
@@ -3968,7 +3968,7 @@ mod tests {
         let queue_result = s
             .ssr
             .session
-            .queue_for_send(&s.ssr.message_factory.new_order_single())
+            .queue_for_send(&mut s.ssr.message_factory.new_order_single())
             .await;
 
         assert!(queue_result.is_err());
@@ -3982,7 +3982,7 @@ mod tests {
         assert!(
             s.ssr
                 .session
-                .send(&s.ssr.message_factory.heartbeat())
+                .send(&mut s.ssr.message_factory.heartbeat())
                 .await
                 .is_ok()
         );
@@ -4007,7 +4007,7 @@ mod tests {
         assert!(
             s.ssr
                 .session
-                .queue_for_send(&s.ssr.message_factory.heartbeat())
+                .queue_for_send(&mut s.ssr.message_factory.heartbeat())
                 .await
                 .is_ok()
         );
@@ -4032,7 +4032,7 @@ mod tests {
         assert!(
             s.ssr
                 .session
-                .send(&s.ssr.message_factory.new_order_single())
+                .send(&mut s.ssr.message_factory.new_order_single())
                 .await
                 .is_ok()
         );
@@ -4061,7 +4061,7 @@ mod tests {
         let queue_result = s
             .ssr
             .session
-            .send(&s.ssr.message_factory.new_order_single())
+            .send(&mut s.ssr.message_factory.new_order_single())
             .await;
 
         assert!(queue_result.is_err());
@@ -4078,7 +4078,7 @@ mod tests {
         assert!(
             s.ssr
                 .session
-                .send(&s.ssr.message_factory.heartbeat())
+                .send(&mut s.ssr.message_factory.heartbeat())
                 .await
                 .is_ok()
         );
@@ -4102,14 +4102,14 @@ mod tests {
         assert!(
             s.ssr
                 .session
-                .queue_for_send(&s.ssr.message_factory.new_order_single())
+                .queue_for_send(&mut s.ssr.message_factory.new_order_single())
                 .await
                 .is_ok()
         );
         assert!(
             s.ssr
                 .session
-                .queue_for_send(&s.ssr.message_factory.heartbeat())
+                .queue_for_send(&mut s.ssr.message_factory.heartbeat())
                 .await
                 .is_ok()
         );
@@ -4138,7 +4138,7 @@ mod tests {
         assert!(
             s.ssr
                 .session
-                .send(&s.ssr.message_factory.new_order_single())
+                .send(&mut s.ssr.message_factory.new_order_single())
                 .await
                 .is_ok()
         );
@@ -4164,14 +4164,14 @@ mod tests {
         assert!(
             s.ssr
                 .session
-                .queue_for_send(&s.ssr.message_factory.new_order_single())
+                .queue_for_send(&mut s.ssr.message_factory.new_order_single())
                 .await
                 .is_ok()
         );
         assert!(
             s.ssr
                 .session
-                .queue_for_send(&s.ssr.message_factory.heartbeat())
+                .queue_for_send(&mut s.ssr.message_factory.heartbeat())
                 .await
                 .is_ok()
         );
@@ -4189,7 +4189,7 @@ mod tests {
             assert!(
                 s.ssr
                     .session
-                    .send(&s.ssr.message_factory.new_order_single())
+                    .send(&mut s.ssr.message_factory.new_order_single())
                     .await
                     .is_ok()
             );
@@ -4214,7 +4214,7 @@ mod tests {
         assert!(
             s.ssr
                 .session
-                .send(&s.ssr.message_factory.new_order_single())
+                .send(&mut s.ssr.message_factory.new_order_single())
                 .await
                 .is_ok()
         );
@@ -4243,7 +4243,7 @@ mod tests {
         assert!(
             s.ssr
                 .session
-                .send(&s.ssr.message_factory.new_order_single())
+                .send(&mut s.ssr.message_factory.new_order_single())
                 .await
                 .is_ok()
         );
@@ -4258,7 +4258,7 @@ mod tests {
         assert!(
             s.ssr
                 .session
-                .drop_and_send(&s.ssr.message_factory.heartbeat())
+                .drop_and_send(&mut s.ssr.message_factory.heartbeat())
                 .await
                 .is_ok()
         );
@@ -4280,18 +4280,18 @@ mod tests {
         let mut s = SessionSendTestSuite::setup_test().await;
         s.ssr
             .mock_app
-            .to_admin(&Message::default(), &s.ssr.session.session_id);
+            .to_admin(&mut Message::default(), &s.ssr.session.session_id);
         assert!(
             s.ssr
                 .session
-                .queue_for_send(&s.ssr.message_factory.new_order_single())
+                .queue_for_send(&mut s.ssr.message_factory.new_order_single())
                 .await
                 .is_ok()
         );
         assert!(
             s.ssr
                 .session
-                .queue_for_send(&s.ssr.message_factory.heartbeat())
+                .queue_for_send(&mut s.ssr.message_factory.heartbeat())
                 .await
                 .is_ok()
         );
@@ -4301,7 +4301,7 @@ mod tests {
         assert!(
             s.ssr
                 .session
-                .drop_and_send(&s.ssr.message_factory.logon())
+                .drop_and_send(&mut s.ssr.message_factory.logon())
                 .await
                 .is_ok()
         );
@@ -4341,14 +4341,14 @@ mod tests {
         assert!(
             s.ssr
                 .session
-                .queue_for_send(&s.ssr.message_factory.new_order_single())
+                .queue_for_send(&mut s.ssr.message_factory.new_order_single())
                 .await
                 .is_ok()
         );
         assert!(
             s.ssr
                 .session
-                .queue_for_send(&s.ssr.message_factory.heartbeat())
+                .queue_for_send(&mut s.ssr.message_factory.heartbeat())
                 .await
                 .is_ok()
         );
@@ -4358,7 +4358,7 @@ mod tests {
         assert!(
             s.ssr
                 .session
-                .drop_and_send(&s.ssr.message_factory.logon())
+                .drop_and_send(&mut s.ssr.message_factory.logon())
                 .await
                 .is_ok()
         );

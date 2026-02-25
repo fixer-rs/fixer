@@ -142,7 +142,7 @@ mod tests {
         assert!(s
             .ssr
             .session
-            .queue_for_send(&s.ssr.message_factory.new_order_single())
+            .queue_for_send(&mut s.ssr.message_factory.new_order_single())
             .await
             .is_ok());
         s.ssr

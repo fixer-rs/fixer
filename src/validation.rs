@@ -533,7 +533,7 @@ mod tests {
     }
 
     fn create_fix40_new_order_single() -> Message {
-        let msg = Message::new();
+        let mut msg = Message::new();
         let now = Timestamp::now();
         msg.header.set_field(TAG_MSG_TYPE, FIXString::from("D"));
         msg.header
@@ -561,7 +561,7 @@ mod tests {
     }
 
     fn create_fix43_new_order_single() -> Message {
-        let msg = Message::new();
+        let mut msg = Message::new();
         let now = Timestamp::now();
         msg.header.set_field(TAG_MSG_TYPE, FIXString::from("D"));
         msg.header
@@ -589,7 +589,7 @@ mod tests {
     }
 
     fn create_fix50sp2_new_order_single() -> Message {
-        let msg = Message::new();
+        let mut msg = Message::new();
         let now = Timestamp::now();
         msg.header.set_field(TAG_MSG_TYPE, FIXString::from("D"));
         msg.header
@@ -623,7 +623,7 @@ mod tests {
     async fn tc_invalid_tag_number_header<'a>() -> ValidateTest<'a> {
         let dict = DataDictionary::parse("./spec/FIX40.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(dict), None);
-        let invalid_header_field_message = create_fix40_new_order_single();
+        let mut invalid_header_field_message = create_fix40_new_order_single();
         let tag = 9999 as Tag;
 
         invalid_header_field_message
@@ -649,7 +649,7 @@ mod tests {
             Arc::new(app_dict),
             Some(Arc::new(t_dict)),
         );
-        let invalid_header_field_message = create_fix50sp2_new_order_single();
+        let mut invalid_header_field_message = create_fix50sp2_new_order_single();
         let tag = 9999 as Tag;
         invalid_header_field_message
             .header
@@ -669,7 +669,7 @@ mod tests {
     async fn tc_invalid_tag_number_body<'a>() -> ValidateTest<'a> {
         let dict = DataDictionary::parse("./spec/FIX40.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(dict), None);
-        let invalid_body_field_message = create_fix40_new_order_single();
+        let mut invalid_body_field_message = create_fix40_new_order_single();
         let tag = 9999 as Tag;
         invalid_body_field_message
             .body
@@ -694,7 +694,7 @@ mod tests {
             Arc::new(app_dict),
             Some(Arc::new(t_dict)),
         );
-        let invalid_body_field_message = create_fix50sp2_new_order_single();
+        let mut invalid_body_field_message = create_fix50sp2_new_order_single();
         let tag = 9999 as Tag;
         invalid_body_field_message
             .body
@@ -714,7 +714,7 @@ mod tests {
     async fn tc_invalid_tag_number_trailer<'a>() -> ValidateTest<'a> {
         let dict = DataDictionary::parse("./spec/FIX40.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(dict), None);
-        let invalid_trailer_field_message = create_fix40_new_order_single();
+        let mut invalid_trailer_field_message = create_fix40_new_order_single();
         let tag = 9999 as Tag;
         invalid_trailer_field_message
             .trailer
@@ -739,7 +739,7 @@ mod tests {
             Arc::new(app_dict),
             Some(Arc::new(t_dict)),
         );
-        let invalid_trailer_field_message = create_fix50sp2_new_order_single();
+        let mut invalid_trailer_field_message = create_fix50sp2_new_order_single();
         let tag = 9999 as Tag;
         invalid_trailer_field_message
             .trailer
@@ -759,7 +759,7 @@ mod tests {
     async fn tc_tag_not_defined_for_message<'a>() -> ValidateTest<'a> {
         let dict = DataDictionary::parse("./spec/FIX40.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(dict), None);
-        let invalid_msg = create_fix40_new_order_single();
+        let mut invalid_msg = create_fix40_new_order_single();
         let tag = 41 as Tag;
         invalid_msg.body.set_field(tag, FIXString::from("hello"));
         let message_bytes = invalid_msg.build();
@@ -782,7 +782,7 @@ mod tests {
             Arc::new(app_dict),
             Some(Arc::new(t_dict)),
         );
-        let invalid_msg = create_fix50sp2_new_order_single();
+        let mut invalid_msg = create_fix50sp2_new_order_single();
         let tag = 41 as Tag;
         invalid_msg.body.set_field(tag, FIXString::from("hello"));
         let message_bytes = invalid_msg.build();
@@ -801,7 +801,7 @@ mod tests {
         // compare to `tc_tag_is_not_defined_for_message`
         let dict = DataDictionary::parse("./spec/FIX43.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(dict), None);
-        let valid_msg = create_fix43_new_order_single();
+        let mut valid_msg = create_fix43_new_order_single();
         let message_bytes = valid_msg.build();
 
         ValidateTest {
@@ -823,7 +823,7 @@ mod tests {
             Arc::new(app_dict),
             Some(Arc::new(t_dict)),
         );
-        let valid_msg = create_fix50sp2_new_order_single();
+        let mut valid_msg = create_fix50sp2_new_order_single();
         let message_bytes = valid_msg.build();
 
         ValidateTest {
@@ -839,7 +839,7 @@ mod tests {
     async fn tc_field_not_found_body<'a>() -> ValidateTest<'a> {
         let dict = DataDictionary::parse("./spec/FIX40.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(dict), None);
-        let invalid_msg1 = Message::new();
+        let mut invalid_msg1 = Message::new();
         invalid_msg1
             .header
             .set_field(TAG_MSG_TYPE, FIXString::from("D"));
@@ -896,7 +896,7 @@ mod tests {
             Arc::new(app_dict),
             Some(Arc::new(t_dict)),
         );
-        let invalid_msg1 = Message::new();
+        let mut invalid_msg1 = Message::new();
         invalid_msg1
             .header
             .set_field(TAG_MSG_TYPE, FIXString::from("D"));
@@ -949,7 +949,7 @@ mod tests {
         let dict = DataDictionary::parse("./spec/FIX40.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(dict), None);
 
-        let invalid_msg2 = Message::new();
+        let mut invalid_msg2 = Message::new();
         invalid_msg2
             .trailer
             .set_field(TAG_CHECK_SUM, FIXString::from("000"));
@@ -1002,7 +1002,7 @@ mod tests {
             Some(Arc::new(t_dict)),
         );
 
-        let invalid_msg2 = Message::new();
+        let mut invalid_msg2 = Message::new();
         invalid_msg2
             .trailer
             .set_field(TAG_CHECK_SUM, FIXString::from("000"));
@@ -1048,7 +1048,7 @@ mod tests {
     async fn tc_tag_specified_without_a_value<'a>() -> ValidateTest<'a> {
         let dict = DataDictionary::parse("./spec/FIX40.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(dict), None);
-        let builder = create_fix40_new_order_single();
+        let mut builder = create_fix40_new_order_single();
 
         let bogus_tag = 109 as Tag;
         builder.body.set_field(bogus_tag, FIXString::from(""));
@@ -1072,7 +1072,7 @@ mod tests {
             Arc::new(app_dict),
             Some(Arc::new(t_dict)),
         );
-        let builder = create_fix50sp2_new_order_single();
+        let mut builder = create_fix50sp2_new_order_single();
 
         let bogus_tag = 109 as Tag;
         builder.body.set_field(bogus_tag, FIXString::from(""));
@@ -1091,7 +1091,7 @@ mod tests {
     async fn tc_invalid_msg_type<'a>() -> ValidateTest<'a> {
         let dict = DataDictionary::parse("./spec/FIX40.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(dict), None);
-        let builder = create_fix40_new_order_single();
+        let mut builder = create_fix40_new_order_single();
         builder.header.set_field(TAG_MSG_TYPE, FIXString::from("z"));
         let message_bytes = builder.build();
 
@@ -1113,7 +1113,7 @@ mod tests {
             Arc::new(app_dict),
             Some(Arc::new(t_dict)),
         );
-        let builder = create_fix50sp2_new_order_single();
+        let mut builder = create_fix50sp2_new_order_single();
         builder
             .header
             .set_field(TAG_MSG_TYPE, FIXString::from("zz"));
@@ -1134,7 +1134,7 @@ mod tests {
         let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(dict), None);
 
         let tag = 21 as Tag;
-        let builder = create_fix40_new_order_single();
+        let mut builder = create_fix40_new_order_single();
         builder.body.set_field(tag, FIXString::from("4"));
         let message_bytes = builder.build();
 
@@ -1158,7 +1158,7 @@ mod tests {
         );
 
         let tag = 21 as Tag;
-        let builder = create_fix50sp2_new_order_single();
+        let mut builder = create_fix50sp2_new_order_single();
         builder.body.set_field(tag, FIXString::from("4"));
         let message_bytes = builder.build();
 
@@ -1175,7 +1175,7 @@ mod tests {
     async fn tc_incorrect_data_format_for_value<'a>() -> ValidateTest<'a> {
         let dict = DataDictionary::parse("./spec/FIX40.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(dict), None);
-        let builder = create_fix40_new_order_single();
+        let mut builder = create_fix40_new_order_single();
         let tag = 38 as Tag;
         builder.body.set_field(tag, FIXString::from("+200.00"));
         let message_bytes = builder.build();
@@ -1198,7 +1198,7 @@ mod tests {
             Arc::new(app_dict),
             Some(Arc::new(t_dict)),
         );
-        let builder = create_fix50sp2_new_order_single();
+        let mut builder = create_fix50sp2_new_order_single();
         let tag = 38 as Tag;
         builder.body.set_field(tag, FIXString::from("+200.00"));
         let message_bytes = builder.build();
@@ -1217,7 +1217,7 @@ mod tests {
         let dict = DataDictionary::parse("./spec/FIX40.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(dict), None);
 
-        let builder = create_fix40_new_order_single();
+        let mut builder = create_fix40_new_order_single();
         let tag = TAG_ON_BEHALF_OF_COMP_ID;
         // should be in header
         builder.body.set_field(tag, FIXString::from("CWB"));
@@ -1242,7 +1242,7 @@ mod tests {
             Some(Arc::new(t_dict)),
         );
 
-        let builder = create_fix50sp2_new_order_single();
+        let mut builder = create_fix50sp2_new_order_single();
         let tag = TAG_ON_BEHALF_OF_COMP_ID;
         // should be in header.
         builder.body.set_field(tag, FIXString::from("CWB"));
@@ -1262,7 +1262,7 @@ mod tests {
         let dict = DataDictionary::parse("./spec/FIX40.xml").await.unwrap();
         let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(dict), None);
 
-        let builder = create_fix40_new_order_single();
+        let mut builder = create_fix40_new_order_single();
         let tag = TAG_SIGNATURE;
         // should be in trailer
         builder.body.set_field(tag, FIXString::from("SIG"));
@@ -1288,7 +1288,7 @@ mod tests {
             Some(Arc::new(t_dict)),
         );
 
-        let builder = create_fix50sp2_new_order_single();
+        let mut builder = create_fix50sp2_new_order_single();
         let tag = TAG_SIGNATURE;
         // should be in trailer.
         builder.body.set_field(tag, FIXString::from("SIG"));
@@ -1313,7 +1313,7 @@ mod tests {
         };
         let validator = ValidatorEnum::new(custom_validator_settings, Arc::new(dict), None);
 
-        let builder = create_fix40_new_order_single();
+        let mut builder = create_fix40_new_order_single();
         let tag = 9999 as Tag;
         builder.body.set_field(tag, FIXString::from("hello"));
         let message_bytes = builder.build();
@@ -1341,7 +1341,7 @@ mod tests {
             Some(Arc::new(t_dict)),
         );
 
-        let builder = create_fix50sp2_new_order_single();
+        let mut builder = create_fix50sp2_new_order_single();
         let tag = 9999 as Tag;
         builder.body.set_field(tag, FIXString::from("hello"));
         let message_bytes = builder.build();
@@ -1364,7 +1364,7 @@ mod tests {
         };
         let validator = ValidatorEnum::new(custom_validator_settings, Arc::new(dict), None);
 
-        let builder = create_fix40_new_order_single();
+        let mut builder = create_fix40_new_order_single();
         let tag = 9999 as Tag;
         builder.body.set_field(tag, FIXString::from("hello"));
         let message_bytes = builder.build();
@@ -1392,7 +1392,7 @@ mod tests {
             Some(Arc::new(t_dict)),
         );
 
-        let builder = create_fix50sp2_new_order_single();
+        let mut builder = create_fix50sp2_new_order_single();
         let tag = 9999 as Tag;
         builder.body.set_field(tag, FIXString::from("hello"));
         let message_bytes = builder.build();
@@ -1415,7 +1415,7 @@ mod tests {
         };
         let validator = ValidatorEnum::new(custom_validator_settings, Arc::new(dict), None);
 
-        let builder = create_fix40_new_order_single();
+        let mut builder = create_fix40_new_order_single();
         let tag = TAG_ON_BEHALF_OF_COMP_ID;
         // should be in header
         builder.body.set_field(tag, FIXString::from("CWB"));
@@ -1446,7 +1446,7 @@ mod tests {
             Some(Arc::new(t_dict)),
         );
 
-        let builder = create_fix50sp2_new_order_single();
+        let mut builder = create_fix50sp2_new_order_single();
         let tag = TAG_ON_BEHALF_OF_COMP_ID;
         // should be in header.
         builder.body.set_field(tag, FIXString::from("CWB"));
@@ -1470,7 +1470,7 @@ mod tests {
         };
         let validator = ValidatorEnum::new(custom_validator_settings, Arc::new(dict), None);
 
-        let builder = create_fix40_new_order_single();
+        let mut builder = create_fix40_new_order_single();
         let tag = TAG_SIGNATURE;
         // should be in trailer
         builder.body.set_field(tag, FIXString::from("SIG"));
@@ -1500,7 +1500,7 @@ mod tests {
             Some(Arc::new(t_dict)),
         );
 
-        let builder = create_fix50sp2_new_order_single();
+        let mut builder = create_fix50sp2_new_order_single();
         let tag = TAG_SIGNATURE;
         // Should be in trailer.
         builder.body.set_field(tag, FIXString::from("SIG"));

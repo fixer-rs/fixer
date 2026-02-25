@@ -70,8 +70,7 @@ pub struct Group {
 impl Group {
     delegate! {
         to self.field_map {
-            pub fn init_with_ordering(self, ordering_type: TagOrderType) -> FieldMap;
-            pub fn sorted_tags(&self) -> Vec<Tag>;
+            pub fn sorted_tags(&mut self) -> Vec<Tag>;
         }
     }
 }
@@ -81,7 +80,7 @@ impl Group {
 pub struct RepeatingGroup {
     tag: Tag,
     template: GroupTemplate,
-    pub groups: Vec<Arc<Group>>,
+    pub groups: Vec<Group>,
 }
 
 impl RepeatingGroup {
@@ -100,17 +99,16 @@ impl RepeatingGroup {
     }
 
     // get returns the ith group in this RepeatingGroup.
-    pub fn get(&self, i: usize) -> Arc<Group> {
-        self.groups[i].clone()
+    pub fn get(&self, i: usize) -> &Group {
+        &self.groups[i]
     }
 
     // add appends a new group to the RepeatingGroup and returns the new Group.
-    pub fn add(&mut self) -> Arc<Group> {
-        let g = Arc::new(Group {
+    pub fn add(&mut self) -> &mut Group {
+        self.groups.push(Group {
             field_map: FieldMap::default(),
         });
-        self.groups.push(g.clone());
-        g
+        self.groups.last_mut().unwrap()
     }
 
     fn find_item_in_group_template(&self, t: Tag) -> Option<Box<dyn GroupItem>> {
@@ -183,14 +181,9 @@ impl FieldGroupReader for RepeatingGroup {
 
         let tag_ordering = self.group_tag_order();
 
-        let mut group = Arc::new(Group {
-            field_map: FieldMap::default()
-                .init_with_ordering(TagOrderType::RepeatingGroup(tag_ordering.clone())),
-        });
-
         while !tv.is_empty() {
             let lock = tv.data.lock();
-            let mut tag = lock.get(tv.s_pos).unwrap().tag;
+            let tag = lock.get(tv.s_pos).unwrap().tag;
             let gi_result = self.find_item_in_group_template(tag);
             if gi_result.is_none() {
                 break;
@@ -200,21 +193,21 @@ impl FieldGroupReader for RepeatingGroup {
 
             let tv_range = tv.clone();
             let lock = tv_range.data.lock();
-            tag = lock.get(tv_range.s_pos).unwrap().tag;
+            let tag = lock.get(tv_range.s_pos).unwrap().tag;
             drop(lock);
 
             tv = gi.read(tv)?;
             if self.is_delimiter(gi.tag()) {
-                group = Arc::new(Group {
-                    field_map: FieldMap::default()
-                        .init_with_ordering(TagOrderType::RepeatingGroup(tag_ordering.clone())),
-                });
-                self.groups.push(group.clone());
+                let mut group = Group {
+                    field_map: FieldMap::default(),
+                };
+                group.field_map.init_with_ordering(TagOrderType::RepeatingGroup(tag_ordering.clone()));
+                self.groups.push(group);
             }
 
-            let mut lock = group.field_map.rw_lock.write();
-            lock.tag_lookup.insert(tag, tv_range);
-            lock.tag_sort.tags.push(gi.tag());
+            let last_group = self.groups.last_mut().unwrap();
+            last_group.field_map.content.tag_lookup.insert(tag, tv_range);
+            last_group.field_map.content.tag_sort.tags.push(gi.tag());
         }
 
         if self.groups.len() != expected_group_size {
@@ -246,10 +239,10 @@ impl FieldGroupWriter for RepeatingGroup {
         let mut tvs = vec![tv];
 
         for group in &self.groups {
-            let tags = group.sorted_tags();
+            let mut group_clone = group.clone();
+            let tags = group_clone.sorted_tags();
             for tag in tags {
-                let lock = group.field_map.rw_lock.read();
-                if let Some(fields) = lock.tag_lookup.get(&tag) {
+                if let Some(fields) = group.field_map.content.tag_lookup.get(&tag) {
                     let lock = fields.data.lock();
                     let fields_slice = lock.get(fields.s_pos..fields.e_pos).unwrap();
                     tvs.extend_from_slice(fields_slice);
@@ -291,7 +284,7 @@ mod tests {
         let test_cases = [TestCase { expected_len: 1 }, TestCase { expected_len: 2 }];
 
         for tc in &test_cases {
-            let g = f.add();
+            f.add();
 
             assert_eq!(
                 f.len(),
@@ -301,7 +294,7 @@ mod tests {
                 f.len()
             );
 
-            g.field_map.set_field(1, FIXString::from("hello"));
+            f.groups.last_mut().unwrap().field_map.set_field(1, FIXString::from("hello"));
 
             let get_result = f.groups.get(tc.expected_len - 1);
             assert!(get_result.is_some());
@@ -329,8 +322,8 @@ mod tests {
             ..Default::default()
         };
 
-        let g1 = f1.add();
-        g1.field_map.set_field(1, FIXString::from("hello"));
+        f1.add();
+        f1.groups.last_mut().unwrap().field_map.set_field(1, FIXString::from("hello"));
 
         let mut f2 = RepeatingGroup {
             tag: 11,
@@ -338,9 +331,9 @@ mod tests {
             ..Default::default()
         };
 
-        let g2 = f2.add();
-        g2.field_map.set_field(1, FIXString::from("hello"));
-        g2.field_map.set_field(2, FIXString::from("world"));
+        f2.add();
+        f2.groups.last_mut().unwrap().field_map.set_field(1, FIXString::from("hello"));
+        f2.groups.last_mut().unwrap().field_map.set_field(2, FIXString::from("world"));
 
         let mut f3 = RepeatingGroup {
             tag: 12,
@@ -348,10 +341,10 @@ mod tests {
             ..Default::default()
         };
 
-        let g31 = f3.add();
-        g31.field_map.set_field(1, FIXString::from("hello"));
-        let g32 = f3.add();
-        g32.field_map.set_field(1, FIXString::from("world"));
+        f3.add();
+        f3.groups.last_mut().unwrap().field_map.set_field(1, FIXString::from("hello"));
+        f3.add();
+        f3.groups.last_mut().unwrap().field_map.set_field(1, FIXString::from("world"));
 
         let mut f4 = RepeatingGroup {
             tag: 13,
@@ -359,11 +352,11 @@ mod tests {
             ..Default::default()
         };
 
-        let g41 = f4.add();
-        g41.field_map.set_field(1, FIXString::from("hello"));
-        g41.field_map.set_field(2, FIXString::from("world"));
-        let g42 = f4.add();
-        g42.field_map.set_field(1, FIXString::from("goodbye"));
+        f4.add();
+        f4.groups.last_mut().unwrap().field_map.set_field(1, FIXString::from("hello"));
+        f4.groups.last_mut().unwrap().field_map.set_field(2, FIXString::from("world"));
+        f4.add();
+        f4.groups.last_mut().unwrap().field_map.set_field(1, FIXString::from("goodbye"));
 
         struct TestCase<'a> {
             f: RepeatingGroup,
@@ -722,9 +715,8 @@ mod tests {
                     let mut actual = FIXString::new();
                     let get_field_result = group.field_map.get_field(expected.tag, &mut actual);
                     assert!(get_field_result.is_ok());
-                    let read = group.field_map.rw_lock.read();
-                    assert!(!read.tag_sort.tags.is_empty());
-                    assert_eq!(read.tag_sort.tags.len(), read.tag_lookup.len());
+                    assert!(!group.field_map.content.tag_sort.tags.is_empty());
+                    assert_eq!(group.field_map.content.tag_sort.tags.len(), group.field_map.content.tag_lookup.len());
                     assert_eq!(
                         String::from_utf8_lossy(&expected.value),
                         actual,

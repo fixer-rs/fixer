@@ -80,7 +80,7 @@ impl FixerSuite {
     }
 
     pub fn message_equals_bytes(&self, expected_bytes: &[u8], msg: &Message) {
-        let actual_bytes = msg.build();
+        let actual_bytes = msg.clone().build();
         assert_eq!(
             String::from_utf8_lossy(&actual_bytes),
             String::from_utf8_lossy(expected_bytes)
@@ -328,9 +328,9 @@ impl Application for App {
         Ok(())
     }
 
-    fn to_admin(&self, _msg: &Message, _session_id: &Arc<SessionID>) {}
+    fn to_admin(&self, _msg: &mut Message, _session_id: &Arc<SessionID>) {}
 
-    fn to_app(&self, _msg: &Message, _session_id: &Arc<SessionID>) -> SimpleResult<()> {
+    fn to_app(&self, _msg: &mut Message, _session_id: &Arc<SessionID>) -> SimpleResult<()> {
         Ok(())
     }
 
@@ -341,7 +341,7 @@ impl Application for App {
 
 pub struct MockAppExtended {
     pub mock_app: std::sync::Mutex<MockApp>,
-    pub decorate_to_admin: std::sync::Mutex<Option<fn(msg: &Message)>>,
+    pub decorate_to_admin: std::sync::Mutex<Option<fn(msg: &mut Message)>>,
     pub last_to_admin: std::sync::Mutex<Option<Message>>,
     pub last_to_app: std::sync::Mutex<Option<Message>>,
 }
@@ -385,7 +385,7 @@ impl Application for MockAppExtended {
         }
     }
 
-    fn to_admin(&self, msg: &Message, session_id: &Arc<SessionID>) {
+    fn to_admin(&self, msg: &mut Message, session_id: &Arc<SessionID>) {
         match session_id.qualifier.as_str() {
             OVERRIDE_TIMES | OVERRIDE_TIMES_TO_APP_RETURN_ERROR => {
                 self.mock_app.lock().unwrap().to_admin(msg, session_id);
@@ -408,7 +408,7 @@ impl Application for MockAppExtended {
         *self.last_to_admin.lock().unwrap() = Some(msg.clone());
     }
 
-    fn to_app(&self, msg: &Message, session_id: &Arc<SessionID>) -> SimpleResult<()> {
+    fn to_app(&self, msg: &mut Message, session_id: &Arc<SessionID>) -> SimpleResult<()> {
         *self.last_to_app.lock().unwrap() = Some(msg.clone());
         match session_id.qualifier.as_str() {
             TO_APP_RETURN_ERROR => self
@@ -540,7 +540,7 @@ impl MessageFactory {
 
     fn build_message(&mut self, msg_type: &str) -> Message {
         self.seq_num += 1;
-        let msg = Message::new();
+        let mut msg = Message::new();
         msg.header
             .set_field(TAG_BEGIN_STRING, FIXString::from(BEGIN_STRING_FIX42));
         msg.header
@@ -574,7 +574,7 @@ impl MessageFactory {
     }
 
     pub fn resend_request(&mut self, begin_seq_no: isize) -> Message {
-        let msg = self.build_message(&String::from_utf8_lossy(MSG_TYPE_RESEND_REQUEST));
+        let mut msg = self.build_message(&String::from_utf8_lossy(MSG_TYPE_RESEND_REQUEST));
         msg.body.set_field(TAG_BEGIN_SEQ_NO, begin_seq_no);
         msg.body.set_field(TAG_END_SEQ_NO, 0);
 
@@ -582,7 +582,7 @@ impl MessageFactory {
     }
 
     pub fn sequence_reset(&mut self, seq_no: isize) -> Message {
-        let msg = self.build_message(&String::from_utf8_lossy(MSG_TYPE_SEQUENCE_RESET));
+        let mut msg = self.build_message(&String::from_utf8_lossy(MSG_TYPE_SEQUENCE_RESET));
         msg.body.set_field(TAG_NEW_SEQ_NO, seq_no);
 
         msg

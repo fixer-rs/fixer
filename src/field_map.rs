@@ -14,7 +14,7 @@ use crate::{
     tag_value::TagValue,
 };
 use jiff::Timestamp;
-use parking_lot::{Mutex, RwLock};
+use parking_lot::Mutex;
 use std::{cmp::Ordering, collections::HashMap, fmt, sync::Arc, vec};
 
 #[derive(Debug, Default, Clone)]
@@ -124,38 +124,36 @@ pub struct FieldMapContent {
 #[derive(Debug, Clone)]
 // FieldMap is a collection of fix fields that make up a fix message.
 pub struct FieldMap {
-    pub rw_lock: Arc<RwLock<FieldMapContent>>,
+    pub content: FieldMapContent,
 }
 
 impl Default for FieldMap {
     fn default() -> Self {
         FieldMap {
-            rw_lock: RwLock::new(FieldMapContent {
+            content: FieldMapContent {
                 tag_lookup: hashmap! {},
                 tag_sort: TagSort {
                     tags: vec![],
                     compare_type: TagOrderType::Normal,
                 },
-            })
-            .into(),
+            },
         }
     }
 }
 
 impl FieldMap {
-    pub fn init(self) -> Self {
-        self.init_with_ordering(TagOrderType::Normal)
+    pub fn init(mut self) -> Self {
+        self.init_with_ordering(TagOrderType::Normal);
+        self
     }
 
-    pub fn init_with_ordering(self, ordering: TagOrderType) -> Self {
-        self.rw_lock.write().tag_sort.compare_type = ordering;
-        self
+    pub fn init_with_ordering(&mut self, ordering: TagOrderType) {
+        self.content.tag_sort.compare_type = ordering;
     }
 
     // tags returns all of the Field Tags in this FieldMap
     pub fn tags(&self) -> Vec<Tag> {
-        let rlock = self.rw_lock.read();
-        rlock.tag_sort.tags.clone()
+        self.content.tag_sort.tags.clone()
     }
 
     // get parses out a field in this FieldMap. Returned reject may indicate the field is not present, or the field value is invalid.
@@ -165,8 +163,7 @@ impl FieldMap {
 
     // has returns true if the Tag is present in this FieldMap
     pub fn has(&self, tag: Tag) -> bool {
-        let rlock = self.rw_lock.read();
-        rlock.tag_lookup.contains_key(&tag)
+        self.content.tag_lookup.contains_key(&tag)
     }
 
     // get_field parses of a field with Tag tag. Returned reject may indicate the field is not present, or the field value is invalid.
@@ -175,8 +172,8 @@ impl FieldMap {
         tag: Tag,
         parser: &mut P,
     ) -> MessageRejectErrorResult {
-        let rlock = self.rw_lock.read();
-        let f = rlock
+        let f = self
+            .content
             .tag_lookup
             .get(&tag)
             .ok_or_else(|| conditionally_required_field_missing(tag))?;
@@ -191,8 +188,8 @@ impl FieldMap {
     // get_bytes is a zero-copy get_field wrapper for []bytes fields
     // TODO: return reference instead
     pub fn get_bytes(&self, tag: Tag) -> Result<Vec<u8>, MessageRejectErrorEnum> {
-        let rlock = self.rw_lock.read();
-        let f = rlock
+        let f = self
+            .content
             .tag_lookup
             .get(&tag)
             .ok_or_else(|| conditionally_required_field_missing(tag))?;
@@ -206,8 +203,8 @@ impl FieldMap {
     where
         F: FnOnce(&[u8]) -> Result<T, MessageRejectErrorEnum>,
     {
-        let rlock = self.rw_lock.read();
-        let field = rlock
+        let field = self
+            .content
             .tag_lookup
             .get(&tag)
             .ok_or_else(|| conditionally_required_field_missing(tag))?;
@@ -252,10 +249,10 @@ impl FieldMap {
     // get_group is a Get fntion specific to Group Fields.
     pub fn get_group<P: FieldGroupReader>(&self, parser: P) -> Result<P, MessageRejectErrorEnum> {
         let mut parser = parser;
-        let rlock = self.rw_lock.read();
 
         let tag = &parser.tag();
-        let f = rlock
+        let f = self
+            .content
             .tag_lookup
             .get(tag)
             .ok_or_else(|| conditionally_required_field_missing(*tag))?;
@@ -271,93 +268,86 @@ impl FieldMap {
     }
 
     // set_field sets the field with Tag tag
-    pub fn set_field<F: FieldValueWriter>(&self, tag: Tag, field: F) -> &FieldMap {
+    pub fn set_field<F: FieldValueWriter>(&mut self, tag: Tag, field: F) -> &FieldMap {
         self.set_bytes(tag, &field.write())
     }
 
     // set_bytes sets bytes
-    pub fn set_bytes(&self, tag: Tag, value: &[u8]) -> &FieldMap {
+    pub fn set_bytes(&mut self, tag: Tag, value: &[u8]) -> &FieldMap {
         let f = self.get_or_create(tag);
         f.init_field(tag, value);
         self
     }
 
     // set_bool is a set_field wrapper for bool fields
-    pub fn set_bool(&self, tag: Tag, value: bool) -> &FieldMap {
+    pub fn set_bool(&mut self, tag: Tag, value: bool) -> &FieldMap {
         self.set_field(tag, value)
     }
 
     // set_int is a set_field wrapper for int fields
-    pub fn set_int(&self, tag: Tag, value: isize) -> &FieldMap {
+    pub fn set_int(&mut self, tag: Tag, value: isize) -> &FieldMap {
         self.set_bytes(tag, &(value as FIXInt).write())
     }
 
     // set_string is a set_field wrapper for string fields
-    pub fn set_string(&self, tag: Tag, value: &str) -> &FieldMap {
+    pub fn set_string(&mut self, tag: Tag, value: &str) -> &FieldMap {
         self.set_bytes(tag, value.as_bytes())
     }
 
     // remove removes a tag from field map.
-    pub fn remove(&self, tag: Tag) {
-        let mut wlock = self.rw_lock.write();
-        wlock.tag_lookup.remove(&tag);
+    pub fn remove(&mut self, tag: Tag) {
+        self.content.tag_lookup.remove(&tag);
     }
 
     // clear purges all fields from field map
-    pub fn clear(&self) {
-        let mut wlock = self.rw_lock.write();
-        wlock.tag_sort.tags.clear();
-        wlock.tag_lookup.clear();
+    pub fn clear(&mut self) {
+        self.content.tag_sort.tags.clear();
+        self.content.tag_lookup.clear();
     }
 
     // copy_into overwrites the given FieldMap with this one
     pub fn copy_into(&self, to: &mut FieldMap) {
-        let m_rlock = self.rw_lock.read();
-        let mut to_wlock = to.rw_lock.write();
+        to.content.tag_lookup = hashmap! {};
 
-        to_wlock.tag_lookup = hashmap! {};
-
-        for (k, v) in &m_rlock.tag_lookup {
+        for (k, v) in &self.content.tag_lookup {
             let inner_lock = v.data.lock();
             let cloned_field = inner_lock.to_vec();
             let cloned_field_wrapper = Arc::new(Mutex::new(cloned_field));
 
-            to_wlock.tag_lookup.insert(
+            to.content.tag_lookup.insert(
                 *k,
                 LocalField::new_with_start_end(cloned_field_wrapper, v.s_pos, v.s_pos + 1),
             );
         }
 
-        to_wlock.tag_sort.tags.clone_from(&m_rlock.tag_sort.tags);
-        to_wlock.tag_sort.compare_type = m_rlock.tag_sort.compare_type.clone();
+        to.content.tag_sort.tags.clone_from(&self.content.tag_sort.tags);
+        to.content.tag_sort.compare_type = self.content.tag_sort.compare_type.clone();
     }
 
     pub fn add(&mut self, f: LocalField) {
         let t = f.field_tag();
 
-        let mut wlock = self.rw_lock.write();
-        if !wlock.tag_lookup.contains_key(&t) {
-            wlock.tag_sort.tags.push(t);
+        if !self.content.tag_lookup.contains_key(&t) {
+            self.content.tag_sort.tags.push(t);
         }
 
-        wlock.tag_lookup.insert(t, f);
+        self.content.tag_lookup.insert(t, f);
     }
 
-    fn get_or_create(&self, tag: Tag) -> LocalField {
-        let mut wlock = self.rw_lock.write();
-        if wlock.tag_lookup.contains_key(&tag) {
-            let f = wlock.tag_lookup.get_mut(&tag).unwrap();
+    fn get_or_create(&mut self, tag: Tag) -> LocalField {
+        if self.content.tag_lookup.contains_key(&tag) {
+            let f = self.content.tag_lookup.get_mut(&tag).unwrap();
             return LocalField::new_with_start_end(f.data.clone(), f.s_pos, f.s_pos + 1);
         }
 
         let f = LocalField::new(Arc::new(Mutex::new(vec![TagValue::default()])));
-        wlock.tag_lookup.insert(tag, f.clone());
-        wlock.tag_sort.tags.push(tag);
+        self.content.tag_lookup.insert(tag, f.clone());
+        self.content.tag_sort.tags.push(tag);
         f
     }
 
     // set is a setter for fields
-    pub fn set<F: FieldWriter>(&self, field: F) -> &FieldMap {
+    pub fn set<F: FieldWriter>(&mut self, field: F) -> &FieldMap {
         let tag = &field.tag();
 
         let f = self.get_or_create(*tag);
@@ -368,12 +358,10 @@ impl FieldMap {
 
     // set_group is a setter specific to group fields
     pub fn set_group<F: FieldGroupWriter>(&mut self, field: F) -> &FieldMap {
-        let mut wlock = self.rw_lock.write();
-
-        if !wlock.tag_lookup.contains_key(&field.tag()) {
-            wlock.tag_sort.tags.push(field.tag());
+        if !self.content.tag_lookup.contains_key(&field.tag()) {
+            self.content.tag_sort.tags.push(field.tag());
         }
-        wlock.tag_lookup.insert(field.tag(), field.write());
+        self.content.tag_lookup.insert(field.tag(), field.write());
         self
     }
 
@@ -442,28 +430,25 @@ impl FieldMap {
         }
     }
 
-    pub fn sorted_tags(&self) -> Vec<Tag> {
-        let mut wlock = self.rw_lock.write();
-        Self::sort_tags_in_place(&mut wlock);
-        wlock.tag_sort.tags.clone()
+    pub fn sorted_tags(&mut self) -> Vec<Tag> {
+        Self::sort_tags_in_place(&mut self.content);
+        self.content.tag_sort.tags.clone()
     }
 
-    pub fn write(&self, buffer: &mut Vec<u8>) {
-        let mut wlock = self.rw_lock.write();
-        Self::sort_tags_in_place(&mut wlock);
-        for i in 0..wlock.tag_sort.tags.len() {
-            let tag = wlock.tag_sort.tags[i];
-            if let Some(field) = wlock.tag_lookup.get(&tag) {
+    pub fn write(&mut self, buffer: &mut Vec<u8>) {
+        Self::sort_tags_in_place(&mut self.content);
+        for i in 0..self.content.tag_sort.tags.len() {
+            let tag = self.content.tag_sort.tags[i];
+            if let Some(field) = self.content.tag_lookup.get(&tag) {
                 field.write_field(buffer);
             }
         }
     }
 
     pub fn total(&self) -> isize {
-        let rlock = self.rw_lock.read();
         let mut total = 0;
 
-        for fields in rlock.tag_lookup.values() {
+        for fields in self.content.tag_lookup.values() {
             fields
                 .data
                 .lock()
@@ -477,10 +462,9 @@ impl FieldMap {
     }
 
     pub fn length(&self) -> isize {
-        let rlock = self.rw_lock.read();
         let mut length = 0;
 
-        for fields in rlock.tag_lookup.values() {
+        for fields in self.content.tag_lookup.values() {
             fields
                 .data
                 .lock()
@@ -505,7 +489,7 @@ mod tests {
 
     #[test]
     fn test_field_map_clear() {
-        let f_map = FieldMap::default();
+        let mut f_map = FieldMap::default();
 
         f_map.set_field(1, String::from("hello"));
         f_map.set_field(2, String::from("world"));
@@ -520,7 +504,7 @@ mod tests {
 
     #[test]
     fn test_field_map_set_and_get() {
-        let f_map = FieldMap::default();
+        let mut f_map = FieldMap::default();
 
         f_map.set_field(1, String::from("hello"));
         f_map.set_field(2, String::from("world"));
@@ -565,7 +549,7 @@ mod tests {
 
     #[test]
     fn test_field_map_length() {
-        let f_map = FieldMap::default();
+        let mut f_map = FieldMap::default();
 
         f_map.set_field(1, String::from("hello"));
         f_map.set_field(2, String::from("world"));
@@ -582,7 +566,7 @@ mod tests {
 
     #[test]
     fn test_field_map_total() {
-        let f_map = FieldMap::default().init();
+        let mut f_map = FieldMap::default().init();
 
         f_map.set_field(1, String::from("hello"));
         f_map.set_field(2, String::from("world"));
@@ -599,7 +583,7 @@ mod tests {
 
     #[test]
     fn test_field_map_typed_set_and_get() {
-        let f_map = FieldMap::default().init();
+        let mut f_map = FieldMap::default().init();
 
         f_map.set_string(1, "hello");
         f_map.set_int(2, 256);
@@ -626,7 +610,7 @@ mod tests {
 
     #[test]
     fn test_field_map_bool_typed_set_and_get() {
-        let f_map = FieldMap::default().init();
+        let mut f_map = FieldMap::default().init();
 
         f_map.set_bool(1, true);
         let v = f_map.get_bool(1);
@@ -649,7 +633,8 @@ mod tests {
 
     #[test]
     fn test_field_map_copy_into() {
-        let f_map_a = FieldMap::default().init_with_ordering(TagOrderType::Header);
+        let mut f_map_a = FieldMap::default();
+        f_map_a.init_with_ordering(TagOrderType::Header);
 
         f_map_a.set_string(9, "length");
         f_map_a.set_string(8, "begin");
@@ -686,7 +671,7 @@ mod tests {
         assert_eq!(vec![8, 9, 35, 1, 2], f_map_b.sorted_tags());
 
         // updating the existing map doesn't affect the new
-        let f_map_a = FieldMap::default().init();
+        let mut f_map_a = FieldMap::default().init();
         f_map_a.set_string(1, "AA");
         let s = f_map_b.get_string(1);
         assert!(s.is_ok());
@@ -699,7 +684,7 @@ mod tests {
 
     #[test]
     fn test_field_map_remove() {
-        let f_map = FieldMap::default().init();
+        let mut f_map = FieldMap::default().init();
 
         f_map.set_field(1, FIXString::from("hello"));
         f_map.set_field(2, FIXString::from("world"));

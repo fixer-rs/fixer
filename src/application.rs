@@ -17,10 +17,10 @@ pub trait Application: Send + Sync {
     fn on_logout(&self, session_id: &Arc<SessionID>);
 
     // to_admin notification of admin message being sent to target.
-    fn to_admin(&self, msg: &Message, session_id: &Arc<SessionID>);
+    fn to_admin(&self, msg: &mut Message, session_id: &Arc<SessionID>);
 
     // to_app notification of app message being sent to target.
-    fn to_app(&self, msg: &Message, session_id: &Arc<SessionID>) -> SimpleResult<()>;
+    fn to_app(&self, msg: &mut Message, session_id: &Arc<SessionID>) -> SimpleResult<()>;
 
     // from_admin notification of admin message being received from target.
     fn from_admin(&self, msg: &Message, session_id: &Arc<SessionID>) -> MessageRejectErrorResult;
@@ -39,9 +39,9 @@ impl Application for NOPApp {
 
     fn on_logout(&self, _session_id: &Arc<SessionID>) {}
 
-    fn to_admin(&self, _msg: &Message, _session_id: &Arc<SessionID>) {}
+    fn to_admin(&self, _msg: &mut Message, _session_id: &Arc<SessionID>) {}
 
-    fn to_app(&self, _msg: &Message, _session_id: &Arc<SessionID>) -> SimpleResult<()> {
+    fn to_app(&self, _msg: &mut Message, _session_id: &Arc<SessionID>) -> SimpleResult<()> {
         Ok(())
     }
 
