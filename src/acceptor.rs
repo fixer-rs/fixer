@@ -18,13 +18,22 @@ use crate::{
     },
 };
 use simple_error::SimpleResult;
-use std::sync::Arc;
+use std::{net::SocketAddr, sync::Arc};
 use tokio::{
     io::BufReader,
     net::TcpListener,
     sync::{mpsc::UnboundedSender, watch, Mutex},
     task::JoinHandle,
 };
+
+/// ConnectionValidator is a trait allowing custom authentication logic for
+/// incoming connections. For example, you may tie a SenderCompID to an IP range.
+///
+/// Equivalent to Go quickfix's `ConnectionValidator` interface.
+pub trait ConnectionValidator: Send + Sync + 'static {
+    /// Validate the connection. Return `Ok(())` to accept, `Err` to reject.
+    fn validate(&self, remote_addr: SocketAddr, session_id: &SessionID) -> SimpleResult<()>;
+}
 
 struct SessionHandle {
     session: Arc<Mutex<Session>>,
@@ -37,7 +46,8 @@ pub struct Acceptor {
     stop_rx: watch::Receiver<bool>,
     task_handles: Vec<JoinHandle<()>>,
     listen_address: String,
-    local_address: Option<std::net::SocketAddr>,
+    local_address: Option<SocketAddr>,
+    connection_validator: Option<Arc<dyn ConnectionValidator>>,
 }
 
 impl Acceptor {
@@ -100,6 +110,7 @@ impl Acceptor {
             task_handles: Vec::new(),
             listen_address,
             local_address: None,
+            connection_validator: None,
         })
     }
 
@@ -121,6 +132,7 @@ impl Acceptor {
         self.local_address = listener.local_addr().ok();
 
         let mut stop_rx = self.stop_rx.clone();
+        let validator = self.connection_validator.clone();
 
         // Spawn accept loop
         let accept_handle = tokio::spawn(async move {
@@ -129,7 +141,8 @@ impl Acceptor {
                     accept_result = listener.accept() => {
                         match accept_result {
                             Ok((stream, _remote_addr)) => {
-                                tokio::spawn(handle_acceptor_connection(stream));
+                                let validator = validator.clone();
+                                tokio::spawn(handle_acceptor_connection(stream, validator));
                             }
                             Err(_) => {}
                         }
@@ -160,17 +173,31 @@ impl Acceptor {
         }
     }
 
+    /// Sets an optional connection validator for custom authentication logic.
+    /// To remove a previously set validator, pass `None`.
+    pub fn set_connection_validator(&mut self, validator: Option<Arc<dyn ConnectionValidator>>) {
+        self.connection_validator = validator;
+    }
+
     // local_address returns the actual bound address after start().
     // Useful when binding to port 0 to get the OS-assigned port.
-    pub fn local_address(&self) -> Option<std::net::SocketAddr> {
+    pub fn local_address(&self) -> Option<SocketAddr> {
         self.local_address
     }
 }
 
 // handle_acceptor_connection reads the first FIX message from an incoming TCP
-// connection, identifies the session (sender/target swapped), wires up channels,
-// and runs read_loop/write_loop until disconnect.
-async fn handle_acceptor_connection(stream: tokio::net::TcpStream) {
+// connection, identifies the session (sender/target swapped), optionally validates
+// via ConnectionValidator, wires up channels, and runs read_loop/write_loop until
+// disconnect.
+async fn handle_acceptor_connection(
+    stream: tokio::net::TcpStream,
+    validator: Option<Arc<dyn ConnectionValidator>>,
+) {
+    let remote_addr = match stream.peer_addr() {
+        Ok(addr) => addr,
+        Err(_) => return,
+    };
     let (read_half, write_half) = tokio::io::split(stream);
     let buf_reader = BufReader::new(read_half);
     let mut parser = Parser::new(buf_reader);
@@ -227,6 +254,15 @@ async fn handle_acceptor_connection(stream: tokio::net::TcpStream) {
         qualifier: String::new(),
     });
 
+    // Validate the connection if a validator is configured.
+    // This runs after session ID is determined but before session lookup,
+    // matching the Go quickfix placement.
+    if let Some(ref validator) = validator {
+        if validator.validate(remote_addr, &session_id).is_err() {
+            return;
+        }
+    }
+
     // Look up the session in the global registry
     let session = match lookup_session(&session_id) {
         Some(s) => s,
@@ -279,8 +315,10 @@ mod tests {
     use crate::application::NOPApp;
     use crate::log::LogFactoryEnum;
     use crate::registry::{unregister_session, SESSIONS};
+    use crate::session::session_id::SessionID;
     use crate::store::MessageStoreFactoryEnum;
     use serial_test::serial;
+    use std::sync::atomic::{AtomicBool, Ordering};
     use tokio::io::BufReader;
     use tokio::net::TcpStream;
 
@@ -385,7 +423,7 @@ TargetCompID=INITIATOR
         // and TargetCompID=ACCEPTOR (us).
         // The acceptor should swap these to look up session with
         // SenderCompID=ACCEPTOR, TargetCompID=INITIATOR.
-        let logon_msg = "8=FIX.4.2\x019=73\x0135=A\x0149=INITIATOR\x0156=ACCEPTOR\x0134=1\x0152=20240101-00:00:00\x0198=0\x01108=30\x0110=000\x01";
+        let logon_msg = "8=FIX.4.2\x019=68\x0135=A\x0149=INITIATOR\x0156=ACCEPTOR\x0134=1\x0152=20240101-00:00:00\x0198=0\x01108=30\x0110=034\x01";
 
         let mut stream = TcpStream::connect(addr).await.expect("should connect");
         tokio::io::AsyncWriteExt::write_all(&mut stream, logon_msg.as_bytes())
@@ -398,6 +436,137 @@ TargetCompID=INITIATOR
         // Drop the client connection
         drop(stream);
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        acceptor.stop().await;
+        clean_sessions();
+    }
+
+    // A validator that rejects all connections.
+    struct RejectAllValidator {
+        called: AtomicBool,
+    }
+
+    impl ConnectionValidator for RejectAllValidator {
+        fn validate(&self, _remote_addr: SocketAddr, _session_id: &SessionID) -> SimpleResult<()> {
+            self.called.store(true, Ordering::SeqCst);
+            Err(simple_error!("connection rejected"))
+        }
+    }
+
+    // A validator that accepts all connections.
+    struct AcceptAllValidator {
+        called: AtomicBool,
+    }
+
+    impl ConnectionValidator for AcceptAllValidator {
+        fn validate(&self, _remote_addr: SocketAddr, _session_id: &SessionID) -> SimpleResult<()> {
+            self.called.store(true, Ordering::SeqCst);
+            Ok(())
+        }
+    }
+
+    // Verifies that a ConnectionValidator that rejects causes the connection to be dropped.
+    #[tokio::test]
+    #[serial]
+    async fn test_connection_validator_rejects() {
+        clean_sessions();
+
+        let app = Arc::new(Mutex::new(NOPApp::new()));
+        let store_factory = MessageStoreFactoryEnum::default();
+        let log_factory = LogFactoryEnum::default();
+        let settings = make_acceptor_settings("0").await;
+
+        let mut acceptor = Acceptor::new(app, store_factory, settings, log_factory)
+            .await
+            .unwrap();
+
+        let validator = Arc::new(RejectAllValidator {
+            called: AtomicBool::new(false),
+        });
+        acceptor.set_connection_validator(Some(validator.clone()));
+
+        acceptor.start().await.unwrap();
+        let addr = acceptor.local_address().unwrap();
+
+        // Send a valid FIX logon — the validator should reject it.
+        let logon_msg = "8=FIX.4.2\x019=68\x0135=A\x0149=INITIATOR\x0156=ACCEPTOR\x0134=1\x0152=20240101-00:00:00\x0198=0\x01108=30\x0110=034\x01";
+        let mut stream = TcpStream::connect(addr).await.unwrap();
+        tokio::io::AsyncWriteExt::write_all(&mut stream, logon_msg.as_bytes())
+            .await
+            .unwrap();
+
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+
+        assert!(validator.called.load(Ordering::SeqCst), "validator should have been called");
+
+        drop(stream);
+        acceptor.stop().await;
+        clean_sessions();
+    }
+
+    // Verifies that a ConnectionValidator that accepts allows the connection through.
+    #[tokio::test]
+    #[serial]
+    async fn test_connection_validator_accepts() {
+        clean_sessions();
+
+        let app = Arc::new(Mutex::new(NOPApp::new()));
+        let store_factory = MessageStoreFactoryEnum::default();
+        let log_factory = LogFactoryEnum::default();
+        let settings = make_acceptor_settings("0").await;
+
+        let mut acceptor = Acceptor::new(app, store_factory, settings, log_factory)
+            .await
+            .unwrap();
+
+        let validator = Arc::new(AcceptAllValidator {
+            called: AtomicBool::new(false),
+        });
+        acceptor.set_connection_validator(Some(validator.clone()));
+
+        acceptor.start().await.unwrap();
+        let addr = acceptor.local_address().unwrap();
+
+        let logon_msg = "8=FIX.4.2\x019=68\x0135=A\x0149=INITIATOR\x0156=ACCEPTOR\x0134=1\x0152=20240101-00:00:00\x0198=0\x01108=30\x0110=034\x01";
+        let mut stream = TcpStream::connect(addr).await.unwrap();
+        tokio::io::AsyncWriteExt::write_all(&mut stream, logon_msg.as_bytes())
+            .await
+            .unwrap();
+
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+
+        assert!(validator.called.load(Ordering::SeqCst), "validator should have been called");
+
+        drop(stream);
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        acceptor.stop().await;
+        clean_sessions();
+    }
+
+    // Verifies set_connection_validator with None removes the validator.
+    #[tokio::test]
+    #[serial]
+    async fn test_set_connection_validator_none() {
+        clean_sessions();
+
+        let app = Arc::new(Mutex::new(NOPApp::new()));
+        let store_factory = MessageStoreFactoryEnum::default();
+        let log_factory = LogFactoryEnum::default();
+        let settings = make_acceptor_settings("0").await;
+
+        let mut acceptor = Acceptor::new(app, store_factory, settings, log_factory)
+            .await
+            .unwrap();
+
+        // Set then remove validator
+        let validator = Arc::new(RejectAllValidator {
+            called: AtomicBool::new(false),
+        });
+        acceptor.set_connection_validator(Some(validator.clone()));
+        acceptor.set_connection_validator(None);
+
+        assert!(acceptor.connection_validator.is_none());
 
         acceptor.stop().await;
         clean_sessions();
