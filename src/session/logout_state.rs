@@ -155,7 +155,7 @@ mod tests {
         s.ssr.next_sender_msg_seq_num(1).await;
 
         s.ssr.no_message_sent().await;
-        s.ssr.no_message_queued().await;
+        s.ssr.no_message_queued();
     }
 
     #[tokio::test]

@@ -52,7 +52,7 @@ use std::sync::Mutex as StdMutex;
 #[cfg(test)]
 use tokio::sync::mpsc::channel;
 use tokio::sync::{
-    Mutex, OnceCell,
+    OnceCell,
     mpsc::{Receiver, Sender, UnboundedReceiver, UnboundedSender, unbounded_channel},
     oneshot,
 };
@@ -127,8 +127,7 @@ pub struct Session {
     pub message_in: UnboundedReceiver<FixIn>,
 
     // application messages are queued up for send here
-    // wrapped in Mutex for access to to_send.
-    pub to_send: Arc<Mutex<Vec<Vec<u8>>>>,
+    pub to_send: Vec<Vec<u8>>,
     pub session_event: SessionEvent,
     pub message_event: MessageEvent,
     pub application: Arc<dyn Application>,
@@ -457,8 +456,7 @@ impl Session {
     // queue_for_send will validate, persist, and queue the message for send
     pub async fn queue_for_send(&mut self, msg: &Message) -> Result<(), FixerError> {
         let msg_bytes = self.prep_message_for_send(msg, None).await?;
-        let mut to_send = self.to_send.lock().await;
-        to_send.push(msg_bytes);
+        self.to_send.push(msg_bytes);
 
         tokio::select! {
             _ = self.message_event.send(true) => {},
@@ -481,11 +479,8 @@ impl Session {
         if !self.sm.is_logged_on() {
             return self.queue_for_send(msg).await;
         }
-        {
-            let msg_bytes = self.prep_message_for_send(msg, in_reply_to).await?;
-            let mut to_send = self.to_send.lock().await;
-            to_send.push(msg_bytes);
-        }
+        let msg_bytes = self.prep_message_for_send(msg, in_reply_to).await?;
+        self.to_send.push(msg_bytes);
         self.send_queued().await;
 
         Ok(())
@@ -508,12 +503,9 @@ impl Session {
         msg: &Message,
         in_reply_to: Option<&Message>,
     ) -> Result<(), FixerError> {
-        {
-            let msg_bytes = self.prep_message_for_send(msg, in_reply_to).await?;
-            let mut to_send = self.to_send.lock().await;
-            to_send.clear();
-            to_send.push(msg_bytes);
-        }
+        let msg_bytes = self.prep_message_for_send(msg, in_reply_to).await?;
+        self.to_send.clear();
+        self.to_send.push(msg_bytes);
         self.send_queued().await;
 
         Ok(())
@@ -569,7 +561,7 @@ impl Session {
     }
 
     async fn send_queued(&mut self) {
-        for msg_bytes in self.to_send.lock().await.iter() {
+        for msg_bytes in self.to_send.iter() {
             if self.message_out.is_closed() {
                 self.log
                     .on_eventf("Failed to send: disconnected", hashmap! {})
@@ -588,11 +580,11 @@ impl Session {
     }
 
     async fn drop_queued(&mut self) {
-        self.to_send.lock().await.clear();
+        self.to_send.clear();
     }
 
     pub async fn enqueue_bytes_and_send(&mut self, msg: &[u8]) {
-        self.to_send.lock().await.push(msg.to_vec());
+        self.to_send.push(msg.to_vec());
         self.send_queued().await;
     }
 

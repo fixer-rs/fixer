@@ -787,9 +787,9 @@ impl SessionSuiteRig {
         );
     }
 
-    pub async fn no_message_queued(&self) {
+    pub fn no_message_queued(&self) {
         assert!(
-            self.session.to_send.lock().await.is_empty(),
+            self.session.to_send.is_empty(),
             "no messages should be queueud"
         );
     }
