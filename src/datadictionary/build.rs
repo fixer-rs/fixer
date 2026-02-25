@@ -67,7 +67,7 @@ impl Builder {
             self.dict.trailer = trailer;
         }
 
-        Ok(self.dict.clone())
+        Ok(std::mem::take(&mut self.dict))
     }
 
     fn find_or_build_component_type(

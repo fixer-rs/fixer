@@ -318,30 +318,30 @@ pub struct App {}
 
 #[automock]
 impl Application for App {
-    fn on_create(&mut self, _session_id: Arc<SessionID>) {}
+    fn on_create(&mut self, _session_id: &Arc<SessionID>) {}
 
-    fn on_logon(&mut self, _session_id: Arc<SessionID>) {}
+    fn on_logon(&mut self, _session_id: &Arc<SessionID>) {}
 
-    fn on_logout(&mut self, _session_id: Arc<SessionID>) {}
+    fn on_logout(&mut self, _session_id: &Arc<SessionID>) {}
 
     fn from_admin(
         &mut self,
         _msg: &Message,
-        _session_id: Arc<SessionID>,
+        _session_id: &Arc<SessionID>,
     ) -> MessageRejectErrorResult {
         Ok(())
     }
 
-    fn to_admin(&mut self, _msg: &Message, _session_id: Arc<SessionID>) {}
+    fn to_admin(&mut self, _msg: &Message, _session_id: &Arc<SessionID>) {}
 
-    fn to_app(&mut self, _msg: &Message, _session_id: Arc<SessionID>) -> SimpleResult<()> {
+    fn to_app(&mut self, _msg: &Message, _session_id: &Arc<SessionID>) -> SimpleResult<()> {
         Ok(())
     }
 
     fn from_app(
         &mut self,
         _msg: &Message,
-        _session_id: Arc<SessionID>,
+        _session_id: &Arc<SessionID>,
     ) -> MessageRejectErrorResult {
         Ok(())
     }
@@ -355,9 +355,9 @@ pub struct MockAppExtended {
 }
 
 impl Application for MockAppExtended {
-    fn on_create(&mut self, _session_id: Arc<SessionID>) {}
+    fn on_create(&mut self, _session_id: &Arc<SessionID>) {}
 
-    fn on_logon(&mut self, session_id: Arc<SessionID>) {
+    fn on_logon(&mut self, session_id: &Arc<SessionID>) {
         self.mock_app
             .expect_on_logon()
             .once()
@@ -365,7 +365,7 @@ impl Application for MockAppExtended {
             .call(session_id);
     }
 
-    fn on_logout(&mut self, session_id: Arc<SessionID>) {
+    fn on_logout(&mut self, session_id: &Arc<SessionID>) {
         self.mock_app
             .expect_on_logout()
             .once()
@@ -376,7 +376,7 @@ impl Application for MockAppExtended {
     fn from_admin(
         &mut self,
         msg: &Message,
-        session_id: Arc<SessionID>,
+        session_id: &Arc<SessionID>,
     ) -> MessageRejectErrorResult {
         match session_id.qualifier.as_str() {
             OVERRIDE_TIMES_FROM_ADMIN_RETURN_ERROR => self.mock_app.from_admin(msg, session_id),
@@ -389,7 +389,7 @@ impl Application for MockAppExtended {
         }
     }
 
-    fn to_admin(&mut self, msg: &Message, session_id: Arc<SessionID>) {
+    fn to_admin(&mut self, msg: &Message, session_id: &Arc<SessionID>) {
         match session_id.qualifier.as_str() {
             OVERRIDE_TIMES | OVERRIDE_TIMES_TO_APP_RETURN_ERROR => {
                 self.mock_app.to_admin(msg, session_id);
@@ -410,7 +410,7 @@ impl Application for MockAppExtended {
         self.last_to_admin = Some(msg.clone());
     }
 
-    fn to_app(&mut self, msg: &Message, session_id: Arc<SessionID>) -> SimpleResult<()> {
+    fn to_app(&mut self, msg: &Message, session_id: &Arc<SessionID>) -> SimpleResult<()> {
         self.last_to_app = Some(msg.clone());
         match session_id.qualifier.as_str() {
             TO_APP_RETURN_ERROR => self
@@ -431,7 +431,7 @@ impl Application for MockAppExtended {
         }
     }
 
-    fn from_app(&mut self, msg: &Message, session_id: Arc<SessionID>) -> MessageRejectErrorResult {
+    fn from_app(&mut self, msg: &Message, session_id: &Arc<SessionID>) -> MessageRejectErrorResult {
         match session_id.qualifier.as_str() {
             OVERRIDE_TIMES | FROM_APP_RETURN_ERROR => self.mock_app.from_app(msg, session_id),
             _ => self
@@ -447,35 +447,35 @@ impl Application for MockAppExtended {
 type MockAppShared = Arc<Mutex<MockAppExtended>>;
 
 impl Application for MockAppShared {
-    fn on_create(&mut self, session_id: Arc<SessionID>) {
+    fn on_create(&mut self, session_id: &Arc<SessionID>) {
         self.try_lock().unwrap().on_create(session_id)
     }
 
-    fn on_logon(&mut self, session_id: Arc<SessionID>) {
+    fn on_logon(&mut self, session_id: &Arc<SessionID>) {
         self.try_lock().unwrap().on_logon(session_id)
     }
 
-    fn on_logout(&mut self, session_id: Arc<SessionID>) {
+    fn on_logout(&mut self, session_id: &Arc<SessionID>) {
         self.try_lock().unwrap().on_logout(session_id)
     }
 
-    fn to_admin(&mut self, msg: &Message, session_id: Arc<SessionID>) {
+    fn to_admin(&mut self, msg: &Message, session_id: &Arc<SessionID>) {
         self.try_lock().unwrap().to_admin(msg, session_id)
     }
 
-    fn to_app(&mut self, msg: &Message, session_id: Arc<SessionID>) -> SimpleResult<()> {
+    fn to_app(&mut self, msg: &Message, session_id: &Arc<SessionID>) -> SimpleResult<()> {
         self.try_lock().unwrap().to_app(msg, session_id)
     }
 
     fn from_admin(
         &mut self,
         msg: &Message,
-        session_id: Arc<SessionID>,
+        session_id: &Arc<SessionID>,
     ) -> MessageRejectErrorResult {
         self.try_lock().unwrap().from_admin(msg, session_id)
     }
 
-    fn from_app(&mut self, msg: &Message, session_id: Arc<SessionID>) -> MessageRejectErrorResult {
+    fn from_app(&mut self, msg: &Message, session_id: &Arc<SessionID>) -> MessageRejectErrorResult {
         self.try_lock().unwrap().from_app(msg, session_id)
     }
 }

@@ -216,8 +216,8 @@ impl Message {
     pub fn parse_message_with_data_dictionary(
         &mut self,
         raw_message: &[u8],
-        transport_data_dictionary: &Option<DataDictionary>,
-        _application_data_dictionary: &Option<DataDictionary>,
+        transport_data_dictionary: &Option<Arc<DataDictionary>>,
+        _application_data_dictionary: &Option<Arc<DataDictionary>>,
     ) -> Result<(), ParseError> {
         self.header.clear();
         self.body.clear();
@@ -507,7 +507,7 @@ impl Error for ParseError {
     }
 }
 
-fn is_header_field(tag: &Tag, data_dict: &Option<DataDictionary>) -> bool {
+fn is_header_field(tag: &Tag, data_dict: &Option<Arc<DataDictionary>>) -> bool {
     if tag.is_header() {
         return true;
     }
@@ -519,7 +519,7 @@ fn is_header_field(tag: &Tag, data_dict: &Option<DataDictionary>) -> bool {
     data_dict.as_ref().unwrap().header.fields.contains_key(tag)
 }
 
-fn is_trailer_field(tag: &Tag, data_dict: &Option<DataDictionary>) -> bool {
+fn is_trailer_field(tag: &Tag, data_dict: &Option<Arc<DataDictionary>>) -> bool {
     if tag.is_trailer() {
         return true;
     }
@@ -681,7 +681,7 @@ mod tests {
 
         let raw_message = "8=FIX.4.29=12635=D34=249=TW52=20140515-19:49:56.65956=ISLD10030=CUST11=10021=140=154=155=TSLA60=00010101-00:00:00.0005050=HELLO10=039".as_bytes();
 
-        let dict_ref = &Some(dict);
+        let dict_ref = &Some(Arc::new(dict));
 
         let parse_result =
             s.msg

@@ -1,4 +1,5 @@
 use crate::datadictionary::{DataDictionary, FieldDef, TagSet};
+use std::sync::Arc;
 use crate::errors::*;
 use crate::field::*;
 use crate::field_map::FieldMap;
@@ -38,7 +39,7 @@ impl Default for ValidatorSettings {
 
 #[derive(Default)]
 pub struct FixValidator {
-    data_dictionary: DataDictionary,
+    data_dictionary: Arc<DataDictionary>,
     settings: ValidatorSettings,
 }
 
@@ -56,8 +57,8 @@ impl Validator for FixValidator {
 
 #[derive(Default)]
 pub struct FixtValidator {
-    transport_data_dictionary: DataDictionary,
-    app_data_dictionary: DataDictionary,
+    transport_data_dictionary: Arc<DataDictionary>,
+    app_data_dictionary: Arc<DataDictionary>,
     settings: ValidatorSettings,
 }
 
@@ -408,8 +409,8 @@ impl ValidatorEnum {
     // new creates a FIX message validator from the given data dictionaries
     pub fn new(
         settings: ValidatorSettings,
-        app_data_dictionary: DataDictionary,
-        transport_data_dictionary: Option<DataDictionary>,
+        app_data_dictionary: Arc<DataDictionary>,
+        transport_data_dictionary: Option<Arc<DataDictionary>>,
     ) -> Self {
         if let Some(transport_data_dictionary) = transport_data_dictionary {
             return Self::Fixt(FixtValidator {
@@ -638,7 +639,7 @@ mod tests {
 
     async fn tc_invalid_tag_number_header<'a>() -> ValidateTest<'a> {
         let dict = DataDictionary::parse("./spec/FIX40.xml").await.unwrap();
-        let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(dict), None);
         let invalid_header_field_message = create_fix40_new_order_single();
         let tag = 9999 as Tag;
 
@@ -660,7 +661,7 @@ mod tests {
     async fn tc_invalid_tag_number_header_fix_t<'a>() -> ValidateTest<'a> {
         let t_dict = DataDictionary::parse("spec/FIXT11.xml").await.unwrap();
         let app_dict = DataDictionary::parse("spec/FIX50SP2.xml").await.unwrap();
-        let validator = ValidatorEnum::new(ValidatorSettings::default(), app_dict, Some(t_dict));
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(app_dict), Some(Arc::new(t_dict)));
         let invalid_header_field_message = create_fix50sp2_new_order_single();
         let tag = 9999 as Tag;
         invalid_header_field_message
@@ -680,7 +681,7 @@ mod tests {
 
     async fn tc_invalid_tag_number_body<'a>() -> ValidateTest<'a> {
         let dict = DataDictionary::parse("./spec/FIX40.xml").await.unwrap();
-        let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(dict), None);
         let invalid_body_field_message = create_fix40_new_order_single();
         let tag = 9999 as Tag;
         invalid_body_field_message
@@ -701,7 +702,7 @@ mod tests {
     async fn tc_invalid_tag_number_body_fix_t<'a>() -> ValidateTest<'a> {
         let t_dict = DataDictionary::parse("spec/FIXT11.xml").await.unwrap();
         let app_dict = DataDictionary::parse("spec/FIX50SP2.xml").await.unwrap();
-        let validator = ValidatorEnum::new(ValidatorSettings::default(), app_dict, Some(t_dict));
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(app_dict), Some(Arc::new(t_dict)));
         let invalid_body_field_message = create_fix50sp2_new_order_single();
         let tag = 9999 as Tag;
         invalid_body_field_message
@@ -721,7 +722,7 @@ mod tests {
 
     async fn tc_invalid_tag_number_trailer<'a>() -> ValidateTest<'a> {
         let dict = DataDictionary::parse("./spec/FIX40.xml").await.unwrap();
-        let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(dict), None);
         let invalid_trailer_field_message = create_fix40_new_order_single();
         let tag = 9999 as Tag;
         invalid_trailer_field_message
@@ -742,7 +743,7 @@ mod tests {
     async fn tc_invalid_tag_number_trailer_fix_t<'a>() -> ValidateTest<'a> {
         let t_dict = DataDictionary::parse("spec/FIXT11.xml").await.unwrap();
         let app_dict = DataDictionary::parse("spec/FIX50SP2.xml").await.unwrap();
-        let validator = ValidatorEnum::new(ValidatorSettings::default(), app_dict, Some(t_dict));
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(app_dict), Some(Arc::new(t_dict)));
         let invalid_trailer_field_message = create_fix50sp2_new_order_single();
         let tag = 9999 as Tag;
         invalid_trailer_field_message
@@ -762,7 +763,7 @@ mod tests {
 
     async fn tc_tag_not_defined_for_message<'a>() -> ValidateTest<'a> {
         let dict = DataDictionary::parse("./spec/FIX40.xml").await.unwrap();
-        let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(dict), None);
         let invalid_msg = create_fix40_new_order_single();
         let tag = 41 as Tag;
         invalid_msg.body.set_field(tag, FIXString::from("hello"));
@@ -781,7 +782,7 @@ mod tests {
     async fn tc_tag_not_defined_for_message_fix_t<'a>() -> ValidateTest<'a> {
         let t_dict = DataDictionary::parse("spec/FIXT11.xml").await.unwrap();
         let app_dict = DataDictionary::parse("spec/FIX50SP2.xml").await.unwrap();
-        let validator = ValidatorEnum::new(ValidatorSettings::default(), app_dict, Some(t_dict));
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(app_dict), Some(Arc::new(t_dict)));
         let invalid_msg = create_fix50sp2_new_order_single();
         let tag = 41 as Tag;
         invalid_msg.body.set_field(tag, FIXString::from("hello"));
@@ -800,7 +801,7 @@ mod tests {
     async fn tc_tag_is_defined_for_message<'a>() -> ValidateTest<'a> {
         // compare to `tc_tag_is_not_defined_for_message`
         let dict = DataDictionary::parse("./spec/FIX43.xml").await.unwrap();
-        let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(dict), None);
         let valid_msg = create_fix43_new_order_single();
         let message_bytes = valid_msg.build();
 
@@ -818,7 +819,7 @@ mod tests {
         // Compare to `tc_tag_is_not_defined_for_message`.
         let t_dict = DataDictionary::parse("spec/FIXT11.xml").await.unwrap();
         let app_dict = DataDictionary::parse("spec/FIX50SP2.xml").await.unwrap();
-        let validator = ValidatorEnum::new(ValidatorSettings::default(), app_dict, Some(t_dict));
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(app_dict), Some(Arc::new(t_dict)));
         let valid_msg = create_fix50sp2_new_order_single();
         let message_bytes = valid_msg.build();
 
@@ -834,7 +835,7 @@ mod tests {
 
     async fn tc_field_not_found_body<'a>() -> ValidateTest<'a> {
         let dict = DataDictionary::parse("./spec/FIX40.xml").await.unwrap();
-        let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(dict), None);
         let invalid_msg1 = Message::new();
         invalid_msg1
             .header
@@ -886,7 +887,7 @@ mod tests {
     async fn tc_field_not_found_body_fix_t<'a>() -> ValidateTest<'a> {
         let t_dict = DataDictionary::parse("spec/FIXT11.xml").await.unwrap();
         let app_dict = DataDictionary::parse("spec/FIX50SP2.xml").await.unwrap();
-        let validator = ValidatorEnum::new(ValidatorSettings::default(), app_dict, Some(t_dict));
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(app_dict), Some(Arc::new(t_dict)));
         let invalid_msg1 = Message::new();
         invalid_msg1
             .header
@@ -937,7 +938,7 @@ mod tests {
 
     async fn tc_field_not_found_header<'a>() -> ValidateTest<'a> {
         let dict = DataDictionary::parse("./spec/FIX40.xml").await.unwrap();
-        let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(dict), None);
 
         let invalid_msg2 = Message::new();
         invalid_msg2
@@ -986,7 +987,7 @@ mod tests {
     async fn tc_field_not_found_header_fix_t<'a>() -> ValidateTest<'a> {
         let t_dict = DataDictionary::parse("spec/FIXT11.xml").await.unwrap();
         let app_dict = DataDictionary::parse("spec/FIX50SP2.xml").await.unwrap();
-        let validator = ValidatorEnum::new(ValidatorSettings::default(), app_dict, Some(t_dict));
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(app_dict), Some(Arc::new(t_dict)));
 
         let invalid_msg2 = Message::new();
         invalid_msg2
@@ -1033,7 +1034,7 @@ mod tests {
 
     async fn tc_tag_specified_without_a_value<'a>() -> ValidateTest<'a> {
         let dict = DataDictionary::parse("./spec/FIX40.xml").await.unwrap();
-        let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(dict), None);
         let builder = create_fix40_new_order_single();
 
         let bogus_tag = 109 as Tag;
@@ -1053,7 +1054,7 @@ mod tests {
     async fn tc_tag_specified_without_a_value_fix_t<'a>() -> ValidateTest<'a> {
         let t_dict = DataDictionary::parse("spec/FIXT11.xml").await.unwrap();
         let app_dict = DataDictionary::parse("spec/FIX50SP2.xml").await.unwrap();
-        let validator = ValidatorEnum::new(ValidatorSettings::default(), app_dict, Some(t_dict));
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(app_dict), Some(Arc::new(t_dict)));
         let builder = create_fix50sp2_new_order_single();
 
         let bogus_tag = 109 as Tag;
@@ -1072,7 +1073,7 @@ mod tests {
 
     async fn tc_invalid_msg_type<'a>() -> ValidateTest<'a> {
         let dict = DataDictionary::parse("./spec/FIX40.xml").await.unwrap();
-        let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(dict), None);
         let builder = create_fix40_new_order_single();
         builder.header.set_field(TAG_MSG_TYPE, FIXString::from("z"));
         let message_bytes = builder.build();
@@ -1090,7 +1091,7 @@ mod tests {
     async fn tc_invalid_msg_type_fix_t<'a>() -> ValidateTest<'a> {
         let t_dict = DataDictionary::parse("spec/FIXT11.xml").await.unwrap();
         let app_dict = DataDictionary::parse("spec/FIX50SP2.xml").await.unwrap();
-        let validator = ValidatorEnum::new(ValidatorSettings::default(), app_dict, Some(t_dict));
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(app_dict), Some(Arc::new(t_dict)));
         let builder = create_fix50sp2_new_order_single();
         builder
             .header
@@ -1109,7 +1110,7 @@ mod tests {
 
     async fn tc_value_is_incorrect<'a>() -> ValidateTest<'a> {
         let dict = DataDictionary::parse("./spec/FIX40.xml").await.unwrap();
-        let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(dict), None);
 
         let tag = 21 as Tag;
         let builder = create_fix40_new_order_single();
@@ -1129,7 +1130,7 @@ mod tests {
     async fn tc_value_is_incorrect_fix_t<'a>() -> ValidateTest<'a> {
         let t_dict = DataDictionary::parse("spec/FIXT11.xml").await.unwrap();
         let app_dict = DataDictionary::parse("spec/FIX50SP2.xml").await.unwrap();
-        let validator = ValidatorEnum::new(ValidatorSettings::default(), app_dict, Some(t_dict));
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(app_dict), Some(Arc::new(t_dict)));
 
         let tag = 21 as Tag;
         let builder = create_fix50sp2_new_order_single();
@@ -1148,7 +1149,7 @@ mod tests {
 
     async fn tc_incorrect_data_format_for_value<'a>() -> ValidateTest<'a> {
         let dict = DataDictionary::parse("./spec/FIX40.xml").await.unwrap();
-        let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(dict), None);
         let builder = create_fix40_new_order_single();
         let tag = 38 as Tag;
         builder.body.set_field(tag, FIXString::from("+200.00"));
@@ -1167,7 +1168,7 @@ mod tests {
     async fn tc_incorrect_data_format_for_value_fix_t<'a>() -> ValidateTest<'a> {
         let t_dict = DataDictionary::parse("spec/FIXT11.xml").await.unwrap();
         let app_dict = DataDictionary::parse("spec/FIX50SP2.xml").await.unwrap();
-        let validator = ValidatorEnum::new(ValidatorSettings::default(), app_dict, Some(t_dict));
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(app_dict), Some(Arc::new(t_dict)));
         let builder = create_fix50sp2_new_order_single();
         let tag = 38 as Tag;
         builder.body.set_field(tag, FIXString::from("+200.00"));
@@ -1185,7 +1186,7 @@ mod tests {
 
     async fn tc_tag_specified_out_of_required_order_header<'a>() -> ValidateTest<'a> {
         let dict = DataDictionary::parse("./spec/FIX40.xml").await.unwrap();
-        let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(dict), None);
 
         let builder = create_fix40_new_order_single();
         let tag = TAG_ON_BEHALF_OF_COMP_ID;
@@ -1206,7 +1207,7 @@ mod tests {
     async fn tc_tag_specified_out_of_required_order_header_fix_t<'a>() -> ValidateTest<'a> {
         let t_dict = DataDictionary::parse("spec/FIXT11.xml").await.unwrap();
         let app_dict = DataDictionary::parse("spec/FIX50SP2.xml").await.unwrap();
-        let validator = ValidatorEnum::new(ValidatorSettings::default(), app_dict, Some(t_dict));
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(app_dict), Some(Arc::new(t_dict)));
 
         let builder = create_fix50sp2_new_order_single();
         let tag = TAG_ON_BEHALF_OF_COMP_ID;
@@ -1226,7 +1227,7 @@ mod tests {
 
     async fn tc_tag_specified_out_of_required_order_trailer<'a>() -> ValidateTest<'a> {
         let dict = DataDictionary::parse("./spec/FIX40.xml").await.unwrap();
-        let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(dict), None);
 
         let builder = create_fix40_new_order_single();
         let tag = TAG_SIGNATURE;
@@ -1248,7 +1249,7 @@ mod tests {
     async fn tc_tag_specified_out_of_required_order_trailer_fix_t<'a>() -> ValidateTest<'a> {
         let t_dict = DataDictionary::parse("spec/FIXT11.xml").await.unwrap();
         let app_dict = DataDictionary::parse("spec/FIX50SP2.xml").await.unwrap();
-        let validator = ValidatorEnum::new(ValidatorSettings::default(), app_dict, Some(t_dict));
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(app_dict), Some(Arc::new(t_dict)));
 
         let builder = create_fix50sp2_new_order_single();
         let tag = TAG_SIGNATURE;
@@ -1271,7 +1272,7 @@ mod tests {
         let dict = DataDictionary::parse("./spec/FIX40.xml").await.unwrap();
         let mut custom_validator_settings = ValidatorSettings::default();
         custom_validator_settings.reject_invalid_message = false;
-        let validator = ValidatorEnum::new(custom_validator_settings, dict, None);
+        let validator = ValidatorEnum::new(custom_validator_settings, Arc::new(dict), None);
 
         let builder = create_fix40_new_order_single();
         let tag = 9999 as Tag;
@@ -1293,7 +1294,7 @@ mod tests {
         let app_dict = DataDictionary::parse("spec/FIX50SP2.xml").await.unwrap();
         let mut custom_validator_settings = ValidatorSettings::default();
         custom_validator_settings.reject_invalid_message = false;
-        let validator = ValidatorEnum::new(custom_validator_settings, app_dict, Some(t_dict));
+        let validator = ValidatorEnum::new(custom_validator_settings, Arc::new(app_dict), Some(Arc::new(t_dict)));
 
         let builder = create_fix50sp2_new_order_single();
         let tag = 9999 as Tag;
@@ -1314,7 +1315,7 @@ mod tests {
         let dict = DataDictionary::parse("./spec/FIX40.xml").await.unwrap();
         let mut custom_validator_settings = ValidatorSettings::default();
         custom_validator_settings.reject_invalid_message = true;
-        let validator = ValidatorEnum::new(custom_validator_settings, dict, None);
+        let validator = ValidatorEnum::new(custom_validator_settings, Arc::new(dict), None);
 
         let builder = create_fix40_new_order_single();
         let tag = 9999 as Tag;
@@ -1336,7 +1337,7 @@ mod tests {
         let app_dict = DataDictionary::parse("spec/FIX50SP2.xml").await.unwrap();
         let mut custom_validator_settings = ValidatorSettings::default();
         custom_validator_settings.reject_invalid_message = true;
-        let validator = ValidatorEnum::new(custom_validator_settings, app_dict, Some(t_dict));
+        let validator = ValidatorEnum::new(custom_validator_settings, Arc::new(app_dict), Some(Arc::new(t_dict)));
 
         let builder = create_fix50sp2_new_order_single();
         let tag = 9999 as Tag;
@@ -1357,7 +1358,7 @@ mod tests {
         let dict = DataDictionary::parse("./spec/FIX40.xml").await.unwrap();
         let mut custom_validator_settings = ValidatorSettings::default();
         custom_validator_settings.check_fields_out_of_order = false;
-        let validator = ValidatorEnum::new(custom_validator_settings, dict, None);
+        let validator = ValidatorEnum::new(custom_validator_settings, Arc::new(dict), None);
 
         let builder = create_fix40_new_order_single();
         let tag = TAG_ON_BEHALF_OF_COMP_ID;
@@ -1382,7 +1383,7 @@ mod tests {
 
         let mut custom_validator_settings = ValidatorSettings::default();
         custom_validator_settings.check_fields_out_of_order = false;
-        let validator = ValidatorEnum::new(custom_validator_settings, app_dict, Some(t_dict));
+        let validator = ValidatorEnum::new(custom_validator_settings, Arc::new(app_dict), Some(Arc::new(t_dict)));
 
         let builder = create_fix50sp2_new_order_single();
         let tag = TAG_ON_BEHALF_OF_COMP_ID;
@@ -1404,7 +1405,7 @@ mod tests {
         let dict = DataDictionary::parse("./spec/FIX40.xml").await.unwrap();
         let mut custom_validator_settings = ValidatorSettings::default();
         custom_validator_settings.check_fields_out_of_order = false;
-        let validator = ValidatorEnum::new(custom_validator_settings, dict, None);
+        let validator = ValidatorEnum::new(custom_validator_settings, Arc::new(dict), None);
 
         let builder = create_fix40_new_order_single();
         let tag = TAG_SIGNATURE;
@@ -1428,7 +1429,7 @@ mod tests {
         let app_dict = DataDictionary::parse("spec/FIX50SP2.xml").await.unwrap();
         let mut custom_validator_settings = ValidatorSettings::default();
         custom_validator_settings.check_fields_out_of_order = false;
-        let validator = ValidatorEnum::new(custom_validator_settings, app_dict, Some(t_dict));
+        let validator = ValidatorEnum::new(custom_validator_settings, Arc::new(app_dict), Some(Arc::new(t_dict)));
 
         let builder = create_fix50sp2_new_order_single();
         let tag = TAG_SIGNATURE;
@@ -1448,7 +1449,7 @@ mod tests {
 
     async fn tc_tag_appears_more_than_once<'a>() -> ValidateTest<'a> {
         let dict = DataDictionary::parse("./spec/FIX40.xml").await.unwrap();
-        let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(dict), None);
         let tag = 40 as Tag;
 
         ValidateTest {
@@ -1464,7 +1465,7 @@ mod tests {
     async fn tc_tag_appears_more_than_once_fix_t<'a>() -> ValidateTest<'a> {
         let t_dict = DataDictionary::parse("spec/FIXT11.xml").await.unwrap();
         let app_dict = DataDictionary::parse("spec/FIX50SP2.xml").await.unwrap();
-        let validator = ValidatorEnum::new(ValidatorSettings::default(), app_dict, Some(t_dict));
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(app_dict), Some(Arc::new(t_dict)));
         let tag = 40 as Tag;
 
         ValidateTest {
@@ -1479,7 +1480,7 @@ mod tests {
 
     async fn tc_float_validation<'a>() -> ValidateTest<'a> {
         let dict = DataDictionary::parse("./spec/FIX42.xml").await.unwrap();
-        let validator = ValidatorEnum::new(ValidatorSettings::default(), dict, None);
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(dict), None);
         let tag = 38 as Tag;
         ValidateTest {
             name:  "FloatValidation",
@@ -1494,7 +1495,7 @@ mod tests {
     async fn tc_float_validation_fix_t<'a>() -> ValidateTest<'a> {
         let t_dict = DataDictionary::parse("spec/FIXT11.xml").await.unwrap();
         let app_dict = DataDictionary::parse("spec/FIX50SP2.xml").await.unwrap();
-        let validator = ValidatorEnum::new(ValidatorSettings::default(), app_dict, Some(t_dict));
+        let validator = ValidatorEnum::new(ValidatorSettings::default(), Arc::new(app_dict), Some(Arc::new(t_dict)));
         let tag = 38 as Tag;
         ValidateTest {
             name: "FloatValidation FIXT",

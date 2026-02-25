@@ -130,8 +130,8 @@ pub struct Session {
 
     pub admin: Admin,
     pub iss: InternalSessionSettings,
-    pub transport_data_dictionary: Option<DataDictionary>,
-    pub app_data_dictionary: Option<DataDictionary>,
+    pub transport_data_dictionary: Option<Arc<DataDictionary>>,
+    pub app_data_dictionary: Option<Arc<DataDictionary>>,
     pub timestamp_precision: TimestampPrecision,
 }
 
@@ -210,8 +210,8 @@ impl Session {
 
     // target_default_application_version_id returns the default application version ID for messages received by this version.
     // Applicable for For FIX.T.1 sessions.
-    pub fn target_default_application_version_id(&self) -> String {
-        self.target_default_appl_ver_id.clone()
+    pub fn target_default_application_version_id(&self) -> &str {
+        &self.target_default_appl_ver_id
     }
 
     #[allow(dead_code)] // exists in Go quickfix session.go, used by acceptor/initiator
@@ -443,7 +443,7 @@ impl Session {
         self.application
             .lock()
             .await
-            .to_app(msg, self.session_id.clone())
+            .to_app(msg, &self.session_id)
             .is_ok()
     }
 
@@ -527,7 +527,7 @@ impl Session {
             self.application
                 .lock()
                 .await
-                .to_admin(msg, self.session_id.clone());
+                .to_admin(msg, &self.session_id);
 
             if msg_type == MSG_TYPE_LOGON {
                 let mut reset_seq_num_flag = FIXBoolean::default();
@@ -548,7 +548,7 @@ impl Session {
             self.application
                 .lock()
                 .await
-                .to_app(msg, self.session_id.clone())?;
+                .to_app(msg, &self.session_id)?;
         }
 
         let msg_bytes = msg.build();
@@ -724,7 +724,7 @@ impl Session {
         self.application
             .lock()
             .await
-            .on_logon(self.session_id.clone());
+            .on_logon(&self.session_id);
 
         self.check_target_too_high(msg).await?;
 
@@ -807,13 +807,13 @@ impl Session {
                 .application
                 .lock()
                 .await
-                .from_admin(msg, self.session_id.clone());
+                .from_admin(msg, &self.session_id);
         }
 
         self.application
             .lock()
             .await
-            .from_app(msg, self.session_id.clone())
+            .from_app(msg, &self.session_id)
     }
 
     async fn check_target_too_low(&mut self, msg: &Message) -> MessageRejectErrorResult {
@@ -1333,7 +1333,7 @@ impl Session {
             self.application
                 .lock()
                 .await
-                .on_logout(self.session_id.clone());
+                .on_logout(&self.session_id);
         }
         self.on_disconnect().await;
     }
@@ -1835,7 +1835,7 @@ impl Session {
         self.application
             .lock()
             .await
-            .to_admin(&sequence_reset, self.session_id.clone());
+            .to_admin(&sequence_reset, &self.session_id);
 
         let msg_bytes = sequence_reset.build();
 
@@ -4210,7 +4210,7 @@ mod tests {
         let mut s = SessionSendTestSuite::setup_test().await;
         s.ssr
             .mock_app
-            .to_admin(&Message::default(), s.ssr.session.session_id.clone());
+            .to_admin(&Message::default(), &s.ssr.session.session_id);
         assert!(s
             .ssr
             .session

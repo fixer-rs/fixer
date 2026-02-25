@@ -116,7 +116,7 @@ impl SessionFactory {
         register_session(arc_session.clone()).await?;
 
         let mut application_lock = application.lock().await;
-        application_lock.on_create(session_id);
+        application_lock.on_create(&session_id);
 
         arc_session
             .lock()
@@ -154,8 +154,8 @@ impl SessionFactory {
         }
 
         let mut default_appl_ver_id = Default::default();
-        let mut transport_data_dictionary: Option<DataDictionary> = None;
-        let mut app_data_dictionary: Option<DataDictionary> = None;
+        let mut transport_data_dictionary: Option<Arc<DataDictionary>> = None;
+        let mut app_data_dictionary: Option<Arc<DataDictionary>> = None;
 
         let validator = if session_id.is_fixt() {
             default_appl_ver_id = settings.setting(DEFAULT_APPL_VER_ID)?;
@@ -196,13 +196,15 @@ impl SessionFactory {
                     APP_DATA_DICTIONARY
                 )?;
 
-                transport_data_dictionary = Some(transport_data_dictionary_inner);
-                app_data_dictionary = Some(app_data_dictionary_inner.clone());
+                let transport_dd = Arc::new(transport_data_dictionary_inner);
+                let app_dd = Arc::new(app_data_dictionary_inner);
+                transport_data_dictionary = Some(transport_dd.clone());
+                app_data_dictionary = Some(app_dd.clone());
 
                 Some(ValidatorEnum::new(
                     validator_settings,
-                    app_data_dictionary_inner.clone(),
-                    transport_data_dictionary.clone(),
+                    app_dd,
+                    Some(transport_dd),
                 ))
             } else {
                 None
@@ -222,11 +224,12 @@ impl SessionFactory {
                 DATA_DICTIONARY
             )?;
 
-            app_data_dictionary = Some(app_data_dictionary_inner.clone());
+            let app_dd = Arc::new(app_data_dictionary_inner);
+            app_data_dictionary = Some(app_dd.clone());
 
             Some(ValidatorEnum::new(
                 validator_settings,
-                app_data_dictionary_inner.clone(),
+                app_dd,
                 None,
             ))
         } else {

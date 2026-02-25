@@ -224,7 +224,7 @@ impl MessageRouter {
                 .is_err()
             {
                 if let Some(session) = (*SESSIONS).get(&session_id) {
-                    appl_ver_id = session.lock().await.target_default_application_version_id();
+                    appl_ver_id = session.lock().await.target_default_application_version_id().to_string();
                 }
             }
 

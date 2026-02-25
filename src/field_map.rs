@@ -198,6 +198,21 @@ impl FieldMap {
         Ok(result)
     }
 
+    // with_bytes borrows the raw bytes for the given tag and passes them to a
+    // closure, avoiding the Vec allocation that get_bytes would require.
+    pub fn with_bytes<T, F>(&self, tag: Tag, f: F) -> Result<T, MessageRejectErrorEnum>
+    where
+        F: FnOnce(&[u8]) -> Result<T, MessageRejectErrorEnum>,
+    {
+        let rlock = self.rw_lock.read();
+        let field = rlock
+            .tag_lookup
+            .get(&tag)
+            .ok_or_else(|| conditionally_required_field_missing(tag))?;
+        let lock = field.data.lock();
+        f(&lock.get(field.s_pos).unwrap().value)
+    }
+
     // get_bool is a get_field wrapper for bool fields
     pub fn get_bool(&self, tag: Tag) -> Result<bool, MessageRejectErrorEnum> {
         let mut val = FIXBoolean::default();
@@ -207,24 +222,22 @@ impl FieldMap {
 
     // get_int is a get_field wrapper for int fields
     pub fn get_int(&self, tag: Tag) -> Result<isize, MessageRejectErrorEnum> {
-        let mut val = FIXInt::default();
-        let bytes = self.get_bytes(tag)?;
-
-        val.read(&bytes)
-            .map_err(|_| incorrect_data_format_for_value(tag))?;
-
-        Ok(val.int())
+        self.with_bytes(tag, |bytes| {
+            let mut val = FIXInt::default();
+            val.read(bytes)
+                .map_err(|_| incorrect_data_format_for_value(tag))?;
+            Ok(val.int())
+        })
     }
 
     // get_time is a get_field wrapper for utc timestamp fields
     pub fn get_time(&self, tag: Tag) -> Result<Timestamp, MessageRejectErrorEnum> {
-        let mut val = FIXUTCTimestamp::default();
-        let bytes = self.get_bytes(tag)?;
-
-        val.read(&bytes)
-            .map_err(|_| incorrect_data_format_for_value(tag))?;
-
-        Ok(val.time)
+        self.with_bytes(tag, |bytes| {
+            let mut val = FIXUTCTimestamp::default();
+            val.read(bytes)
+                .map_err(|_| incorrect_data_format_for_value(tag))?;
+            Ok(val.time)
+        })
     }
 
     // get_string is a get_field wrapper for string fields
@@ -362,71 +375,83 @@ impl FieldMap {
         self
     }
 
-    pub fn sorted_tags(&self) -> Vec<Tag> {
-        let mut wlock = self.rw_lock.write();
-        match wlock.tag_sort.compare_type {
+    // sort_tags_in_place sorts the tags inside the given content without
+    // cloning. Extracted so that both sorted_tags() and write() can share
+    // the logic.
+    fn sort_tags_in_place(content: &mut FieldMapContent) {
+        match &content.tag_sort.compare_type {
             // ascending tags
-            TagOrderType::Normal => wlock
+            TagOrderType::Normal => content
                 .tag_sort
                 .tags
                 .sort_by(|i: &Tag, j: &Tag| -> Ordering { i.cmp(j) }),
             // In the message header, the first 3 tags in the message header must be 8,9,35
-            TagOrderType::Header => wlock.tag_sort.tags.sort_by(|i: &Tag, j: &Tag| -> Ordering {
-                fn ordering(t: &Tag) -> isize {
-                    match *t {
-                        TAG_BEGIN_STRING => 1,
-                        TAG_BODY_LENGTH => 2,
-                        TAG_MSG_TYPE => 3,
-                        _ => 4,
-                    }
-                }
+            TagOrderType::Header => {
+                content
+                    .tag_sort
+                    .tags
+                    .sort_by(|i: &Tag, j: &Tag| -> Ordering {
+                        fn ordering(t: &Tag) -> isize {
+                            match *t {
+                                TAG_BEGIN_STRING => 1,
+                                TAG_BODY_LENGTH => 2,
+                                TAG_MSG_TYPE => 3,
+                                _ => 4,
+                            }
+                        }
 
-                let orderi = ordering(i);
-                let orderj = ordering(j);
+                        let orderi = ordering(i);
+                        let orderj = ordering(j);
 
-                match orderi.cmp(&orderj) {
-                    Ordering::Less => Ordering::Less,
-                    Ordering::Equal => i.cmp(j),
-                    Ordering::Greater => Ordering::Greater,
-                }
-            }),
-            // In the trailer, CheckSum (tag 10) must be last
-            TagOrderType::Trailer => wlock.tag_sort.tags.sort_by(|i: &Tag, j: &Tag| -> Ordering {
-                if *i == TAG_CHECK_SUM {
-                    return Ordering::Greater;
-                }
-                if *j == TAG_CHECK_SUM {
-                    return Ordering::Less;
-                }
-                i.cmp(j)
-            }),
-            TagOrderType::RepeatingGroup(ref tag_map) => {
-                let abc = tag_map.clone();
-                wlock.tag_sort.tags.sort_by(|i: &Tag, j: &Tag| -> Ordering {
-                    let mut orderi = usize::MAX;
-                    let mut orderj = usize::MAX;
-
-                    if let Some(i_index) = abc.get(i) {
-                        orderi = *i_index;
-                    }
-
-                    if let Some(j_index) = abc.get(j) {
-                        orderj = *j_index;
-                    }
-
-                    orderi.cmp(&orderj)
-                })
+                        match orderi.cmp(&orderj) {
+                            Ordering::Less => Ordering::Less,
+                            Ordering::Equal => i.cmp(j),
+                            Ordering::Greater => Ordering::Greater,
+                        }
+                    })
             }
-            TagOrderType::Custom(tag_order) => wlock.tag_sort.tags.sort_by(tag_order),
+            // In the trailer, CheckSum (tag 10) must be last
+            TagOrderType::Trailer => {
+                content
+                    .tag_sort
+                    .tags
+                    .sort_by(|i: &Tag, j: &Tag| -> Ordering {
+                        if *i == TAG_CHECK_SUM {
+                            return Ordering::Greater;
+                        }
+                        if *j == TAG_CHECK_SUM {
+                            return Ordering::Less;
+                        }
+                        i.cmp(j)
+                    })
+            }
+            TagOrderType::RepeatingGroup(tag_map) => {
+                let tag_map = tag_map.clone();
+                content
+                    .tag_sort
+                    .tags
+                    .sort_by(|i: &Tag, j: &Tag| -> Ordering {
+                        let orderi = tag_map.get(i).copied().unwrap_or(usize::MAX);
+                        let orderj = tag_map.get(j).copied().unwrap_or(usize::MAX);
+                        orderi.cmp(&orderj)
+                    })
+            }
+            TagOrderType::Custom(tag_order) => content.tag_sort.tags.sort_by(tag_order),
         }
+    }
+
+    pub fn sorted_tags(&self) -> Vec<Tag> {
+        let mut wlock = self.rw_lock.write();
+        Self::sort_tags_in_place(&mut wlock);
         wlock.tag_sort.tags.clone()
     }
 
     pub fn write(&self, buffer: &mut Vec<u8>) {
-        for tag in self.sorted_tags().iter() {
-            let mut wlock = self.rw_lock.write();
-            if wlock.tag_lookup.contains_key(tag) {
-                let field = wlock.tag_lookup.get_mut(tag).unwrap();
+        let mut wlock = self.rw_lock.write();
+        Self::sort_tags_in_place(&mut wlock);
+        for i in 0..wlock.tag_sort.tags.len() {
+            let tag = wlock.tag_sort.tags[i];
+            if let Some(field) = wlock.tag_lookup.get(&tag) {
                 field.write_field(buffer);
             }
         }
