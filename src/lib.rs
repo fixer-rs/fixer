@@ -33,6 +33,7 @@ pub mod settings;
 pub mod store;
 pub mod tag;
 pub mod tag_value;
+pub mod tls;
 pub mod validation;
 
 #[cfg(test)]

@@ -36,9 +36,11 @@ ramhorns = "1.0"
 regex = "1.12"
 rust_decimal = "1.40"
 serde = { version = "1.0", features = ["derive"] }
+rustls-pemfile = "2"
 simple-error = "0.3"
 sscanf = "0.4"
 thiserror = "2.0"
+tokio-rustls = "0.26"
 tokio = { version = "1.49", features = [
   "io-util",
   "io-std",
@@ -55,7 +57,9 @@ tokio = { version = "1.49", features = [
 criterion = "0.5"
 mockall = "0.13"
 pprof = { version = "0.14", features = ["flamegraph", "criterion"] }
+rcgen = "0.13"
 serial_test = "3.0"
+tempfile = "3"
 
 [[bench]]
 harness = false

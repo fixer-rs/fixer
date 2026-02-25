@@ -18,6 +18,7 @@ use crate::{
         TAG_BEGIN_STRING, TAG_SENDER_COMP_ID, TAG_SENDER_LOCATION_ID, TAG_SENDER_SUB_ID,
         TAG_TARGET_COMP_ID, TAG_TARGET_LOCATION_ID, TAG_TARGET_SUB_ID,
     },
+    tls,
 };
 use simple_error::SimpleResult;
 use std::{
@@ -100,6 +101,7 @@ pub struct Acceptor {
     dynamic_session_tx: Option<mpsc::UnboundedSender<Arc<Mutex<Session>>>>,
     session_creator: Arc<dyn DynSessionCreator>,
     global_settings: SessionSettings,
+    tls_acceptor: Option<tokio_rustls::TlsAcceptor>,
 }
 
 impl Acceptor {
@@ -129,6 +131,9 @@ impl Acceptor {
         } else {
             format!("{}:{}", host, port)
         };
+
+        // Load TLS config from global settings
+        let tls_acceptor = tls::load_tls_acceptor(&global)?;
 
         // Read dynamic sessions config
         let dynamic_sessions = if global.has_setting(config::DYNAMIC_SESSIONS) {
@@ -190,6 +195,7 @@ impl Acceptor {
             dynamic_session_tx: None,
             session_creator,
             global_settings,
+            tls_acceptor,
         })
     }
 
@@ -233,16 +239,32 @@ impl Acceptor {
             None
         };
 
+        let tls_acceptor = self.tls_acceptor.clone();
+
         // Spawn accept loop
         let accept_handle = tokio::spawn(async move {
             loop {
                 tokio::select! {
                     accept_result = listener.accept() => {
                         match accept_result {
-                            Ok((stream, _remote_addr)) => {
+                            Ok((stream, remote_addr)) => {
                                 let validator = validator.clone();
                                 let dynamic_ctx = dynamic_ctx.clone();
-                                tokio::spawn(handle_acceptor_connection(stream, validator, dynamic_ctx));
+                                let tls_acceptor = tls_acceptor.clone();
+                                tokio::spawn(async move {
+                                    if let Some(tls_acceptor) = tls_acceptor {
+                                        match tls_acceptor.accept(stream).await {
+                                            Ok(tls_stream) => {
+                                                let (read_half, write_half) = tokio::io::split(tls_stream);
+                                                handle_connection(remote_addr, read_half, write_half, validator, dynamic_ctx).await;
+                                            }
+                                            Err(_) => {} // TLS handshake failed
+                                        }
+                                    } else {
+                                        let (read_half, write_half) = tokio::io::split(stream);
+                                        handle_connection(remote_addr, read_half, write_half, validator, dynamic_ctx).await;
+                                    }
+                                });
                             }
                             Err(_) => {}
                         }
@@ -299,21 +321,23 @@ struct DynamicContext {
     dynamic_session_tx: mpsc::UnboundedSender<Arc<Mutex<Session>>>,
 }
 
-// handle_acceptor_connection reads the first FIX message from an incoming TCP
-// connection, identifies the session (sender/target swapped), optionally validates
-// via ConnectionValidator, wires up channels, and runs read_loop/write_loop until
-// disconnect. If the session is not found and dynamic sessions are enabled, creates
-// a new session on-the-fly.
-async fn handle_acceptor_connection(
-    stream: tokio::net::TcpStream,
+// handle_connection reads the first FIX message from an incoming connection
+// (plain TCP or TLS), identifies the session (sender/target swapped), optionally
+// validates via ConnectionValidator, wires up channels, and runs read_loop/write_loop
+// until disconnect. If the session is not found and dynamic sessions are enabled,
+// creates a new session on-the-fly.
+//
+// Generic over R/W so it works with both plain TCP and TLS streams.
+async fn handle_connection<R, W>(
+    remote_addr: SocketAddr,
+    read_half: R,
+    write_half: W,
     validator: Option<Arc<dyn ConnectionValidator>>,
     dynamic_ctx: Option<Arc<DynamicContext>>,
-) {
-    let remote_addr = match stream.peer_addr() {
-        Ok(addr) => addr,
-        Err(_) => return,
-    };
-    let (read_half, write_half) = tokio::io::split(stream);
+) where
+    R: tokio::io::AsyncRead + Unpin + Send + 'static,
+    W: tokio::io::AsyncWrite + Unpin + Send + 'static,
+{
     let buf_reader = BufReader::new(read_half);
     let mut parser = Parser::new(buf_reader);
 
@@ -956,6 +980,183 @@ TargetCompID=INITIATOR
             "unknown session should not be registered"
         );
 
+        drop(stream);
+        acceptor.stop().await;
+        clean_sessions();
+    }
+
+    // --- TLS integration tests ---
+
+    // Generate self-signed CA + server cert for testing using rcgen.
+    fn generate_test_certs() -> (tempfile::NamedTempFile, tempfile::NamedTempFile, tempfile::NamedTempFile) {
+        use rcgen::{CertificateParams, KeyPair};
+        use std::io::Write;
+
+        let ca_key = KeyPair::generate().unwrap();
+        let mut ca_params = CertificateParams::new(vec!["Test CA".to_string()]).unwrap();
+        ca_params.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
+        let ca_cert = ca_params.self_signed(&ca_key).unwrap();
+
+        let server_key = KeyPair::generate().unwrap();
+        let server_params = CertificateParams::new(vec!["localhost".to_string()]).unwrap();
+        let server_cert = server_params.signed_by(&server_key, &ca_cert, &ca_key).unwrap();
+
+        let mut ca_file = tempfile::NamedTempFile::new().unwrap();
+        ca_file.write_all(ca_cert.pem().as_bytes()).unwrap();
+
+        let mut cert_file = tempfile::NamedTempFile::new().unwrap();
+        cert_file.write_all(server_cert.pem().as_bytes()).unwrap();
+
+        let mut key_file = tempfile::NamedTempFile::new().unwrap();
+        key_file.write_all(server_key.serialize_pem().as_bytes()).unwrap();
+
+        (ca_file, cert_file, key_file)
+    }
+
+    async fn make_tls_acceptor_settings(port: &str, cert_path: &str, key_path: &str) -> Settings {
+        let cfg = format!(
+            r#"
+[DEFAULT]
+SocketAcceptPort={}
+SocketUseSSL=Y
+SocketCertificateFile={}
+SocketPrivateKeyFile={}
+
+[SESSION]
+BeginString=FIX.4.2
+SenderCompID=ACCEPTOR
+TargetCompID=INITIATOR
+"#,
+            port, cert_path, key_path
+        );
+        Settings::parse(BufReader::new(cfg.as_bytes())).await.unwrap()
+    }
+
+    // Verifies that an Acceptor with TLS enabled starts and stops cleanly.
+    #[tokio::test]
+    #[serial]
+    async fn test_tls_acceptor_start_stop() {
+        clean_sessions();
+
+        let (_ca, cert, key) = generate_test_certs();
+        let app = Arc::new(Mutex::new(NOPApp::new()));
+        let store_factory = MessageStoreFactoryEnum::default();
+        let log_factory = LogFactoryEnum::default();
+        let settings = make_tls_acceptor_settings(
+            "0",
+            cert.path().to_str().unwrap(),
+            key.path().to_str().unwrap(),
+        )
+        .await;
+
+        let mut acceptor = Acceptor::new(app, store_factory, settings, log_factory)
+            .await
+            .expect("Acceptor::new with TLS should succeed");
+
+        assert!(acceptor.tls_acceptor.is_some(), "TLS acceptor should be configured");
+
+        acceptor.start().await.expect("Acceptor::start should succeed");
+        let addr = acceptor.local_address().unwrap();
+        assert_ne!(0, addr.port());
+
+        acceptor.stop().await;
+        clean_sessions();
+    }
+
+    // Verifies that a TLS client can connect to a TLS-enabled Acceptor and
+    // send a FIX logon message that gets matched to the correct session.
+    #[tokio::test]
+    #[serial]
+    async fn test_tls_acceptor_session_identification() {
+        clean_sessions();
+
+        let (ca, cert, key) = generate_test_certs();
+        let app = Arc::new(Mutex::new(NOPApp::new()));
+        let store_factory = MessageStoreFactoryEnum::default();
+        let log_factory = LogFactoryEnum::default();
+        let settings = make_tls_acceptor_settings(
+            "0",
+            cert.path().to_str().unwrap(),
+            key.path().to_str().unwrap(),
+        )
+        .await;
+
+        let mut acceptor = Acceptor::new(app, store_factory, settings, log_factory)
+            .await
+            .unwrap();
+
+        acceptor.start().await.unwrap();
+        let addr = acceptor.local_address().unwrap();
+
+        // Build a TLS client using the CA cert to verify the server
+        let ca_data = std::fs::read(ca.path()).unwrap();
+        let ca_certs: Vec<_> = rustls_pemfile::certs(&mut std::io::BufReader::new(ca_data.as_slice()))
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        let mut root_store = tokio_rustls::rustls::RootCertStore::empty();
+        for c in ca_certs {
+            root_store.add(c).unwrap();
+        }
+        let client_config = tokio_rustls::rustls::ClientConfig::builder()
+            .with_root_certificates(root_store)
+            .with_no_client_auth();
+        let connector = tokio_rustls::TlsConnector::from(std::sync::Arc::new(client_config));
+
+        let tcp_stream = TcpStream::connect(addr).await.unwrap();
+        let server_name = tokio_rustls::rustls::pki_types::ServerName::try_from("localhost").unwrap();
+        let mut tls_stream = connector.connect(server_name, tcp_stream).await.expect("TLS handshake should succeed");
+
+        // Send a FIX logon over the TLS connection
+        let logon_msg = "8=FIX.4.2\x019=68\x0135=A\x0149=INITIATOR\x0156=ACCEPTOR\x0134=1\x0152=20240101-00:00:00\x0198=0\x01108=30\x0110=034\x01";
+        tokio::io::AsyncWriteExt::write_all(&mut tls_stream, logon_msg.as_bytes())
+            .await
+            .expect("should write logon over TLS");
+
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+
+        drop(tls_stream);
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        acceptor.stop().await;
+        clean_sessions();
+    }
+
+    // Verifies that a plain TCP client is rejected by a TLS-enabled Acceptor
+    // (TLS handshake fails, connection is dropped without crashing).
+    #[tokio::test]
+    #[serial]
+    async fn test_tls_acceptor_rejects_plain_tcp() {
+        clean_sessions();
+
+        let (_ca, cert, key) = generate_test_certs();
+        let app = Arc::new(Mutex::new(NOPApp::new()));
+        let store_factory = MessageStoreFactoryEnum::default();
+        let log_factory = LogFactoryEnum::default();
+        let settings = make_tls_acceptor_settings(
+            "0",
+            cert.path().to_str().unwrap(),
+            key.path().to_str().unwrap(),
+        )
+        .await;
+
+        let mut acceptor = Acceptor::new(app, store_factory, settings, log_factory)
+            .await
+            .unwrap();
+
+        acceptor.start().await.unwrap();
+        let addr = acceptor.local_address().unwrap();
+
+        // Connect with plain TCP (no TLS) and send a FIX message.
+        // The TLS handshake should fail, and the acceptor should handle it gracefully.
+        let logon_msg = "8=FIX.4.2\x019=68\x0135=A\x0149=INITIATOR\x0156=ACCEPTOR\x0134=1\x0152=20240101-00:00:00\x0198=0\x01108=30\x0110=034\x01";
+        let mut stream = TcpStream::connect(addr).await.unwrap();
+        tokio::io::AsyncWriteExt::write_all(&mut stream, logon_msg.as_bytes())
+            .await
+            .unwrap();
+
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+
+        // Acceptor should still be running fine
         drop(stream);
         acceptor.stop().await;
         clean_sessions();

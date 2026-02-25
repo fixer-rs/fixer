@@ -6,6 +6,7 @@ use crate::{
     session::{factory::SessionFactory, AdminEnum, Connect, FixIn, Session, StopReq},
     settings::Settings,
     store::MessageStoreFactoryEnum,
+    tls,
 };
 use simple_error::SimpleResult;
 use std::sync::Arc;
@@ -20,6 +21,8 @@ use tokio::{
 struct SessionHandle {
     session: Arc<Mutex<Session>>,
     admin_tx: UnboundedSender<AdminEnum>,
+    tls_connector: Option<tokio_rustls::TlsConnector>,
+    session_settings: crate::session::settings::SessionSettings,
 }
 
 pub struct Initiator {
@@ -57,9 +60,13 @@ impl Initiator {
 
             let admin_tx = session.lock().await.admin.tx.clone();
 
+            let tls_connector = tls::load_tls_connector(ss)?;
+
             sessions.push(SessionHandle {
                 session,
                 admin_tx,
+                tls_connector,
+                session_settings: ss.clone(),
             });
         }
 
@@ -88,6 +95,8 @@ impl Initiator {
             let session = handle.session.clone();
             let admin_tx = handle.admin_tx.clone();
             let mut stop_rx = self.stop_rx.clone();
+            let tls_connector = handle.tls_connector.clone();
+            let session_settings = handle.session_settings.clone();
 
             let task_handle = tokio::spawn(async move {
                 // Start session.run() in background
@@ -112,8 +121,46 @@ impl Initiator {
                     address_index = address_index.wrapping_add(1);
 
                     match TcpStream::connect(address).await {
-                        Ok(stream) => {
-                            let (read_half, write_half) = tokio::io::split(stream);
+                        Ok(tcp_stream) => {
+                            // Optionally wrap with TLS
+                            let connected = if let Some(ref connector) = tls_connector {
+                                let server_name = match tls::get_server_name(&session_settings, address) {
+                                    Ok(name) => name,
+                                    Err(_) => {
+                                        // Bad server name, retry
+                                        tokio::select! {
+                                            _ = sleep(reconnect_interval) => {},
+                                            _ = stop_rx.changed() => { break; }
+                                        }
+                                        continue;
+                                    }
+                                };
+                                match connector.connect(server_name, tcp_stream).await {
+                                    Ok(tls_stream) => {
+                                        let (r, w) = tokio::io::split(tls_stream);
+                                        Some((
+                                            Box::new(r) as Box<dyn tokio::io::AsyncRead + Unpin + Send>,
+                                            Box::new(w) as Box<dyn tokio::io::AsyncWrite + Unpin + Send>,
+                                        ))
+                                    }
+                                    Err(_) => None, // TLS handshake failed
+                                }
+                            } else {
+                                let (r, w) = tokio::io::split(tcp_stream);
+                                Some((
+                                    Box::new(r) as Box<dyn tokio::io::AsyncRead + Unpin + Send>,
+                                    Box::new(w) as Box<dyn tokio::io::AsyncWrite + Unpin + Send>,
+                                ))
+                            };
+
+                            let Some((read_half, write_half)) = connected else {
+                                // TLS handshake failed, retry
+                                tokio::select! {
+                                    _ = sleep(reconnect_interval) => {},
+                                    _ = stop_rx.changed() => { break; }
+                                }
+                                continue;
+                            };
 
                             let (msg_out_tx, msg_out_rx) =
                                 tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
