@@ -155,8 +155,7 @@ fn validate_walk(
     msg: &Message,
 ) -> MessageRejectErrorResult {
     let mut iterated_tags = TagSet::new();
-    let lock = msg.fields.data.lock();
-    let mut fields = lock.get(..).unwrap();
+    let mut fields = msg.fields.as_slice();
 
     while !fields.is_empty() {
         let field = fields.first().unwrap();
@@ -254,7 +253,7 @@ fn validate_visit_group_field<'a>(
 fn validate_order(msg: &Message) -> MessageRejectErrorResult {
     let mut in_header = true;
     let mut in_trailer = false;
-    for field in msg.fields.data.lock().get(..).unwrap() {
+    for field in &msg.fields {
         let t = field.tag;
         if in_header && !t.is_header() {
             in_header = false;
@@ -317,7 +316,7 @@ fn validate_fields(
     msg_type: &str,
     msg: &Message,
 ) -> MessageRejectErrorResult {
-    for field in msg.fields.data.lock().get(..).unwrap() {
+    for field in &msg.fields {
         if field.tag.is_header() {
             validate_field(transport_dd, &transport_dd.header.tags, field)?;
         } else if field.tag.is_trailer() {
@@ -431,12 +430,10 @@ mod tests {
     use super::*;
     use crate::{
         datadictionary::{DataDictionary, FieldType},
-        field_map::LocalField,
         fix_utc_timestamp::TimestampPrecision,
+        tag_value::TagValue,
     };
     use jiff::Timestamp;
-    use parking_lot::Mutex;
-    use std::sync::Arc;
 
     struct ValidateTest<'a> {
         name: &'a str,
@@ -1619,7 +1616,7 @@ mod tests {
         #[derive(Default)]
         struct TestCase {
             field_def: FieldDef,
-            fields: LocalField,
+            fields: Vec<TagValue>,
             expected_rem_fields: usize,
             expect_reject: bool,
             expected_reject_reason: isize,
@@ -1629,68 +1626,68 @@ mod tests {
             TestCase {
                 expected_rem_fields: 0,
                 field_def: field_def0,
-                fields: LocalField::new(Arc::new(Mutex::new(vec![field.clone()]))),
+                fields: vec![field.clone()],
                 ..Default::default()
             },
             // single field group
             TestCase {
                 expected_rem_fields: 0,
                 field_def: group_field_def.clone(),
-                fields: LocalField::new(Arc::new(Mutex::new(vec![
+                fields: vec![
                     group_id.clone(),
                     rep_field1.clone(),
-                ]))),
+                ],
                 ..Default::default()
             },
             // multiple field group
             TestCase {
                 expected_rem_fields: 0,
                 field_def: group_field_def.clone(),
-                fields: LocalField::new(Arc::new(Mutex::new(vec![
+                fields: vec![
                     group_id.clone(),
                     rep_field1.clone(),
                     rep_field2.clone(),
-                ]))),
+                ],
                 ..Default::default()
             },
             // test with trailing tag not in group
             TestCase {
                 expected_rem_fields: 1,
                 field_def: group_field_def.clone(),
-                fields: LocalField::new(Arc::new(Mutex::new(vec![
+                fields: vec![
                     group_id.clone(),
                     rep_field1.clone(),
                     rep_field2.clone(),
                     field.clone(),
-                ]))),
+                ],
                 ..Default::default()
             },
             // repeats
             TestCase {
                 expected_rem_fields: 1,
                 field_def: group_field_def.clone(),
-                fields: LocalField::new(Arc::new(Mutex::new(vec![
+                fields: vec![
                     group_id2,
                     rep_field1.clone(),
                     rep_field2.clone(),
                     rep_field1.clone(),
                     rep_field2.clone(),
                     field.clone(),
-                ]))),
+                ],
                 ..Default::default()
             },
             // REJECT: group size declared > actual group size
             TestCase {
                 expect_reject: true,
                 field_def: group_field_def.clone(),
-                fields: LocalField::new(Arc::new(Mutex::new(vec![
+                fields: vec![
                     group_id3.clone(),
                     rep_field1.clone(),
                     rep_field2.clone(),
                     rep_field1.clone(),
                     rep_field2.clone(),
                     field.clone(),
-                ]))),
+                ],
                 expected_reject_reason:
                     REJECT_REASON_INCORRECT_NUM_IN_GROUP_COUNT_FOR_REPEATING_GROUP,
                 ..Default::default()
@@ -1698,12 +1695,12 @@ mod tests {
             TestCase {
                 expect_reject: true,
                 field_def: group_field_def.clone(),
-                fields: LocalField::new(Arc::new(Mutex::new(vec![
+                fields: vec![
                     group_id3.clone(),
                     rep_field1.clone(),
                     rep_field1.clone(),
                     field.clone(),
-                ]))),
+                ],
                 expected_reject_reason:
                     REJECT_REASON_INCORRECT_NUM_IN_GROUP_COUNT_FOR_REPEATING_GROUP,
                 ..Default::default()
@@ -1712,14 +1709,14 @@ mod tests {
             TestCase {
                 expect_reject: true,
                 field_def: group_field_def.clone(),
-                fields: LocalField::new(Arc::new(Mutex::new(vec![
+                fields: vec![
                     group_id.clone(),
                     rep_field1.clone(),
                     rep_field2.clone(),
                     rep_field1.clone(),
                     rep_field2.clone(),
                     field.clone(),
-                ]))),
+                ],
                 expected_reject_reason:
                     REJECT_REASON_INCORRECT_NUM_IN_GROUP_COUNT_FOR_REPEATING_GROUP,
                 ..Default::default()
@@ -1727,9 +1724,7 @@ mod tests {
         ];
 
         for tc in &test_cases {
-            let lock = tc.fields.data.lock();
-            let fields = lock.get(..).unwrap();
-            let validate_result = validate_visit_field(&tc.field_def, fields);
+            let validate_result = validate_visit_field(&tc.field_def, &tc.fields);
 
             match tc.expect_reject {
                 true => {

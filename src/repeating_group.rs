@@ -7,7 +7,6 @@ use crate::{
 };
 use delegate::delegate;
 use dyn_clone::{DynClone, clone_trait_object};
-use parking_lot::Mutex;
 use std::{collections::HashMap, sync::Arc};
 
 // GroupItem interface is used to construct repeating group templates.
@@ -37,15 +36,8 @@ impl FieldTag for ProtoGroupElement {
 
 impl FieldGroupReader for ProtoGroupElement {
     fn read(&mut self, tv: LocalField) -> Result<LocalField, MessageRejectErrorEnum> {
-        if !tv.is_empty() {
-            let lock = tv.data.lock();
-            if lock.get(tv.s_pos).unwrap().tag == self.tag {
-                return Ok(LocalField::new_with_start_end(
-                    tv.data.clone(),
-                    tv.s_pos + 1,
-                    tv.e_pos,
-                ));
-            }
+        if !tv.is_empty() && tv.data[0].tag == self.tag {
+            return Ok(LocalField::new(tv.data[1..].to_vec()));
         }
         Ok(tv)
     }
@@ -147,54 +139,32 @@ impl FieldTag for RepeatingGroup {
 
 impl FieldGroupReader for RepeatingGroup {
     fn read(&mut self, tv: LocalField) -> Result<LocalField, MessageRejectErrorEnum> {
-        let mut tv = tv;
         if tv.is_empty() {
-            return Ok(LocalField::new(Arc::new(Mutex::new(vec![]))));
+            return Ok(LocalField::new(vec![]));
         }
 
-        let lock = tv.data.lock();
-        let value = &lock.get(tv.s_pos).unwrap().value;
-
-        let expected_group_size_result = atoi_simd::parse::<usize, false, false>(value);
-
-        if expected_group_size_result.is_err() {
-            drop(lock);
-            // TODO: check error
-            return Ok(tv);
-        }
-
-        let expected_group_size = expected_group_size_result.unwrap();
+        let expected_group_size = match atoi_simd::parse::<usize, false, false>(&tv.data[0].value) {
+            Ok(size) => size,
+            Err(_) => return Ok(tv),
+        };
 
         if expected_group_size == 0 {
-            return Ok(LocalField::new_with_start_end(
-                tv.data.clone(),
-                tv.s_pos + 1,
-                tv.e_pos,
-            ));
+            return Ok(LocalField::new(tv.data[1..].to_vec()));
         }
 
-        let until = lock.len();
-        let data = tv.data.clone();
-        drop(lock);
-
-        tv = LocalField::new_with_start_end(data, tv.s_pos + 1, until);
-
+        let mut tv = LocalField::new(tv.data[1..].to_vec());
         let tag_ordering = self.group_tag_order();
 
         while !tv.is_empty() {
-            let lock = tv.data.lock();
-            let tag = lock.get(tv.s_pos).unwrap().tag;
+            let tag = tv.data[0].tag;
             let gi_result = self.find_item_in_group_template(tag);
             if gi_result.is_none() {
                 break;
             }
             let mut gi = gi_result.unwrap();
-            drop(lock);
 
-            let tv_range = tv.clone();
-            let lock = tv_range.data.lock();
-            let tag = lock.get(tv_range.s_pos).unwrap().tag;
-            drop(lock);
+            let current_tag = tv.data[0].tag;
+            let current_tv = LocalField::new(vec![tv.data[0].clone()]);
 
             tv = gi.read(tv)?;
             if self.is_delimiter(gi.tag()) {
@@ -206,7 +176,7 @@ impl FieldGroupReader for RepeatingGroup {
             }
 
             let last_group = self.groups.last_mut().unwrap();
-            last_group.field_map.content.tag_lookup.insert(tag, tv_range);
+            last_group.field_map.content.tag_lookup.insert(current_tag, current_tv);
             last_group.field_map.content.tag_sort.tags.push(gi.tag());
         }
 
@@ -243,14 +213,12 @@ impl FieldGroupWriter for RepeatingGroup {
             let tags = group_clone.sorted_tags();
             for tag in tags {
                 if let Some(fields) = group.field_map.content.tag_lookup.get(&tag) {
-                    let lock = fields.data.lock();
-                    let fields_slice = lock.get(fields.s_pos..fields.e_pos).unwrap();
-                    tvs.extend_from_slice(fields_slice);
+                    tvs.extend_from_slice(&fields.data);
                 }
             }
         }
 
-        LocalField::new(Arc::new(Mutex::new(tvs)))
+        LocalField::new(tvs)
     }
 }
 
@@ -267,8 +235,6 @@ mod tests {
         tag::Tag,
         tag_value::TagValue,
     };
-    use parking_lot::Mutex;
-    use std::sync::Arc;
 
     #[test]
     fn test_repeating_group_add() {
@@ -385,8 +351,7 @@ mod tests {
         for tc in &test_cases {
             let mut tvbytes = vec![];
             let tvs = tc.f.write();
-            let lock = tvs.data.lock();
-            for tv in lock.get(tvs.s_pos..tvs.e_pos).unwrap() {
+            for tv in &tvs.data {
                 tvbytes.extend_from_slice(&tv.bytes);
             }
             assert_eq!(
@@ -410,7 +375,7 @@ mod tests {
 
         let test_cases = [
             TestCase {
-                tv: LocalField::new(Arc::new(Mutex::new(vec![
+                tv: LocalField::new(vec![
                     TagValue {
                         tag: 0,
                         value: "1".as_bytes().to_vec(),
@@ -426,11 +391,11 @@ mod tests {
                         value: "hello".as_bytes().to_vec(),
                         bytes: vec![],
                     },
-                ]))),
+                ]),
                 expected_group_num: 0,
             },
             TestCase {
-                tv: LocalField::new(Arc::new(Mutex::new(vec![
+                tv: LocalField::new(vec![
                     TagValue {
                         tag: 0,
                         value: "2".as_bytes().to_vec(),
@@ -451,7 +416,7 @@ mod tests {
                         value: "hello".as_bytes().to_vec(),
                         bytes: vec![],
                     },
-                ]))),
+                ]),
                 expected_group_num: 1,
             },
         ];
@@ -486,16 +451,16 @@ mod tests {
         let mut test_cases = [
             TestCase {
                 group_template: Some(single_field_template.clone()),
-                tv: LocalField::new(Arc::new(Mutex::new(vec![TagValue {
+                tv: LocalField::new(vec![TagValue {
                     tag: 0,
                     value: "0".as_bytes().to_vec(),
                     ..Default::default()
-                }]))),
+                }]),
                 ..Default::default()
             },
             TestCase {
                 group_template: Some(single_field_template.clone()),
-                tv: LocalField::new(Arc::new(Mutex::new(vec![
+                tv: LocalField::new(vec![
                     TagValue {
                         tag: 0,
                         value: "1".as_bytes().to_vec(),
@@ -506,16 +471,16 @@ mod tests {
                         value: "hello".as_bytes().to_vec(),
                         ..Default::default()
                     },
-                ]))),
-                expected_group_tvs: vec![LocalField::new(Arc::new(Mutex::new(vec![TagValue {
+                ]),
+                expected_group_tvs: vec![LocalField::new(vec![TagValue {
                     tag: 1,
                     value: "hello".as_bytes().to_vec(),
                     ..Default::default()
-                }])))],
+                }])],
             },
             TestCase {
                 group_template: Some(single_field_template.clone()),
-                tv: LocalField::new(Arc::new(Mutex::new(vec![
+                tv: LocalField::new(vec![
                     TagValue {
                         tag: 0,
                         value: "1".as_bytes().to_vec(),
@@ -531,16 +496,16 @@ mod tests {
                         value: "not in group".as_bytes().to_vec(),
                         ..Default::default()
                     },
-                ]))),
-                expected_group_tvs: vec![LocalField::new(Arc::new(Mutex::new(vec![TagValue {
+                ]),
+                expected_group_tvs: vec![LocalField::new(vec![TagValue {
                     tag: 1,
                     value: "hello".as_bytes().to_vec(),
                     ..Default::default()
-                }])))],
+                }])],
             },
             TestCase {
                 group_template: Some(single_field_template.clone()),
-                tv: LocalField::new(Arc::new(Mutex::new(vec![
+                tv: LocalField::new(vec![
                     TagValue {
                         tag: 0,
                         value: "2".as_bytes().to_vec(),
@@ -556,23 +521,23 @@ mod tests {
                         value: "world".as_bytes().to_vec(),
                         ..Default::default()
                     },
-                ]))),
+                ]),
                 expected_group_tvs: vec![
-                    LocalField::new(Arc::new(Mutex::new(vec![TagValue {
+                    LocalField::new(vec![TagValue {
                         tag: 1,
                         value: "hello".as_bytes().to_vec(),
                         ..Default::default()
-                    }]))),
-                    LocalField::new(Arc::new(Mutex::new(vec![TagValue {
+                    }]),
+                    LocalField::new(vec![TagValue {
                         tag: 1,
                         value: "world".as_bytes().to_vec(),
                         ..Default::default()
-                    }]))),
+                    }]),
                 ],
             },
             TestCase {
                 group_template: Some(multi_field_template.clone()),
-                tv: LocalField::new(Arc::new(Mutex::new(vec![
+                tv: LocalField::new(vec![
                     TagValue {
                         tag: 0,
                         value: "2".as_bytes().to_vec(),
@@ -598,14 +563,14 @@ mod tests {
                         value: "world".as_bytes().to_vec(),
                         ..Default::default()
                     },
-                ]))),
+                ]),
                 expected_group_tvs: vec![
-                    LocalField::new(Arc::new(Mutex::new(vec![TagValue {
+                    LocalField::new(vec![TagValue {
                         tag: 1,
                         value: "hello".as_bytes().to_vec(),
                         ..Default::default()
-                    }]))),
-                    LocalField::new(Arc::new(Mutex::new(vec![
+                    }]),
+                    LocalField::new(vec![
                         TagValue {
                             tag: 1,
                             value: "goodbye".as_bytes().to_vec(),
@@ -621,12 +586,12 @@ mod tests {
                             value: "world".as_bytes().to_vec(),
                             ..Default::default()
                         },
-                    ]))),
+                    ]),
                 ],
             },
             TestCase {
                 group_template: Some(multi_field_template.clone()),
-                tv: LocalField::new(Arc::new(Mutex::new(vec![
+                tv: LocalField::new(vec![
                     TagValue {
                         tag: 0,
                         value: "3".as_bytes().to_vec(),
@@ -657,14 +622,14 @@ mod tests {
                         value: "another".as_bytes().to_vec(),
                         ..Default::default()
                     },
-                ]))),
+                ]),
                 expected_group_tvs: vec![
-                    LocalField::new(Arc::new(Mutex::new(vec![TagValue {
+                    LocalField::new(vec![TagValue {
                         tag: 1,
                         value: "hello".as_bytes().to_vec(),
                         ..Default::default()
-                    }]))),
-                    LocalField::new(Arc::new(Mutex::new(vec![
+                    }]),
+                    LocalField::new(vec![
                         TagValue {
                             tag: 1,
                             value: "goodbye".as_bytes().to_vec(),
@@ -680,12 +645,12 @@ mod tests {
                             value: "world".as_bytes().to_vec(),
                             ..Default::default()
                         },
-                    ]))),
-                    LocalField::new(Arc::new(Mutex::new(vec![TagValue {
+                    ]),
+                    LocalField::new(vec![TagValue {
                         tag: 1,
                         value: "another".as_bytes().to_vec(),
                         ..Default::default()
-                    }]))),
+                    }]),
                 ],
             },
         ];
@@ -709,9 +674,7 @@ mod tests {
             );
 
             for (g, group) in f.groups.iter().enumerate() {
-                let lock = tc.expected_group_tvs[g].data.lock();
-
-                for expected in lock.iter() {
+                for expected in &tc.expected_group_tvs[g].data {
                     let mut actual = FIXString::new();
                     let get_field_result = group.field_map.get_field(expected.tag, &mut actual);
                     assert!(get_field_result.is_ok());
@@ -741,7 +704,7 @@ mod tests {
         ];
 
         let mut f = RepeatingGroup::new(1, parent_template);
-        let read_result = f.read(LocalField::new(Arc::new(Mutex::new(vec![
+        let read_result = f.read(LocalField::new(vec![
             TagValue {
                 tag: 0,
                 value: "2".as_bytes().to_vec(),
@@ -787,7 +750,7 @@ mod tests {
                 value: "fubar".as_bytes().to_vec(),
                 ..Default::default()
             },
-        ]))));
+        ]));
         assert!(read_result.is_ok());
         assert_eq!(2, f.len());
     }
@@ -821,8 +784,7 @@ mod tests {
         let get_group_result = msg.body.get_group(f);
         assert!(
             get_group_result.is_ok(),
-            "Unexpected error", //{:?}",
-                                // get_group_result.unwrap_err(),
+            "Unexpected error",
         );
 
         let get_group = get_group_result.unwrap();

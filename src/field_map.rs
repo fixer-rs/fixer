@@ -14,64 +14,38 @@ use crate::{
     tag_value::TagValue,
 };
 use jiff::Timestamp;
-use parking_lot::Mutex;
 use std::{cmp::Ordering, collections::HashMap, fmt, sync::Arc, vec};
 
 #[derive(Debug, Default, Clone)]
 pub struct LocalField {
-    pub data: Arc<Mutex<Vec<TagValue>>>,
-    pub s_pos: usize,
-    pub e_pos: usize,
+    pub data: Vec<TagValue>,
 }
 
 impl LocalField {
-    pub fn new(tag_value: Arc<Mutex<Vec<TagValue>>>) -> Self {
-        let e_pos = tag_value.lock().len();
-        LocalField {
-            data: tag_value,
-            s_pos: 0,
-            e_pos,
-        }
-    }
-
-    pub fn new_with_start_end(
-        tag_value: Arc<Mutex<Vec<TagValue>>>,
-        s_pos: usize,
-        e_pos: usize,
-    ) -> Self {
-        LocalField {
-            data: tag_value,
-            s_pos,
-            e_pos,
-        }
+    pub fn new(data: Vec<TagValue>) -> Self {
+        LocalField { data }
     }
 
     pub fn field_tag(&self) -> Tag {
-        let lock = self.data.lock();
-        lock.get(self.s_pos).unwrap().tag
+        self.data[0].tag
     }
 
-    pub fn init_field(&self, tag: Tag, value: &[u8]) {
-        let mut lock = self.data.lock();
-        lock.get_mut(self.s_pos).unwrap().init(tag, value);
+    pub fn init_field(&mut self, tag: Tag, value: &[u8]) {
+        self.data[0].init(tag, value);
     }
 
     pub fn write_field(&self, buffer: &mut Vec<u8>) {
-        for tv in self.data.lock().get(self.s_pos..self.e_pos).unwrap() {
+        for tv in &self.data {
             buffer.extend_from_slice(&tv.bytes);
         }
     }
 
     pub fn len(&self) -> usize {
-        self.e_pos - self.s_pos
+        self.data.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    pub fn cap(&self) -> usize {
-        self.data.lock().len() - self.s_pos
+        self.data.is_empty()
     }
 }
 
@@ -119,6 +93,9 @@ impl TagSort {
 pub struct FieldMapContent {
     pub tag_lookup: HashMap<Tag, LocalField>,
     pub tag_sort: TagSort,
+    // All parsed tag-values in order, including duplicates from repeating groups.
+    // Populated during message parsing; used by get_group to read group members.
+    pub parsed_fields: Option<Vec<TagValue>>,
 }
 
 #[derive(Debug, Clone)]
@@ -136,6 +113,7 @@ impl Default for FieldMap {
                     tags: vec![],
                     compare_type: TagOrderType::Normal,
                 },
+                parsed_fields: None,
             },
         }
     }
@@ -179,7 +157,7 @@ impl FieldMap {
             .ok_or_else(|| conditionally_required_field_missing(tag))?;
 
         parser
-            .read(&f.data.lock().get(f.s_pos).unwrap().value)
+            .read(&f.data[0].value)
             .map_err(|_| incorrect_data_format_for_value(tag))?;
 
         Ok(())
@@ -193,8 +171,7 @@ impl FieldMap {
             .tag_lookup
             .get(&tag)
             .ok_or_else(|| conditionally_required_field_missing(tag))?;
-        let result = f.data.lock().get(f.s_pos).unwrap().value.clone();
-        Ok(result)
+        Ok(f.data[0].value.clone())
     }
 
     // with_bytes borrows the raw bytes for the given tag and passes them to a
@@ -208,8 +185,7 @@ impl FieldMap {
             .tag_lookup
             .get(&tag)
             .ok_or_else(|| conditionally_required_field_missing(tag))?;
-        let lock = field.data.lock();
-        f(&lock.get(field.s_pos).unwrap().value)
+        f(&field.data[0].value)
     }
 
     // get_bool is a get_field wrapper for bool fields
@@ -251,13 +227,29 @@ impl FieldMap {
         let mut parser = parser;
 
         let tag = &parser.tag();
-        let f = self
-            .content
-            .tag_lookup
-            .get(tag)
-            .ok_or_else(|| conditionally_required_field_missing(*tag))?;
 
-        parser.read(f.clone()).map_err(|err| {
+        // When parsed_fields is available (from message parsing), use it to build
+        // the full sequence of tag-values from the group count field onward.
+        // This is needed because repeating group fields have duplicate tags that
+        // can't be stored individually in the HashMap.
+        let tv = if let Some(ref pf) = self.content.parsed_fields {
+            let start = pf.iter().position(|tv| tv.tag == *tag);
+            match start {
+                Some(idx) => LocalField::new(pf[idx..].to_vec()),
+                None => return Err(conditionally_required_field_missing(*tag)),
+            }
+        } else {
+            // For programmatically constructed groups (via set_group), the
+            // tag_lookup entry already contains all group tag-values.
+            let f = self
+                .content
+                .tag_lookup
+                .get(tag)
+                .ok_or_else(|| conditionally_required_field_missing(*tag))?;
+            f.clone()
+        };
+
+        parser.read(tv).map_err(|err| {
             if let MessageRejectErrorEnum::MessageRejectError(_) = err {
                 return err;
             }
@@ -307,19 +299,7 @@ impl FieldMap {
 
     // copy_into overwrites the given FieldMap with this one
     pub fn copy_into(&self, to: &mut FieldMap) {
-        to.content.tag_lookup = hashmap! {};
-
-        for (k, v) in &self.content.tag_lookup {
-            let inner_lock = v.data.lock();
-            let cloned_field = inner_lock.to_vec();
-            let cloned_field_wrapper = Arc::new(Mutex::new(cloned_field));
-
-            to.content.tag_lookup.insert(
-                *k,
-                LocalField::new_with_start_end(cloned_field_wrapper, v.s_pos, v.s_pos + 1),
-            );
-        }
-
+        to.content.tag_lookup = self.content.tag_lookup.clone();
         to.content.tag_sort.tags.clone_from(&self.content.tag_sort.tags);
         to.content.tag_sort.compare_type = self.content.tag_sort.compare_type.clone();
     }
@@ -334,25 +314,21 @@ impl FieldMap {
         self.content.tag_lookup.insert(t, f);
     }
 
-    fn get_or_create(&mut self, tag: Tag) -> LocalField {
-        if self.content.tag_lookup.contains_key(&tag) {
-            let f = self.content.tag_lookup.get_mut(&tag).unwrap();
-            return LocalField::new_with_start_end(f.data.clone(), f.s_pos, f.s_pos + 1);
+    fn get_or_create(&mut self, tag: Tag) -> &mut LocalField {
+        if !self.content.tag_lookup.contains_key(&tag) {
+            let f = LocalField::new(vec![TagValue::default()]);
+            self.content.tag_lookup.insert(tag, f);
+            self.content.tag_sort.tags.push(tag);
         }
-
-        let f = LocalField::new(Arc::new(Mutex::new(vec![TagValue::default()])));
-        self.content.tag_lookup.insert(tag, f.clone());
-        self.content.tag_sort.tags.push(tag);
-        f
+        self.content.tag_lookup.get_mut(&tag).unwrap()
     }
 
     // set is a setter for fields
     pub fn set<F: FieldWriter>(&mut self, field: F) -> &FieldMap {
-        let tag = &field.tag();
-
-        let f = self.get_or_create(*tag);
-
-        f.init_field(*tag, &field.write());
+        let tag = field.tag();
+        let bytes = field.write();
+        let f = self.get_or_create(tag);
+        f.init_field(tag, &bytes);
         self
     }
 
@@ -447,38 +423,28 @@ impl FieldMap {
 
     pub fn total(&self) -> isize {
         let mut total = 0;
-
         for fields in self.content.tag_lookup.values() {
-            fields
-                .data
-                .lock()
-                .get(fields.s_pos..fields.e_pos)
-                .unwrap()
-                .iter()
-                .filter(|tv| tv.tag != TAG_CHECK_SUM)
-                .for_each(|tv| total += tv.total());
+            for tv in &fields.data {
+                if tv.tag != TAG_CHECK_SUM {
+                    total += tv.total();
+                }
+            }
         }
         total
     }
 
     pub fn length(&self) -> isize {
         let mut length = 0;
-
         for fields in self.content.tag_lookup.values() {
-            fields
-                .data
-                .lock()
-                .get(fields.s_pos..fields.e_pos)
-                .unwrap()
-                .iter()
-                .filter(|tv| {
-                    tv.tag != TAG_BEGIN_STRING
-                        && tv.tag != TAG_BODY_LENGTH
-                        && tv.tag != TAG_CHECK_SUM
-                })
-                .for_each(|tv| length += tv.length());
+            for tv in &fields.data {
+                if tv.tag != TAG_BEGIN_STRING
+                    && tv.tag != TAG_BODY_LENGTH
+                    && tv.tag != TAG_CHECK_SUM
+                {
+                    length += tv.length();
+                }
+            }
         }
-
         length
     }
 }

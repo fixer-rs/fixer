@@ -538,6 +538,11 @@ impl Session {
                     self.sent_reset = true;
                     let seq_num = self.store.next_sender_msg_seq_num().await;
                     msg.header.set_field(TAG_MSG_SEQ_NUM, seq_num);
+                    // Re-notify the application with the final message state.
+                    // In Go, ToAdmin receives a pointer that sees subsequent
+                    // mutations; in Rust, the app's clone is independent, so we
+                    // call to_admin again after the seq-num reset.
+                    self.application.to_admin(msg, &self.session_id);
                 }
             }
         } else {
