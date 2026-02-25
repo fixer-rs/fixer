@@ -157,7 +157,7 @@ impl FieldGroupReader for RepeatingGroup {
         let lock = tv.data.lock();
         let value = &lock.get(tv.s_pos).unwrap().value;
 
-        let expected_group_size_result = atoi_simd::parse::<usize>(value);
+        let expected_group_size_result = atoi_simd::parse::<usize, false, false>(value);
 
         if expected_group_size_result.is_err() {
             drop(lock);

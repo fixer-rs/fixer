@@ -17,7 +17,7 @@ fn parse_int(d: &[u8]) -> SimpleResult<isize> {
         return Err(simple_error!("empty bytes"));
     }
 
-    atoi_simd::parse::<isize>(d).map_err(SimpleError::from)
+    atoi_simd::parse::<isize, false, false>(d).map_err(SimpleError::from)
 }
 
 // FIXInt is a FIX Int Value, implements FieldValue
@@ -35,7 +35,7 @@ impl FIXIntTrait for FIXInt {
 
 impl FieldValueReader for FIXInt {
     fn read(&mut self, input: &[u8]) -> SimpleResult<()> {
-        let f = atoi_simd::parse::<isize>(input).map_err(SimpleError::from)?;
+        let f = atoi_simd::parse::<isize, false, false>(input).map_err(SimpleError::from)?;
 
         *self = f;
 

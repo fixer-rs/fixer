@@ -38,7 +38,7 @@ impl TagValue {
         }
 
         let parsed_tag_bytes = raw_field_bytes.get(0..sep_index).unwrap();
-        let parsed_tag = atoi_simd::parse::<isize>(parsed_tag_bytes).map_err(|_| {
+        let parsed_tag = atoi_simd::parse::<isize, false, false>(parsed_tag_bytes).map_err(|_| {
             format!(
                 "tagValue.Parse: '{}'",
                 String::from_utf8_lossy(parsed_tag_bytes)

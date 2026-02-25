@@ -8,17 +8,17 @@ use crate::{
     BEGIN_STRING_FIX44, BEGIN_STRING_FIXT11,
 };
 use dashmap::DashMap;
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 use regex::Regex;
 use simple_error::{SimpleError, SimpleResult};
 use std::sync::Arc;
 use tokio::io::{AsyncBufRead, AsyncBufReadExt};
 
-pub static BLANK_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^\s*$").unwrap());
-pub static COMMENT_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^#.*").unwrap());
-pub static DEFAULT_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^\[(?i)DEFAULT\]\s*$").unwrap());
-pub static SESSION_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^\[(?i)SESSION\]\s*$").unwrap());
-pub static SETTING_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^([^=]*)=(.*)$").unwrap());
+pub static BLANK_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\s*$").unwrap());
+pub static COMMENT_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^#.*").unwrap());
+pub static DEFAULT_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\[(?i)DEFAULT\]\s*$").unwrap());
+pub static SESSION_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\[(?i)SESSION\]\s*$").unwrap());
+pub static SETTING_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^([^=]*)=(.*)$").unwrap());
 
 // The Settings type represents a collection of global and session settings.
 #[derive(Default, Debug)]

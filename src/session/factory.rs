@@ -34,7 +34,7 @@ use crate::{
 use addr::parse_domain_name;
 use chrono::{offset::Offset, Duration, FixedOffset, Local, TimeZone, Weekday};
 use chrono_tz::Tz;
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 use simple_error::{SimpleError, SimpleResult};
 use std::{
     collections::HashMap,
@@ -48,7 +48,7 @@ use tokio::sync::{
     Mutex,
 };
 
-static DAY_LOOKUP: Lazy<HashMap<&str, Weekday>> = Lazy::new(|| {
+static DAY_LOOKUP: LazyLock<HashMap<&str, Weekday>> = LazyLock::new(|| {
     hashmap! {
         "Sunday"    => Weekday::Sun,
         "Monday"    => Weekday::Mon,
@@ -68,7 +68,7 @@ static DAY_LOOKUP: Lazy<HashMap<&str, Weekday>> = Lazy::new(|| {
     }
 });
 
-static APPL_VER_ID_LOOKUP: Lazy<HashMap<&str, &str>> = Lazy::new(|| {
+static APPL_VER_ID_LOOKUP: LazyLock<HashMap<&str, &str>> = LazyLock::new(|| {
     hashmap! {
         BEGIN_STRING_FIX40 => "2",
         BEGIN_STRING_FIX41 => "3",
@@ -517,7 +517,7 @@ impl SessionFactory {
             let socket_connect_port_string = settings.setting(&port_config)?;
 
             let socket_connect_port =
-                atoi_simd::parse::<u16>(socket_connect_port_string.as_bytes())
+                atoi_simd::parse::<u16, false, false>(socket_connect_port_string.as_bytes())
                     .map_err(SimpleError::from)?;
 
             let host_ip = IpAddr::from_str(socket_connect_host_string.as_str());

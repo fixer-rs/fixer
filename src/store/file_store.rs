@@ -414,7 +414,7 @@ impl FileStore {
             if file.read_to_end(&mut sender_seq_num_bytes).await.is_ok() {
                 let sender_seq_num_string = String::from_utf8_lossy(&sender_seq_num_bytes);
                 let sender_seq_num_str = sender_seq_num_string.trim();
-                if let Ok(sender_seq_num) = atoi_simd::parse::<isize>(sender_seq_num_str.as_bytes())
+                if let Ok(sender_seq_num) = atoi_simd::parse::<isize, false, false>(sender_seq_num_str.as_bytes())
                 {
                     map_err_with!(
                         self.cache.set_next_sender_msg_seq_num(sender_seq_num).await,
@@ -429,7 +429,7 @@ impl FileStore {
             if file.read_to_end(&mut target_seq_num_bytes).await.is_ok() {
                 let target_seq_num_string = String::from_utf8_lossy(&target_seq_num_bytes);
                 let target_seq_num_str = target_seq_num_string.trim();
-                if let Ok(target_seq_num) = atoi_simd::parse::<isize>(target_seq_num_str.as_bytes())
+                if let Ok(target_seq_num) = atoi_simd::parse::<isize, false, false>(target_seq_num_str.as_bytes())
                 {
                     map_err_with!(
                         self.cache.set_next_target_msg_seq_num(target_seq_num).await,

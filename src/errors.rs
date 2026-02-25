@@ -3,14 +3,14 @@ use crate::session::settings::{ConditionallyRequiredSetting, IncorrectFormatForS
 use crate::tag::Tag;
 use delegate::delegate;
 use enum_dispatch::enum_dispatch;
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 use simple_error::SimpleError;
 use std::error::Error;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use thiserror::Error as ThisError;
 
 // ERR_DO_NOT_SEND is a convenience error to indicate a DoNotSend in ToApp
-pub static ERR_DO_NOT_SEND: Lazy<SimpleError> = Lazy::new(|| simple_error!("Do Not Send"));
+pub static ERR_DO_NOT_SEND: LazyLock<SimpleError> = LazyLock::new(|| simple_error!("Do Not Send"));
 
 pub const REJECT_REASON_INVALID_TAG_NUMBER: isize = 0;
 pub const REJECT_REASON_REQUIRED_TAG_MISSING: isize = 1;

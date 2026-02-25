@@ -563,7 +563,7 @@ mod component_type_tests {
 mod tests {
     use super::*;
     use futures::executor::block_on;
-    use once_cell::sync::Lazy;
+    use std::sync::LazyLock;
 
     #[tokio::test]
     async fn test_parse_bad_path() {
@@ -579,8 +579,8 @@ mod tests {
     }
 
     // global variable
-    static DICT: Lazy<DataDictionary> =
-        Lazy::new(|| block_on(async { DataDictionary::parse("./spec/FIX43.xml").await.unwrap() }));
+    static DICT: LazyLock<DataDictionary> =
+        LazyLock::new(|| block_on(async { DataDictionary::parse("./spec/FIX43.xml").await.unwrap() }));
 
     #[tokio::test]
     async fn test_components() {

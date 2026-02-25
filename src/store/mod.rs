@@ -522,8 +522,8 @@ mod tests {
             let t0 = Utc::now();
             assert!(self.msg_store.reset().await.is_ok());
             let t1 = Utc::now();
-            assert!(self.msg_store.creation_time().await > t0);
-            assert!(self.msg_store.creation_time().await < t1);
+            assert!(self.msg_store.creation_time().await >= t0);
+            assert!(self.msg_store.creation_time().await <= t1);
         }
     }
 

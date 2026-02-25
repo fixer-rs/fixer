@@ -3,10 +3,13 @@ use serde::{Deserialize, Serialize};
 // XMLDoc is the unmarshalled root of a FIX Dictionary.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Default)]
 pub struct XMLDoc {
+    #[serde(rename = "@type")]
     pub r#type: String,
+    #[serde(rename = "@major")]
     pub major: String,
+    #[serde(rename = "@minor")]
     pub minor: String,
-    #[serde(rename = "servicepack")]
+    #[serde(rename = "@servicepack")]
     pub service_pack: isize,
     pub header: Option<XMLComponent>,
     pub trailer: Option<XMLComponent>,
@@ -30,10 +33,11 @@ pub struct XMLComponents {
 // XMLComponent can represent header, trailer, messages/message, or components/component xml elements.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Default)]
 pub struct XMLComponent {
+    #[serde(rename = "@name")]
     pub name: Option<String>,
-    #[serde(rename = "msgcat")]
+    #[serde(rename = "@msgcat")]
     pub msg_cat: Option<String>,
-    #[serde(rename = "msgtype")]
+    #[serde(rename = "@msgtype")]
     pub msg_type: Option<String>,
     #[serde(rename = "$value")]
     pub members: Option<Vec<XMLComponentEnum>>,
@@ -116,8 +120,11 @@ pub struct XMLFields {
 // XMLField represents the fields/field xml element.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Default)]
 pub struct XMLField {
+    #[serde(rename = "@number")]
     pub number: Option<isize>,
+    #[serde(rename = "@name")]
     pub name: Option<String>,
+    #[serde(rename = "@type")]
     pub r#type: Option<String>,
     #[serde(rename = "value")]
     pub values: Option<Vec<XMLValue>>,
@@ -126,14 +133,18 @@ pub struct XMLField {
 // XMLValue represents the fields/field/value xml element.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Default)]
 pub struct XMLValue {
+    #[serde(rename = "@enum")]
     pub r#enum: String,
+    #[serde(rename = "@description")]
     pub description: String,
 }
 
 // XMLComponentMember represents child elements of header, trailer, messages/message, and components/component elements
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Default)]
 pub struct XMLComponentMember {
+    #[serde(rename = "@name")]
     pub name: String,
+    #[serde(rename = "@required")]
     pub required: Option<String>,
     #[serde(rename = "$value")]
     pub fields: Option<Vec<XMLComponentEnum>>,
@@ -142,11 +153,11 @@ pub struct XMLComponentMember {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use once_cell::sync::Lazy;
     use quick_xml::de::{from_str, DeError};
+    use std::sync::LazyLock;
     use std::any::{Any, TypeId};
 
-    static CACHED_XML_DOC: Lazy<XMLDoc> = Lazy::new(|| {
+    static CACHED_XML_DOC: LazyLock<XMLDoc> = LazyLock::new(|| {
         let xml = r#"<fix major='4' type='FIX' servicepack='0' minor='3'>
     <header>
         <field name='BeginString' required='Y' />
@@ -314,8 +325,8 @@ mod tests {
                     let header = doc_clone.header.as_ref().unwrap();
                     let value = header.members.as_ref().unwrap()[1].clone();
                     let default = XMLComponentMember::default();
-                    let member = match value {
-                        XMLComponentEnum::Group(ref inner) => inner,
+                    let member = match &value {
+                        XMLComponentEnum::Group(inner) => inner,
                         _ => &default,
                     };
                     member.fields.as_ref().unwrap()[0].clone()
@@ -379,7 +390,7 @@ mod tests {
                     let inner_message = &message.members.as_ref().unwrap()[4];
                     let default = XMLComponentMember::default();
                     let member = match inner_message {
-                        XMLComponentEnum::Group(ref inner) => inner,
+                        XMLComponentEnum::Group(inner) => inner,
                         _ => &default,
                     };
                     member.fields.as_ref().unwrap()[0].clone()
@@ -396,7 +407,7 @@ mod tests {
                     let inner_message = &message.members.as_ref().unwrap()[4];
                     let default = XMLComponentMember::default();
                     let member = match inner_message {
-                        XMLComponentEnum::Group(ref inner) => inner,
+                        XMLComponentEnum::Group(inner) => inner,
                         _ => &default,
                     };
                     member.fields.as_ref().unwrap()[1].clone()

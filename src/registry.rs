@@ -6,15 +6,15 @@ use crate::{
     tag::{TAG_BEGIN_STRING, TAG_SENDER_COMP_ID, TAG_TARGET_COMP_ID},
 };
 use dashmap::DashMap;
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 use simple_error::{SimpleError, SimpleResult};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-pub static SESSIONS: Lazy<DashMap<Arc<SessionID>, Arc<Mutex<Session>>>> = Lazy::new(DashMap::new);
-pub static ERR_DUPLICATE_SESSION_ID: Lazy<SimpleError> =
-    Lazy::new(|| simple_error!("Duplicate SessionID"));
-pub static ERR_UNKNOWN_SESSION: Lazy<SimpleError> = Lazy::new(|| simple_error!("Unknown session"));
+pub static SESSIONS: LazyLock<DashMap<Arc<SessionID>, Arc<Mutex<Session>>>> = LazyLock::new(DashMap::new);
+pub static ERR_DUPLICATE_SESSION_ID: LazyLock<SimpleError> =
+    LazyLock::new(|| simple_error!("Duplicate SessionID"));
+pub static ERR_UNKNOWN_SESSION: LazyLock<SimpleError> = LazyLock::new(|| simple_error!("Unknown session"));
 
 // Messagable is a Message or something that can be converted to a Message.
 pub trait Messageable {

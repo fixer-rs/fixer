@@ -77,7 +77,7 @@ impl SessionSettings {
     pub fn int_setting(&self, setting: &str) -> Result<isize, FixerError> {
         let string_val = self.setting(setting)?;
 
-        atoi_simd::parse::<isize>(string_val.as_bytes())
+        atoi_simd::parse::<isize, false, false>(string_val.as_bytes())
             .map_err(|_| FixerError::new_incorrect_format_for_setting(setting, &string_val))
     }
 
