@@ -45,7 +45,7 @@ use crate::{
     BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIX42, BEGIN_STRING_FIXT11,
 };
 use async_recursion::async_recursion;
-use chrono::{DateTime, Duration as ChronoDuration, FixedOffset, Utc};
+use jiff::{SignedDuration, Timestamp, Zoned};
 use simple_error::SimpleResult;
 use std::sync::Arc;
 #[cfg(test)]
@@ -186,7 +186,7 @@ impl Default for Session {
 #[derive(Default)]
 pub struct FixIn {
     pub bytes: Vec<u8>,
-    pub receive_time: DateTime<Utc>,
+    pub receive_time: Timestamp,
 }
 
 pub struct StopReq;
@@ -263,7 +263,7 @@ impl Session {
     }
 
     fn insert_sending_time(&self, msg: &Message) {
-        let sending_time = Utc::now();
+        let sending_time = Timestamp::now();
 
         if matches!(
             self.session_id.begin_string.as_str(),
@@ -372,7 +372,7 @@ impl Session {
             .set_field(TAG_ENCRYPT_METHOD, FIXString::from("0"));
         logon.body.set_field(
             TAG_HEART_BT_INT,
-            self.iss.heart_bt_int.num_seconds() as FIXInt,
+            self.iss.heart_bt_int.as_secs() as FIXInt,
         );
 
         if set_reset_seq_num {
@@ -580,7 +580,7 @@ impl Session {
             // TODO: check this error
             let _ = self.message_out.send(msg_bytes.to_vec());
             self.state_timer
-                .reset(self.iss.heart_bt_int.to_std().unwrap())
+                .reset(self.iss.heart_bt_int.unsigned_abs())
                 .await;
         }
         self.drop_queued().await;
@@ -707,7 +707,7 @@ impl Session {
 
                 let get_field_result = msg.body.get_field(TAG_HEART_BT_INT, &mut heart_bt_int);
                 if get_field_result.is_ok() {
-                    self.iss.heart_bt_int = ChronoDuration::seconds(heart_bt_int as i64);
+                    self.iss.heart_bt_int = SignedDuration::from_secs(heart_bt_int as i64);
                 }
             }
 
@@ -718,7 +718,7 @@ impl Session {
         self.sent_reset = false;
 
         let duration =
-            (1.2_f64 * (self.iss.heart_bt_int.num_nanoseconds().unwrap() as f64)).round() as u64;
+            (1.2_f64 * (self.iss.heart_bt_int.as_nanos() as f64)).round() as u64;
 
         self.peer_timer.reset(Duration::from_nanos(duration)).await;
         self.application
@@ -747,7 +747,7 @@ impl Session {
 
         self.log.on_event("Inititated logout request").await;
 
-        sleep(self.iss.logout_timeout.to_std().unwrap()).await;
+        sleep(self.iss.logout_timeout.unsigned_abs()).await;
         self.session_event.send(LOGOUT_TIMEOUT).await;
         Ok(())
     }
@@ -892,7 +892,7 @@ impl Session {
 
         let sending_time = msg.header.get_time(TAG_SENDING_TIME)?;
 
-        let delta = Utc::now().signed_duration_since(sending_time);
+        let delta = Timestamp::now().duration_since(sending_time);
         if delta <= -self.iss.max_latency || delta >= self.iss.max_latency {
             return Err(sending_time_accuracy_problem());
         }
@@ -1132,7 +1132,7 @@ impl Session {
         self.sm_set_state(SessionStateEnum::new_logon_state()).await;
 
         // Fire logon timeout event after the pre-configured delay period.
-        sleep(self.iss.logon_timeout.to_std().unwrap()).await;
+        sleep(self.iss.logon_timeout.unsigned_abs()).await;
         self.session_event.send(LOGON_TIMEOUT).await;
     }
 
@@ -1192,7 +1192,7 @@ impl Session {
         }
 
         let duration =
-            (1.2_f64 * (self.iss.heart_bt_int.num_nanoseconds().unwrap() as f64)).round() as u64;
+            (1.2_f64 * (self.iss.heart_bt_int.as_nanos() as f64)).round() as u64;
 
         self.peer_timer.reset(Duration::from_nanos(duration)).await;
     }
@@ -1245,7 +1245,7 @@ impl Session {
         self.sm_set_state(next_state).await;
     }
 
-    async fn sm_check_session_time(&mut self, now: &mut DateTime<FixedOffset>) {
+    async fn sm_check_session_time(&mut self, now: &mut Zoned) {
         let mut check_first = false;
         if self.iss.session_time.is_some() {
             let session_time = self.iss.session_time.as_ref().unwrap();
@@ -1279,8 +1279,8 @@ impl Session {
         if self.iss.session_time.is_some() {
             let session_time = self.iss.session_time.as_ref().unwrap();
             let creation_time = self.store.creation_time().await;
-            let mut creation_time_fixed_offset: DateTime<FixedOffset> = creation_time.into();
-            if !session_time.is_in_same_range(&mut creation_time_fixed_offset, now) {
+            let mut creation_time_zoned = creation_time.to_zoned(jiff::tz::TimeZone::UTC);
+            if !session_time.is_in_same_range(&mut creation_time_zoned, now) {
                 check_third = true;
             }
         }
@@ -1875,7 +1875,7 @@ impl Session {
             }
 
             self.log.on_event("Sent test request TEST").await;
-            let duration = (1.2_f64 * (self.iss.heart_bt_int.num_nanoseconds().unwrap() as f64))
+            let duration = (1.2_f64 * (self.iss.heart_bt_int.as_nanos() as f64))
                 .round() as u64;
 
             self.peer_timer.reset(Duration::from_nanos(duration)).await;
@@ -2201,7 +2201,7 @@ mod tests {
         BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIX42, BEGIN_STRING_FIX43,
         BEGIN_STRING_FIX44, BEGIN_STRING_FIXT11,
     };
-    use chrono::{DateTime, Duration, FixedOffset, Timelike, Utc};
+    use jiff::{SignedDuration, Timestamp, Zoned};
     use delegate::delegate;
     use simple_error::SimpleResult;
     use std::sync::Arc;
@@ -2517,7 +2517,7 @@ mod tests {
     #[tokio::test]
     async fn test_check_sending_time() {
         let mut s = SessionSuite::setup_test().await;
-        s.ssr.session.iss.max_latency = Duration::seconds(120);
+        s.ssr.session.iss.max_latency = SignedDuration::from_secs(120);
         let msg = Message::new();
 
         let mut check_result = s.ssr.session.check_sending_time(&msg);
@@ -2527,7 +2527,7 @@ mod tests {
             check_result.unwrap_err().reject_reason()
         );
 
-        let mut sending_time = Utc::now() - Duration::seconds(200);
+        let mut sending_time = Timestamp::now().checked_sub(SignedDuration::from_secs(200)).unwrap();
         msg.header
             .set_field(TAG_SENDING_TIME, FIXUTCTimestamp::from_time(sending_time));
 
@@ -2541,7 +2541,7 @@ mod tests {
             check_result.unwrap_err().reject_reason()
         );
 
-        sending_time = Utc::now() + Duration::seconds(200);
+        sending_time = Timestamp::now().checked_add(SignedDuration::from_secs(200)).unwrap();
         msg.header
             .set_field(TAG_SENDING_TIME, FIXUTCTimestamp::from_time(sending_time));
 
@@ -2555,14 +2555,14 @@ mod tests {
             check_result.unwrap_err().reject_reason()
         );
 
-        sending_time = Utc::now();
+        sending_time = Timestamp::now();
         msg.header
             .set_field(TAG_SENDING_TIME, FIXUTCTimestamp::from_time(sending_time));
         check_result = s.ssr.session.check_sending_time(&msg);
         assert!(check_result.is_ok(), "sending time should be ok");
 
         s.ssr.session.iss.skip_check_latency = true;
-        sending_time = Utc::now() - Duration::seconds(200);
+        sending_time = Timestamp::now().checked_sub(SignedDuration::from_secs(200)).unwrap();
         msg.header
             .set_field(TAG_SENDING_TIME, FIXUTCTimestamp::from_time(sending_time));
 
@@ -2975,18 +2975,19 @@ mod tests {
             let mut s = SessionSuite::setup_test().await;
             s.ssr.session.sm.state = test.before.clone();
 
-            let now = Utc::now();
+            let now_ts = Timestamp::now();
+            let now_utc = now_ts.to_zoned(jiff::tz::TimeZone::UTC);
             let mut store = MemoryStore {
                 sender_msg_seq_num: 0,
                 target_msg_seq_num: 0,
-                creation_time: now,
+                creation_time: now_ts,
                 message_map: hashmap! {},
             };
 
             if test.before.is_session_time() {
                 assert!(store.reset().await.is_ok());
             } else {
-                store.creation_time = now - Duration::minutes(1);
+                store.creation_time = now_ts.checked_sub(SignedDuration::from_mins(1)).unwrap();
             }
 
             let mock_store_extended = MockStoreExtended {
@@ -3002,13 +3003,13 @@ mod tests {
             s.ssr.incr_next_sender_msg_seq_num().await;
             s.ssr.incr_next_target_msg_seq_num().await;
 
-            let one_hour_from_now = now + Duration::hours(1);
+            let one_hour_from_now = now_utc.checked_add(SignedDuration::from_hours(1)).unwrap();
 
             s.ssr.session.iss.session_time = Some(TimeRange::new_utc(
                 TimeOfDay::new(
-                    now.hour() as isize,
-                    now.minute() as isize,
-                    now.second() as isize,
+                    now_utc.hour() as isize,
+                    now_utc.minute() as isize,
+                    now_utc.second() as isize,
                 ),
                 TimeOfDay::new(
                     one_hour_from_now.hour() as isize,
@@ -3107,9 +3108,9 @@ mod tests {
             s.ssr.incr_next_sender_msg_seq_num().await;
             s.ssr.incr_next_target_msg_seq_num().await;
 
-            let now = Utc::now();
-            let one_hour_from_now = now + Duration::hours(1);
-            let two_hour_from_now = now + Duration::hours(2);
+            let now = Zoned::now();
+            let one_hour_from_now = now.checked_add(SignedDuration::from_hours(1)).unwrap();
+            let two_hour_from_now = now.checked_add(SignedDuration::from_hours(2)).unwrap();
 
             s.ssr.session.iss.session_time = Some(TimeRange::new_utc(
                 TimeOfDay::new(
@@ -3131,7 +3132,7 @@ mod tests {
                 s.ssr.mock_app.never_to_admin();
             }
 
-            s.ssr.session.sm_check_session_time(&mut now.into()).await;
+            s.ssr.session.sm_check_session_time(&mut now.clone()).await;
             s.ssr.mock_app.lock().await.mock_app.checkpoint();
 
             s.ssr.state(&SessionStateEnum::new_not_session_time());
@@ -3225,9 +3226,9 @@ mod tests {
             s.ssr.incr_next_sender_msg_seq_num().await;
             s.ssr.incr_next_target_msg_seq_num().await;
 
-            let now = Utc::now();
-            let one_hour_before_now = now - Duration::hours(1);
-            let two_hours_from_now = now + Duration::hours(2);
+            let now_utc = Timestamp::now().to_zoned(jiff::tz::TimeZone::UTC);
+            let one_hour_before_now = now_utc.checked_sub(SignedDuration::from_hours(1)).unwrap();
+            let two_hours_from_now = now_utc.checked_add(SignedDuration::from_hours(2)).unwrap();
 
             s.ssr.session.iss.session_time = Some(TimeRange::new_utc(
                 TimeOfDay::new(
@@ -3249,11 +3250,10 @@ mod tests {
                 s.ssr.mock_app.never_to_admin();
             }
 
-            let today: DateTime<FixedOffset> = now.into();
-            let tomorrow = today + Duration::days(1);
+            let tomorrow = now_utc.checked_add(SignedDuration::from_hours(24)).unwrap();
             s.ssr
                 .session
-                .sm_check_session_time(&mut tomorrow.into())
+                .sm_check_session_time(&mut tomorrow.clone())
                 .await;
             s.ssr.mock_app.lock().await.mock_app.checkpoint();
 
@@ -3345,9 +3345,9 @@ mod tests {
             s.ssr.incr_next_sender_msg_seq_num().await;
             s.ssr.incr_next_target_msg_seq_num().await;
 
-            let now = Utc::now();
-            let one_hour_from_now = now + Duration::hours(1);
-            let two_hours_from_now = now + Duration::hours(2);
+            let now = Zoned::now();
+            let one_hour_from_now = now.checked_add(SignedDuration::from_hours(1)).unwrap();
+            let two_hours_from_now = now.checked_add(SignedDuration::from_hours(2)).unwrap();
 
             s.ssr.session.iss.session_time = Some(TimeRange::new_utc(
                 TimeOfDay::new(
@@ -3376,7 +3376,7 @@ mod tests {
                 .session
                 .sm_incoming(&FixIn {
                     bytes: msg_bytes,
-                    receive_time: Utc::now(),
+                    receive_time: Timestamp::now(),
                 })
                 .await;
             s.ssr.mock_app.lock().await.mock_app.checkpoint();
@@ -3453,9 +3453,9 @@ mod tests {
                 .await
                 .is_ok());
 
-            let now = Utc::now();
-            let one_hour_from_now = now + Duration::hours(1);
-            let two_hours_from_now = now + Duration::hours(2);
+            let now = Zoned::now();
+            let one_hour_from_now = now.checked_add(SignedDuration::from_hours(1)).unwrap();
+            let two_hours_from_now = now.checked_add(SignedDuration::from_hours(2)).unwrap();
 
             s.ssr.session.iss.session_time = Some(TimeRange::new_utc(
                 TimeOfDay::new(
@@ -3548,9 +3548,9 @@ mod tests {
                 s.ssr.incr_next_sender_msg_seq_num().await;
                 s.ssr.incr_next_target_msg_seq_num().await;
 
-                let now = Utc::now();
-                let one_hour_from_now = now + Duration::hours(1);
-                let two_hours_from_now = now + Duration::hours(2);
+                let now = Zoned::now();
+                let one_hour_from_now = now.checked_add(SignedDuration::from_hours(1)).unwrap();
+                let two_hours_from_now = now.checked_add(SignedDuration::from_hours(2)).unwrap();
 
                 s.ssr.session.iss.session_time = Some(TimeRange::new_utc(
                     TimeOfDay::new(
@@ -3593,7 +3593,7 @@ mod tests {
         };
 
         s.ssr.session.sm.state = SessionStateEnum::new_latent_state();
-        s.ssr.session.iss.heart_bt_int = Duration::seconds(45);
+        s.ssr.session.iss.heart_bt_int = SignedDuration::from_secs(45);
         s.ssr.incr_next_sender_msg_seq_num().await;
         s.ssr.session.iss.initiate_logon = true;
 
@@ -3657,7 +3657,7 @@ mod tests {
         };
 
         s.ssr.session.sm.state = SessionStateEnum::new_latent_state();
-        s.ssr.session.iss.heart_bt_int = Duration::seconds(45);
+        s.ssr.session.iss.heart_bt_int = SignedDuration::from_secs(45);
         s.ssr.incr_next_target_msg_seq_num().await;
         s.ssr.incr_next_sender_msg_seq_num().await;
         s.ssr.session.iss.initiate_logon = true;

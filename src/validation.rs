@@ -433,7 +433,7 @@ mod tests {
         field_map::LocalField,
         fix_utc_timestamp::TimestampPrecision,
     };
-    use chrono::Utc;
+    use jiff::Timestamp;
     use parking_lot::Mutex;
     use std::sync::Arc;
 
@@ -550,7 +550,7 @@ mod tests {
 
     fn create_fix40_new_order_single() -> Message {
         let msg = Message::new();
-        let now = Utc::now();
+        let now = Timestamp::now();
         msg.header.set_field(TAG_MSG_TYPE, FIXString::from("D"));
         msg.header
             .set_field(TAG_BEGIN_STRING, FIXString::from("FIX.4.0"));
@@ -578,7 +578,7 @@ mod tests {
 
     fn create_fix43_new_order_single() -> Message {
         let msg = Message::new();
-        let now = Utc::now();
+        let now = Timestamp::now();
         msg.header.set_field(TAG_MSG_TYPE, FIXString::from("D"));
         msg.header
             .set_field(TAG_BEGIN_STRING, FIXString::from("FIX.4.3"));
@@ -606,7 +606,7 @@ mod tests {
 
     fn create_fix50sp2_new_order_single() -> Message {
         let msg = Message::new();
-        let now = Utc::now();
+        let now = Timestamp::now();
         msg.header.set_field(TAG_MSG_TYPE, FIXString::from("D"));
         msg.header
             .set_field(TAG_BEGIN_STRING, FIXString::from("FIXT.1.1"));
@@ -856,7 +856,7 @@ mod tests {
             .set_field(TAG_MSG_SEQ_NUM, FIXString::from("0"));
         invalid_msg1
             .header
-            .set_field(TAG_SENDING_TIME, FIXUTCTimestamp::from_time(Utc::now()));
+            .set_field(TAG_SENDING_TIME, FIXUTCTimestamp::from_time(Timestamp::now()));
 
         invalid_msg1
             .trailer
@@ -908,7 +908,7 @@ mod tests {
             .set_field(TAG_MSG_SEQ_NUM, FIXString::from("0"));
         invalid_msg1
             .header
-            .set_field(TAG_SENDING_TIME, FIXUTCTimestamp::from_time(Utc::now()));
+            .set_field(TAG_SENDING_TIME, FIXUTCTimestamp::from_time(Timestamp::now()));
         invalid_msg1
             .trailer
             .set_field(TAG_CHECK_SUM, FIXString::from("000"));
@@ -920,7 +920,7 @@ mod tests {
         invalid_msg1.body.set_field(38 as Tag, FIXString::from("A"));
         invalid_msg1
             .body
-            .set_field(60 as Tag, FIXUTCTimestamp::from_time(Utc::now()));
+            .set_field(60 as Tag, FIXUTCTimestamp::from_time(Timestamp::now()));
         let tag = 40 as Tag;
         // Ord type is required. invalid_msg1.body.set_field(40 as Tag, "A")).
         let message_bytes = invalid_msg1.build();

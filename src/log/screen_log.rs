@@ -2,7 +2,7 @@ use crate::{
     log::{LogEnum, LogFactoryEnum, LogFactoryTrait, LogTrait},
     session::session_id::SessionID,
 };
-use chrono::Utc;
+use jiff::{tz::TimeZone, Timestamp};
 use ramhorns::Template;
 use std::{collections::HashMap, sync::Arc};
 use tokio::io::{self, AsyncWriteExt};
@@ -15,11 +15,11 @@ const TIME_FORMAT: &str = "%Y-%m-%d %H:%M:%S %z %Z";
 
 impl LogTrait for ScreenLog {
     async fn on_incoming(&mut self, data: &[u8]) {
-        let log_time = Utc::now();
+        let log_time = Timestamp::now().to_zoned(TimeZone::UTC);
 
         let output = format!(
             "<{}, {}, incoming>\n  ({})\n",
-            log_time.format(TIME_FORMAT),
+            log_time.strftime(TIME_FORMAT),
             &self.prefix,
             String::from_utf8_lossy(data)
         );
@@ -28,11 +28,11 @@ impl LogTrait for ScreenLog {
     }
 
     async fn on_outgoing(&mut self, data: &[u8]) {
-        let log_time = Utc::now();
+        let log_time = Timestamp::now().to_zoned(TimeZone::UTC);
 
         let output = format!(
             "<{}, {}, outgoing>\n  ({})\n",
-            log_time.format(TIME_FORMAT),
+            log_time.strftime(TIME_FORMAT),
             &self.prefix,
             String::from_utf8_lossy(data)
         );
@@ -41,11 +41,11 @@ impl LogTrait for ScreenLog {
     }
 
     async fn on_event(&mut self, data: &str) {
-        let log_time = Utc::now();
+        let log_time = Timestamp::now().to_zoned(TimeZone::UTC);
 
         let output = format!(
             "<{}, {}, event>\n  ({})\n",
-            log_time.format(TIME_FORMAT),
+            log_time.strftime(TIME_FORMAT),
             &self.prefix,
             data,
         );

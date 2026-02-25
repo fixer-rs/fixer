@@ -38,7 +38,7 @@ mod tests {
         session::session_state::SessionStateEnum,
         tag::{Tag, TAG_BEGIN_SEQ_NO, TAG_END_SEQ_NO, TAG_SENDING_TIME},
     };
-    use chrono::Utc;
+    use jiff::Timestamp;
     use delegate::delegate;
     use std::sync::Arc;
 
@@ -388,7 +388,7 @@ mod tests {
         // Set the sending time far enough in the past to trip the staleness check.
         msg_seq_num5.header.field_map.set_field(
             TAG_SENDING_TIME,
-            FIXUTCTimestamp::from_time(Utc::now() - s.ssr.session.iss.max_latency),
+            FIXUTCTimestamp::from_time(Timestamp::now().checked_sub(s.ssr.session.iss.max_latency).unwrap()),
         );
         s.ssr.session.sm_fix_msg_in(&mut msg_seq_num5).await;
         s.ssr.state(&SessionStateEnum::new_resend_state());

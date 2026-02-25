@@ -11,7 +11,7 @@ use crate::{
     tag_value::TagValue,
     BEGIN_STRING_FIX40,
 };
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use delegate::delegate;
 use parking_lot::Mutex;
 use std::{
@@ -46,7 +46,7 @@ impl Header {
             pub fn get_bytes(&self, tag: Tag) -> Result<Vec<u8>, MessageRejectErrorEnum>;
             pub fn get_bool(&self, tag: Tag) -> Result<bool, MessageRejectErrorEnum>;
             pub fn get_int(&self, tag: Tag) -> Result<isize, MessageRejectErrorEnum>;
-            pub fn get_time(&self, tag: Tag) -> Result<DateTime<Utc>, MessageRejectErrorEnum>;
+            pub fn get_time(&self, tag: Tag) -> Result<Timestamp, MessageRejectErrorEnum>;
             pub fn get_string(&self, tag: Tag) -> Result<String, MessageRejectErrorEnum>;
             pub fn get_group<P: FieldGroupReader>(&self, parser: P) -> Result<P, MessageRejectErrorEnum>;
             pub fn set_field<F: FieldValueWriter>(&self, tag: Tag, field: F) -> &FieldMap;
@@ -91,7 +91,7 @@ impl Body {
             pub fn get_bytes(&self, tag: Tag) -> Result<Vec<u8>, MessageRejectErrorEnum>;
             pub fn get_bool(&self, tag: Tag) -> Result<bool, MessageRejectErrorEnum>;
             pub fn get_int(&self, tag: Tag) -> Result<isize, MessageRejectErrorEnum>;
-            pub fn get_time(&self, tag: Tag) -> Result<DateTime<Utc>, MessageRejectErrorEnum>;
+            pub fn get_time(&self, tag: Tag) -> Result<Timestamp, MessageRejectErrorEnum>;
             pub fn get_string(&self, tag: Tag) -> Result<String, MessageRejectErrorEnum>;
             pub fn get_group<P: FieldGroupReader>(&self, parser: P) -> Result<P, MessageRejectErrorEnum>;
             pub fn set_field<F: FieldValueWriter>(&self, tag: Tag, field: F) -> &FieldMap;
@@ -136,7 +136,7 @@ impl Trailer {
             pub fn get_bytes(&self, tag: Tag) -> Result<Vec<u8>, MessageRejectErrorEnum>;
             pub fn get_bool(&self, tag: Tag) -> Result<bool, MessageRejectErrorEnum>;
             pub fn get_int(&self, tag: Tag) -> Result<isize, MessageRejectErrorEnum>;
-            pub fn get_time(&self, tag: Tag) -> Result<DateTime<Utc>, MessageRejectErrorEnum>;
+            pub fn get_time(&self, tag: Tag) -> Result<Timestamp, MessageRejectErrorEnum>;
             pub fn get_string(&self, tag: Tag) -> Result<String, MessageRejectErrorEnum>;
             pub fn get_group<P: FieldGroupReader>(&self, parser: P) -> Result<P, MessageRejectErrorEnum>;
             pub fn set_field<F: FieldValueWriter>(&self, tag: Tag, field: F) -> &FieldMap;
@@ -164,7 +164,7 @@ pub struct Message {
     pub trailer: Trailer,
     pub body: Body,
     // receive_time is the time that this message was read from the socket connection
-    pub receive_time: DateTime<Utc>,
+    pub receive_time: Timestamp,
     raw_message: Vec<u8>,
     // slice of Bytes corresponding to the message body
     body_bytes: Vec<u8>,

@@ -13,7 +13,7 @@ use crate::{
     tag::{Tag, TAG_BEGIN_STRING, TAG_BODY_LENGTH, TAG_CHECK_SUM, TAG_MSG_TYPE},
     tag_value::TagValue,
 };
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use parking_lot::{Mutex, RwLock};
 use std::{cmp::Ordering, collections::HashMap, fmt, sync::Arc, vec};
 
@@ -217,7 +217,7 @@ impl FieldMap {
     }
 
     // get_time is a get_field wrapper for utc timestamp fields
-    pub fn get_time(&self, tag: Tag) -> Result<DateTime<Utc>, MessageRejectErrorEnum> {
+    pub fn get_time(&self, tag: Tag) -> Result<Timestamp, MessageRejectErrorEnum> {
         let mut val = FIXUTCTimestamp::default();
         let bytes = self.get_bytes(tag)?;
 

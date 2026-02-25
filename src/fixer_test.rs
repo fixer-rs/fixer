@@ -23,7 +23,7 @@ use crate::tag::{
     TAG_NEW_SEQ_NO, TAG_SENDER_COMP_ID, TAG_SENDING_TIME, TAG_TARGET_COMP_ID,
 };
 use crate::BEGIN_STRING_FIX42;
-use chrono::{DateTime, Duration, Utc};
+use jiff::{SignedDuration, Timestamp};
 use mockall::predicate::*;
 use mockall::*;
 use simple_error::{SimpleError, SimpleResult};
@@ -119,8 +119,8 @@ impl MessageStoreTrait for Store {
         Ok(())
     }
 
-    async fn creation_time(&self) -> DateTime<Utc> {
-        Utc::now()
+    async fn creation_time(&self) -> Timestamp {
+        Timestamp::now()
     }
 
     async fn save_message(&mut self, _seq_num: isize, _msg: Vec<u8>) -> SimpleResult<()> {
@@ -184,7 +184,7 @@ impl MessageStoreTrait for MockStoreExtended {
         self.ms.set_next_target_msg_seq_num(next_seq_num).await
     }
 
-    async fn creation_time(&self) -> DateTime<Utc> {
+    async fn creation_time(&self) -> Timestamp {
         self.ms.creation_time().await
     }
 
@@ -260,7 +260,7 @@ impl MessageStoreTrait for MockStoreShared {
             .await
     }
 
-    async fn creation_time(&self) -> DateTime<Utc> {
+    async fn creation_time(&self) -> Timestamp {
         self.lock().await.creation_time().await
     }
 
@@ -576,7 +576,7 @@ impl MessageFactory {
         msg.header
             .set_field(TAG_TARGET_COMP_ID, FIXString::from("ISLD"));
         msg.header
-            .set_field(TAG_SENDING_TIME, FIXUTCTimestamp::from_time(Utc::now()));
+            .set_field(TAG_SENDING_TIME, FIXUTCTimestamp::from_time(Timestamp::now()));
         msg.header.set_field(TAG_MSG_SEQ_NUM, self.seq_num);
         msg.header
             .set_field(TAG_MSG_TYPE, FIXString::from(msg_type));
@@ -634,7 +634,7 @@ impl MockSessionReceiver {
 
     pub async fn last_message(&mut self) -> Option<Vec<u8>> {
         while let Ok(msg) = timeout(
-            Duration::seconds(2).to_std().unwrap(),
+            SignedDuration::from_secs(2).unsigned_abs(),
             self.send_channel.rx.recv(),
         )
         .await
@@ -675,8 +675,8 @@ impl SessionSuiteRig {
         let (message_event_tx, message_event_rx) = channel::<bool>(1);
         let (admin_tx, admin_rx) = unbounded_channel::<AdminEnum>();
 
-        let max_latency_duration = Duration::seconds(120);
-        let duration = Duration::seconds(0);
+        let max_latency_duration = SignedDuration::from_secs(120);
+        let duration = SignedDuration::ZERO;
 
         let session_settings = SessionSettings {
             max_latency: max_latency_duration,

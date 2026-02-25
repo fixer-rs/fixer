@@ -32,8 +32,7 @@ use crate::{
     BEGIN_STRING_FIX44,
 };
 use addr::parse_domain_name;
-use chrono::{offset::Offset, Duration, FixedOffset, Local, TimeZone, Weekday};
-use chrono_tz::Tz;
+use jiff::{civil::Weekday, tz::TimeZone, SignedDuration};
 use std::sync::LazyLock;
 use simple_error::{SimpleError, SimpleResult};
 use std::{
@@ -50,21 +49,21 @@ use tokio::sync::{
 
 static DAY_LOOKUP: LazyLock<HashMap<&str, Weekday>> = LazyLock::new(|| {
     hashmap! {
-        "Sunday"    => Weekday::Sun,
-        "Monday"    => Weekday::Mon,
-        "Tuesday"   => Weekday::Tue,
-        "Wednesday" => Weekday::Wed,
-        "Thursday"  => Weekday::Thu,
-        "Friday"    => Weekday::Fri,
-        "Saturday"  => Weekday::Sat,
+        "Sunday"    => Weekday::Sunday,
+        "Monday"    => Weekday::Monday,
+        "Tuesday"   => Weekday::Tuesday,
+        "Wednesday" => Weekday::Wednesday,
+        "Thursday"  => Weekday::Thursday,
+        "Friday"    => Weekday::Friday,
+        "Saturday"  => Weekday::Saturday,
 
-        "Sun"       => Weekday::Sun,
-        "Mon"       => Weekday::Mon,
-        "Tue"       => Weekday::Tue,
-        "Wed"       => Weekday::Wed,
-        "Thu"       => Weekday::Thu,
-        "Fri"       => Weekday::Fri,
-        "Sat"       => Weekday::Sat,
+        "Sun"       => Weekday::Sunday,
+        "Mon"       => Weekday::Monday,
+        "Tue"       => Weekday::Tuesday,
+        "Wed"       => Weekday::Wednesday,
+        "Thu"       => Weekday::Thursday,
+        "Fri"       => Weekday::Friday,
+        "Sat"       => Weekday::Saturday,
     }
 });
 
@@ -269,9 +268,9 @@ impl SessionFactory {
             if st <= 0 {
                 return Err(simple_error!("MaxLatency must be a positive integer"));
             }
-            iss.max_latency = Duration::seconds(st as i64);
+            iss.max_latency = SignedDuration::from_secs(st as i64);
         } else {
-            iss.max_latency = Duration::seconds(120);
+            iss.max_latency = SignedDuration::from_secs(120);
         }
 
         if settings.has_setting(RESEND_REQUEST_CHUNK_SIZE) {
@@ -296,7 +295,7 @@ impl SessionFactory {
                 END_TIME
             )?;
 
-            let mut loc = FixedOffset::west_opt(0).unwrap();
+            let mut loc = TimeZone::UTC;
 
             if settings.has_setting(TIME_ZONE) {
                 let loc_str = map_err_with!(
@@ -307,24 +306,26 @@ impl SessionFactory {
                 )?;
 
                 if loc_str != "Local" {
-                    let tz: Tz = map_err_with!(
-                        loc_str.parse().map_err(|err| simple_error!("{}", err)),
+                    let tz = map_err_with!(
+                        TimeZone::get(&loc_str).map_err(|err| simple_error!("{}", err)),
                         "problem parsing time zone '{}' for setting '{}'",
                         settings.settings.get(TIME_ZONE).as_ref().unwrap().deref(),
                         TIME_ZONE
                     )?;
 
-                    loc = tz
-                        .with_ymd_and_hms(2020, 10, 10, 10, 10, 10)
+                    loc = jiff::civil::date(2020, 10, 10)
+                        .at(10, 10, 10, 0)
+                        .to_zoned(tz)
                         .unwrap()
                         .offset()
-                        .fix();
+                        .to_time_zone();
                 } else {
-                    loc = Local
-                        .with_ymd_and_hms(2020, 10, 10, 10, 10, 10)
+                    loc = jiff::civil::date(2020, 10, 10)
+                        .at(10, 10, 10, 0)
+                        .to_zoned(TimeZone::system())
                         .unwrap()
                         .offset()
-                        .fix();
+                        .to_time_zone();
                 }
             }
 
@@ -457,7 +458,7 @@ impl SessionFactory {
         self.build_heart_bt_int_settings(iss, settings, true)
             .await?;
 
-        iss.reconnect_interval = Duration::seconds(30);
+        iss.reconnect_interval = SignedDuration::from_secs(30);
         if settings.has_setting(RECONNECT_INTERVAL) {
             let interval = settings.int_setting(RECONNECT_INTERVAL)?;
 
@@ -465,10 +466,10 @@ impl SessionFactory {
                 return Err(simple_error!("ReconnectInterval must be greater than zero"));
             }
 
-            iss.reconnect_interval = Duration::seconds(interval as i64);
+            iss.reconnect_interval = SignedDuration::from_secs(interval as i64);
         }
 
-        iss.logout_timeout = Duration::seconds(2);
+        iss.logout_timeout = SignedDuration::from_secs(2);
         if settings.has_setting(LOGOUT_TIMEOUT) {
             let timeout = settings.int_setting(LOGOUT_TIMEOUT)?;
 
@@ -476,10 +477,10 @@ impl SessionFactory {
                 return Err(simple_error!("LogoutTimeout must be greater than zero"));
             }
 
-            iss.logout_timeout = Duration::seconds(timeout as i64);
+            iss.logout_timeout = SignedDuration::from_secs(timeout as i64);
         }
 
-        iss.logon_timeout = Duration::seconds(10);
+        iss.logon_timeout = SignedDuration::from_secs(10);
         if settings.has_setting(LOGON_TIMEOUT) {
             let timeout = settings.int_setting(LOGON_TIMEOUT)?;
 
@@ -487,7 +488,7 @@ impl SessionFactory {
                 return Err(simple_error!("LogonTimeout must be greater than zero"));
             }
 
-            iss.logon_timeout = Duration::seconds(timeout as i64);
+            iss.logon_timeout = SignedDuration::from_secs(timeout as i64);
         }
 
         self.configure_socket_connect_address(iss, settings).await
@@ -568,7 +569,7 @@ impl SessionFactory {
             if heart_bt_int <= 0 {
                 return Err(simple_error!("Heartbeat must be greater than zero"));
             }
-            iss.heart_bt_int = Duration::seconds(heart_bt_int as i64);
+            iss.heart_bt_int = SignedDuration::from_secs(heart_bt_int as i64);
         }
         Ok(())
     }
@@ -595,7 +596,7 @@ mod tests {
         store::{MemoryStoreFactory, MessageStoreFactoryEnum},
         BEGIN_STRING_FIXT11,
     };
-    use chrono::{Duration, Local, TimeZone, Weekday};
+    use jiff::{civil::Weekday, tz::TimeZone, SignedDuration};
     use std::sync::Arc;
     use tokio::sync::Mutex;
 
@@ -663,7 +664,7 @@ mod tests {
         assert!(!session.iss.enable_last_msg_seq_num_processed);
         assert!(!session.iss.skip_check_latency);
         assert_eq!(TimestampPrecision::Millis, session.timestamp_precision);
-        assert_eq!(Duration::seconds(120), session.iss.max_latency);
+        assert_eq!(SignedDuration::from_secs(120), session.iss.max_latency);
         assert!(!session.iss.disable_message_persist);
         assert!(!session.iss.heart_bt_int_override);
     }
@@ -964,11 +965,11 @@ mod tests {
             .await;
         assert!(session_result.is_ok());
         let session = session_result.unwrap();
-        let loc = Local.with_ymd_and_hms(2020, 10, 10, 10, 10, 10).unwrap();
-        let offset = loc.offset();
+        let loc = jiff::civil::date(2020, 10, 10).at(10, 10, 10, 0).to_zoned(TimeZone::system()).unwrap();
+        let offset = loc.offset().to_time_zone();
 
         assert_eq!(
-            TimeRange::new_in_location(TimeOfDay::new(12, 0, 0), TimeOfDay::new(14, 0, 0), *offset),
+            TimeRange::new_in_location(TimeOfDay::new(12, 0, 0), TimeOfDay::new(14, 0, 0), offset),
             session.iss.session_time.unwrap()
         );
     }
@@ -1014,8 +1015,8 @@ mod tests {
                 TimeRange::new_utc_week_range(
                     TimeOfDay::new(12, 0, 0),
                     TimeOfDay::new(14, 0, 0),
-                    Weekday::Sun,
-                    Weekday::Thu
+                    Weekday::Sunday,
+                    Weekday::Thursday
                 ),
                 session.iss.session_time.unwrap()
             );
@@ -1044,16 +1045,16 @@ mod tests {
         assert!(session_result.is_ok());
         let session = session_result.unwrap();
 
-        let loc = Local.with_ymd_and_hms(2020, 10, 10, 10, 10, 10).unwrap();
-        let offset = loc.offset();
+        let loc = jiff::civil::date(2020, 10, 10).at(10, 10, 10, 0).to_zoned(TimeZone::system()).unwrap();
+        let offset = loc.offset().to_time_zone();
 
         assert_eq!(
             TimeRange::new_week_range_in_location(
                 TimeOfDay::new(12, 0, 0),
                 TimeOfDay::new(14, 0, 0),
-                Weekday::Sun,
-                Weekday::Thu,
-                *offset,
+                Weekday::Sunday,
+                Weekday::Thursday,
+                offset,
             ),
             session.iss.session_time.unwrap()
         );
@@ -1347,10 +1348,10 @@ mod tests {
         let session = session_result.unwrap();
         assert!(session.iss.initiate_logon);
 
-        assert_eq!(Duration::seconds(34), session.iss.heart_bt_int);
-        assert_eq!(Duration::seconds(30), session.iss.reconnect_interval);
-        assert_eq!(Duration::seconds(10), session.iss.logon_timeout);
-        assert_eq!(Duration::seconds(2), session.iss.logout_timeout);
+        assert_eq!(SignedDuration::from_secs(34), session.iss.heart_bt_int);
+        assert_eq!(SignedDuration::from_secs(30), session.iss.reconnect_interval);
+        assert_eq!(SignedDuration::from_secs(10), session.iss.logon_timeout);
+        assert_eq!(SignedDuration::from_secs(2), session.iss.logout_timeout);
         assert_eq!("127.0.0.1:5000", session.iss.socket_connect_address[0]);
     }
 
@@ -1374,7 +1375,7 @@ mod tests {
         let session = session_result.unwrap();
 
         assert!(!session.iss.initiate_logon);
-        assert_eq!(session.iss.heart_bt_int, Duration::seconds(0));
+        assert_eq!(session.iss.heart_bt_int, SignedDuration::ZERO);
         assert!(!session.iss.heart_bt_int_override);
 
         s.ss.set(HEART_BT_INT_OVERRIDE.to_string(), "Y".to_string());
@@ -1393,7 +1394,7 @@ mod tests {
         let session = session_result.unwrap();
 
         assert!(!session.iss.initiate_logon);
-        assert_eq!(session.iss.heart_bt_int, Duration::seconds(34));
+        assert_eq!(session.iss.heart_bt_int, SignedDuration::from_secs(34));
         assert!(session.iss.heart_bt_int_override);
     }
 
@@ -1551,7 +1552,7 @@ mod tests {
             .await;
         assert!(session_result.is_ok());
         let session = session_result.unwrap();
-        assert_eq!(Duration::seconds(45), session.iss.reconnect_interval);
+        assert_eq!(SignedDuration::from_secs(45), session.iss.reconnect_interval);
 
         s.ss.set(RECONNECT_INTERVAL.to_string(), "not a number".to_string());
         let session_result = s
@@ -1623,7 +1624,7 @@ mod tests {
             .await;
         assert!(session_result.is_ok());
         let session = session_result.unwrap();
-        assert_eq!(Duration::seconds(45), session.iss.logout_timeout);
+        assert_eq!(SignedDuration::from_secs(45), session.iss.logout_timeout);
 
         s.ss.set(LOGOUT_TIMEOUT.to_string(), "not a number".to_string());
         let session_result = s
@@ -1692,7 +1693,7 @@ mod tests {
             .await;
         assert!(session_result.is_ok());
         let session = session_result.unwrap();
-        assert_eq!(Duration::seconds(45), session.iss.logon_timeout);
+        assert_eq!(SignedDuration::from_secs(45), session.iss.logon_timeout);
 
         s.ss.set(LOGON_TIMEOUT.to_string(), "not a number".to_string());
         let session_result = s
@@ -1985,7 +1986,7 @@ mod tests {
             .await;
         assert!(session_result.is_ok());
         let session = session_result.unwrap();
-        assert_eq!(Duration::seconds(20), session.iss.max_latency);
+        assert_eq!(SignedDuration::from_secs(20), session.iss.max_latency);
     }
 
     #[tokio::test]

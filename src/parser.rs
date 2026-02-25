@@ -1,5 +1,5 @@
 use crate::fix_int::atoi;
-use chrono::{DateTime, Local};
+use jiff::Zoned;
 use memmem::{Searcher, TwoWaySearcher};
 use simple_error::SimpleResult;
 use tokio::io::{AsyncRead, AsyncReadExt, BufReader};
@@ -13,7 +13,7 @@ const DEFAULT_BUF_SIZE: usize = 4096;
 pub struct Parser<T: Unpin + AsyncRead> {
     big_buffer: Vec<u8>,
     reader: BufReader<T>,
-    pub last_read: DateTime<Local>,
+    pub last_read: Zoned,
     start: usize,
     end: usize,
     len: usize,
@@ -31,7 +31,7 @@ where
         Self {
             big_buffer: vec![],
             reader,
-            last_read: Local::now(),
+            last_read: Zoned::now(),
             start: 0,
             end: 0,
             len: 0,
@@ -82,7 +82,7 @@ where
         if n == 0 {
             return Err(simple_error!("eof"));
         }
-        self.last_read = Local::now();
+        self.last_read = Zoned::now();
 
         self.end += n;
         self.len = self.end - self.start;

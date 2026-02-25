@@ -1,6 +1,6 @@
 use crate::session::session_id::SessionID;
 use crate::store::file_store::{FileStore, FileStoreFactory};
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use enum_dispatch::enum_dispatch;
 use simple_error::SimpleResult;
 use std::collections::HashMap;
@@ -21,7 +21,7 @@ pub trait MessageStoreTrait {
     async fn set_next_sender_msg_seq_num(&mut self, next_seq_num: isize) -> SimpleResult<()>;
     async fn set_next_target_msg_seq_num(&mut self, next_seq_num: isize) -> SimpleResult<()>;
 
-    async fn creation_time(&self) -> DateTime<Utc>;
+    async fn creation_time(&self) -> Timestamp;
 
     async fn save_message(&mut self, seq_num: isize, msg: Vec<u8>) -> SimpleResult<()>;
     async fn save_message_and_incr_next_sender_msg_seq_num(
@@ -79,7 +79,7 @@ impl Default for MessageStoreFactoryEnum {
 pub struct MemoryStore {
     pub sender_msg_seq_num: isize,
     pub target_msg_seq_num: isize,
-    pub creation_time: DateTime<Utc>,
+    pub creation_time: Timestamp,
     pub message_map: HashMap<isize, Vec<u8>>,
 }
 
@@ -112,14 +112,14 @@ impl MessageStoreTrait for MemoryStore {
         Ok(())
     }
 
-    async fn creation_time(&self) -> DateTime<Utc> {
+    async fn creation_time(&self) -> Timestamp {
         self.creation_time
     }
 
     async fn reset(&mut self) -> SimpleResult<()> {
         self.sender_msg_seq_num = 0;
         self.target_msg_seq_num = 0;
-        self.creation_time = Utc::now();
+        self.creation_time = Timestamp::now();
         self.message_map.clear();
         Ok(())
     }
@@ -195,7 +195,7 @@ mod tests {
             MemoryStoreFactory, MessageStoreEnum, MessageStoreFactoryTrait, MessageStoreTrait,
         },
     };
-    use chrono::Utc;
+    use jiff::Timestamp;
     use std::{collections::HashMap, sync::Arc};
 
     // MessageStoreTestSuite is the suite of all tests that should be run against all MessageStore implementations.
@@ -516,9 +516,9 @@ mod tests {
         }
 
         pub async fn test_message_store_creation_time(&mut self) {
-            let t0 = Utc::now();
+            let t0 = Timestamp::now();
             assert!(self.msg_store.reset().await.is_ok());
-            let t1 = Utc::now();
+            let t1 = Timestamp::now();
             assert!(self.msg_store.creation_time().await >= t0);
             assert!(self.msg_store.creation_time().await <= t1);
         }

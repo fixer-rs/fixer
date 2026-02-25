@@ -47,7 +47,7 @@ mod tests {
             TAG_POSS_DUP_FLAG, TAG_REF_TAG_ID, TAG_SENDING_TIME, TAG_TEXT,
         },
     };
-    use chrono::{Duration, Utc};
+    use jiff::{SignedDuration, Timestamp};
     use delegate::delegate;
     use std::sync::Arc;
 
@@ -877,10 +877,10 @@ mod tests {
 
         nos.header.set_field(
             TAG_ORIG_SENDING_TIME,
-            FIXUTCTimestamp::from_time(Utc::now() - Duration::minutes(1)),
+            FIXUTCTimestamp::from_time(Timestamp::now().checked_sub(SignedDuration::from_mins(1)).unwrap()),
         );
         nos.header
-            .set_field(TAG_SENDING_TIME, FIXUTCTimestamp::from_time(Utc::now()));
+            .set_field(TAG_SENDING_TIME, FIXUTCTimestamp::from_time(Timestamp::now()));
         s.ssr.session.sm_fix_msg_in(&mut nos).await;
 
         s.ssr.no_message_sent().await;

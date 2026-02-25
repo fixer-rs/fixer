@@ -1,5 +1,5 @@
 use crate::field::{FieldValue, FieldValueReader, FieldValueWriter};
-use chrono::{DateTime, NaiveDateTime, Utc};
+use jiff::{civil, tz::TimeZone, Timestamp};
 use simple_error::SimpleResult;
 
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
@@ -19,7 +19,7 @@ pub const UTC_TIMESTAMP_NANOS_FORMAT: &str = "%Y%m%d-%H:%M:%S%.9f";
 // FIXUTCTimestamp is a FIX UTC Timestamp value, implements FieldValue
 #[derive(Default, Debug)]
 pub struct FIXUTCTimestamp {
-    pub time: DateTime<Utc>,
+    pub time: Timestamp,
     pub precision: TimestampPrecision,
 }
 
@@ -32,33 +32,31 @@ impl FieldValueReader for FIXUTCTimestamp {
             )
         };
         let input_str = String::from_utf8_lossy(input).to_string();
+        let parse_to_ts = |fmt: &str, s: &str| -> SimpleResult<Timestamp> {
+            let dt = civil::DateTime::strptime(fmt, s).map_err(res)?;
+            dt.to_zoned(TimeZone::UTC)
+                .map(|z| z.timestamp())
+                .map_err(res)
+        };
         match input_str.len() {
             17 => {
                 self.precision = TimestampPrecision::Seconds;
-                let time = NaiveDateTime::parse_from_str(&input_str, UTC_TIMESTAMP_SECONDS_FORMAT)
-                    .map_err(res)?;
-                self.time = DateTime::from_naive_utc_and_offset(time, Utc);
+                self.time = parse_to_ts(UTC_TIMESTAMP_SECONDS_FORMAT, &input_str)?;
                 Ok(())
             }
             21 => {
                 self.precision = TimestampPrecision::Millis;
-                let time = NaiveDateTime::parse_from_str(&input_str, UTC_TIMESTAMP_MILLIS_FORMAT)
-                    .map_err(res)?;
-                self.time = DateTime::from_naive_utc_and_offset(time, Utc);
+                self.time = parse_to_ts(UTC_TIMESTAMP_MILLIS_FORMAT, &input_str)?;
                 Ok(())
             }
             24 => {
                 self.precision = TimestampPrecision::Micros;
-                let time = NaiveDateTime::parse_from_str(&input_str, UTC_TIMESTAMP_MICROS_FORMAT)
-                    .map_err(res)?;
-                self.time = DateTime::from_naive_utc_and_offset(time, Utc);
+                self.time = parse_to_ts(UTC_TIMESTAMP_MICROS_FORMAT, &input_str)?;
                 Ok(())
             }
             27 => {
                 self.precision = TimestampPrecision::Nanos;
-                let time = NaiveDateTime::parse_from_str(&input_str, UTC_TIMESTAMP_NANOS_FORMAT)
-                    .map_err(res)?;
-                self.time = DateTime::from_naive_utc_and_offset(time, Utc);
+                self.time = parse_to_ts(UTC_TIMESTAMP_NANOS_FORMAT, &input_str)?;
                 Ok(())
             }
             _ => Ok(()),
@@ -71,22 +69,22 @@ impl FieldValueWriter for FIXUTCTimestamp {
         match self.precision {
             TimestampPrecision::Seconds => self
                 .time
-                .format(UTC_TIMESTAMP_SECONDS_FORMAT)
+                .strftime(UTC_TIMESTAMP_SECONDS_FORMAT)
                 .to_string()
                 .into_bytes(),
             TimestampPrecision::Millis => self
                 .time
-                .format(UTC_TIMESTAMP_MILLIS_FORMAT)
+                .strftime(UTC_TIMESTAMP_MILLIS_FORMAT)
                 .to_string()
                 .into_bytes(),
             TimestampPrecision::Micros => self
                 .time
-                .format(UTC_TIMESTAMP_MICROS_FORMAT)
+                .strftime(UTC_TIMESTAMP_MICROS_FORMAT)
                 .to_string()
                 .into_bytes(),
             TimestampPrecision::Nanos => self
                 .time
-                .format(UTC_TIMESTAMP_NANOS_FORMAT)
+                .strftime(UTC_TIMESTAMP_NANOS_FORMAT)
                 .to_string()
                 .into_bytes(),
         }
@@ -96,14 +94,14 @@ impl FieldValueWriter for FIXUTCTimestamp {
 impl FieldValue for FIXUTCTimestamp {}
 
 impl FIXUTCTimestamp {
-    pub fn from_time(time: DateTime<Utc>) -> Self {
+    pub fn from_time(time: Timestamp) -> Self {
         FIXUTCTimestamp {
             time,
             precision: TimestampPrecision::default(),
         }
     }
 
-    pub fn from_time_with_precision(time: DateTime<Utc>, precision: TimestampPrecision) -> Self {
+    pub fn from_time_with_precision(time: Timestamp, precision: TimestampPrecision) -> Self {
         FIXUTCTimestamp { time, precision }
     }
 }
@@ -111,16 +109,19 @@ impl FIXUTCTimestamp {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::internal::time_range::utc;
-    use chrono::{naive::NaiveDate, TimeZone, Timelike};
+    use jiff::civil;
+
+    fn ts(year: i16, month: i8, day: i8, hour: i8, min: i8, sec: i8, nanos: i32) -> Timestamp {
+        civil::date(year, month, day)
+            .at(hour, min, sec, nanos)
+            .to_zoned(jiff::tz::TimeZone::UTC)
+            .unwrap()
+            .timestamp()
+    }
 
     #[test]
     fn test_fixutc_timestamp_write() {
-        let ts = utc()
-            .with_ymd_and_hms(2016, 2, 8, 22, 7, 16)
-            .unwrap()
-            .with_nanosecond(954_123_123)
-            .unwrap();
+        let the_ts = ts(2016, 2, 8, 22, 7, 16, 954_123_123);
 
         struct TestCase<'a> {
             precision: TimestampPrecision,
@@ -148,7 +149,7 @@ mod tests {
 
         for test in tests.iter() {
             let mut f = FIXUTCTimestamp::default();
-            f.time = ts.into();
+            f.time = the_ts;
             f.precision = test.precision;
             let b = f.write();
             assert_eq!(b, test.val, "got {:?}; want {:?}", b, test.val);
@@ -159,49 +160,29 @@ mod tests {
     fn test_fixutc_timestamp_read() {
         struct TestCase<'a> {
             time_str: &'a str,
-            expected_time: DateTime<Utc>,
+            expected_time: Timestamp,
             expected_precision: TimestampPrecision,
         }
 
         let tests = vec![
             TestCase {
                 time_str: "20160208-22:07:16.310",
-                expected_time: NaiveDate::from_ymd_opt(2016, 2, 8)
-                    .unwrap()
-                    .and_hms_nano_opt(22, 7, 16, 310_000_000)
-                    .unwrap()
-                    .and_local_timezone(Utc)
-                    .unwrap(),
+                expected_time: ts(2016, 2, 8, 22, 7, 16, 310_000_000),
                 expected_precision: TimestampPrecision::Millis,
             },
             TestCase {
                 time_str: "20160208-22:07:16",
-                expected_time: NaiveDate::from_ymd_opt(2016, 2, 8)
-                    .unwrap()
-                    .and_hms_nano_opt(22, 7, 16, 0)
-                    .unwrap()
-                    .and_local_timezone(Utc)
-                    .unwrap(),
+                expected_time: ts(2016, 2, 8, 22, 7, 16, 0),
                 expected_precision: TimestampPrecision::Seconds,
             },
             TestCase {
                 time_str: "20160208-22:07:16.123455",
-                expected_time: NaiveDate::from_ymd_opt(2016, 2, 8)
-                    .unwrap()
-                    .and_hms_nano_opt(22, 7, 16, 123_455_000)
-                    .unwrap()
-                    .and_local_timezone(Utc)
-                    .unwrap(),
+                expected_time: ts(2016, 2, 8, 22, 7, 16, 123_455_000),
                 expected_precision: TimestampPrecision::Micros,
             },
             TestCase {
                 time_str: "20160208-22:07:16.954123123",
-                expected_time: NaiveDate::from_ymd_opt(2016, 2, 8)
-                    .unwrap()
-                    .and_hms_nano_opt(22, 7, 16, 954_123_123)
-                    .unwrap()
-                    .and_local_timezone(Utc)
-                    .unwrap(),
+                expected_time: ts(2016, 2, 8, 22, 7, 16, 954_123_123),
                 expected_precision: TimestampPrecision::Nanos,
             },
         ];

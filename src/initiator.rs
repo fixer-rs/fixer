@@ -88,7 +88,7 @@ impl Initiator {
             let reconnect_interval = session_lock
                 .iss
                 .reconnect_interval
-                .to_std()
+                .try_into()
                 .unwrap_or(std::time::Duration::from_secs(30));
             drop(session_lock);
 

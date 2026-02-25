@@ -43,7 +43,7 @@ mod tests {
             TAG_MSG_SEQ_NUM, TAG_RESET_SEQ_NUM_FLAG, TAG_TEXT,
         },
     };
-    use chrono::Duration;
+    use jiff::SignedDuration;
     use delegate::delegate;
     use std::sync::Arc;
 
@@ -137,7 +137,7 @@ mod tests {
         s.ssr.session.sm_fix_msg_in(&mut logon).await;
 
         s.ssr.state(&SessionStateEnum::new_in_session().await);
-        assert_eq!(Duration::seconds(32), s.ssr.session.iss.heart_bt_int); // Should be written from logon message.
+        assert_eq!(SignedDuration::from_secs(32), s.ssr.session.iss.heart_bt_int); // Should be written from logon message.
         assert!(!s.ssr.session.iss.heart_bt_int_override);
 
         s.ssr.last_to_admin_message_sent().await;
@@ -174,11 +174,11 @@ mod tests {
         logon.body.set_field(TAG_HEART_BT_INT, 32 as FIXInt);
 
         s.ssr.session.iss.heart_bt_int_override = true;
-        s.ssr.session.iss.heart_bt_int = Duration::seconds(1);
+        s.ssr.session.iss.heart_bt_int = SignedDuration::from_secs(1);
         s.ssr.session.sm_fix_msg_in(&mut logon).await;
 
         s.ssr.state(&SessionStateEnum::new_in_session().await);
-        assert_eq!(Duration::seconds(1), s.ssr.session.iss.heart_bt_int); // Should not have changed.
+        assert_eq!(SignedDuration::from_secs(1), s.ssr.session.iss.heart_bt_int); // Should not have changed.
         assert!(s.ssr.session.iss.heart_bt_int_override);
 
         s.ssr.last_to_admin_message_sent().await;
@@ -252,7 +252,7 @@ mod tests {
         s.ssr.session.sm_fix_msg_in(&mut logon).await;
 
         s.ssr.state(&SessionStateEnum::new_in_session().await);
-        assert_eq!(Duration::seconds(32), s.ssr.session.iss.heart_bt_int);
+        assert_eq!(SignedDuration::from_secs(32), s.ssr.session.iss.heart_bt_int);
 
         s.ssr.last_to_admin_message_sent().await;
         s.message_type(

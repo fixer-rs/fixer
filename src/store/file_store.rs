@@ -9,7 +9,7 @@ use crate::{
         MessageStoreTrait,
     },
 };
-use chrono::{DateTime, Utc};
+use jiff::{tz::TimeZone, Timestamp};
 use simple_error::{SimpleError, SimpleResult};
 // TODO: check windows os
 use sscanf::sscanf;
@@ -108,7 +108,7 @@ impl MessageStoreTrait for FileStore {
             .await?)
     }
 
-    async fn creation_time(&self) -> DateTime<Utc> {
+    async fn creation_time(&self) -> Timestamp {
         self.cache.creation_time().await
     }
 
@@ -400,9 +400,8 @@ impl FileStore {
             let mut time_bytes: Vec<u8> = Vec::new();
             if file.read_to_end(&mut time_bytes).await.is_ok() {
                 let input_str = String::from_utf8_lossy(&time_bytes).to_string();
-                if let Ok(time) = DateTime::parse_from_str(&input_str, TIMESTAMP_FORMAT) {
-                    self.cache.creation_time =
-                        DateTime::from_naive_utc_and_offset(time.naive_utc(), Utc);
+                if let Ok(time) = jiff::Zoned::strptime(TIMESTAMP_FORMAT, input_str.trim()) {
+                    self.cache.creation_time = time.timestamp();
                     creation_time_populated = true;
                 }
             }
@@ -459,7 +458,8 @@ impl FileStore {
         let data = self
             .cache
             .creation_time
-            .format(TIMESTAMP_FORMAT)
+            .to_zoned(TimeZone::UTC)
+            .strftime(TIMESTAMP_FORMAT)
             .to_string();
 
         self.session_file
@@ -605,7 +605,7 @@ mod tests {
             MessageStoreFactoryTrait, MessageStoreTrait,
         },
     };
-    use chrono::Utc;
+    use jiff::Timestamp;
     use std::{env::temp_dir, path::Path, process::id, sync::Arc};
     use tokio::sync::Mutex;
 
@@ -618,7 +618,7 @@ mod tests {
 
     async fn setup_test() -> FileStoreTestSuite<MessageStoreEnum> {
         let path = Path::new(&temp_dir()).join(format!("FileStoreTestSuite-{}", id()));
-        let file_store_path = path.join(format!("{}", Utc::now().timestamp_nanos_opt().unwrap()));
+        let file_store_path = path.join(format!("{}", Timestamp::now().as_nanosecond()));
         let session_id = SessionID {
             begin_string: String::from("FIX.4.4"),
             sender_comp_id: String::from("SENDER"),

@@ -464,7 +464,7 @@ async fn handle_connection<R, W>(
     // Re-inject the first message (the parser consumed it, but the session needs to process it)
     let _ = msg_in_tx.send(FixIn {
         bytes: first_msg_bytes,
-        receive_time: chrono::Utc::now(),
+        receive_time: jiff::Timestamp::now(),
     });
 
     // Spawn read_loop and write_loop

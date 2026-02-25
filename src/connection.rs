@@ -37,7 +37,7 @@ where
 
                 let _ = msg_in.send(FixIn {
                     bytes: msg,
-                    receive_time: parser.last_read.into(),
+                    receive_time: parser.last_read.timestamp(),
                 });
 
             },
