@@ -260,7 +260,6 @@ mod tests {
     use parking_lot::Mutex as StdMutex;
     use serial_test::serial;
     use std::sync::Arc;
-    use tokio::sync::Mutex;
 
     pub struct MessageRouterTestSuite {
         pub mr: MessageRouter,

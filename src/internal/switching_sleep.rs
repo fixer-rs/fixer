@@ -6,8 +6,8 @@ use std::{
     task::{Context, Poll},
 };
 use tokio::{
-    sync::{broadcast, RwLock},
-    time::{sleep, Duration, Sleep},
+    sync::{RwLock, broadcast},
+    time::{Duration, Sleep, sleep},
 };
 
 /// The [`!Sync`][trait@std::marker::Sync] one.
@@ -16,7 +16,7 @@ pub struct SwitchingSleep {
     period: Duration,
     tx: broadcast::Sender<()>,
     rx: broadcast::Receiver<()>,
-    sleeper: Option<Sleep>,
+    sleeper: Option<Pin<Box<Sleep>>>,
 }
 
 impl Unpin for SwitchingSleep {}
@@ -46,7 +46,7 @@ impl SwitchingSleep {
         if !self.is_elapsed() {
             self.stop();
 
-            self.sleeper = Some(sleep(self.period));
+            self.sleeper = Some(Box::pin(sleep(self.period)));
             self.tx.send(()).unwrap();
         }
     }
@@ -63,7 +63,7 @@ impl SwitchingSleep {
         if !self.is_elapsed() {
             self.stop();
             self.period = period;
-            self.sleeper = Some(sleep(self.period));
+            self.sleeper = Some(Box::pin(sleep(self.period)));
             self.tx.send(()).unwrap();
         }
     }
@@ -74,36 +74,29 @@ impl SwitchingSleep {
     }
 }
 
-unsafe impl Send for SwitchingSleep {}
-
 impl Future for SwitchingSleep {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<<Self as Future>::Output> {
-        unsafe {
-            let me = Pin::get_unchecked_mut(self);
+        let me = self.get_mut();
 
-            if me.is_elapsed() {
-                return Poll::Ready(());
-            }
+        if me.is_elapsed() {
+            return Poll::Ready(());
+        }
 
-            let sleeper = match me.sleeper {
-                Some(ref mut sleeper) => {
-                    let sleeper = Pin::new_unchecked(sleeper);
+        let sleeper = match me.sleeper {
+            Some(ref mut sleeper) => Some(sleeper.as_mut().poll(cx)),
+            None => None,
+        };
 
-                    Some(sleeper.poll(cx))
-                }
-                None => None,
-            };
-            let mut recv = me.rx.recv();
-            let recv = Pin::new_unchecked(&mut recv);
-            let _ = recv.poll(cx);
+        let recv = me.rx.recv();
+        tokio::pin!(recv);
+        let _ = recv.poll(cx);
 
-            if let Some(Poll::Ready(_)) = sleeper {
-                Poll::Ready(())
-            } else {
-                Poll::Pending
-            }
+        if let Some(Poll::Ready(_)) = sleeper {
+            Poll::Ready(())
+        } else {
+            Poll::Pending
         }
     }
 }
@@ -150,8 +143,6 @@ impl ASwitchingSleep {
     }
 }
 
-unsafe impl Send for ASwitchingSleep {}
-unsafe impl Sync for ASwitchingSleep {}
 impl Unpin for ASwitchingSleep {}
 
 impl Clone for ASwitchingSleep {
@@ -164,16 +155,14 @@ impl Future for ASwitchingSleep {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<<Self as Future>::Output> {
-        unsafe {
-            let me = Pin::get_unchecked_mut(self);
+        let me = self.get_mut();
 
-            let mut inner = me.0.write();
-            let inner = Pin::new_unchecked(&mut inner);
+        let write_fut = me.0.write();
+        tokio::pin!(write_fut);
 
-            match inner.poll(cx) {
-                Poll::Pending => Poll::Pending,
-                Poll::Ready(mut inner) => Pin::new_unchecked(&mut *inner).poll(cx),
-            }
+        match write_fut.poll(cx) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(mut guard) => Pin::new(&mut *guard).poll(cx),
         }
     }
 }
@@ -183,7 +172,7 @@ mod test {
     use super::*;
     use tokio::{
         select,
-        time::{sleep, Duration, Instant},
+        time::{Duration, Instant, sleep},
     };
 
     #[tokio::test]
