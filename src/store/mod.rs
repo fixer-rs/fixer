@@ -1,6 +1,5 @@
 use crate::session::session_id::SessionID;
 use crate::store::file_store::{FileStore, FileStoreFactory};
-use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use enum_dispatch::enum_dispatch;
 use simple_error::SimpleResult;
@@ -10,7 +9,6 @@ use std::sync::Arc;
 pub mod file_store;
 
 // The MessageStoreTrait interface provides methods to record and retrieve messages for resend purposes
-#[async_trait]
 #[enum_dispatch]
 pub trait MessageStoreTrait {
     async fn next_sender_msg_seq_num(&mut self) -> isize;
@@ -43,7 +41,6 @@ pub trait MessageStoreTrait {
 }
 
 // The MessageStoreFactoryTrait interface is used by session to create a session specific message store
-#[async_trait]
 #[enum_dispatch]
 pub trait MessageStoreFactoryTrait {
     async fn create(&self, session_id: Arc<SessionID>) -> SimpleResult<MessageStoreEnum>;
@@ -84,7 +81,6 @@ pub struct MemoryStore {
     pub message_map: HashMap<isize, Vec<u8>>,
 }
 
-#[async_trait]
 impl MessageStoreTrait for MemoryStore {
     async fn next_sender_msg_seq_num(&mut self) -> isize {
         self.sender_msg_seq_num + 1
@@ -171,7 +167,6 @@ impl MessageStoreTrait for MemoryStore {
 #[derive(Clone)]
 pub struct MemoryStoreFactory;
 
-#[async_trait]
 impl MessageStoreFactoryTrait for MemoryStoreFactory {
     async fn create(&self, _session_id: Arc<SessionID>) -> SimpleResult<MessageStoreEnum> {
         let mut m = MemoryStore::default();

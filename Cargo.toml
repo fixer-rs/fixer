@@ -17,7 +17,6 @@ path = "src/lib.rs"
 [dependencies]
 addr = "0.15"
 async-recursion = "1.0"
-async-trait = "0.1"
 atoi_simd = "0.18"
 chrono = { version = "0.4", features = ["default", "serde"] }
 chrono-tz = "0.10"

@@ -9,7 +9,6 @@ use crate::{
         MessageStoreTrait,
     },
 };
-use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use simple_error::{SimpleError, SimpleResult};
 // TODO: check windows os
@@ -67,7 +66,6 @@ pub struct FileStore {
     file_sync: bool,
 }
 
-#[async_trait]
 impl MessageStoreTrait for FileStore {
     async fn next_sender_msg_seq_num(&mut self) -> isize {
         self.cache.next_sender_msg_seq_num().await
@@ -538,7 +536,6 @@ pub struct FileStoreFactory {
     settings: Arc<Mutex<Settings>>,
 }
 
-#[async_trait]
 impl MessageStoreFactoryTrait for FileStoreFactory {
     async fn create(&self, session_id: Arc<SessionID>) -> SimpleResult<MessageStoreEnum> {
         let mut lock = self.settings.lock().await;

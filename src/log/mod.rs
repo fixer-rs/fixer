@@ -1,5 +1,4 @@
 use crate::session::session_id::SessionID;
-use async_trait::async_trait;
 use enum_dispatch::enum_dispatch;
 use file_log::{FileLog, FileLogFactory};
 use null_log::{NullLog, NullLogFactory};
@@ -11,7 +10,6 @@ pub mod null_log;
 pub mod screen_log;
 
 // Log is a generic trait for logging FIX messages and events.
-#[async_trait]
 #[enum_dispatch]
 pub trait LogTrait {
     // on_incoming log incoming fix message
@@ -28,7 +26,6 @@ pub trait LogTrait {
 }
 
 // The LogFactory trait creates global and session specific Log instances
-#[async_trait]
 #[enum_dispatch]
 pub trait LogFactoryTrait {
     // create global log

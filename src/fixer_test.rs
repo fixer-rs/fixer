@@ -23,7 +23,6 @@ use crate::tag::{
     TAG_NEW_SEQ_NO, TAG_SENDER_COMP_ID, TAG_SENDING_TIME, TAG_TARGET_COMP_ID,
 };
 use crate::BEGIN_STRING_FIX42;
-use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use mockall::predicate::*;
 use mockall::*;
@@ -94,7 +93,6 @@ impl FixerSuite {
 struct Store {}
 
 #[automock]
-#[async_trait]
 impl MessageStoreTrait for Store {
     async fn next_sender_msg_seq_num(&mut self) -> isize {
         1
@@ -160,7 +158,6 @@ pub struct MockStoreExtended {
     pub ms: MemoryStore,
 }
 
-#[async_trait]
 impl MessageStoreTrait for MockStoreExtended {
     async fn next_sender_msg_seq_num(&mut self) -> isize {
         self.ms.next_sender_msg_seq_num().await
@@ -231,7 +228,6 @@ impl MessageStoreTrait for MockStoreExtended {
 
 pub type MockStoreShared = Arc<Mutex<MockStoreExtended>>;
 
-#[async_trait]
 impl MessageStoreTrait for MockStoreShared {
     async fn next_sender_msg_seq_num(&mut self) -> isize {
         self.lock().await.next_sender_msg_seq_num().await

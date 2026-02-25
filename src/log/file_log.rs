@@ -6,7 +6,6 @@ use crate::{
     session::session_id::SessionID,
     settings::Settings,
 };
-use async_trait::async_trait;
 use ramhorns::Template;
 use std::{collections::HashMap, path::Path, sync::Arc};
 use tokio::{
@@ -21,7 +20,6 @@ pub struct FileLog {
     message_file: File,
 }
 
-#[async_trait]
 impl LogTrait for FileLog {
     async fn on_incoming(&mut self, data: &[u8]) {
         let mut mut_data = data.to_owned();
@@ -112,7 +110,6 @@ impl FileLogFactory {
     }
 }
 
-#[async_trait]
 impl LogFactoryTrait for FileLogFactory {
     async fn create(&mut self) -> Result<LogEnum, String> {
         let logger = FileLog::new(GLOBAL_PATH, &self.global_log_path).await?;

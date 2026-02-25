@@ -2,7 +2,6 @@ use crate::{
     log::{LogEnum, LogFactoryEnum, LogFactoryTrait, LogTrait},
     session::session_id::SessionID,
 };
-use async_trait::async_trait;
 use chrono::Utc;
 use ramhorns::Template;
 use std::{collections::HashMap, sync::Arc};
@@ -14,7 +13,6 @@ pub struct ScreenLog {
 
 const TIME_FORMAT: &str = "%Y-%m-%d %H:%M:%S %z %Z";
 
-#[async_trait]
 impl LogTrait for ScreenLog {
     async fn on_incoming(&mut self, data: &[u8]) {
         let log_time = Utc::now();
@@ -71,7 +69,6 @@ impl ScreenLogFactory {
     }
 }
 
-#[async_trait]
 impl LogFactoryTrait for ScreenLogFactory {
     async fn create(&mut self) -> Result<LogEnum, String> {
         Ok(LogEnum::ScreenLog(ScreenLog {
