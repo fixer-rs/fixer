@@ -1,0 +1,339 @@
+use crate::{
+    application::Application,
+    connection::{read_loop, write_loop},
+    log::{LogEnum, LogFactoryEnum},
+    parser::Parser,
+    session::{
+        factory::SessionFactory, session_id::SessionID, AdminEnum, Connect, FixIn, Session,
+        StopReq,
+    },
+    settings::Settings,
+    store::MessageStoreFactoryEnum,
+};
+use simple_error::SimpleResult;
+use std::sync::Arc;
+use tokio::{
+    io::BufReader,
+    net::TcpStream,
+    sync::{mpsc::UnboundedSender, watch, Mutex},
+    task::JoinHandle,
+    time::sleep,
+};
+
+struct SessionHandle {
+    session_id: Arc<SessionID>,
+    session: Arc<Mutex<Session>>,
+    admin_tx: UnboundedSender<AdminEnum>,
+}
+
+pub struct Initiator {
+    sessions: Vec<SessionHandle>,
+    stop_tx: watch::Sender<bool>,
+    stop_rx: watch::Receiver<bool>,
+    task_handles: Vec<JoinHandle<()>>,
+}
+
+impl Initiator {
+    pub async fn new<A: Application + 'static>(
+        app: Arc<Mutex<A>>,
+        store_factory: MessageStoreFactoryEnum,
+        settings: Settings,
+        log_factory: LogFactoryEnum,
+    ) -> SimpleResult<Self> {
+        let factory = SessionFactory {
+            build_initiators: true,
+        };
+
+        let mut sessions = Vec::new();
+        let session_settings = settings.session_settings().await;
+
+        for entry in session_settings.iter() {
+            let (session_id, ss) = entry.pair();
+            let session = factory
+                .create_session(
+                    session_id.clone(),
+                    store_factory.clone(),
+                    ss,
+                    log_factory.clone(),
+                    app.clone(),
+                )
+                .await?;
+
+            let admin_tx = session.lock().await.admin.tx.clone();
+
+            sessions.push(SessionHandle {
+                session_id: session_id.clone(),
+                session,
+                admin_tx,
+            });
+        }
+
+        let (stop_tx, stop_rx) = watch::channel(false);
+
+        Ok(Initiator {
+            sessions,
+            stop_tx,
+            stop_rx,
+            task_handles: Vec::new(),
+        })
+    }
+
+    pub async fn start(&mut self) -> SimpleResult<()> {
+        for handle in &self.sessions {
+            // Read settings while we can (before run() takes the lock)
+            let session_lock = handle.session.lock().await;
+            let connect_addresses = session_lock.iss.socket_connect_address.clone();
+            let reconnect_interval = session_lock
+                .iss
+                .reconnect_interval
+                .to_std()
+                .unwrap_or(std::time::Duration::from_secs(30));
+            drop(session_lock);
+
+            let session = handle.session.clone();
+            let admin_tx = handle.admin_tx.clone();
+            let mut stop_rx = self.stop_rx.clone();
+
+            let task_handle = tokio::spawn(async move {
+                // Start session.run() in background
+                let run_session = session.clone();
+                let run_handle = tokio::spawn(async move {
+                    run_session.lock().await.run().await;
+                });
+
+                // Connection management loop
+                let mut address_index: usize = 0;
+                loop {
+                    if *stop_rx.borrow() {
+                        break;
+                    }
+
+                    if connect_addresses.is_empty() {
+                        break;
+                    }
+
+                    let address =
+                        &connect_addresses[address_index % connect_addresses.len()];
+                    address_index = address_index.wrapping_add(1);
+
+                    match TcpStream::connect(address).await {
+                        Ok(stream) => {
+                            let (read_half, write_half) = tokio::io::split(stream);
+
+                            let (msg_out_tx, msg_out_rx) =
+                                tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
+                            let (msg_in_tx, msg_in_rx) =
+                                tokio::sync::mpsc::unbounded_channel::<FixIn>();
+                            let (err_tx, mut err_rx) =
+                                tokio::sync::mpsc::unbounded_channel::<SimpleResult<()>>();
+
+                            let _ = admin_tx.send(AdminEnum::Connect(Connect {
+                                message_out: msg_out_tx,
+                                message_in: msg_in_rx,
+                                err: err_tx,
+                            }));
+
+                            // Wait for connect acknowledgement
+                            if let Some(result) = err_rx.recv().await {
+                                if result.is_err() {
+                                    // Connect rejected, retry after interval
+                                    tokio::select! {
+                                        _ = sleep(reconnect_interval) => {},
+                                        _ = stop_rx.changed() => { break; }
+                                    }
+                                    continue;
+                                }
+                            }
+
+                            let buf_reader = BufReader::new(read_half);
+                            let parser = Parser::new(buf_reader);
+
+                            let read_task =
+                                tokio::spawn(async move { read_loop(parser, msg_in_tx).await });
+                            let write_task = tokio::spawn(async move {
+                                write_loop(write_half, msg_out_rx, LogEnum::default()).await
+                            });
+
+                            // Wait for disconnect
+                            tokio::select! {
+                                _ = read_task => {},
+                                _ = write_task => {},
+                                _ = stop_rx.changed() => { break; }
+                            }
+                        }
+                        Err(_) => {}
+                    }
+
+                    // Reconnect delay
+                    tokio::select! {
+                        _ = sleep(reconnect_interval) => {},
+                        _ = stop_rx.changed() => { break; }
+                    }
+                }
+
+                // Stop the session
+                let _ = admin_tx.send(AdminEnum::StopReq(StopReq));
+                let _ = run_handle.await;
+            });
+
+            self.task_handles.push(task_handle);
+        }
+
+        Ok(())
+    }
+
+    pub async fn stop(&mut self) {
+        // Signal all tasks to stop
+        let _ = self.stop_tx.send(true);
+
+        // Also send StopReq to all sessions directly
+        for handle in &self.sessions {
+            let _ = handle.admin_tx.send(AdminEnum::StopReq(StopReq));
+        }
+
+        // Wait for all tasks to complete
+        for task in self.task_handles.drain(..) {
+            let _ = task.await;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::application::NOPApp;
+    use crate::log::LogFactoryEnum;
+    use crate::registry::{unregister_session, SESSIONS};
+    use crate::store::MessageStoreFactoryEnum;
+    use serial_test::serial;
+    use tokio::io::BufReader;
+
+    fn clean_sessions() {
+        let keys: Vec<_> = SESSIONS.iter().map(|e| e.key().clone()).collect();
+        for key in keys {
+            let _ = unregister_session(&key);
+        }
+    }
+
+    async fn make_initiator_settings(host: &str, port: &str) -> Settings {
+        let cfg = format!(
+            r#"
+[DEFAULT]
+
+[SESSION]
+BeginString=FIX.4.2
+SenderCompID=INITIATOR
+TargetCompID=ACCEPTOR
+HeartBtInt=30
+SocketConnectHost={}
+SocketConnectPort={}
+"#,
+            host, port
+        );
+        Settings::parse(BufReader::new(cfg.as_bytes())).await.unwrap()
+    }
+
+    // Verifies that Initiator::new() creates sessions with initiate_logon=true
+    // and correct socket_connect_address. Ported from Go quickfix
+    // TestNewSessionBuildInitiators (session_factory_test.go:362).
+    #[tokio::test]
+    #[serial]
+    async fn test_initiator_new_creates_sessions() {
+        clean_sessions();
+
+        let app = Arc::new(Mutex::new(NOPApp::new()));
+        let store_factory = MessageStoreFactoryEnum::default();
+        let log_factory = LogFactoryEnum::default();
+        let settings = make_initiator_settings("127.0.0.1", "5000").await;
+
+        let initiator = Initiator::new(app, store_factory, settings, log_factory)
+            .await
+            .expect("Initiator::new should succeed");
+
+        assert_eq!(1, initiator.sessions.len(), "should have 1 session");
+
+        let session_lock = initiator.sessions[0].session.lock().await;
+        assert!(session_lock.iss.initiate_logon, "should be an initiator session");
+        assert_eq!(
+            "127.0.0.1:5000",
+            session_lock.iss.socket_connect_address[0],
+            "should have correct connect address"
+        );
+        drop(session_lock);
+
+        clean_sessions();
+    }
+
+    // Verifies that Initiator start/stop lifecycle works without errors.
+    // The initiator will fail to connect (no server) but should still shut down cleanly.
+    #[tokio::test]
+    #[serial]
+    async fn test_initiator_start_stop() {
+        clean_sessions();
+
+        let app = Arc::new(Mutex::new(NOPApp::new()));
+        let store_factory = MessageStoreFactoryEnum::default();
+        let log_factory = LogFactoryEnum::default();
+        // Use a port that is almost certainly not listening
+        let settings = make_initiator_settings("127.0.0.1", "19123").await;
+
+        let mut initiator = Initiator::new(app, store_factory, settings, log_factory)
+            .await
+            .expect("Initiator::new should succeed");
+
+        initiator
+            .start()
+            .await
+            .expect("Initiator::start should succeed");
+
+        // Let it try to connect for a bit (will fail, that's expected)
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+
+        // Stop should complete cleanly
+        initiator.stop().await;
+
+        clean_sessions();
+    }
+
+    // Verifies that an Initiator successfully connects to an Acceptor (integration test).
+    #[tokio::test]
+    #[serial]
+    async fn test_initiator_connects_to_acceptor() {
+        clean_sessions();
+
+        // Start a TCP listener to act as an acceptor
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("should bind");
+        let listen_addr = listener.local_addr().unwrap();
+        let port = listen_addr.port().to_string();
+
+        // Spawn a task to accept one connection
+        let accept_handle = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.expect("should accept");
+            // Just hold the connection open briefly
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            drop(stream);
+        });
+
+        let app = Arc::new(Mutex::new(NOPApp::new()));
+        let store_factory = MessageStoreFactoryEnum::default();
+        let log_factory = LogFactoryEnum::default();
+        let settings = make_initiator_settings("127.0.0.1", &port).await;
+
+        let mut initiator = Initiator::new(app, store_factory, settings, log_factory)
+            .await
+            .expect("Initiator::new should succeed");
+
+        initiator
+            .start()
+            .await
+            .expect("Initiator::start should succeed");
+
+        // Wait for the accept to complete
+        let _ = accept_handle.await;
+
+        initiator.stop().await;
+        clean_sessions();
+    }
+}

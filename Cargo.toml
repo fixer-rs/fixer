@@ -48,6 +48,7 @@ tokio = { version = "1.49", features = [
   "sync",
   "macros",
   "time",
+  "net",
 ] }
 
 [dev-dependencies]

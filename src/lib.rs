@@ -3,6 +3,7 @@ extern crate simple_error;
 #[macro_use]
 extern crate maplit;
 
+pub mod acceptor;
 pub mod application;
 pub mod config;
 pub mod connection;
@@ -18,6 +19,7 @@ pub mod fix_float;
 pub mod fix_int;
 pub mod fix_string;
 pub mod fix_utc_timestamp;
+pub mod initiator;
 pub mod internal;
 pub mod log;
 pub mod message;

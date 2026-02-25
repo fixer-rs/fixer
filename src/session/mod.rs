@@ -1039,7 +1039,7 @@ impl Session {
     }
 
     // TODO: use tokio::spawn instead of tokio::select! in order to run parallelly
-    async fn run(&mut self) {
+    pub(crate) async fn run(&mut self) {
         self.sm_start().await;
         let tx = self.session_event.tx.clone();
 
