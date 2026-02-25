@@ -48,11 +48,13 @@ use async_recursion::async_recursion;
 use jiff::{SignedDuration, Timestamp, Zoned};
 use simple_error::SimpleResult;
 use std::sync::Arc;
+use std::sync::Mutex as StdMutex;
 #[cfg(test)]
 use tokio::sync::mpsc::channel;
 use tokio::sync::{
     Mutex, OnceCell,
     mpsc::{Receiver, Sender, UnboundedReceiver, UnboundedSender, unbounded_channel},
+    oneshot,
 };
 use tokio::time::{Duration, interval, sleep};
 
@@ -98,10 +100,20 @@ pub struct Admin {
     pub rx: UnboundedReceiver<AdminEnum>,
 }
 
+/// QueueForSend carries a message to be queued for sending, along with a
+/// oneshot channel to return the result. Used by `send_to_target` in
+/// `registry.rs` so that external callers communicate with the session's run
+/// loop via channels instead of locking the session directly.
+pub struct QueueForSend {
+    pub msg: Message,
+    pub result: oneshot::Sender<Result<(), FixerError>>,
+}
+
 pub enum AdminEnum {
     Connect(Connect),
     StopReq(StopReq),
     WaitForInSessionReq(WaitForInSessionReq),
+    QueueForSend(QueueForSend),
 }
 
 // Session is the primary FIX abstraction for message communication
@@ -126,7 +138,7 @@ pub struct Session {
     pub peer_timer: EventTimer,
     pub sent_reset: bool,
     pub stop_once: OnceCell<()>,
-    pub target_default_appl_ver_id: String,
+    pub target_default_appl_ver_id: Arc<StdMutex<String>>,
 
     pub admin: Admin,
     pub iss: InternalSessionSettings,
@@ -170,7 +182,7 @@ impl Default for Session {
             peer_timer: EventTimer::new(Arc::new(|| {})),
             sent_reset: Default::default(),
             stop_once: Default::default(),
-            target_default_appl_ver_id: Default::default(),
+            target_default_appl_ver_id: Arc::new(StdMutex::new(String::new())),
             admin: Admin {
                 tx: admin_tx,
                 rx: admin_rx,
@@ -210,8 +222,8 @@ impl Session {
 
     // target_default_application_version_id returns the default application version ID for messages received by this version.
     // Applicable for For FIX.T.1 sessions.
-    pub fn target_default_application_version_id(&self) -> &str {
-        &self.target_default_appl_ver_id
+    pub fn target_default_application_version_id(&self) -> String {
+        self.target_default_appl_ver_id.lock().unwrap().clone()
     }
 
     #[allow(dead_code)] // exists in Go quickfix session.go, used by acceptor/initiator
@@ -658,7 +670,7 @@ impl Session {
             msg.body
                 .get_field(TAG_DEFAULT_APPL_VER_ID, &mut target_appl_ver_id)?;
 
-            self.target_default_appl_ver_id = target_appl_ver_id;
+            *self.target_default_appl_ver_id.lock().unwrap() = target_appl_ver_id;
         }
 
         let mut reset_store = false;
@@ -1008,6 +1020,10 @@ impl Session {
             }
             AdminEnum::StopReq(_) => {
                 self.sm_stop().await;
+            }
+            AdminEnum::QueueForSend(qfs) => {
+                let result = self.queue_for_send(&qfs.msg).await;
+                let _ = qfs.result.send(result);
             }
             AdminEnum::WaitForInSessionReq(wfisr) => {
                 if !self.sm.is_session_time() {
@@ -3122,7 +3138,13 @@ mod tests {
                 s.ssr.last_to_admin_message_sent().await;
                 s.message_type(
                     String::from_utf8_lossy(MSG_TYPE_LOGOUT).to_string(),
-                    s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap(),
+                    s.ssr
+                        .mock_app
+                        .last_to_admin
+                        .lock()
+                        .unwrap()
+                        .as_ref()
+                        .unwrap(),
                 );
                 s.ssr.next_sender_msg_seq_num(3).await;
             } else {
@@ -3243,7 +3265,13 @@ mod tests {
                 s.ssr.last_to_admin_message_sent().await;
                 s.message_type(
                     String::from_utf8_lossy(MSG_TYPE_LOGOUT).to_string(),
-                    s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap(),
+                    s.ssr
+                        .mock_app
+                        .last_to_admin
+                        .lock()
+                        .unwrap()
+                        .as_ref()
+                        .unwrap(),
                 );
                 s.ssr.suite.field_equals(
                     TAG_MSG_SEQ_NUM,
@@ -3592,7 +3620,13 @@ mod tests {
 
         s.message_type(
             String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
-            s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap(),
+            s.ssr
+                .mock_app
+                .last_to_admin
+                .lock()
+                .unwrap()
+                .as_ref()
+                .unwrap(),
         );
         s.field_equals(
             TAG_HEART_BT_INT,
@@ -3660,7 +3694,13 @@ mod tests {
 
         s.message_type(
             String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
-            s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap(),
+            s.ssr
+                .mock_app
+                .last_to_admin
+                .lock()
+                .unwrap()
+                .as_ref()
+                .unwrap(),
         );
         s.field_equals(
             TAG_MSG_SEQ_NUM,
@@ -3725,7 +3765,13 @@ mod tests {
         s.ssr.last_to_admin_message_sent().await;
         s.message_type(
             String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
-            s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap(),
+            s.ssr
+                .mock_app
+                .last_to_admin
+                .lock()
+                .unwrap()
+                .as_ref()
+                .unwrap(),
         );
         s.field_equals(
             TAG_DEFAULT_APPL_VER_ID,
@@ -3893,7 +3939,15 @@ mod tests {
         );
 
         s.ssr.no_message_sent().await;
-        let mut msg = s.ssr.mock_app.last_to_app.lock().unwrap().as_ref().unwrap().clone();
+        let mut msg = s
+            .ssr
+            .mock_app
+            .last_to_app
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .clone();
         s.ssr.message_persisted(&mut msg).await;
         s.field_equals(
             TAG_MSG_SEQ_NUM,
@@ -3942,7 +3996,15 @@ mod tests {
         );
 
         s.ssr.last_to_admin_message_sent().await;
-        let mut msg = s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap().clone();
+        let mut msg = s
+            .ssr
+            .mock_app
+            .last_to_admin
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .clone();
         s.ssr.message_persisted(&mut msg).await;
         s.ssr.next_sender_msg_seq_num(2).await;
     }
@@ -3958,7 +4020,15 @@ mod tests {
                 .is_ok()
         );
 
-        let mut msg = s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap().clone();
+        let mut msg = s
+            .ssr
+            .mock_app
+            .last_to_admin
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .clone();
         s.ssr.message_persisted(&mut msg).await;
         s.ssr.no_message_sent().await;
         s.ssr.next_sender_msg_seq_num(2).await;
@@ -3974,7 +4044,15 @@ mod tests {
                 .await
                 .is_ok()
         );
-        let mut msg = s.ssr.mock_app.last_to_app.lock().unwrap().as_ref().unwrap().clone();
+        let mut msg = s
+            .ssr
+            .mock_app
+            .last_to_app
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .clone();
         s.ssr.message_persisted(&mut msg).await;
         s.ssr.last_to_app_message_sent().await;
         s.ssr.next_sender_msg_seq_num(2).await;
@@ -4014,7 +4092,15 @@ mod tests {
         );
 
         s.ssr.last_to_admin_message_sent().await;
-        let mut msg = s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap().clone();
+        let mut msg = s
+            .ssr
+            .mock_app
+            .last_to_admin
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .clone();
         s.ssr.message_persisted(&mut msg).await;
     }
 
@@ -4184,7 +4270,15 @@ mod tests {
                 .await
                 .is_ok()
         );
-        let mut msg = s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap().clone();
+        let mut msg = s
+            .ssr
+            .mock_app
+            .last_to_admin
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .clone();
         s.ssr.message_persisted(&mut msg).await;
         s.ssr.last_to_admin_message_sent().await;
     }
@@ -4222,7 +4316,13 @@ mod tests {
 
         s.message_type(
             String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
-            s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap(),
+            s.ssr
+                .mock_app
+                .last_to_admin
+                .lock()
+                .unwrap()
+                .as_ref()
+                .unwrap(),
         );
         s.field_equals(
             TAG_MSG_SEQ_NUM,
@@ -4274,7 +4374,13 @@ mod tests {
 
         s.message_type(
             String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
-            s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap(),
+            s.ssr
+                .mock_app
+                .last_to_admin
+                .lock()
+                .unwrap()
+                .as_ref()
+                .unwrap(),
         );
         s.field_equals(
             TAG_MSG_SEQ_NUM,

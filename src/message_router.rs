@@ -1,15 +1,15 @@
 #[cfg(test)]
 use crate::message_router::tests::MessageRouterTestSuite;
 use crate::{
-    errors::{unsupported_message_type, MessageRejectErrorResult},
+    BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIX42, BEGIN_STRING_FIX43,
+    BEGIN_STRING_FIX44, BEGIN_STRING_FIXT11,
+    errors::{MessageRejectErrorResult, unsupported_message_type},
     fix_string::FIXString,
     message::Message,
     msg_type::is_admin_message_type,
     registry::SESSIONS,
     session::session_id::SessionID,
     tag::{TAG_APPL_VER_ID, TAG_BEGIN_STRING, TAG_MSG_TYPE},
-    BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIX42, BEGIN_STRING_FIX43,
-    BEGIN_STRING_FIX44, BEGIN_STRING_FIXT11,
 };
 use dashmap::DashMap;
 use parking_lot::Mutex;
@@ -223,8 +223,8 @@ impl MessageRouter {
                 .get_field(TAG_APPL_VER_ID, &mut appl_ver_id)
                 .is_err()
             {
-                if let Some(session) = (*SESSIONS).get(&session_id) {
-                    appl_ver_id = session.lock().await.target_default_application_version_id().to_string();
+                if let Some(reg) = (*SESSIONS).get(&session_id) {
+                    appl_ver_id = reg.target_default_appl_ver_id.lock().unwrap().clone();
                 }
             }
 
@@ -245,17 +245,17 @@ impl MessageRouter {
 #[cfg(test)]
 mod tests {
     use crate::{
+        BEGIN_STRING_FIX42, BEGIN_STRING_FIXT11,
         errors::{
-            new_business_message_reject_error, MessageRejectError, MessageRejectErrorEnum,
-            MessageRejectErrorResult,
+            MessageRejectError, MessageRejectErrorEnum, MessageRejectErrorResult,
+            new_business_message_reject_error,
         },
         fix_string::FIXString,
         message::Message,
-        message_router::{MessageRouter, APPL_VER_ID_FIX50, APPL_VER_ID_FIX50_SP1},
-        registry::{register_session, SESSIONS},
-        session::{session_id::SessionID, Session},
+        message_router::{APPL_VER_ID_FIX50, APPL_VER_ID_FIX50_SP1, MessageRouter},
+        registry::{SESSIONS, SessionRegistration, register_session},
+        session::session_id::SessionID,
         tag::{TAG_BEGIN_STRING, TAG_SENDER_COMP_ID, TAG_TARGET_COMP_ID},
-        BEGIN_STRING_FIX42, BEGIN_STRING_FIXT11,
     };
     use parking_lot::Mutex as StdMutex;
     use serial_test::serial;
@@ -301,23 +301,26 @@ mod tests {
             assert!(parse_result.is_ok());
 
             let mut begin_string = FIXString::new();
-            assert!(self
-                .msg
-                .header
-                .get_field(TAG_BEGIN_STRING, &mut begin_string)
-                .is_ok());
+            assert!(
+                self.msg
+                    .header
+                    .get_field(TAG_BEGIN_STRING, &mut begin_string)
+                    .is_ok()
+            );
             let mut sender_comp_id = FIXString::new();
-            assert!(self
-                .msg
-                .header
-                .get_field(TAG_SENDER_COMP_ID, &mut sender_comp_id)
-                .is_ok());
+            assert!(
+                self.msg
+                    .header
+                    .get_field(TAG_SENDER_COMP_ID, &mut sender_comp_id)
+                    .is_ok()
+            );
             let mut target_comp_id = FIXString::new();
-            assert!(self
-                .msg
-                .header
-                .get_field(TAG_TARGET_COMP_ID, &mut target_comp_id)
-                .is_ok());
+            assert!(
+                self.msg
+                    .header
+                    .get_field(TAG_TARGET_COMP_ID, &mut target_comp_id)
+                    .is_ok()
+            );
             let si = SessionID {
                 begin_string,
                 sender_comp_id: target_comp_id,
@@ -332,13 +335,15 @@ mod tests {
             default_appl_ver_id: &str,
             session_id: &Arc<SessionID>,
         ) {
-            let s = Session {
-                session_id: session_id.clone(),
-                target_default_appl_ver_id: default_appl_ver_id.to_string(),
-                ..Default::default()
+            let target_default_appl_ver_id =
+                Arc::new(std::sync::Mutex::new(default_appl_ver_id.to_string()));
+            let (admin_tx, _admin_rx) = tokio::sync::mpsc::unbounded_channel();
+            let registration = SessionRegistration {
+                admin_tx,
+                target_default_appl_ver_id,
             };
 
-            assert!(register_session(Arc::new(Mutex::new(s))).await.is_ok())
+            assert!(register_session(session_id.clone(), registration).is_ok())
         }
 
         fn given_afix42_new_order_single(&mut self) {
@@ -408,7 +413,10 @@ mod tests {
         for test in tests {
             let mut suite = MessageRouterTestSuite::setup_test().await;
 
-            let msg = format!("8=FIX.4.39=8735={}49=TW34=356=ISLD52=20160421-14:43:5040=160=20160421-14:43:5054=121=311=id10=235", test);
+            let msg = format!(
+                "8=FIX.4.39=8735={}49=TW34=356=ISLD52=20160421-14:43:5040=160=20160421-14:43:5054=121=311=id10=235",
+                test
+            );
             suite.given_the_message(msg.as_bytes());
 
             let suite_msg = Arc::new(StdMutex::new(suite.msg.clone()));

@@ -3,7 +3,7 @@ use crate::{
     connection::{read_loop, write_loop},
     log::{LogEnum, LogFactoryEnum},
     parser::Parser,
-    session::{factory::SessionFactory, AdminEnum, Connect, FixIn, Session, StopReq},
+    session::{AdminEnum, Connect, FixIn, Session, StopReq, factory::SessionFactory},
     settings::Settings,
     store::MessageStoreFactoryEnum,
     tls,
@@ -13,20 +13,20 @@ use std::sync::Arc;
 use tokio::{
     io::BufReader,
     net::TcpStream,
-    sync::{mpsc::UnboundedSender, watch, Mutex},
+    sync::{mpsc::UnboundedSender, watch},
     task::JoinHandle,
     time::sleep,
 };
 
-struct SessionHandle {
-    session: Arc<Mutex<Session>>,
+pub(crate) struct SessionHandle {
+    pub(crate) session: Option<Session>,
     admin_tx: UnboundedSender<AdminEnum>,
     tls_connector: Option<tokio_rustls::TlsConnector>,
     session_settings: crate::session::settings::SessionSettings,
 }
 
 pub struct Initiator {
-    sessions: Vec<SessionHandle>,
+    pub(crate) sessions: Vec<SessionHandle>,
     stop_tx: watch::Sender<bool>,
     stop_rx: watch::Receiver<bool>,
     task_handles: Vec<JoinHandle<()>>,
@@ -58,12 +58,12 @@ impl Initiator {
                 )
                 .await?;
 
-            let admin_tx = session.lock().await.admin.tx.clone();
+            let admin_tx = session.admin.tx.clone();
 
             let tls_connector = tls::load_tls_connector(ss)?;
 
             sessions.push(SessionHandle {
-                session,
+                session: Some(session),
                 admin_tx,
                 tls_connector,
                 session_settings: ss.clone(),
@@ -81,28 +81,28 @@ impl Initiator {
     }
 
     pub async fn start(&mut self) -> SimpleResult<()> {
-        for handle in &self.sessions {
-            // Read settings while we can (before run() takes the lock)
-            let session_lock = handle.session.lock().await;
-            let connect_addresses = session_lock.iss.socket_connect_address.clone();
-            let reconnect_interval = session_lock
+        for handle in &mut self.sessions {
+            let mut session = handle
+                .session
+                .take()
+                .expect("Initiator::start() called more than once");
+
+            let connect_addresses = session.iss.socket_connect_address.clone();
+            let reconnect_interval = session
                 .iss
                 .reconnect_interval
                 .try_into()
                 .unwrap_or(std::time::Duration::from_secs(30));
-            drop(session_lock);
 
-            let session = handle.session.clone();
             let admin_tx = handle.admin_tx.clone();
             let mut stop_rx = self.stop_rx.clone();
             let tls_connector = handle.tls_connector.clone();
             let session_settings = handle.session_settings.clone();
 
             let task_handle = tokio::spawn(async move {
-                // Start session.run() in background
-                let run_session = session.clone();
+                // Start session.run() in background — session is fully owned
                 let run_handle = tokio::spawn(async move {
-                    run_session.lock().await.run().await;
+                    session.run().await;
                 });
 
                 // Connection management loop
@@ -116,31 +116,33 @@ impl Initiator {
                         break;
                     }
 
-                    let address =
-                        &connect_addresses[address_index % connect_addresses.len()];
+                    let address = &connect_addresses[address_index % connect_addresses.len()];
                     address_index = address_index.wrapping_add(1);
 
                     match TcpStream::connect(address).await {
                         Ok(tcp_stream) => {
                             // Optionally wrap with TLS
                             let connected = if let Some(ref connector) = tls_connector {
-                                let server_name = match tls::get_server_name(&session_settings, address) {
-                                    Ok(name) => name,
-                                    Err(_) => {
-                                        // Bad server name, retry
-                                        tokio::select! {
-                                            _ = sleep(reconnect_interval) => {},
-                                            _ = stop_rx.changed() => { break; }
+                                let server_name =
+                                    match tls::get_server_name(&session_settings, address) {
+                                        Ok(name) => name,
+                                        Err(_) => {
+                                            // Bad server name, retry
+                                            tokio::select! {
+                                                _ = sleep(reconnect_interval) => {},
+                                                _ = stop_rx.changed() => { break; }
+                                            }
+                                            continue;
                                         }
-                                        continue;
-                                    }
-                                };
+                                    };
                                 match connector.connect(server_name, tcp_stream).await {
                                     Ok(tls_stream) => {
                                         let (r, w) = tokio::io::split(tls_stream);
                                         Some((
-                                            Box::new(r) as Box<dyn tokio::io::AsyncRead + Unpin + Send>,
-                                            Box::new(w) as Box<dyn tokio::io::AsyncWrite + Unpin + Send>,
+                                            Box::new(r)
+                                                as Box<dyn tokio::io::AsyncRead + Unpin + Send>,
+                                            Box::new(w)
+                                                as Box<dyn tokio::io::AsyncWrite + Unpin + Send>,
                                         ))
                                     }
                                     Err(_) => None, // TLS handshake failed
@@ -245,7 +247,7 @@ mod tests {
     use super::*;
     use crate::application::NOPApp;
     use crate::log::LogFactoryEnum;
-    use crate::registry::{unregister_session, SESSIONS};
+    use crate::registry::{SESSIONS, unregister_session};
     use crate::store::MessageStoreFactoryEnum;
     use serial_test::serial;
     use tokio::io::BufReader;
@@ -272,7 +274,9 @@ SocketConnectPort={}
 "#,
             host, port
         );
-        Settings::parse(BufReader::new(cfg.as_bytes())).await.unwrap()
+        Settings::parse(BufReader::new(cfg.as_bytes()))
+            .await
+            .unwrap()
     }
 
     // Verifies that Initiator::new() creates sessions with initiate_logon=true
@@ -294,14 +298,15 @@ SocketConnectPort={}
 
         assert_eq!(1, initiator.sessions.len(), "should have 1 session");
 
-        let session_lock = initiator.sessions[0].session.lock().await;
-        assert!(session_lock.iss.initiate_logon, "should be an initiator session");
+        let session = initiator.sessions[0]
+            .session
+            .as_ref()
+            .expect("session should exist before start()");
+        assert!(session.iss.initiate_logon, "should be an initiator session");
         assert_eq!(
-            "127.0.0.1:5000",
-            session_lock.iss.socket_connect_address[0],
+            "127.0.0.1:5000", session.iss.socket_connect_address[0],
             "should have correct connect address"
         );
-        drop(session_lock);
 
         clean_sessions();
     }

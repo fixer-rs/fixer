@@ -5,12 +5,10 @@ use crate::{
     log::{LogEnum, LogFactoryEnum},
     message::Message,
     parser::Parser,
-    registry::{lookup_session, unregister_session},
+    registry::{lookup_admin_tx, unregister_session},
     session::{
-        factory::SessionFactory,
-        session_id::SessionID,
-        settings::SessionSettings,
-        AdminEnum, Connect, FixIn, Session, StopReq,
+        AdminEnum, Connect, FixIn, Session, StopReq, factory::SessionFactory,
+        session_id::SessionID, settings::SessionSettings,
     },
     settings::Settings,
     store::MessageStoreFactoryEnum,
@@ -24,14 +22,14 @@ use simple_error::SimpleResult;
 use std::{
     net::SocketAddr,
     sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicUsize, Ordering},
     },
 };
 use tokio::{
     io::BufReader,
     net::TcpListener,
-    sync::{mpsc, mpsc::UnboundedSender, watch, Mutex},
+    sync::{mpsc, mpsc::UnboundedSender, watch},
     task::JoinHandle,
 };
 
@@ -51,7 +49,7 @@ trait DynSessionCreator: Send + Sync {
         &'a self,
         session_id: Arc<SessionID>,
         settings: &'a SessionSettings,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = SimpleResult<Arc<Mutex<Session>>>> + Send + 'a>>;
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = SimpleResult<Session>> + Send + 'a>>;
 }
 
 struct SessionCreator {
@@ -66,7 +64,7 @@ impl DynSessionCreator for SessionCreator {
         &'a self,
         session_id: Arc<SessionID>,
         settings: &'a SessionSettings,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = SimpleResult<Arc<Mutex<Session>>>> + Send + 'a>>
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = SimpleResult<Session>> + Send + 'a>>
     {
         Box::pin(async move {
             self.factory
@@ -83,7 +81,7 @@ impl DynSessionCreator for SessionCreator {
 }
 
 struct SessionHandle {
-    session: Arc<Mutex<Session>>,
+    session: Option<Session>,
     admin_tx: UnboundedSender<AdminEnum>,
 }
 
@@ -98,7 +96,7 @@ pub struct Acceptor {
     dynamic_sessions: bool,
     dynamic_qualifier: bool,
     dynamic_qualifier_count: Arc<AtomicUsize>,
-    dynamic_session_tx: Option<mpsc::UnboundedSender<Arc<Mutex<Session>>>>,
+    dynamic_session_tx: Option<mpsc::UnboundedSender<Session>>,
     session_creator: Arc<dyn DynSessionCreator>,
     global_settings: SessionSettings,
     tls_acceptor: Option<tokio_rustls::TlsAcceptor>,
@@ -137,12 +135,16 @@ impl Acceptor {
 
         // Read dynamic sessions config
         let dynamic_sessions = if global.has_setting(config::DYNAMIC_SESSIONS) {
-            global.bool_setting(config::DYNAMIC_SESSIONS).unwrap_or(false)
+            global
+                .bool_setting(config::DYNAMIC_SESSIONS)
+                .unwrap_or(false)
         } else {
             false
         };
         let dynamic_qualifier = if global.has_setting(config::DYNAMIC_QUALIFIER) {
-            global.bool_setting(config::DYNAMIC_QUALIFIER).unwrap_or(false)
+            global
+                .bool_setting(config::DYNAMIC_QUALIFIER)
+                .unwrap_or(false)
         } else {
             false
         };
@@ -164,10 +166,10 @@ impl Acceptor {
                 )
                 .await?;
 
-            let admin_tx = session.lock().await.admin.tx.clone();
+            let admin_tx = session.admin.tx.clone();
 
             sessions.push(SessionHandle {
-                session,
+                session: Some(session),
                 admin_tx,
             });
         }
@@ -200,18 +202,21 @@ impl Acceptor {
     }
 
     pub async fn start(&mut self) -> SimpleResult<()> {
-        // Start session.run() for all sessions
-        for handle in &self.sessions {
-            let session = handle.session.clone();
+        // Start session.run() for all sessions — each task owns its Session
+        for handle in &mut self.sessions {
+            let mut session = handle
+                .session
+                .take()
+                .expect("Acceptor::start() called more than once");
             let run_handle = tokio::spawn(async move {
-                session.lock().await.run().await;
+                session.run().await;
             });
             self.task_handles.push(run_handle);
         }
 
         // Start dynamic sessions loop if enabled
         if self.dynamic_sessions {
-            let (tx, rx) = mpsc::unbounded_channel::<Arc<Mutex<Session>>>();
+            let (tx, rx) = mpsc::unbounded_channel::<Session>();
             self.dynamic_session_tx = Some(tx);
 
             let dynamic_handle = tokio::spawn(dynamic_sessions_loop(rx));
@@ -318,7 +323,7 @@ struct DynamicContext {
     global_settings: SessionSettings,
     dynamic_qualifier: bool,
     qualifier_count: Arc<AtomicUsize>,
-    dynamic_session_tx: mpsc::UnboundedSender<Arc<Mutex<Session>>>,
+    dynamic_session_tx: mpsc::UnboundedSender<Session>,
 }
 
 // handle_connection reads the first FIX message from an incoming connection
@@ -413,34 +418,32 @@ async fn handle_connection<R, W>(
         }
     }
 
-    // Look up the session in the global registry, or create a dynamic session
+    // Look up the session's admin channel in the global registry, or create a dynamic session
     let is_dynamic;
-    let session = match lookup_session(&session_id) {
-        Some(s) => {
+    let admin_tx = match lookup_admin_tx(&session_id) {
+        Some(tx) => {
             is_dynamic = false;
-            s
+            tx
         }
         None => {
             // Session not found — try dynamic session creation
             let Some(ref ctx) = dynamic_ctx else {
                 return;
             };
-            let Ok(s) = ctx
+            let Ok(session) = ctx
                 .session_creator
                 .create_session(session_id.clone(), &ctx.global_settings)
                 .await
             else {
                 return;
             };
-            // Send the dynamic session to the lifecycle loop
-            let _ = ctx.dynamic_session_tx.send(s.clone());
+            // Clone admin_tx before moving the owned session to the lifecycle loop
+            let tx = session.admin.tx.clone();
+            let _ = ctx.dynamic_session_tx.send(session);
             is_dynamic = true;
-            s
+            tx
         }
     };
-
-    // Get admin_tx to send Connect message
-    let admin_tx = session.lock().await.admin.tx.clone();
 
     // Create channels for this connection
     let (msg_out_tx, msg_out_rx) = tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
@@ -489,18 +492,17 @@ async fn handle_connection<R, W>(
 // It receives sessions via channel, spawns their run() loop, and unregisters
 // them from the global registry when they complete. Equivalent to Go's
 // Acceptor.dynamicSessionsLoop().
-async fn dynamic_sessions_loop(mut rx: mpsc::UnboundedReceiver<Arc<Mutex<Session>>>) {
+async fn dynamic_sessions_loop(mut rx: mpsc::UnboundedReceiver<Session>) {
     let mut run_handles: Vec<JoinHandle<()>> = Vec::new();
 
     // Receive dynamic sessions until the channel is closed (Acceptor::stop)
-    while let Some(session) = rx.recv().await {
-        let session_for_run = session.clone();
+    while let Some(mut session) = rx.recv().await {
+        let session_id = session.session_id.clone();
         let handle = tokio::spawn(async move {
-            // Run the session
-            session_for_run.lock().await.run().await;
+            // Run the session — fully owned, no mutex
+            session.run().await;
 
             // Unregister from the global registry after run() completes
-            let session_id = session_for_run.lock().await.session_id.clone();
             let _ = unregister_session(&session_id);
         });
         run_handles.push(handle);
@@ -519,7 +521,7 @@ mod tests {
     use super::*;
     use crate::application::NOPApp;
     use crate::log::LogFactoryEnum;
-    use crate::registry::{unregister_session, SESSIONS};
+    use crate::registry::{SESSIONS, unregister_session};
     use crate::session::session_id::SessionID;
     use crate::store::MessageStoreFactoryEnum;
     use serial_test::serial;
@@ -547,7 +549,9 @@ TargetCompID=INITIATOR
 "#,
             port
         );
-        Settings::parse(BufReader::new(cfg.as_bytes())).await.unwrap()
+        Settings::parse(BufReader::new(cfg.as_bytes()))
+            .await
+            .unwrap()
     }
 
     // Ported from Go quickfix TestAcceptor_Start (accepter_test.go).
@@ -568,7 +572,10 @@ TargetCompID=INITIATOR
 
         assert_eq!(1, acceptor.sessions.len(), "should have 1 session");
 
-        acceptor.start().await.expect("Acceptor::start should succeed");
+        acceptor
+            .start()
+            .await
+            .expect("Acceptor::start should succeed");
 
         let local_addr = acceptor.local_address();
         assert!(local_addr.is_some(), "should have a bound local address");
@@ -592,7 +599,9 @@ BeginString=FIX.4.2
 SenderCompID=ACCEPTOR
 TargetCompID=INITIATOR
 "#;
-        let settings = Settings::parse(BufReader::new(cfg.as_bytes())).await.unwrap();
+        let settings = Settings::parse(BufReader::new(cfg.as_bytes()))
+            .await
+            .unwrap();
         let app: Arc<dyn Application> = Arc::new(NOPApp::new());
         let store_factory = MessageStoreFactoryEnum::default();
         let log_factory = LogFactoryEnum::default();
@@ -702,7 +711,10 @@ TargetCompID=INITIATOR
 
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 
-        assert!(validator.called.load(Ordering::SeqCst), "validator should have been called");
+        assert!(
+            validator.called.load(Ordering::SeqCst),
+            "validator should have been called"
+        );
 
         drop(stream);
         acceptor.stop().await;
@@ -740,7 +752,10 @@ TargetCompID=INITIATOR
 
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 
-        assert!(validator.called.load(Ordering::SeqCst), "validator should have been called");
+        assert!(
+            validator.called.load(Ordering::SeqCst),
+            "validator should have been called"
+        );
 
         drop(stream);
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
@@ -778,7 +793,11 @@ TargetCompID=INITIATOR
     }
 
     async fn make_dynamic_acceptor_settings(port: &str, dynamic_qualifier: bool) -> Settings {
-        let dq = if dynamic_qualifier { "DynamicQualifier=Y\n" } else { "" };
+        let dq = if dynamic_qualifier {
+            "DynamicQualifier=Y\n"
+        } else {
+            ""
+        };
         let cfg = format!(
             r#"
 [DEFAULT]
@@ -792,7 +811,9 @@ TargetCompID=INITIATOR
 "#,
             port, dq
         );
-        Settings::parse(BufReader::new(cfg.as_bytes())).await.unwrap()
+        Settings::parse(BufReader::new(cfg.as_bytes()))
+            .await
+            .unwrap()
     }
 
     // Verifies that DynamicSessions=Y config is read correctly.
@@ -811,7 +832,10 @@ TargetCompID=INITIATOR
             .unwrap();
 
         assert!(acceptor.dynamic_sessions, "dynamic_sessions should be true");
-        assert!(!acceptor.dynamic_qualifier, "dynamic_qualifier should be false");
+        assert!(
+            !acceptor.dynamic_qualifier,
+            "dynamic_qualifier should be false"
+        );
 
         clean_sessions();
     }
@@ -858,7 +882,7 @@ TargetCompID=INITIATOR
             qualifier: String::new(),
         });
         assert!(
-            lookup_session(&dynamic_id).is_some(),
+            lookup_admin_tx(&dynamic_id).is_some(),
             "dynamic session should be registered"
         );
 
@@ -924,8 +948,14 @@ TargetCompID=INITIATOR
             qualifier: "2".to_string(),
         });
 
-        assert!(lookup_session(&id1).is_some(), "first dynamic session (qualifier=1) should exist");
-        assert!(lookup_session(&id2).is_some(), "second dynamic session (qualifier=2) should exist");
+        assert!(
+            lookup_admin_tx(&id1).is_some(),
+            "first dynamic session (qualifier=1) should exist"
+        );
+        assert!(
+            lookup_admin_tx(&id2).is_some(),
+            "second dynamic session (qualifier=2) should exist"
+        );
 
         drop(stream1);
         drop(stream2);
@@ -976,7 +1006,7 @@ TargetCompID=INITIATOR
             qualifier: String::new(),
         });
         assert!(
-            lookup_session(&unknown_id).is_none(),
+            lookup_admin_tx(&unknown_id).is_none(),
             "unknown session should not be registered"
         );
 
@@ -988,7 +1018,11 @@ TargetCompID=INITIATOR
     // --- TLS integration tests ---
 
     // Generate self-signed CA + server cert for testing using rcgen.
-    fn generate_test_certs() -> (tempfile::NamedTempFile, tempfile::NamedTempFile, tempfile::NamedTempFile) {
+    fn generate_test_certs() -> (
+        tempfile::NamedTempFile,
+        tempfile::NamedTempFile,
+        tempfile::NamedTempFile,
+    ) {
         use rcgen::{CertificateParams, KeyPair};
         use std::io::Write;
 
@@ -999,7 +1033,9 @@ TargetCompID=INITIATOR
 
         let server_key = KeyPair::generate().unwrap();
         let server_params = CertificateParams::new(vec!["localhost".to_string()]).unwrap();
-        let server_cert = server_params.signed_by(&server_key, &ca_cert, &ca_key).unwrap();
+        let server_cert = server_params
+            .signed_by(&server_key, &ca_cert, &ca_key)
+            .unwrap();
 
         let mut ca_file = tempfile::NamedTempFile::new().unwrap();
         ca_file.write_all(ca_cert.pem().as_bytes()).unwrap();
@@ -1008,7 +1044,9 @@ TargetCompID=INITIATOR
         cert_file.write_all(server_cert.pem().as_bytes()).unwrap();
 
         let mut key_file = tempfile::NamedTempFile::new().unwrap();
-        key_file.write_all(server_key.serialize_pem().as_bytes()).unwrap();
+        key_file
+            .write_all(server_key.serialize_pem().as_bytes())
+            .unwrap();
 
         (ca_file, cert_file, key_file)
     }
@@ -1029,7 +1067,9 @@ TargetCompID=INITIATOR
 "#,
             port, cert_path, key_path
         );
-        Settings::parse(BufReader::new(cfg.as_bytes())).await.unwrap()
+        Settings::parse(BufReader::new(cfg.as_bytes()))
+            .await
+            .unwrap()
     }
 
     // Verifies that an Acceptor with TLS enabled starts and stops cleanly.
@@ -1053,9 +1093,15 @@ TargetCompID=INITIATOR
             .await
             .expect("Acceptor::new with TLS should succeed");
 
-        assert!(acceptor.tls_acceptor.is_some(), "TLS acceptor should be configured");
+        assert!(
+            acceptor.tls_acceptor.is_some(),
+            "TLS acceptor should be configured"
+        );
 
-        acceptor.start().await.expect("Acceptor::start should succeed");
+        acceptor
+            .start()
+            .await
+            .expect("Acceptor::start should succeed");
         let addr = acceptor.local_address().unwrap();
         assert_ne!(0, addr.port());
 
@@ -1090,9 +1136,10 @@ TargetCompID=INITIATOR
 
         // Build a TLS client using the CA cert to verify the server
         let ca_data = std::fs::read(ca.path()).unwrap();
-        let ca_certs: Vec<_> = rustls_pemfile::certs(&mut std::io::BufReader::new(ca_data.as_slice()))
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
+        let ca_certs: Vec<_> =
+            rustls_pemfile::certs(&mut std::io::BufReader::new(ca_data.as_slice()))
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap();
         let mut root_store = tokio_rustls::rustls::RootCertStore::empty();
         for c in ca_certs {
             root_store.add(c).unwrap();
@@ -1103,8 +1150,12 @@ TargetCompID=INITIATOR
         let connector = tokio_rustls::TlsConnector::from(std::sync::Arc::new(client_config));
 
         let tcp_stream = TcpStream::connect(addr).await.unwrap();
-        let server_name = tokio_rustls::rustls::pki_types::ServerName::try_from("localhost").unwrap();
-        let mut tls_stream = connector.connect(server_name, tcp_stream).await.expect("TLS handshake should succeed");
+        let server_name =
+            tokio_rustls::rustls::pki_types::ServerName::try_from("localhost").unwrap();
+        let mut tls_stream = connector
+            .connect(server_name, tcp_stream)
+            .await
+            .expect("TLS handshake should succeed");
 
         // Send a FIX logon over the TLS connection
         let logon_msg = "8=FIX.4.2\x019=68\x0135=A\x0149=INITIATOR\x0156=ACCEPTOR\x0134=1\x0152=20240101-00:00:00\x0198=0\x01108=30\x0110=034\x01";

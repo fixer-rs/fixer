@@ -1,4 +1,8 @@
+use std::sync::Mutex as StdMutex;
+
 use crate::{
+    BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIX42, BEGIN_STRING_FIX43,
+    BEGIN_STRING_FIX44,
     application::Application,
     config::{
         APP_DATA_DICTIONARY, CHECK_LATENCY, DATA_DICTIONARY, DEFAULT_APPL_VER_ID,
@@ -19,22 +23,20 @@ use crate::{
         time_range::{TimeOfDay, TimeRange},
     },
     log::{LogFactoryTrait, LogTrait},
-    registry::register_session,
+    registry::{SessionRegistration, register_session},
     session::{
+        Admin, AdminEnum, FixIn, MessageEvent, Session, SessionEvent,
         session_id::SessionID,
         session_state::{SessionStateEnum, StateMachine},
         settings::SessionSettings,
-        Admin, AdminEnum, FixIn, MessageEvent, Session, SessionEvent,
     },
     store::MessageStoreFactoryTrait,
     validation::{ValidatorEnum, ValidatorSettings},
-    BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIX42, BEGIN_STRING_FIX43,
-    BEGIN_STRING_FIX44,
 };
 use addr::parse_domain_name;
-use jiff::{civil::Weekday, tz::TimeZone, SignedDuration};
-use std::sync::LazyLock;
+use jiff::{SignedDuration, civil::Weekday, tz::TimeZone};
 use simple_error::{SimpleError, SimpleResult};
+use std::sync::LazyLock;
 use std::{
     collections::HashMap,
     net::{IpAddr, SocketAddr, SocketAddrV4, SocketAddrV6},
@@ -42,10 +44,7 @@ use std::{
     str::FromStr,
     sync::Arc,
 };
-use tokio::sync::{
-    mpsc::{channel, unbounded_channel},
-    Mutex,
-};
+use tokio::sync::mpsc::{channel, unbounded_channel};
 
 static DAY_LOOKUP: LazyLock<HashMap<&str, Weekday>> = LazyLock::new(|| {
     hashmap! {
@@ -88,18 +87,19 @@ pub struct SessionFactory {
 
 impl SessionFactory {
     // creates Session, associates with internal session registry.
-    pub async fn create_session<
-        F: MessageStoreFactoryTrait,
-        L: LogFactoryTrait,
-    >(
+    // Returns an owned Session — the caller is responsible for spawning a task
+    // that calls session.run(). Channel handles are registered in the global
+    // SESSIONS registry so that send_to_target() can communicate with the
+    // session via channels.
+    pub async fn create_session<F: MessageStoreFactoryTrait, L: LogFactoryTrait>(
         &self,
         session_id: Arc<SessionID>,
         store_factory: F,
         settings: &SessionSettings,
         log_factory: L,
         application: Arc<dyn Application>,
-    ) -> SimpleResult<Arc<Mutex<Session>>> {
-        let session = self
+    ) -> SimpleResult<Session> {
+        let mut session = self
             .new_session(
                 session_id,
                 store_factory,
@@ -110,26 +110,25 @@ impl SessionFactory {
             .await?;
 
         let session_id = session.session_id.clone();
-        let arc_session = Arc::new(Mutex::new(session));
+        let admin_tx = session.admin.tx.clone();
+        let target_default_appl_ver_id = session.target_default_appl_ver_id.clone();
 
-        register_session(arc_session.clone()).await?;
+        register_session(
+            session_id.clone(),
+            SessionRegistration {
+                admin_tx,
+                target_default_appl_ver_id,
+            },
+        )?;
 
         application.on_create(&session_id);
 
-        arc_session
-            .lock()
-            .await
-            .log
-            .on_event("Created session")
-            .await;
+        session.log.on_event("Created session").await;
 
-        Ok(arc_session)
+        Ok(session)
     }
 
-    async fn new_session<
-        F: MessageStoreFactoryTrait,
-        L: LogFactoryTrait,
-    >(
+    async fn new_session<F: MessageStoreFactoryTrait, L: LogFactoryTrait>(
         &self,
         session_id: Arc<SessionID>,
         store_factory: F,
@@ -224,11 +223,7 @@ impl SessionFactory {
             let app_dd = Arc::new(app_data_dictionary_inner);
             app_data_dictionary = Some(app_dd.clone());
 
-            Some(ValidatorEnum::new(
-                validator_settings,
-                app_dd,
-                None,
-            ))
+            Some(ValidatorEnum::new(validator_settings, app_dd, None))
         } else {
             None
         };
@@ -428,7 +423,7 @@ impl SessionFactory {
             peer_timer: EventTimer::new(Arc::new(|| {})),
             sent_reset: Default::default(),
             stop_once: Default::default(),
-            target_default_appl_ver_id: default_appl_ver_id,
+            target_default_appl_ver_id: Arc::new(StdMutex::new(default_appl_ver_id)),
             admin: Admin {
                 tx: admin_tx,
                 rx: admin_rx,
@@ -578,6 +573,8 @@ impl SessionFactory {
 #[cfg(test)]
 mod tests {
     use crate::{
+        BEGIN_STRING_FIXT11,
+        application::Application,
         config::{
             CHECK_LATENCY, DEFAULT_APPL_VER_ID, ENABLE_LAST_MSG_SEQ_NUM_PROCESSED, END_DAY,
             END_TIME, HEART_BT_INT, HEART_BT_INT_OVERRIDE, LOGON_TIMEOUT, LOGOUT_TIMEOUT,
@@ -587,17 +584,15 @@ mod tests {
             TIME_ZONE,
         },
         fix_utc_timestamp::TimestampPrecision,
-        application::Application,
         fixer_test::MockApp,
         internal::time_range::{TimeOfDay, TimeRange},
         log::LogFactoryEnum,
         session::{
-            factory::SessionFactory, session_id::SessionID, settings::SessionSettings, Session,
+            Session, factory::SessionFactory, session_id::SessionID, settings::SessionSettings,
         },
         store::{MemoryStoreFactory, MessageStoreFactoryEnum},
-        BEGIN_STRING_FIXT11,
     };
-    use jiff::{civil::Weekday, tz::TimeZone, SignedDuration};
+    use jiff::{SignedDuration, civil::Weekday, tz::TimeZone};
     use std::sync::Arc;
 
     struct SessionFactorySuite {
@@ -965,7 +960,10 @@ mod tests {
             .await;
         assert!(session_result.is_ok());
         let session = session_result.unwrap();
-        let loc = jiff::civil::date(2020, 10, 10).at(10, 10, 10, 0).to_zoned(TimeZone::system()).unwrap();
+        let loc = jiff::civil::date(2020, 10, 10)
+            .at(10, 10, 10, 0)
+            .to_zoned(TimeZone::system())
+            .unwrap();
         let offset = loc.offset().to_time_zone();
 
         assert_eq!(
@@ -1045,7 +1043,10 @@ mod tests {
         assert!(session_result.is_ok());
         let session = session_result.unwrap();
 
-        let loc = jiff::civil::date(2020, 10, 10).at(10, 10, 10, 0).to_zoned(TimeZone::system()).unwrap();
+        let loc = jiff::civil::date(2020, 10, 10)
+            .at(10, 10, 10, 0)
+            .to_zoned(TimeZone::system())
+            .unwrap();
         let offset = loc.offset().to_time_zone();
 
         assert_eq!(
@@ -1349,7 +1350,10 @@ mod tests {
         assert!(session.iss.initiate_logon);
 
         assert_eq!(SignedDuration::from_secs(34), session.iss.heart_bt_int);
-        assert_eq!(SignedDuration::from_secs(30), session.iss.reconnect_interval);
+        assert_eq!(
+            SignedDuration::from_secs(30),
+            session.iss.reconnect_interval
+        );
         assert_eq!(SignedDuration::from_secs(10), session.iss.logon_timeout);
         assert_eq!(SignedDuration::from_secs(2), session.iss.logout_timeout);
         assert_eq!("127.0.0.1:5000", session.iss.socket_connect_address[0]);
@@ -1552,7 +1556,10 @@ mod tests {
             .await;
         assert!(session_result.is_ok());
         let session = session_result.unwrap();
-        assert_eq!(SignedDuration::from_secs(45), session.iss.reconnect_interval);
+        assert_eq!(
+            SignedDuration::from_secs(45),
+            session.iss.reconnect_interval
+        );
 
         s.ss.set(RECONNECT_INTERVAL.to_string(), "not a number".to_string());
         let session_result = s

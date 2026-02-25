@@ -1,5 +1,6 @@
+use crate::BEGIN_STRING_FIX42;
 use crate::application::Application;
-use crate::errors::{MessageRejectErrorEnum, MessageRejectErrorResult, ERR_DO_NOT_SEND};
+use crate::errors::{ERR_DO_NOT_SEND, MessageRejectErrorEnum, MessageRejectErrorResult};
 use crate::field_map::FieldMap;
 use crate::fix_boolean::FIXBoolean;
 use crate::fix_string::FIXString;
@@ -7,8 +8,8 @@ use crate::fix_utc_timestamp::FIXUTCTimestamp;
 use crate::internal::event::Event;
 use crate::internal::event_timer::EventTimer;
 use crate::internal::session_settings::SessionSettings;
-use crate::log::null_log::NullLog;
 use crate::log::LogEnum;
+use crate::log::null_log::NullLog;
 use crate::message::Message;
 use crate::msg_type::{
     MSG_TYPE_HEARTBEAT, MSG_TYPE_LOGON, MSG_TYPE_LOGOUT, MSG_TYPE_RESEND_REQUEST,
@@ -19,18 +20,17 @@ use crate::session::session_state::{SessionStateEnum, StateMachine};
 use crate::session::{Admin, AdminEnum, FixIn, MessageEvent, Session, SessionEvent};
 use crate::store::{MemoryStore, MessageStoreEnum, MessageStoreTrait};
 use crate::tag::{
-    Tag, TAG_BEGIN_SEQ_NO, TAG_BEGIN_STRING, TAG_END_SEQ_NO, TAG_MSG_SEQ_NUM, TAG_MSG_TYPE,
-    TAG_NEW_SEQ_NO, TAG_SENDER_COMP_ID, TAG_SENDING_TIME, TAG_TARGET_COMP_ID,
+    TAG_BEGIN_SEQ_NO, TAG_BEGIN_STRING, TAG_END_SEQ_NO, TAG_MSG_SEQ_NUM, TAG_MSG_TYPE,
+    TAG_NEW_SEQ_NO, TAG_SENDER_COMP_ID, TAG_SENDING_TIME, TAG_TARGET_COMP_ID, Tag,
 };
-use crate::BEGIN_STRING_FIX42;
 use jiff::{SignedDuration, Timestamp};
 use mockall::predicate::*;
 use mockall::*;
 use simple_error::{SimpleError, SimpleResult};
 use std::sync::Arc;
 use tokio::sync::{
-    mpsc::{channel, unbounded_channel, UnboundedReceiver, UnboundedSender},
     Mutex,
+    mpsc::{UnboundedReceiver, UnboundedSender, channel, unbounded_channel},
 };
 use tokio::time::timeout;
 
@@ -324,11 +324,7 @@ impl Application for App {
 
     fn on_logout(&self, _session_id: &Arc<SessionID>) {}
 
-    fn from_admin(
-        &self,
-        _msg: &Message,
-        _session_id: &Arc<SessionID>,
-    ) -> MessageRejectErrorResult {
+    fn from_admin(&self, _msg: &Message, _session_id: &Arc<SessionID>) -> MessageRejectErrorResult {
         Ok(())
     }
 
@@ -338,11 +334,7 @@ impl Application for App {
         Ok(())
     }
 
-    fn from_app(
-        &self,
-        _msg: &Message,
-        _session_id: &Arc<SessionID>,
-    ) -> MessageRejectErrorResult {
+    fn from_app(&self, _msg: &Message, _session_id: &Arc<SessionID>) -> MessageRejectErrorResult {
         Ok(())
     }
 }
@@ -377,11 +369,7 @@ impl Application for MockAppExtended {
             .call(session_id)
     }
 
-    fn from_admin(
-        &self,
-        msg: &Message,
-        session_id: &Arc<SessionID>,
-    ) -> MessageRejectErrorResult {
+    fn from_admin(&self, msg: &Message, session_id: &Arc<SessionID>) -> MessageRejectErrorResult {
         match session_id.qualifier.as_str() {
             OVERRIDE_TIMES_FROM_ADMIN_RETURN_ERROR => {
                 self.mock_app.lock().unwrap().from_admin(msg, session_id)
@@ -559,8 +547,10 @@ impl MessageFactory {
             .set_field(TAG_SENDER_COMP_ID, FIXString::from("TW"));
         msg.header
             .set_field(TAG_TARGET_COMP_ID, FIXString::from("ISLD"));
-        msg.header
-            .set_field(TAG_SENDING_TIME, FIXUTCTimestamp::from_time(Timestamp::now()));
+        msg.header.set_field(
+            TAG_SENDING_TIME,
+            FIXUTCTimestamp::from_time(Timestamp::now()),
+        );
         msg.header.set_field(TAG_MSG_SEQ_NUM, self.seq_num);
         msg.header
             .set_field(TAG_MSG_TYPE, FIXString::from(msg_type));
@@ -718,7 +708,7 @@ impl SessionSuiteRig {
             peer_timer: EventTimer::new(Arc::new(|| {})),
             sent_reset: Default::default(),
             stop_once: Default::default(),
-            target_default_appl_ver_id: Default::default(),
+            target_default_appl_ver_id: Arc::new(std::sync::Mutex::new(String::new())),
             admin: Admin {
                 tx: admin_tx,
                 rx: admin_rx,
@@ -822,21 +812,23 @@ impl SessionSuiteRig {
     }
 
     pub async fn incr_next_sender_msg_seq_num(&mut self) {
-        assert!(self
-            .session
-            .store
-            .incr_next_sender_msg_seq_num()
-            .await
-            .is_ok());
+        assert!(
+            self.session
+                .store
+                .incr_next_sender_msg_seq_num()
+                .await
+                .is_ok()
+        );
     }
 
     pub async fn incr_next_target_msg_seq_num(&mut self) {
-        assert!(self
-            .session
-            .store
-            .incr_next_target_msg_seq_num()
-            .await
-            .is_ok());
+        assert!(
+            self.session
+                .store
+                .incr_next_target_msg_seq_num()
+                .await
+                .is_ok()
+        );
     }
 
     pub async fn no_message_persisted(&mut self, seq_num: isize) {
