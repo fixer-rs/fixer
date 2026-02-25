@@ -28,7 +28,6 @@ futures = "0.3"
 itoa = "1.0"
 maplit = "1.0"
 memmem = "0.1.1"
-parking_lot = "0.12"
 parse_duration = "2.1"
 quick-xml = { version = "0.37", features = ["serialize"] }
 ramhorns = "1.0"

@@ -12,7 +12,6 @@ use crate::{
     tag::{TAG_APPL_VER_ID, TAG_BEGIN_STRING, TAG_MSG_TYPE},
 };
 use dashmap::DashMap;
-use parking_lot::Mutex;
 use std::sync::Arc;
 
 #[derive(Eq, PartialEq, Hash)]
@@ -32,7 +31,7 @@ pub const APPL_VER_ID_FIX50: &str = "7";
 pub const APPL_VER_ID_FIX50_SP1: &str = "8";
 pub const APPL_VER_ID_FIX50_SP2: &str = "9";
 
-// A MessageRouter is a mutex for MessageRoutes.
+// A MessageRouter routes FIX messages to registered callbacks.
 #[derive(Default)]
 pub struct MessageRouter {
     #[cfg(not(test))]
@@ -41,7 +40,7 @@ pub struct MessageRouter {
         Box<
             dyn FnMut(
                 &mut MessageRouter,
-                Arc<Mutex<Message>>,
+                &Message,
                 Arc<SessionID>,
             ) -> MessageRejectErrorResult,
         >,
@@ -53,7 +52,7 @@ pub struct MessageRouter {
         Box<
             dyn FnMut(
                 &mut MessageRouterTestSuite,
-                Arc<Mutex<Message>>,
+                &Message,
                 Arc<SessionID>,
             ) -> MessageRejectErrorResult,
         >,
@@ -77,7 +76,7 @@ impl MessageRouter {
         router: Box<
             dyn FnMut(
                 &mut MessageRouter,
-                Arc<Mutex<Message>>,
+                &Message,
                 Arc<SessionID>,
             ) -> MessageRejectErrorResult,
         >,
@@ -97,7 +96,7 @@ impl MessageRouter {
         router: Box<
             dyn FnMut(
                 &mut MessageRouterTestSuite,
-                Arc<Mutex<Message>>,
+                &Message,
                 Arc<SessionID>,
             ) -> MessageRejectErrorResult,
         >,
@@ -113,14 +112,11 @@ impl MessageRouter {
     #[cfg(not(test))]
     pub async fn route(
         g: &mut MessageRouter,
-        msg: Arc<Mutex<Message>>,
+        msg: &Message,
         session_id: Arc<SessionID>,
     ) -> MessageRejectErrorResult {
-        let msg_clone = msg.clone();
-        let lock = msg_clone.lock();
-        let begin_bytes = lock.header.get_bytes(TAG_BEGIN_STRING)?;
-        let msg_type_bytes = lock.header.get_bytes(TAG_MSG_TYPE)?;
-        drop(lock);
+        let begin_bytes = msg.header.get_bytes(TAG_BEGIN_STRING)?;
+        let msg_type_bytes = msg.header.get_bytes(TAG_MSG_TYPE)?;
         let begin_string = String::from_utf8_lossy(&begin_bytes).to_string();
         let msg_type_string = String::from_utf8_lossy(&msg_type_bytes).to_string();
         Self::try_route(g, begin_string, msg_type_string, msg, session_id).await
@@ -129,14 +125,11 @@ impl MessageRouter {
     #[cfg(test)]
     pub async fn route(
         g: &mut MessageRouterTestSuite,
-        msg: Arc<Mutex<Message>>,
+        msg: &Message,
         session_id: Arc<SessionID>,
     ) -> MessageRejectErrorResult {
-        let msg_clone = msg.clone();
-        let lock = msg_clone.lock();
-        let begin_bytes = lock.header.get_bytes(TAG_BEGIN_STRING)?;
-        let msg_type_bytes = lock.header.get_bytes(TAG_MSG_TYPE)?;
-        drop(lock);
+        let begin_bytes = msg.header.get_bytes(TAG_BEGIN_STRING)?;
+        let msg_type_bytes = msg.header.get_bytes(TAG_MSG_TYPE)?;
         let begin_string = String::from_utf8_lossy(&begin_bytes).to_string();
         let msg_type_string = String::from_utf8_lossy(&msg_type_bytes).to_string();
         Self::try_route(g, begin_string, msg_type_string, msg, session_id).await
@@ -147,12 +140,12 @@ impl MessageRouter {
         g: &mut MessageRouter,
         begin_string: String,
         msg_type: String,
-        msg: Arc<Mutex<Message>>,
+        msg: &Message,
         session_id: Arc<SessionID>,
     ) -> MessageRejectErrorResult {
         let is_admin_msg = is_admin_message_type(msg_type.as_bytes());
         let fix_version =
-            Self::get_fix_version(begin_string, is_admin_msg, msg.clone(), session_id.clone())
+            Self::get_fix_version(begin_string, is_admin_msg, msg, session_id.clone())
                 .await;
         let key = &RouteKey {
             fix_version,
@@ -179,12 +172,12 @@ impl MessageRouter {
         g: &mut MessageRouterTestSuite,
         begin_string: String,
         msg_type: String,
-        msg: Arc<Mutex<Message>>,
+        msg: &Message,
         session_id: Arc<SessionID>,
     ) -> MessageRejectErrorResult {
         let is_admin_msg = is_admin_message_type(msg_type.as_bytes());
         let fix_version =
-            Self::get_fix_version(begin_string, is_admin_msg, msg.clone(), session_id.clone())
+            Self::get_fix_version(begin_string, is_admin_msg, msg, session_id.clone())
                 .await;
         let key = &RouteKey {
             fix_version,
@@ -210,7 +203,7 @@ impl MessageRouter {
     async fn get_fix_version(
         begin_string: String,
         is_admin_msg: bool,
-        msg: Arc<Mutex<Message>>,
+        msg: &Message,
         session_id: Arc<SessionID>,
     ) -> String {
         let mut fix_version = begin_string;
@@ -218,7 +211,6 @@ impl MessageRouter {
         if fix_version == BEGIN_STRING_FIXT11 && !is_admin_msg {
             let mut appl_ver_id = FIXString::new();
             if msg
-                .lock()
                 .header
                 .get_field(TAG_APPL_VER_ID, &mut appl_ver_id)
                 .is_err()
@@ -257,7 +249,6 @@ mod tests {
         session::session_id::SessionID,
         tag::{TAG_BEGIN_STRING, TAG_SENDER_COMP_ID, TAG_TARGET_COMP_ID},
     };
-    use parking_lot::Mutex as StdMutex;
     use serial_test::serial;
     use std::sync::Arc;
 
@@ -277,12 +268,12 @@ mod tests {
             let begin_clone = begin_string.clone();
 
             let add_route = move |payload: &mut MessageRouterTestSuite,
-                                  msg: Arc<StdMutex<Message>>,
+                                  msg: &Message,
                                   session_id: Arc<SessionID>|
                   -> MessageRejectErrorResult {
                 payload.routed_by = format!("{begin_clone}:{msg_type}");
                 payload.routed_session_id = (*session_id).clone();
-                payload.routed_message = msg.lock().clone();
+                payload.routed_message = msg.clone();
                 let reject_result = payload.return_reject.clone();
 
                 match reject_result {
@@ -393,10 +384,10 @@ mod tests {
         let mut suite = MessageRouterTestSuite::setup_test().await;
         let msg = "8=FIX.4.39=8735=D49=TW34=356=ISLD52=20160421-14:43:5040=160=20160421-14:43:5054=121=311=id10=235".as_bytes();
         suite.given_the_message(msg);
-        let suite_msg = Arc::new(StdMutex::new(suite.msg.clone()));
+        let suite_msg = suite.msg.clone();
         let session_id = Arc::new(suite.session_id.clone());
 
-        let rej = MessageRouter::route(&mut suite, suite_msg, session_id).await;
+        let rej = MessageRouter::route(&mut suite, &suite_msg, session_id).await;
         suite.verify_message_not_routed();
         assert_eq!(
             new_business_message_reject_error("Unsupported Message Type".to_string(), 3, None),
@@ -417,10 +408,10 @@ mod tests {
             );
             suite.given_the_message(msg.as_bytes());
 
-            let suite_msg = Arc::new(StdMutex::new(suite.msg.clone()));
+            let suite_msg = suite.msg.clone();
             let session_id = Arc::new(suite.session_id.clone());
 
-            let rej = MessageRouter::route(&mut suite, suite_msg, session_id).await;
+            let rej = MessageRouter::route(&mut suite, &suite_msg, session_id).await;
             suite.verify_message_not_routed();
             assert!(
                 rej.is_ok(),
@@ -437,9 +428,9 @@ mod tests {
         suite.given_the_route(String::from(BEGIN_STRING_FIXT11), String::from("A"));
         suite.given_afix42_new_order_single();
 
-        let suite_msg = Arc::new(StdMutex::new(suite.msg.clone()));
+        let suite_msg = suite.msg.clone();
         let session_id = Arc::new(suite.session_id.clone());
-        let rej = MessageRouter::route(&mut suite, suite_msg, session_id).await;
+        let rej = MessageRouter::route(&mut suite, &suite_msg, session_id).await;
 
         suite.verify_message_routed_by(BEGIN_STRING_FIX42, "D");
         assert!(rej.is_ok());
@@ -454,9 +445,9 @@ mod tests {
         suite.anticipate_reject(MessageRejectError::new("some error".to_string(), 5, None));
         suite.given_afix42_new_order_single();
 
-        let suite_msg = Arc::new(StdMutex::new(suite.msg.clone()));
+        let suite_msg = suite.msg.clone();
         let session_id = Arc::new(suite.session_id.clone());
-        let rej = MessageRouter::route(&mut suite, suite_msg, session_id).await;
+        let rej = MessageRouter::route(&mut suite, &suite_msg, session_id).await;
         suite.verify_message_routed_by(BEGIN_STRING_FIX42, "D");
         assert_eq!(suite.return_reject.unwrap(), rej.unwrap_err());
     }
@@ -469,9 +460,9 @@ mod tests {
         suite.given_the_route(String::from(BEGIN_STRING_FIXT11), String::from("A"));
         suite.given_afixt_logon_message();
 
-        let suite_msg = Arc::new(StdMutex::new(suite.msg.clone()));
+        let suite_msg = suite.msg.clone();
         let session_id = Arc::new(suite.session_id.clone());
-        let rej = MessageRouter::route(&mut suite, suite_msg, session_id).await;
+        let rej = MessageRouter::route(&mut suite, &suite_msg, session_id).await;
         suite.verify_message_routed_by(BEGIN_STRING_FIXT11, "A");
         assert!(rej.is_ok());
     }
@@ -486,9 +477,9 @@ mod tests {
 
         let msg = "8=FIXT.1.19=8935=D49=TW34=356=ISLD52=20160424-16:48:261128=740=160=20160424-16:48:2611=id21=310=120".as_bytes();
         suite.given_the_message(msg);
-        let suite_msg = Arc::new(StdMutex::new(suite.msg.clone()));
+        let suite_msg = suite.msg.clone();
         let session_id = Arc::new(suite.session_id.clone());
-        let rej = MessageRouter::route(&mut suite, suite_msg, session_id).await;
+        let rej = MessageRouter::route(&mut suite, &suite_msg, session_id).await;
         suite.verify_message_routed_by(APPL_VER_ID_FIX50, "D");
         assert!(rej.is_ok());
     }
@@ -504,9 +495,9 @@ mod tests {
         let msg = "8=FIXT.1.19=8935=D49=TW34=356=ISLD52=20160424-16:48:261128=840=160=20160424-16:48:2611=id21=310=120".as_bytes();
         suite.given_the_message(msg);
 
-        let suite_msg = Arc::new(StdMutex::new(suite.msg.clone()));
+        let suite_msg = suite.msg.clone();
         let session_id = Arc::new(suite.session_id.clone());
-        let rej = MessageRouter::route(&mut suite, suite_msg, session_id).await;
+        let rej = MessageRouter::route(&mut suite, &suite_msg, session_id).await;
         suite.verify_message_routed_by(APPL_VER_ID_FIX50_SP1, "D");
         assert!(rej.is_ok());
     }
@@ -532,10 +523,10 @@ mod tests {
         let msg = "8=FIXT.1.19=8235=D49=TW34=356=ISLD52=20160424-16:48:2640=160=20160424-16:48:2611=id21=310=120".as_bytes();
         suite.given_the_message(msg);
 
-        let suite_msg = Arc::new(StdMutex::new(suite.msg.clone()));
+        let suite_msg = suite.msg.clone();
         let session_id = Arc::new(suite.session_id.clone());
 
-        let rej = MessageRouter::route(&mut suite, suite_msg, session_id).await;
+        let rej = MessageRouter::route(&mut suite, &suite_msg, session_id).await;
         suite.verify_message_routed_by(APPL_VER_ID_FIX50_SP1, "D");
         assert!(rej.is_ok());
     }
