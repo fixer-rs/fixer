@@ -126,6 +126,7 @@ impl SessionSettings {
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_statements)]
 mod tests {
     use crate::{config, session::settings::SessionSettings};
 

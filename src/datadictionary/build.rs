@@ -68,6 +68,7 @@ impl Builder {
         Ok(std::mem::take(&mut self.dict))
     }
 
+    #[allow(clippy::needless_pass_by_value)]
     fn find_or_build_component_type(
         &mut self,
         xml_member: XMLComponentEnum,
@@ -94,6 +95,7 @@ impl Builder {
         Ok(comp)
     }
 
+    #[allow(clippy::needless_pass_by_value)]
     fn build_component_type(&mut self, xml_component: XMLComponent) -> SimpleResult<ComponentType> {
         let mut parts: Vec<MessagePart> = vec![];
 

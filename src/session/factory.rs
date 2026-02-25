@@ -149,7 +149,7 @@ impl SessionFactory {
             validator_settings.reject_invalid_message = reject_invalid_message;
         }
 
-        let mut default_appl_ver_id = Default::default();
+        let mut default_appl_ver_id = String::default();
         let mut transport_data_dictionary: Option<Arc<DataDictionary>> = None;
         let mut app_data_dictionary: Option<Arc<DataDictionary>> = None;
 
@@ -330,6 +330,7 @@ impl SessionFactory {
                 let start_day_string = settings.setting(START_DAY)?;
                 let end_day_string = settings.setting(END_DAY)?;
 
+                #[allow(clippy::items_after_statements)]
                 fn parse_day(setting: &str, day_str: &str) -> SimpleResult<Weekday> {
                     let day_result = DAY_LOOKUP.get(day_str);
                     match day_result {
@@ -401,7 +402,7 @@ impl SessionFactory {
             log,
             message_out: message_out_tx,
             message_in: message_in_rx,
-            to_send: Default::default(),
+            to_send: Vec::default(),
             session_event: SessionEvent {
                 tx: session_event_tx,
                 rx: session_event_rx,
@@ -420,7 +421,7 @@ impl SessionFactory {
             state_timer: EventTimer::new(Arc::new(|| {})),
             peer_timer: EventTimer::new(Arc::new(|| {})),
             sent_reset: Default::default(),
-            stop_once: Default::default(),
+            stop_once: tokio::sync::OnceCell::default(),
             target_default_appl_ver_id: Arc::new(StdMutex::new(default_appl_ver_id)),
             admin: Admin {
                 tx: admin_tx,
@@ -487,6 +488,7 @@ impl SessionFactory {
         self.configure_socket_connect_address(iss, settings).await
     }
 
+    #[allow(clippy::unused_async)]
     async fn configure_socket_connect_address(
         &self,
         iss: &mut InternalSessionSetting,
@@ -546,6 +548,7 @@ impl SessionFactory {
         Ok(())
     }
 
+    #[allow(clippy::unused_async)]
     async fn build_heart_bt_int_settings(
         &self,
         iss: &mut InternalSessionSetting,
@@ -569,6 +572,7 @@ impl SessionFactory {
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_statements)]
 mod tests {
     use crate::{
         BEGIN_STRING_FIXT11,

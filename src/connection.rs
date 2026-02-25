@@ -77,17 +77,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_read_loop() {
+        struct TestCase {
+            expected_msg: String,
+            channel_closed: bool,
+        }
+
         let (msg_in_tx, mut msg_in_rx) = unbounded_channel::<FixIn>();
         let stream = "hello8=FIX.4.09=5blah10=103garbage8=FIX.4.09=4foo10=103";
         let buf_reader = BufReader::new(stream.as_bytes());
         let parser = Parser::new(buf_reader);
 
         tokio::spawn(async move { read_loop(parser, msg_in_tx).await });
-
-        struct TestCase {
-            expected_msg: String,
-            channel_closed: bool,
-        }
 
         let mut tests = [TestCase {
                 expected_msg: String::from("8=FIX.4.09=5blah10=103"),

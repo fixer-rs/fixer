@@ -1,5 +1,4 @@
 use crate::tag::Tag;
-use std::string::ToString;
 
 // TagValue is a low-level FIX field abstraction
 #[derive(Default, Clone, Debug, PartialEq)]
@@ -61,18 +60,20 @@ impl TagValue {
         total
     }
 
+    #[allow(clippy::cast_possible_wrap)]
     pub fn length(&self) -> isize {
         self.bytes.len() as isize
     }
 }
 
-impl ToString for TagValue {
-    fn to_string(&self) -> String {
-        String::from_utf8_lossy(&self.bytes).to_string()
+impl std::fmt::Display for TagValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&String::from_utf8_lossy(&self.bytes))
     }
 }
 
 #[cfg(test)]
+#[allow(clippy::cast_possible_wrap)]
 mod tests {
     use super::*;
 

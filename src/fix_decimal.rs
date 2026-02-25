@@ -41,21 +41,21 @@ mod tests {
         let tests = vec![
             TestCase {
                 decimal: FIXDecimal {
-                    decimal: Decimal::new(-1243456, 4),
+                    decimal: Decimal::new(-1_243_456, 4),
                     scale: 4,
                 },
                 expected: String::from("-124.3456"),
             },
             TestCase {
                 decimal: FIXDecimal {
-                    decimal: Decimal::new(-1243456, 4),
+                    decimal: Decimal::new(-1_243_456, 4),
                     scale: 5,
                 },
                 expected: String::from("-124.3456"), // FIXME: should be "-124.34560"
             },
             TestCase {
                 decimal: FIXDecimal {
-                    decimal: Decimal::new(-1243456, 4),
+                    decimal: Decimal::new(-1_243_456, 4),
                     scale: 0,
                 },
                 expected: String::from("-124"),

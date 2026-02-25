@@ -1,4 +1,4 @@
-use std::{hash::Hash, string::ToString};
+use std::hash::Hash;
 
 // SessionID is a unique identifier of a Session
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
@@ -29,8 +29,8 @@ impl SessionID {
     }
 }
 
-impl ToString for SessionID {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for SessionID {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut result = self.begin_string.clone();
         result.push(':');
         result.push_str(&self.sender_comp_id);
@@ -45,7 +45,7 @@ impl ToString for SessionID {
         append_optional(&mut result, "/", &self.target_location_id);
 
         append_optional(&mut result, ":", &self.qualifier);
-        result
+        f.write_str(&result)
     }
 }
 

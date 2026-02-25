@@ -15,8 +15,7 @@ use delegate::delegate;
 use jiff::Timestamp;
 use std::{
     error::Error,
-    fmt::{Display, Formatter},
-    string::ToString,
+    fmt::{self, Display, Formatter},
     sync::Arc,
 };
 
@@ -159,6 +158,7 @@ impl Trailer {
 
 // Message is a FIX Message abstraction.
 #[derive(Debug, Default, Clone)]
+#[allow(clippy::struct_field_names)]
 pub struct Message {
     pub header: Header,
     pub trailer: Trailer,
@@ -172,13 +172,13 @@ pub struct Message {
     pub fields: Vec<TagValue>,
 }
 
-impl ToString for Message {
-    fn to_string(&self) -> String {
+impl fmt::Display for Message {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         if !self.raw_message.is_empty() {
-            return String::from_utf8_lossy(&self.raw_message).to_string();
+            return write!(f, "{}", String::from_utf8_lossy(&self.raw_message));
         }
 
-        String::from_utf8_lossy(&self.clone().build()).to_string()
+        write!(f, "{}", String::from_utf8_lossy(&self.clone().build()))
     }
 }
 
@@ -212,6 +212,7 @@ impl Message {
     }
 
     // parse_message_with_data_dictionary constructs a Message from a byte slice wrapping a FIX message using an optional session and application DataDictionary for reference.
+    #[allow(clippy::ref_option)]
     pub fn parse_message_with_data_dictionary(
         &mut self,
         raw_message: &[u8],
@@ -224,6 +225,7 @@ impl Message {
         self.raw_message = raw_message.to_vec();
 
         // allocate fields in one chunk
+        #[allow(clippy::naive_bytecount)]
         let field_count = self.raw_message.iter().filter(|&&b| b == 0o001).count();
 
         if field_count == 0 {
@@ -359,6 +361,7 @@ impl Message {
     }
 
     // reverseRoute returns a message builder with routing header fields initialized as the reverse of this message.
+    #[must_use]
     pub fn reverse_route(&self) -> Message {
         let mut reverse_msg = Message::default();
 
@@ -439,6 +442,7 @@ impl Error for ParseError {
     }
 }
 
+#[allow(clippy::ref_option, clippy::trivially_copy_pass_by_ref)]
 fn is_header_field(tag: &Tag, data_dict: &Option<Arc<DataDictionary>>) -> bool {
     if tag.is_header() {
         return true;
@@ -451,6 +455,7 @@ fn is_header_field(tag: &Tag, data_dict: &Option<Arc<DataDictionary>>) -> bool {
     data_dict.as_ref().unwrap().header.fields.contains_key(tag)
 }
 
+#[allow(clippy::ref_option, clippy::trivially_copy_pass_by_ref)]
 fn is_trailer_field(tag: &Tag, data_dict: &Option<Arc<DataDictionary>>) -> bool {
     if tag.is_trailer() {
         return true;
@@ -480,6 +485,7 @@ fn extract_specific_field(
     Ok(rem_buffer)
 }
 
+#[allow(clippy::cast_sign_loss)]
 fn extract_xml_data_field(
     parsed_field_bytes: &mut TagValue,
     buffer: &[u8],
@@ -708,6 +714,11 @@ mod tests {
 
     #[test]
     fn test_reverse_route() {
+        struct TestCase<'a> {
+            tag: Tag,
+            expected_value: &'a str,
+        }
+
         let mut s = setup_test();
         let raw_message = "8=FIX.4.29=17135=D34=249=TW50=KK52=20060102-15:04:0556=ISLD57=AP144=BB115=JCD116=CS128=MG129=CB142=JV143=RY145=BH11=ID21=338=10040=w54=155=INTC60=20060102-15:04:0510=123".as_bytes();
 
@@ -716,10 +727,6 @@ mod tests {
 
         let builder = s.msg.reverse_route();
 
-        struct TestCase<'a> {
-            tag: Tag,
-            expected_value: &'a str,
-        }
         let tests = vec![
             TestCase {
                 tag: TAG_TARGET_COMP_ID,

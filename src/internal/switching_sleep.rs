@@ -173,6 +173,7 @@ mod test {
     };
 
     #[tokio::test]
+    #[allow(clippy::never_loop)]
     async fn it_works() {
         let mut sleeper = ASwitchingSleep::new(Duration::from_secs(3));
 

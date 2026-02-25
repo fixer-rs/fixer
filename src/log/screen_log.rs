@@ -64,6 +64,7 @@ pub struct ScreenLogFactory {}
 
 impl ScreenLogFactory {
     // new creates an instance of LogFactory that writes messages and events to stdout.
+    #[allow(clippy::new_ret_no_self)]
     pub fn new() -> LogFactoryEnum {
         LogFactoryEnum::ScreenLogFactory(ScreenLogFactory {})
     }

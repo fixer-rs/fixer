@@ -37,6 +37,7 @@ pub mod tls;
 pub mod validation;
 
 #[cfg(test)]
+#[allow(clippy::used_underscore_binding)]
 pub mod fixer_test;
 
 //FIX BeginString string values

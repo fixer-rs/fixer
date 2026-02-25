@@ -43,6 +43,7 @@ pub trait FieldGroupReader: FieldTag {
 pub trait FieldGroup: FieldTag + FieldGroupWriter + FieldGroupReader {}
 
 impl dyn FieldValue {
+    #[allow(clippy::should_implement_trait)]
     pub fn default() -> Box<dyn FieldValue + Send> {
         Box::<FIXBoolean>::default()
     }

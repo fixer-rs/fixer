@@ -6,9 +6,9 @@ pub struct LogonState {
     connected_not_logged_on: ConnectedNotLoggedOn,
 }
 
-impl ToString for LogonState {
-    fn to_string(&self) -> String {
-        String::from("Logon State")
+impl std::fmt::Display for LogonState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Logon State")
     }
 }
 
@@ -23,6 +23,7 @@ impl LogonState {
 }
 
 #[cfg(test)]
+#[allow(clippy::unused_async)]
 mod tests {
     use crate::{
         errors::{MessageRejectErrorEnum, RejectLogon},

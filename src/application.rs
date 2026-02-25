@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 // Application interface should be implemented by FIX Applications.
 // This is the primary interface for processing messages from a FIX Session.
+#[allow(clippy::wrong_self_convention)]
 pub trait Application: Send + Sync {
     // on_create notification of a session begin created.
     fn on_create(&self, session_id: &Arc<SessionID>);

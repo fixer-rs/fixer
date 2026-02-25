@@ -79,8 +79,9 @@ pub struct MessageEvent {
 }
 
 impl MessageEvent {
+    #[allow(clippy::unused_async)]
     async fn send(&self, event: bool) {
-        let _ = self.tx.send(event);
+        let _ = self.tx.try_send(event);
     }
 }
 
@@ -100,7 +101,7 @@ pub struct Admin {
     pub rx: UnboundedReceiver<AdminEnum>,
 }
 
-/// QueueForSend carries a message to be queued for sending, along with a
+/// `QueueForSend` carries a message to be queued for sending, along with a
 /// oneshot channel to return the result. Used by `send_to_target` in
 /// `registry.rs` so that external callers communicate with the session's run
 /// loop via channels instead of locking the session directly.
@@ -109,6 +110,7 @@ pub struct QueueForSend {
     pub result: oneshot::Sender<Result<(), FixerError>>,
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum AdminEnum {
     Connect(Connect),
     StopReq(StopReq),
@@ -160,7 +162,7 @@ impl Default for Session {
             session_id: Arc::new(SessionID::default()),
             message_out: message_out_tx,
             message_in: message_in_rx,
-            to_send: Default::default(),
+            to_send: Vec::default(),
             session_event: SessionEvent {
                 tx: session_event_tx,
                 rx: session_event_rx,
@@ -179,16 +181,16 @@ impl Default for Session {
             },
             state_timer: EventTimer::new(Arc::new(|| {})),
             peer_timer: EventTimer::new(Arc::new(|| {})),
-            sent_reset: Default::default(),
-            stop_once: Default::default(),
+            sent_reset: bool::default(),
+            stop_once: OnceCell::default(),
             target_default_appl_ver_id: Arc::new(StdMutex::new(String::new())),
             admin: Admin {
                 tx: admin_tx,
                 rx: admin_rx,
             },
             iss: InternalSessionSettings::default(),
-            transport_data_dictionary: Default::default(),
-            app_data_dictionary: Default::default(),
+            transport_data_dictionary: Option::default(),
+            app_data_dictionary: Option::default(),
             timestamp_precision: TimestampPrecision::default(),
         }
     }
@@ -209,7 +211,7 @@ pub struct WaitForInSessionReq {
 }
 
 impl SessionEvent {
-    async fn send(&self, event: Event) {
+    fn send(&self, event: Event) {
         let _ = self.tx.send(event);
     }
 }
@@ -241,12 +243,12 @@ impl Session {
         if let Some(result) = rx.recv().await {
             rx.close();
             return result;
-        };
+        }
 
         Ok(())
     }
 
-    #[allow(dead_code)]
+    #[allow(dead_code, clippy::unused_async)]
     async fn send_stop_req(&self) {
         let _ = self.admin.tx.send(AdminEnum::StopReq(StopReq));
     }
@@ -322,8 +324,7 @@ impl Session {
         self.insert_sending_time(msg);
 
         if self.iss.enable_last_msg_seq_num_processed {
-            if in_reply_to.is_some() {
-                let irt = in_reply_to.unwrap();
+            if let Some(irt) = in_reply_to {
                 let get_int_result = irt.header.get_int(TAG_MSG_SEQ_NUM);
                 match get_int_result {
                     Ok(get_int) => {
@@ -359,6 +360,7 @@ impl Session {
         self.send_logon_in_reply_to(set_request, None).await
     }
 
+    #[allow(clippy::cast_possible_truncation)]
     async fn send_logon_in_reply_to(
         &mut self,
         set_reset_seq_num: bool,
@@ -436,6 +438,7 @@ impl Session {
         self.send_in_reply_to(&mut logout, in_reply_to).await
     }
 
+    #[allow(clippy::unused_async)]
     async fn resend(&mut self, msg: &mut Message) -> bool {
         msg.header.set_field(TAG_POSS_DUP_FLAG, true as FIXBoolean);
 
@@ -459,7 +462,7 @@ impl Session {
         self.to_send.push(msg_bytes);
 
         tokio::select! {
-            _ = self.message_event.send(true) => {},
+            () = self.message_event.send(true) => {},
             else => {},
         }
 
@@ -488,7 +491,7 @@ impl Session {
 
     // drop_and_reset will drop the send queue and reset the message store
     async fn drop_and_reset(&mut self) -> Result<(), FixerError> {
-        self.drop_queued().await;
+        self.drop_queued();
         Ok(self.store.reset().await?)
     }
 
@@ -566,7 +569,7 @@ impl Session {
     }
 
     async fn send_queued(&mut self) {
-        for msg_bytes in self.to_send.iter() {
+        for msg_bytes in &self.to_send {
             if self.message_out.is_closed() {
                 self.log
                     .on_eventf("Failed to send: disconnected", hashmap! {})
@@ -576,15 +579,15 @@ impl Session {
 
             self.log.on_outgoing(msg_bytes).await;
             // TODO: check this error
-            let _ = self.message_out.send(msg_bytes.to_vec());
+            let _ = self.message_out.send(msg_bytes.clone());
             self.state_timer
                 .reset(self.iss.heart_bt_int.unsigned_abs())
                 .await;
         }
-        self.drop_queued().await;
+        self.drop_queued();
     }
 
-    async fn drop_queued(&mut self) {
+    fn drop_queued(&mut self) {
         self.to_send.clear();
     }
 
@@ -659,6 +662,7 @@ impl Session {
         Ok(next_state)
     }
 
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_precision_loss)]
     async fn handle_logon(&mut self, msg: &mut Message) -> Result<(), FixerError> {
         //Grab default app ver id from fixt.1.1 logon
         if self.session_id.begin_string == BEGIN_STRING_FIXT11 {
@@ -742,7 +746,7 @@ impl Session {
         self.log.on_event("Inititated logout request").await;
 
         sleep(self.iss.logout_timeout.unsigned_abs()).await;
-        self.session_event.send(LOGOUT_TIMEOUT).await;
+        self.session_event.send(LOGOUT_TIMEOUT);
         Ok(())
     }
 
@@ -793,6 +797,7 @@ impl Session {
         self.from_callback(msg).await
     }
 
+    #[allow(clippy::unused_async, clippy::wrong_self_convention)]
     async fn from_callback(&mut self, msg: &Message) -> MessageRejectErrorResult {
         let msg_type = msg.header.get_bytes(TAG_MSG_TYPE)?;
 
@@ -906,10 +911,24 @@ impl Session {
     ) -> Result<(), FixerError> {
         let mut reply = msg.reverse_route();
 
-        if !matches!(
+        if matches!(
             self.session_id.begin_string.as_str(),
             BEGIN_STRING_FIX40 | BEGIN_STRING_FIX41
         ) {
+            reply.header.set_field(TAG_MSG_TYPE, FIXString::from("3"));
+
+            let ref_tag_id_result = rej.ref_tag_id();
+            if let Some(ref_tag_id) = ref_tag_id_result {
+                reply.body.set_field(
+                    TAG_TEXT,
+                    FIXString::from(format!("{rej} ({ref_tag_id})")),
+                );
+            } else {
+                reply
+                    .body
+                    .set_field(TAG_TEXT, FIXString::from(rej.to_string()));
+            }
+        } else {
             if rej.is_business_reject() {
                 reply.header.set_field(TAG_MSG_TYPE, FIXString::from("j"));
                 reply
@@ -944,20 +963,6 @@ impl Session {
             let mut msg_type = FIXString::new();
             if msg.header.get_field(TAG_MSG_TYPE, &mut msg_type).is_err() {
                 reply.body.set_field(TAG_REF_MSG_TYPE, msg_type);
-            }
-        } else {
-            reply.header.set_field(TAG_MSG_TYPE, FIXString::from("3"));
-
-            let ref_tag_id_result = rej.ref_tag_id();
-            if let Some(ref_tag_id) = ref_tag_id_result {
-                reply.body.set_field(
-                    TAG_TEXT,
-                    FIXString::from(format!("{} ({})", rej, ref_tag_id)),
-                );
-            } else {
-                reply
-                    .body
-                    .set_field(TAG_TEXT, FIXString::from(rej.to_string()));
             }
         }
 
@@ -1124,20 +1129,20 @@ impl Session {
 
         // Fire logon timeout event after the pre-configured delay period.
         sleep(self.iss.logon_timeout.unsigned_abs()).await;
-        self.session_event.send(LOGON_TIMEOUT).await;
+        self.session_event.send(LOGON_TIMEOUT);
     }
 
     async fn sm_stop(&mut self) {
         self.sm.pending_stop = true;
 
         let next_state = match &self.sm.state {
-            SessionStateEnum::InSession(_) => self.logged_on_stop().await,
-            SessionStateEnum::LatentState(_) => self.sm.state.clone(),
+            SessionStateEnum::InSession(_)
+            | SessionStateEnum::ResendState(_)
+            | SessionStateEnum::PendingTimeout(_) => self.logged_on_stop().await,
             SessionStateEnum::LogonState(_) => SessionStateEnum::new_latent_state(),
-            SessionStateEnum::LogoutState(_) => self.sm.state.clone(),
-            SessionStateEnum::NotSessionTime(_) => self.sm.state.clone(),
-            SessionStateEnum::ResendState(_) => self.logged_on_stop().await,
-            SessionStateEnum::PendingTimeout(_) => self.logged_on_stop().await,
+            SessionStateEnum::LatentState(_)
+            | SessionStateEnum::LogoutState(_)
+            | SessionStateEnum::NotSessionTime(_) => self.sm.state.clone(),
         };
         self.sm_set_state(next_state).await;
     }
@@ -1153,6 +1158,7 @@ impl Session {
         }
     }
 
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_precision_loss)]
     async fn sm_incoming(&mut self, fix_in: &FixIn) {
         self.sm_check_session_time(&mut gen_now()).await;
         if !self.sm.is_connected() {
@@ -1213,7 +1219,7 @@ impl Session {
         if self.sm.is_logged_on() {
             self.send_queued().await;
         } else {
-            self.drop_queued().await;
+            self.drop_queued();
         }
     }
 
@@ -1223,10 +1229,10 @@ impl Session {
 
         let next_state = match &self.sm.state {
             SessionStateEnum::InSession(_) => self.in_session_timeout(event).await,
-            SessionStateEnum::LatentState(_) => self.sm.state.clone(),
+            SessionStateEnum::LatentState(_)
+            | SessionStateEnum::NotSessionTime(_) => self.sm.state.clone(),
             SessionStateEnum::LogonState(_) => self.logon_timeout(event).await,
             SessionStateEnum::LogoutState(_) => self.logout_timeout(event).await,
-            SessionStateEnum::NotSessionTime(_) => self.sm.state.clone(),
             SessionStateEnum::ResendState(rs) => self.resend_state_timeout(event, rs.clone()).await,
             SessionStateEnum::PendingTimeout(pt) => {
                 self.pending_timeout_timeout(event, pt.clone()).await
@@ -1237,8 +1243,7 @@ impl Session {
 
     async fn sm_check_session_time(&mut self, now: &mut Zoned) {
         let mut check_first = false;
-        if self.iss.session_time.is_some() {
-            let session_time = self.iss.session_time.as_ref().unwrap();
+        if let Some(session_time) = self.iss.session_time.as_ref() {
             if !session_time.is_in_range(now) {
                 check_first = true;
             }
@@ -1266,8 +1271,7 @@ impl Session {
         }
 
         let mut check_third = false;
-        if self.iss.session_time.is_some() {
-            let session_time = self.iss.session_time.as_ref().unwrap();
+        if let Some(session_time) = self.iss.session_time.as_ref() {
             let creation_time = self.store.creation_time().await;
             let mut creation_time_zoned = creation_time.to_zoned(jiff::tz::TimeZone::UTC);
             if !session_time.is_in_same_range(&mut creation_time_zoned, now) {
@@ -1303,8 +1307,8 @@ impl Session {
     }
 
     fn sm_notify_in_session_time(&mut self) {
-        if self.sm.notify_on_in_session_time.is_some() {
-            self.sm.notify_on_in_session_time.as_mut().unwrap().close();
+        if let Some(ref mut notify) = self.sm.notify_on_in_session_time {
+            notify.close();
         }
         self.sm.notify_on_in_session_time = None;
     }
@@ -1345,14 +1349,14 @@ impl Session {
     // shutdown_now terminates the session state immediately.
     async fn state_shutdown_now(&mut self) {
         match self.sm.state {
-            SessionStateEnum::InSession(_) => self.logged_on_shutdown_now().await,
-            SessionStateEnum::LatentState(_) => (),
-            SessionStateEnum::LogonState(_) => (),
-            SessionStateEnum::LogoutState(_) => (),
-            SessionStateEnum::NotSessionTime(_) => (),
-            SessionStateEnum::ResendState(_) => self.logged_on_shutdown_now().await,
-            SessionStateEnum::PendingTimeout(_) => self.logged_on_shutdown_now().await,
-        };
+            SessionStateEnum::InSession(_)
+            | SessionStateEnum::ResendState(_)
+            | SessionStateEnum::PendingTimeout(_) => self.logged_on_shutdown_now().await,
+            SessionStateEnum::LatentState(_)
+            | SessionStateEnum::LogonState(_)
+            | SessionStateEnum::LogoutState(_)
+            | SessionStateEnum::NotSessionTime(_) => (),
+        }
     }
 
     // individual state methods
@@ -1652,22 +1656,22 @@ impl Session {
         rej: MessageRejectErrorEnum,
     ) -> SessionStateEnum {
         if let MessageRejectErrorEnum::TargetTooHigh(tth) = rej {
-            let mut rs = match self.sm.state {
-                SessionStateEnum::ResendState(ref mut rs) => ResendState {
-                    message_stash: rs.message_stash.clone(),
-                    current_resend_range_end: rs.current_resend_range_end,
-                    resend_range_end: rs.resend_range_end,
-                    logged_on: LoggedOn::default(),
-                },
-                _ => {
+            let mut rs =
+                if let SessionStateEnum::ResendState(ref mut rs) = self.sm.state {
+                    ResendState {
+                        message_stash: rs.message_stash.clone(),
+                        current_resend_range_end: rs.current_resend_range_end,
+                        resend_range_end: rs.resend_range_end,
+                        logged_on: LoggedOn::default(),
+                    }
+                } else {
                     let next_state_result = self.do_target_too_high(&tth).await;
                     if let Err(err) = next_state_result {
                         let err_str = &err.to_string();
                         return self.handle_state_error(err_str).await;
                     }
                     next_state_result.unwrap()
-                }
-            };
+                };
 
             rs.message_stash.insert(tth.received_target, msg.clone());
 
@@ -1835,6 +1839,7 @@ impl Session {
         Ok(())
     }
 
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_precision_loss)]
     async fn in_session_timeout(&mut self, event: Event) -> SessionStateEnum {
         if event == NEED_HEARTBEAT {
             let mut heart_beat = Message::new();
@@ -2148,6 +2153,7 @@ fn optionally_set_id(msg: &mut Message, tag: Tag, value: &str) {
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_statements, clippy::struct_excessive_bools)]
 mod tests {
     use crate::{
         BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIX42, BEGIN_STRING_FIX43,
@@ -2207,7 +2213,7 @@ mod tests {
         delegate! {
             to self.ssr.suite {
                 pub fn message_type(&self, msg_type: String, msg: &Message);
-                pub fn field_equals<'a>(&self, tag: Tag, expected_value: FieldEqual<'a>, field_map: &FieldMap);
+                pub fn field_equals(&self, tag: Tag, expected_value: FieldEqual<'_>, field_map: &FieldMap);
             }
         }
     }
@@ -3145,7 +3151,7 @@ mod tests {
                 );
                 s.ssr.next_sender_msg_seq_num(3).await;
             } else {
-                s.ssr.next_sender_msg_seq_num(2).await
+                s.ssr.next_sender_msg_seq_num(2).await;
             }
         }
     }
@@ -3919,7 +3925,7 @@ mod tests {
         delegate! {
             to self.ssr.suite {
                 pub fn message_type(&self, msg_type: String, msg: &Message);
-                pub fn field_equals<'a>(&self, tag: Tag, expected_value: FieldEqual<'a>, field_map: &FieldMap);
+                pub fn field_equals(&self, tag: Tag, expected_value: FieldEqual<'_>, field_map: &FieldMap);
             }
         }
     }

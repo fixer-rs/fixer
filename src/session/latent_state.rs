@@ -6,9 +6,9 @@ pub struct LatentState {
     pub in_session_time: InSessionTime,
 }
 
-impl ToString for LatentState {
-    fn to_string(&self) -> String {
-        String::from("Latent State")
+impl std::fmt::Display for LatentState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Latent State")
     }
 }
 
@@ -29,6 +29,7 @@ impl LatentState {
 }
 
 #[cfg(test)]
+#[allow(clippy::unused_async)]
 mod tests {
     use crate::{fixer_test::SessionSuiteRig, session::session_state::SessionStateEnum};
 

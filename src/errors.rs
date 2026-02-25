@@ -146,6 +146,7 @@ impl MessageRejectErrorTrait for MessageRejectError {
 
 impl MessageRejectError {
     // MessageRejectError::new() returns a MessageRejectError with the given error message, reject reason, and optional reftagid
+    #[allow(clippy::new_ret_no_self)]
     pub fn new(
         err: String,
         reject_reason: isize,

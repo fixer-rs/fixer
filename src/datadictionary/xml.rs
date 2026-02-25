@@ -145,6 +145,7 @@ pub struct XMLComponentMember {
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_statements)]
 mod tests {
     use super::*;
     use quick_xml::de::{DeError, from_str};

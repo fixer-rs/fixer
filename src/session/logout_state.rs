@@ -6,9 +6,9 @@ pub struct LogoutState {
     connected_not_logged_on: ConnectedNotLoggedOn,
 }
 
-impl ToString for LogoutState {
-    fn to_string(&self) -> String {
-        String::from("Logout State")
+impl std::fmt::Display for LogoutState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Logout State")
     }
 }
 
@@ -23,6 +23,7 @@ impl LogoutState {
 }
 
 #[cfg(test)]
+#[allow(clippy::unused_async)]
 mod tests {
     use crate::{
         errors::conditionally_required_field_missing,

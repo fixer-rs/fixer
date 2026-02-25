@@ -92,6 +92,7 @@ pub struct FileLogFactory {
 impl FileLogFactory {
     // new creates an instance of LogFactory that writes messages and events to file.
     // The location of global and session log files is configured via FileLogPath.
+    #[allow(clippy::new_ret_no_self)]
     pub async fn new(settings: &mut Settings) -> Result<LogFactoryEnum, FixerError> {
         let mut log_factory = FileLogFactory::default();
 

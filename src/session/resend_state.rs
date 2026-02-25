@@ -10,9 +10,9 @@ pub struct ResendState {
     pub resend_range_end: isize,
 }
 
-impl ToString for ResendState {
-    fn to_string(&self) -> String {
-        String::from("Resend")
+impl std::fmt::Display for ResendState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Resend")
     }
 }
 
@@ -27,6 +27,7 @@ impl ResendState {
 }
 
 #[cfg(test)]
+#[allow(clippy::unused_async)]
 mod tests {
     use crate::{
         field_map::FieldMap,

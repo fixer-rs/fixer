@@ -4,7 +4,7 @@ use crate::errors::{ERR_DO_NOT_SEND, MessageRejectErrorEnum, MessageRejectErrorR
 use crate::field_map::FieldMap;
 use crate::fix_boolean::FIXBoolean;
 use crate::fix_string::FIXString;
-use crate::fix_utc_timestamp::FIXUTCTimestamp;
+use crate::fix_utc_timestamp::{FIXUTCTimestamp, TimestampPrecision};
 use crate::internal::event::Event;
 use crate::internal::event_timer::EventTimer;
 use crate::internal::session_settings::SessionSettings;
@@ -29,11 +29,12 @@ use mockall::*;
 use simple_error::{SimpleError, SimpleResult};
 use std::sync::Arc;
 use tokio::sync::{
-    Mutex,
+    Mutex, OnceCell,
     mpsc::{UnboundedReceiver, UnboundedSender, channel, unbounded_channel},
 };
 use tokio::time::timeout;
 
+#[allow(clippy::module_name_repetitions)]
 pub enum FieldEqual<'a> {
     Num(isize),
     Str(&'a str),
@@ -45,6 +46,7 @@ pub enum FieldEqual<'a> {
 pub struct FixerSuite {}
 
 impl FixerSuite {
+    #[allow(clippy::needless_pass_by_value)]
     pub fn message_type(&self, msg_type: String, msg: &Message) {
         self.field_equals(
             TAG_MSG_TYPE,
@@ -53,6 +55,7 @@ impl FixerSuite {
         );
     }
 
+    #[allow(clippy::needless_pass_by_value)]
     pub fn field_equals(&self, tag: Tag, expected_value: FieldEqual<'_>, field_map: &FieldMap) {
         assert!(field_map.has(tag), "Tag {tag} not set");
 
@@ -612,6 +615,7 @@ impl MockSessionReceiver {
         }
     }
 
+    #[allow(clippy::never_loop)]
     pub async fn last_message(&mut self) -> Option<Vec<u8>> {
         while let Ok(msg) = timeout(
             SignedDuration::from_secs(2).unsigned_abs(),
@@ -693,7 +697,7 @@ impl SessionSuiteRig {
             }),
             message_out: receiver.send_channel.tx.clone(),
             message_in: message_in_rx,
-            to_send: Default::default(),
+            to_send: Vec::default(),
             session_event: SessionEvent {
                 tx: session_event_tx,
                 rx: session_event_rx,
@@ -703,7 +707,7 @@ impl SessionSuiteRig {
                 rx: message_event_rx,
             },
             application: mock_app_shared.clone(),
-            validator: Default::default(),
+            validator: Option::default(),
             sm: StateMachine {
                 state: SessionStateEnum::new_not_session_time(),
                 pending_stop: false,
@@ -712,17 +716,17 @@ impl SessionSuiteRig {
             },
             state_timer: EventTimer::new(Arc::new(|| {})),
             peer_timer: EventTimer::new(Arc::new(|| {})),
-            sent_reset: Default::default(),
-            stop_once: Default::default(),
+            sent_reset: bool::default(),
+            stop_once: OnceCell::default(),
             target_default_appl_ver_id: Arc::new(std::sync::Mutex::new(String::new())),
             admin: Admin {
                 tx: admin_tx,
                 rx: admin_rx,
             },
             iss: session_settings,
-            transport_data_dictionary: Default::default(),
-            app_data_dictionary: Default::default(),
-            timestamp_precision: Default::default(),
+            transport_data_dictionary: Option::default(),
+            app_data_dictionary: Option::default(),
+            timestamp_precision: TimestampPrecision::default(),
         };
 
         SessionSuiteRig {

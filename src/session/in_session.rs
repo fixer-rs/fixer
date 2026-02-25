@@ -6,9 +6,9 @@ pub struct InSession {
     pub logged_on: LoggedOn,
 }
 
-impl ToString for InSession {
-    fn to_string(&self) -> String {
-        String::from("In Session")
+impl std::fmt::Display for InSession {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("In Session")
     }
 }
 
@@ -23,6 +23,7 @@ impl InSession {
 }
 
 #[cfg(test)]
+#[allow(clippy::assertions_on_constants)]
 mod tests {
     use crate::{
         errors::ERR_DO_NOT_SEND,

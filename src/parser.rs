@@ -94,6 +94,7 @@ where
         self.find_index_after_offset(0, delim).await
     }
 
+    #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
     async fn find_index_after_offset(
         &mut self,
         offset: isize,
@@ -131,6 +132,7 @@ where
         Ok(index + 1)
     }
 
+    #[allow(clippy::cast_sign_loss)]
     async fn jump_length(&mut self) -> SimpleResult<isize> {
         let mut length_index = self.find_index(BODY_LENGTH.as_bytes()).await?;
 
@@ -152,6 +154,7 @@ where
         Ok(offset + length)
     }
 
+    #[allow(clippy::cast_sign_loss)]
     pub async fn read_message(&mut self) -> SimpleResult<Vec<u8>> {
         let start = self.find_start().await?;
 
@@ -174,6 +177,7 @@ where
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_statements, clippy::struct_field_names)]
 mod tests {
     use super::*;
 
@@ -220,6 +224,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::cast_sign_loss)]
     async fn test_find_start() {
         struct TestCase<'a> {
             stream: &'a str,

@@ -80,6 +80,7 @@ impl Initiator {
         })
     }
 
+    #[allow(clippy::unused_async)]
     pub async fn start(&mut self) -> SimpleResult<()> {
         for handle in &mut self.sessions {
             let mut session = handle
@@ -119,12 +120,10 @@ impl Initiator {
                     let address = &connect_addresses[address_index % connect_addresses.len()];
                     address_index = address_index.wrapping_add(1);
 
-                    match TcpStream::connect(address).await {
-                        Ok(tcp_stream) => {
+                    if let Ok(tcp_stream) = TcpStream::connect(address).await {
                             // Optionally wrap with TLS
                             let connected = if let Some(ref connector) = tls_connector {
-                                let server_name =
-                                    if let Ok(name) = tls::get_server_name(&session_settings, address) { name } else {
+                                let Ok(server_name) = tls::get_server_name(&session_settings, address) else {
                                         // Bad server name, retry
                                         tokio::select! {
                                             () = sleep(reconnect_interval) => {},
@@ -201,8 +200,6 @@ impl Initiator {
                                 _ = write_task => {},
                                 _ = stop_rx.changed() => { break; }
                             }
-                        }
-                        Err(_) => {}
                     }
 
                     // Reconnect delay

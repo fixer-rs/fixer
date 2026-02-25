@@ -6,9 +6,9 @@ pub struct NotSessionTime {
     pub latent_state: LatentState,
 }
 
-impl ToString for NotSessionTime {
-    fn to_string(&self) -> String {
-        String::from("Not session time")
+impl std::fmt::Display for NotSessionTime {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Not session time")
     }
 }
 

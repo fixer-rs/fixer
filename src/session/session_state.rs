@@ -29,18 +29,16 @@ impl Default for SessionStateEnum {
     }
 }
 
-impl ToString for SessionStateEnum {
-    delegate! {
-        to match self {
-            Self::InSession(is) => is,
-            Self::LatentState(ls) => ls,
-            Self::LogoutState(ls) => ls,
-            Self::LogonState(ls) => ls,
-            Self::NotSessionTime(nst) => nst,
-            Self::ResendState(rs) => rs,
-            Self::PendingTimeout(ps) => ps,
-        } {
-            fn to_string(&self) -> String;
+impl std::fmt::Display for SessionStateEnum {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InSession(is) => write!(f, "{is}"),
+            Self::LatentState(ls) => write!(f, "{ls}"),
+            Self::LogoutState(ls) => write!(f, "{ls}"),
+            Self::LogonState(ls) => write!(f, "{ls}"),
+            Self::NotSessionTime(nst) => write!(f, "{nst}"),
+            Self::ResendState(rs) => write!(f, "{rs}"),
+            Self::PendingTimeout(ps) => write!(f, "{ps}"),
         }
     }
 }
@@ -68,6 +66,7 @@ impl SessionStateEnum {
         Self::LatentState(LatentState::default())
     }
 
+    #[allow(clippy::unused_async)]
     pub async fn new_in_session() -> Self {
         Self::InSession(InSession::default())
     }
@@ -124,7 +123,7 @@ impl StateMachine {
 
 // sessionState is the current state of the session state machine. The session state determines how the session responds to
 // incoming messages, timeouts, and requests to send application messages.
-pub trait SessionState: ToString {
+pub trait SessionState: std::fmt::Display {
     // fix_msg_in is called by the session on incoming messages from the counter party.
     // The return type is the next session state following message processing.
     // async fn fix_msg_in(self, session: &'_ mut Session, msg: &'_ mut Message) -> SessionStateEnum;
@@ -186,6 +185,7 @@ impl ConnectedNotLoggedOn {
         false
     }
 
+    #[allow(clippy::unused_async)]
     pub async fn shutdown_now(&self) {}
 }
 

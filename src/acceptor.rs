@@ -85,6 +85,7 @@ struct SessionHandle {
     admin_tx: UnboundedSender<AdminEnum>,
 }
 
+#[allow(clippy::struct_field_names)]
 pub struct Acceptor {
     sessions: Vec<SessionHandle>,
     stop_tx: watch::Sender<bool>,

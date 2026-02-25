@@ -376,11 +376,11 @@ fn validate_field(
         | "STRING" => prototype = Box::<FIXString>::default(),
         "BOOLEAN" => prototype = Box::<FIXBoolean>::default(),
         "LENGTH" | "DAYOFMONTH" | "NUMINGROUP" | "SEQNUM" | "INT" => {
-            prototype = Box::<FIXInt>::default()
+            prototype = Box::<FIXInt>::default();
         }
         "UTCTIMESTAMP" | "TIME" => prototype = Box::<FIXUTCTimestamp>::default(),
         "QTY" | "QUANTITY" | "AMT" | "PRICE" | "PRICEOFFSET" | "PERCENTAGE" | "FLOAT" => {
-            prototype = Box::<FIXFloat>::default()
+            prototype = Box::<FIXFloat>::default();
         }
         _ => {}
     }
@@ -426,6 +426,7 @@ impl ValidatorEnum {
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_statements)]
 mod tests {
     use super::*;
     use crate::{
@@ -1726,8 +1727,7 @@ mod tests {
         for tc in &test_cases {
             let validate_result = validate_visit_field(&tc.field_def, &tc.fields);
 
-            match tc.expect_reject {
-                true => {
+            if tc.expect_reject {
                     assert!(validate_result.is_err(), "Expected Reject");
 
                     let reject = validate_result.unwrap_err();
@@ -1739,12 +1739,10 @@ mod tests {
                         tc.expected_reject_reason,
                         reject.reject_reason()
                     );
-                }
-                false => {
+            } else {
                     assert!(
                         validate_result.is_ok(),
-                        "Unexpected reject: {:?}",
-                        validate_result,
+                        "Unexpected reject: {validate_result:?}",
                     );
 
                     let rem_fields = validate_result.unwrap();
@@ -1756,7 +1754,6 @@ mod tests {
                         tc.expected_rem_fields,
                         rem_fields.len(),
                     );
-                }
             }
         }
     }

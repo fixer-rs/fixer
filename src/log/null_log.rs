@@ -18,6 +18,7 @@ pub struct NullLogFactory;
 
 impl NullLogFactory {
     // new creates an instance of LogFactory that returns no-op loggers.
+    #[allow(clippy::new_ret_no_self)]
     pub fn new() -> LogFactoryEnum {
         LogFactoryEnum::NullLogFactory(NullLogFactory)
     }

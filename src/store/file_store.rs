@@ -586,6 +586,7 @@ async fn create_file_store(
 }
 
 impl FileStoreFactory {
+    #[allow(clippy::new_ret_no_self)]
     pub fn new(settings: Arc<Mutex<Settings>>) -> MessageStoreFactoryEnum {
         MessageStoreFactoryEnum::FileStoreFactory(FileStoreFactory { settings })
     }

@@ -6,13 +6,21 @@ pub struct PendingTimeout {
     pub session_state: AfterPendingTimeout,
 }
 
+impl std::fmt::Display for PendingTimeout {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.session_state {
+            AfterPendingTimeout::InSession(is) => write!(f, "{is}"),
+            AfterPendingTimeout::ResendState(rs) => write!(f, "{rs}"),
+        }
+    }
+}
+
 impl PendingTimeout {
     delegate! {
         to match &self.session_state {
             AfterPendingTimeout::InSession(is) => is,
             AfterPendingTimeout::ResendState(rs) => rs,
         } {
-            pub fn to_string(&self) -> String;
             pub fn is_connected(&self) -> bool;
             pub fn is_logged_on(&self) -> bool;
             pub fn is_session_time(&self) -> bool ;
@@ -21,6 +29,7 @@ impl PendingTimeout {
 }
 
 #[cfg(test)]
+#[allow(clippy::unused_async)]
 mod tests {
     use crate::{
         fixer_test::SessionSuiteRig,

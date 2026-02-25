@@ -2,6 +2,7 @@ use criterion::Criterion;
 use fixer::parser;
 use tokio::io::BufReader;
 
+#[allow(clippy::let_underscore_future)]
 pub fn benchmark_parser_read_message(c: &mut Criterion) {
     const STREAM: &str = "8=FIXT.1.19=11135=D34=449=TW52=20140511-23:10:3456=ISLD11=ID21=340=154=155=INTC60=20140511-23:10:3410=2348=FIXT.1.19=9535=D34=549=TW52=20140511-23:10:3456=ISLD11=ID21=340=154=155=INTC60=20140511-23:10:3410=198";
 

@@ -30,32 +30,20 @@ pub const APPL_VER_ID_FIX50: &str = "7";
 pub const APPL_VER_ID_FIX50_SP1: &str = "8";
 pub const APPL_VER_ID_FIX50_SP2: &str = "9";
 
+#[cfg(not(test))]
+type RouteCallback = Box<
+    dyn FnMut(&mut MessageRouter, &Message, Arc<SessionID>) -> MessageRejectErrorResult,
+>;
+
+#[cfg(test)]
+type RouteCallback = Box<
+    dyn FnMut(&mut MessageRouterTestSuite, &Message, Arc<SessionID>) -> MessageRejectErrorResult,
+>;
+
 // A MessageRouter routes FIX messages to registered callbacks.
 #[derive(Default)]
 pub struct MessageRouter {
-    #[cfg(not(test))]
-    pub routes: HashMap<
-        RouteKey,
-        Box<
-            dyn FnMut(
-                &mut MessageRouter,
-                &Message,
-                Arc<SessionID>,
-            ) -> MessageRejectErrorResult,
-        >,
-    >,
-
-    #[cfg(test)]
-    pub routes: HashMap<
-        RouteKey,
-        Box<
-            dyn FnMut(
-                &mut MessageRouterTestSuite,
-                &Message,
-                Arc<SessionID>,
-            ) -> MessageRejectErrorResult,
-        >,
-    >,
+    pub routes: HashMap<RouteKey, RouteCallback>,
 }
 
 impl MessageRouter {
@@ -67,38 +55,11 @@ impl MessageRouter {
     }
 
     // add_route adds a route to the MessageRouter instance keyed to begin string and msg_type.
-    #[cfg(not(test))]
     pub fn add_route(
         &mut self,
         begin_string: String,
         msg_type: String,
-        router: Box<
-            dyn FnMut(
-                &mut MessageRouter,
-                &Message,
-                Arc<SessionID>,
-            ) -> MessageRejectErrorResult,
-        >,
-    ) {
-        let hash = RouteKey {
-            fix_version: begin_string,
-            msg_type,
-        };
-        self.routes.insert(hash, router);
-    }
-
-    #[cfg(test)]
-    pub fn add_route(
-        &mut self,
-        begin_string: String,
-        msg_type: String,
-        router: Box<
-            dyn FnMut(
-                &mut MessageRouterTestSuite,
-                &Message,
-                Arc<SessionID>,
-            ) -> MessageRejectErrorResult,
-        >,
+        router: RouteCallback,
     ) {
         let hash = RouteKey {
             fix_version: begin_string,
@@ -148,7 +109,7 @@ impl MessageRouter {
                 .await;
         let key = RouteKey {
             fix_version: fix_version.clone(),
-            msg_type: msg_type.to_string(),
+            msg_type: msg_type.clone(),
         };
 
         if let Some(mut route) = g.routes.remove(&key) {
@@ -194,6 +155,7 @@ impl MessageRouter {
         }
     }
 
+    #[allow(clippy::unused_async)]
     async fn get_fix_version(
         begin_string: String,
         is_admin_msg: bool,
@@ -210,7 +172,7 @@ impl MessageRouter {
                 .is_err()
             {
                 if let Some(reg) = (*SESSIONS).get(&session_id) {
-                    appl_ver_id = reg.target_default_appl_ver_id.lock().unwrap().clone();
+                    appl_ver_id.clone_from(&reg.target_default_appl_ver_id.lock().unwrap());
                 }
             }
 
@@ -229,6 +191,7 @@ impl MessageRouter {
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_statements, clippy::needless_pass_by_value)]
 mod tests {
     use crate::{
         BEGIN_STRING_FIX42, BEGIN_STRING_FIXT11,
@@ -314,6 +277,7 @@ mod tests {
             self.session_id = si;
         }
 
+        #[allow(clippy::unused_async)]
         async fn given_target_default_appl_ver_id_for_session(
             &self,
             default_appl_ver_id: &str,
@@ -357,6 +321,7 @@ mod tests {
             assert_eq!(self.msg.to_string(), &*self.routed_message.to_string());
         }
 
+        #[allow(clippy::unused_async)]
         async fn setup_test() -> MessageRouterTestSuite {
             let suite = MessageRouterTestSuite {
                 mr: MessageRouter::new(),

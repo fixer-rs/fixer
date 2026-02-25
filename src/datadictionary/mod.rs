@@ -449,6 +449,7 @@ impl DataDictionary {
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_statements)]
 mod component_type_tests {
     use super::*;
 
@@ -559,6 +560,7 @@ mod component_type_tests {
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_statements)]
 mod tests {
     use super::*;
     use futures::executor::block_on;
@@ -839,6 +841,7 @@ mod tests {
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_statements)]
 mod field_def_tests {
     use super::*;
 
@@ -888,6 +891,7 @@ mod group_field_def_tests {
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_statements)]
 mod message_def_tests {
     use super::*;
 

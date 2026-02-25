@@ -48,6 +48,7 @@ pub trait MessageStoreFactoryTrait {
     async fn create(&self, session_id: Arc<SessionID>) -> SimpleResult<MessageStoreEnum>;
 }
 
+#[allow(clippy::large_enum_variant)]
 #[enum_dispatch(MessageStoreTrait)]
 pub enum MessageStoreEnum {
     MemoryStore,
@@ -181,12 +182,14 @@ impl MessageStoreFactoryTrait for MemoryStoreFactory {
 
 impl MemoryStoreFactory {
     // new returns a MessageStoreFactory instance that created in-memory MessageStores
+    #[allow(clippy::new_ret_no_self)]
     pub fn new() -> MessageStoreFactoryEnum {
         MessageStoreFactoryEnum::MemoryStoreFactory(MemoryStoreFactory)
     }
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_statements)]
 mod tests {
     use crate::{
         session::session_id::SessionID,

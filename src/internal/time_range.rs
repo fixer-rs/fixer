@@ -169,6 +169,7 @@ impl TimeRange {
     }
 
     // is_in_same_range &determines if &two points in time are in the same time range
+    #[allow(clippy::cast_possible_truncation, clippy::cast_lossless)]
     pub fn is_in_same_range(
         &self,
         t1: &mut Zoned,
@@ -190,23 +191,21 @@ impl TimeRange {
         let t1_time = TimeOfDay::new(t1_hour, t1_minute, t1_second);
         let mut day_offset: i64 = 0;
 
-        if self.end_day.is_none() {
-            if self.start_time.d >= self.end_time.d && t1_time.d >= self.start_time.d {
-                day_offset = 1;
-            }
-        } else {
-            let end_day = self.end_day.unwrap().to_sunday_zero_offset();
+        if let Some(end_day_val) = self.end_day {
+            let end_day = end_day_val.to_sunday_zero_offset();
             let t1_weekday = t1.weekday().to_sunday_zero_offset();
 
             match end_day.cmp(&t1_weekday) {
-                std::cmp::Ordering::Less => day_offset = 7 + (end_day as i64 - t1_weekday as i64),
+                std::cmp::Ordering::Less => day_offset = 7 + (i64::from(end_day) - i64::from(t1_weekday)),
                 std::cmp::Ordering::Equal => {
                     if self.end_time.d <= t1_time.d {
                         day_offset = 7;
                     }
                 }
-                std::cmp::Ordering::Greater => day_offset = end_day as i64 - t1_weekday as i64,
+                std::cmp::Ordering::Greater => day_offset = i64::from(end_day) - i64::from(t1_weekday),
             }
+        } else if self.start_time.d >= self.end_time.d && t1_time.d >= self.start_time.d {
+            day_offset = 1;
         }
 
         let session_end = civil::date(

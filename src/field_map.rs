@@ -84,6 +84,7 @@ impl TagSort {
         self.tags.len() == 0
     }
 
+    #[allow(clippy::cast_sign_loss)]
     pub fn swap(&mut self, i: isize, j: isize) {
         self.tags.swap(i as usize, j as usize);
     }
@@ -120,6 +121,7 @@ impl Default for FieldMap {
 }
 
 impl FieldMap {
+    #[must_use]
     pub fn init(mut self) -> Self {
         self.init_with_ordering(TagOrderType::Normal);
         self
@@ -260,6 +262,7 @@ impl FieldMap {
     }
 
     // set_field sets the field with Tag tag
+    #[allow(clippy::needless_pass_by_value)]
     pub fn set_field<F: FieldValueWriter>(&mut self, tag: Tag, field: F) -> &FieldMap {
         self.set_bytes(tag, &field.write())
     }
@@ -299,7 +302,7 @@ impl FieldMap {
 
     // copy_into overwrites the given FieldMap with this one
     pub fn copy_into(&self, to: &mut FieldMap) {
-        to.content.tag_lookup = self.content.tag_lookup.clone();
+        to.content.tag_lookup.clone_from(&self.content.tag_lookup);
         to.content.tag_sort.tags.clone_from(&self.content.tag_sort.tags);
         to.content.tag_sort.compare_type = self.content.tag_sort.compare_type.clone();
     }
@@ -315,15 +318,16 @@ impl FieldMap {
     }
 
     fn get_or_create(&mut self, tag: Tag) -> &mut LocalField {
-        if !self.content.tag_lookup.contains_key(&tag) {
+        if let std::collections::hash_map::Entry::Vacant(e) = self.content.tag_lookup.entry(tag) {
             let f = LocalField::new(vec![TagValue::default()]);
-            self.content.tag_lookup.insert(tag, f);
+            e.insert(f);
             self.content.tag_sort.tags.push(tag);
         }
         self.content.tag_lookup.get_mut(&tag).unwrap()
     }
 
     // set is a setter for fields
+    #[allow(clippy::needless_pass_by_value)]
     pub fn set<F: FieldWriter>(&mut self, field: F) -> &FieldMap {
         let tag = field.tag();
         let bytes = field.write();
@@ -333,6 +337,7 @@ impl FieldMap {
     }
 
     // set_group is a setter specific to group fields
+    #[allow(clippy::needless_pass_by_value)]
     pub fn set_group<F: FieldGroupWriter>(&mut self, field: F) -> &FieldMap {
         if !self.content.tag_lookup.contains_key(&field.tag()) {
             self.content.tag_sort.tags.push(field.tag());
@@ -357,6 +362,7 @@ impl FieldMap {
                     .tag_sort
                     .tags
                     .sort_by(|i: &Tag, j: &Tag| -> Ordering {
+                        #[allow(clippy::trivially_copy_pass_by_ref)]
                         fn ordering(t: &Tag) -> isize {
                             match *t {
                                 TAG_BEGIN_STRING => 1,
@@ -366,10 +372,11 @@ impl FieldMap {
                             }
                         }
 
-                        let orderi = ordering(i);
-                        let orderj = ordering(j);
+                        #[allow(clippy::similar_names)]
+                        let order_i = ordering(i);
+                        let order_j = ordering(j);
 
-                        match orderi.cmp(&orderj) {
+                        match order_i.cmp(&order_j) {
                             Ordering::Less => Ordering::Less,
                             Ordering::Equal => i.cmp(j),
                             Ordering::Greater => Ordering::Greater,
@@ -397,9 +404,9 @@ impl FieldMap {
                     .tag_sort
                     .tags
                     .sort_by(|i: &Tag, j: &Tag| -> Ordering {
-                        let orderi = tag_map.get(i).copied().unwrap_or(usize::MAX);
-                        let orderj = tag_map.get(j).copied().unwrap_or(usize::MAX);
-                        orderi.cmp(&orderj)
+                        let order_i = tag_map.get(i).copied().unwrap_or(usize::MAX);
+                        let order_j = tag_map.get(j).copied().unwrap_or(usize::MAX);
+                        order_i.cmp(&order_j)
                     });
             }
             TagOrderType::Custom(tag_order) => content.tag_sort.tags.sort_by(tag_order),
@@ -470,16 +477,16 @@ mod tests {
 
     #[test]
     fn test_field_map_set_and_get() {
-        let mut f_map = FieldMap::default();
-
-        f_map.set_field(1, String::from("hello"));
-        f_map.set_field(2, String::from("world"));
-
         struct TestCase<'a> {
             tag: Tag,
             expect_err: bool,
             expect_value: &'a str,
         }
+
+        let mut f_map = FieldMap::default();
+
+        f_map.set_field(1, String::from("hello"));
+        f_map.set_field(2, String::from("world"));
 
         let tests = [
             TestCase {

@@ -90,6 +90,11 @@ impl RepeatingGroup {
         self.groups.len()
     }
 
+    // is_empty returns true if this RepeatingGroup has no groups.
+    pub fn is_empty(&self) -> bool {
+        self.groups.is_empty()
+    }
+
     // get returns the ith group in this RepeatingGroup.
     pub fn get(&self, i: usize) -> &Group {
         &self.groups[i]
@@ -143,9 +148,8 @@ impl FieldGroupReader for RepeatingGroup {
             return Ok(LocalField::new(vec![]));
         }
 
-        let expected_group_size = match atoi_simd::parse::<usize, false, false>(&tv.data[0].value) {
-            Ok(size) => size,
-            Err(_) => return Ok(tv),
+        let Ok(expected_group_size) = atoi_simd::parse::<usize, false, false>(&tv.data[0].value) else {
+            return Ok(tv);
         };
 
         if expected_group_size == 0 {
@@ -225,6 +229,7 @@ impl FieldGroupWriter for RepeatingGroup {
 impl GroupItem for RepeatingGroup {}
 
 #[cfg(test)]
+#[allow(clippy::items_after_statements)]
 mod tests {
     use crate::{
         field::{FieldGroupReader, FieldGroupWriter},

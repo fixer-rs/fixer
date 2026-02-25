@@ -43,6 +43,7 @@ impl Settings {
         self.session_settings.clear();
     }
 
+    #[allow(clippy::unused_async)]
     async fn lazy_init(&mut self) {
         if self.global_settings.is_none() {
             self.init();
@@ -69,14 +70,18 @@ impl Settings {
 
             if COMMENT_REGEX.is_match(&line) || BLANK_REGEX.is_match(&line) {
                 continue;
-            } else if DEFAULT_REGEX.is_match(&line) {
+            }
+
+            if DEFAULT_REGEX.is_match(&line) {
                 settings = s.global_settings().await;
                 is_global_settings = true;
             } else if SESSION_REGEX.is_match(&line) {
-                if settings.is_some() && !is_global_settings {
-                    s.add_session(settings.unwrap())
-                        .await
-                        .map_err(SimpleError::from)?;
+                if let Some(s_inner) = settings {
+                    if !is_global_settings {
+                        s.add_session(s_inner)
+                            .await
+                            .map_err(SimpleError::from)?;
+                    }
                 }
                 settings = Some(SessionSettings::new());
                 is_global_settings = false;
@@ -214,6 +219,7 @@ fn session_id_from_session_settings(
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_statements)]
 mod tests {
     use crate::{
         BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIX42, BEGIN_STRING_FIX43,
