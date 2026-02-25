@@ -7,6 +7,6 @@ pub fn benchmark_fix_float_read(c: &mut Criterion) {
         b.iter(|| {
             let mut field = fix_float::FIXFloat::default();
             let _ = field.read(val.as_bytes());
-        })
+        });
     });
 }

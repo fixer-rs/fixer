@@ -642,7 +642,7 @@ impl Session {
             self.session_id.begin_string.as_str(),
             BEGIN_STRING_FIX40 | BEGIN_STRING_FIX41
         ) {
-            end_seq_no = 999999;
+            end_seq_no = 999_999;
         } else {
             end_seq_no = 0;
         }
@@ -1595,7 +1595,7 @@ impl Session {
         let mut seq_num = begin_seq_no;
         let mut next_seq_num = seq_num;
         let mut msg = Message::new();
-        for msg_bytes in msgs.iter() {
+        for msg_bytes in &msgs {
             Message::parse_message_with_data_dictionary(
                 &mut msg,
                 msg_bytes,
@@ -2348,7 +2348,7 @@ mod tests {
             },
         ];
 
-        for test in tests.iter() {
+        for test in &tests {
             let mut session_id = (*s.ssr.session.session_id).clone();
             session_id.begin_string = test.begin_string.to_string();
             s.ssr.session.session_id = Arc::new(session_id);
@@ -2413,7 +2413,7 @@ mod tests {
             },
         ];
 
-        for test in tests.iter_mut() {
+        for test in &mut tests {
             let msg = Message::new();
             if test.sender_comp_id.is_some() {
                 let sender_comp_id = test.sender_comp_id.take().unwrap();
@@ -2833,7 +2833,7 @@ mod tests {
             },
         ];
 
-        for test in tests.iter_mut() {
+        for test in &mut tests {
             let mut session_id = (*s.ssr.session.session_id).clone();
             session_id.begin_string = test.begin_string.to_string();
             s.ssr.session.session_id = Arc::new(session_id);
@@ -2902,7 +2902,7 @@ mod tests {
             },
         ];
 
-        for test in tests.iter_mut() {
+        for test in &mut tests {
             let mut s = SessionSuite::setup_test().await;
             s.ssr.session.iss.session_time = None;
             s.ssr.session.sm.state = test.before.clone();
@@ -2967,7 +2967,7 @@ mod tests {
             },
         ];
 
-        for test in tests.iter_mut() {
+        for test in &mut tests {
             let mut s = SessionSuite::setup_test().await;
             s.ssr.session.sm.state = test.before.clone();
 
@@ -3096,7 +3096,7 @@ mod tests {
             },
         ];
 
-        for test in tests.iter_mut() {
+        for test in &mut tests {
             let mut s = SessionSuite::setup_test().await;
             s.ssr.session.sm.state = test.before.clone();
             s.ssr.session.iss.initiate_logon = test.initiate_logon;
@@ -3219,7 +3219,7 @@ mod tests {
             },
         ];
 
-        for test in tests.iter_mut() {
+        for test in &mut tests {
             let mut s = SessionSuite::setup_test().await;
             s.ssr.session.sm.state = test.before.clone();
             s.ssr.session.iss.initiate_logon = test.initiate_logon;
@@ -3345,7 +3345,7 @@ mod tests {
             },
         ];
 
-        for test in tests.iter_mut() {
+        for test in &mut tests {
             let mut s = SessionSuite::setup_test().await;
             s.ssr.session.sm.state = test.before.clone();
             s.ssr.session.iss.initiate_logon = test.initiate_logon;
@@ -3446,7 +3446,7 @@ mod tests {
             },
         ];
 
-        for test in tests.iter_mut() {
+        for test in &mut tests {
             let mut s = SessionSuite::setup_test().await;
             s.ssr.session.sm.state = test.before.clone();
             s.ssr.session.iss.initiate_logon = test.initiate_logon;
@@ -3547,8 +3547,8 @@ mod tests {
 
         let events = vec![PEER_TIMEOUT, NEED_HEARTBEAT, LOGON_TIMEOUT, LOGOUT_TIMEOUT];
 
-        for test in tests.iter_mut() {
-            for event in events.iter() {
+        for test in &mut tests {
+            for event in &events {
                 let mut s = SessionSuite::setup_test().await;
 
                 s.ssr.session.sm.state = test.before.clone();

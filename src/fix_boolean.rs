@@ -52,17 +52,15 @@ mod tests {
             val: FIXBoolean,
             expected: Vec<u8>,
         }
-        let tests = vec![
-            TestCase {
+        let tests = [TestCase {
                 val: true,
                 expected: vec![b'Y'],
             },
             TestCase {
                 val: false,
                 expected: vec![b'N'],
-            },
-        ];
-        for test in tests.iter() {
+            }];
+        for test in &tests {
             let b = test.val.write();
             assert_eq!(b, test.expected, "got {:?}; want {:?}", b, test.expected);
         }
@@ -75,14 +73,13 @@ mod tests {
             expected: bool,
             expect_error: bool,
         }
-        let tests = vec![
-            TestCase {
-                bytes: &[b'Y'],
+        let tests = [TestCase {
+                bytes: b"Y",
                 expected: true,
                 expect_error: false,
             },
             TestCase {
-                bytes: &[b'N'],
+                bytes: b"N",
                 expected: false,
                 expect_error: false,
             },
@@ -90,10 +87,9 @@ mod tests {
                 bytes: "blah".as_bytes(),
                 expected: false,
                 expect_error: true,
-            },
-        ];
+            }];
 
-        for test in tests.iter() {
+        for test in &tests {
             let mut val = bool::default();
             let err = val.read(test.bytes);
             assert_eq!(test.expect_error, err.is_err());

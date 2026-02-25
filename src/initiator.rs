@@ -46,7 +46,7 @@ impl Initiator {
         let mut sessions = Vec::new();
         let session_settings = settings.session_settings().await;
 
-        for entry in session_settings.iter() {
+        for entry in &session_settings {
             let (session_id, ss) = entry.pair();
             let session = factory
                 .create_session(
@@ -124,16 +124,13 @@ impl Initiator {
                             // Optionally wrap with TLS
                             let connected = if let Some(ref connector) = tls_connector {
                                 let server_name =
-                                    match tls::get_server_name(&session_settings, address) {
-                                        Ok(name) => name,
-                                        Err(_) => {
-                                            // Bad server name, retry
-                                            tokio::select! {
-                                                _ = sleep(reconnect_interval) => {},
-                                                _ = stop_rx.changed() => { break; }
-                                            }
-                                            continue;
+                                    if let Ok(name) = tls::get_server_name(&session_settings, address) { name } else {
+                                        // Bad server name, retry
+                                        tokio::select! {
+                                            () = sleep(reconnect_interval) => {},
+                                            _ = stop_rx.changed() => { break; }
                                         }
+                                        continue;
                                     };
                                 match connector.connect(server_name, tcp_stream).await {
                                     Ok(tls_stream) => {
@@ -158,7 +155,7 @@ impl Initiator {
                             let Some((read_half, write_half)) = connected else {
                                 // TLS handshake failed, retry
                                 tokio::select! {
-                                    _ = sleep(reconnect_interval) => {},
+                                    () = sleep(reconnect_interval) => {},
                                     _ = stop_rx.changed() => { break; }
                                 }
                                 continue;
@@ -182,7 +179,7 @@ impl Initiator {
                                 if result.is_err() {
                                     // Connect rejected, retry after interval
                                     tokio::select! {
-                                        _ = sleep(reconnect_interval) => {},
+                                        () = sleep(reconnect_interval) => {},
                                         _ = stop_rx.changed() => { break; }
                                     }
                                     continue;
@@ -195,7 +192,7 @@ impl Initiator {
                             let read_task =
                                 tokio::spawn(async move { read_loop(parser, msg_in_tx).await });
                             let write_task = tokio::spawn(async move {
-                                write_loop(write_half, msg_out_rx, LogEnum::default()).await
+                                write_loop(write_half, msg_out_rx, LogEnum::default()).await;
                             });
 
                             // Wait for disconnect
@@ -210,7 +207,7 @@ impl Initiator {
 
                     // Reconnect delay
                     tokio::select! {
-                        _ = sleep(reconnect_interval) => {},
+                        () = sleep(reconnect_interval) => {},
                         _ = stop_rx.changed() => { break; }
                     }
                 }
@@ -261,7 +258,7 @@ mod tests {
 
     async fn make_initiator_settings(host: &str, port: &str) -> Settings {
         let cfg = format!(
-            r#"
+            r"
 [DEFAULT]
 
 [SESSION]
@@ -269,10 +266,9 @@ BeginString=FIX.4.2
 SenderCompID=INITIATOR
 TargetCompID=ACCEPTOR
 HeartBtInt=30
-SocketConnectHost={}
-SocketConnectPort={}
-"#,
-            host, port
+SocketConnectHost={host}
+SocketConnectPort={port}
+"
         );
         Settings::parse(BufReader::new(cfg.as_bytes()))
             .await

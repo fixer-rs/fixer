@@ -54,6 +54,12 @@ impl Application for NOPApp {
     }
 }
 
+impl Default for NOPApp {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NOPApp {
     pub fn new() -> Self {
         NOPApp {}

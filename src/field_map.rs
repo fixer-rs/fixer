@@ -1,7 +1,7 @@
 use crate::{
     errors::{
-        conditionally_required_field_missing, incorrect_data_format_for_value,
-        MessageRejectErrorEnum, MessageRejectErrorResult,
+        MessageRejectErrorEnum, MessageRejectErrorResult, conditionally_required_field_missing,
+        incorrect_data_format_for_value,
     },
     field::{
         Field, FieldGroupReader, FieldGroupWriter, FieldValueReader, FieldValueWriter, FieldWriter,
@@ -10,7 +10,7 @@ use crate::{
     fix_int::{FIXInt, FIXIntTrait},
     fix_string::FIXString,
     fix_utc_timestamp::FIXUTCTimestamp,
-    tag::{Tag, TAG_BEGIN_STRING, TAG_BODY_LENGTH, TAG_CHECK_SUM, TAG_MSG_TYPE},
+    tag::{TAG_BEGIN_STRING, TAG_BODY_LENGTH, TAG_CHECK_SUM, TAG_MSG_TYPE, Tag},
     tag_value::TagValue,
 };
 use jiff::Timestamp;
@@ -57,7 +57,7 @@ impl LocalField {
     }
 
     pub fn write_field(&self, buffer: &mut Vec<u8>) {
-        for tv in self.data.lock().get(self.s_pos..self.e_pos).unwrap().iter() {
+        for tv in self.data.lock().get(self.s_pos..self.e_pos).unwrap() {
             buffer.extend_from_slice(&tv.bytes);
         }
     }
@@ -95,7 +95,9 @@ pub struct TagSort {
 
 impl fmt::Debug for TagSort {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("TagSort").field("tags", &self.tags).finish()
+        f.debug_struct("TagSort")
+            .field("tags", &self.tags)
+            .finish_non_exhaustive()
     }
 }
 
@@ -153,7 +155,7 @@ impl FieldMap {
     // tags returns all of the Field Tags in this FieldMap
     pub fn tags(&self) -> Vec<Tag> {
         let rlock = self.rw_lock.read();
-        rlock.tag_sort.tags.to_vec()
+        rlock.tag_sort.tags.clone()
     }
 
     // get parses out a field in this FieldMap. Returned reject may indicate the field is not present, or the field value is invalid.
@@ -315,7 +317,7 @@ impl FieldMap {
 
         to_wlock.tag_lookup = hashmap! {};
 
-        for (k, v) in m_rlock.tag_lookup.iter() {
+        for (k, v) in &m_rlock.tag_lookup {
             let inner_lock = v.data.lock();
             let cloned_field = inner_lock.to_vec();
             let cloned_field_wrapper = Arc::new(Mutex::new(cloned_field));
@@ -326,7 +328,7 @@ impl FieldMap {
             );
         }
 
-        to_wlock.tag_sort.tags = m_rlock.tag_sort.tags.clone();
+        to_wlock.tag_sort.tags.clone_from(&m_rlock.tag_sort.tags);
         to_wlock.tag_sort.compare_type = m_rlock.tag_sort.compare_type.clone();
     }
 
@@ -408,7 +410,7 @@ impl FieldMap {
                             Ordering::Equal => i.cmp(j),
                             Ordering::Greater => Ordering::Greater,
                         }
-                    })
+                    });
             }
             // In the trailer, CheckSum (tag 10) must be last
             TagOrderType::Trailer => {
@@ -423,7 +425,7 @@ impl FieldMap {
                             return Ordering::Less;
                         }
                         i.cmp(j)
-                    })
+                    });
             }
             TagOrderType::RepeatingGroup(tag_map) => {
                 let tag_map = tag_map.clone();
@@ -434,7 +436,7 @@ impl FieldMap {
                         let orderi = tag_map.get(i).copied().unwrap_or(usize::MAX);
                         let orderj = tag_map.get(j).copied().unwrap_or(usize::MAX);
                         orderi.cmp(&orderj)
-                    })
+                    });
             }
             TagOrderType::Custom(tag_order) => content.tag_sort.tags.sort_by(tag_order),
         }
@@ -529,7 +531,7 @@ mod tests {
             expect_value: &'a str,
         }
 
-        let tests = vec![
+        let tests = [
             TestCase {
                 tag: 1,
                 expect_err: false,
@@ -547,7 +549,7 @@ mod tests {
             },
         ];
 
-        for test in tests.iter() {
+        for test in &tests {
             let mut test_field = FIXString::default();
             let err = f_map.get_field(test.tag, &mut test_field);
 

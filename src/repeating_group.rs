@@ -1,12 +1,12 @@
 use crate::{
-    errors::{repeating_group_fields_out_of_order, MessageRejectErrorEnum},
+    errors::{MessageRejectErrorEnum, repeating_group_fields_out_of_order},
     field::{FieldGroupReader, FieldGroupWriter, FieldTag},
     field_map::{FieldMap, LocalField, TagOrderType},
     tag::Tag,
     tag_value::TagValue,
 };
 use delegate::delegate;
-use dyn_clone::{clone_trait_object, DynClone};
+use dyn_clone::{DynClone, clone_trait_object};
 use parking_lot::Mutex;
 use std::{collections::HashMap, sync::Arc};
 
@@ -114,7 +114,7 @@ impl RepeatingGroup {
     }
 
     fn find_item_in_group_template(&self, t: Tag) -> Option<Box<dyn GroupItem>> {
-        for template_field in self.template.iter() {
+        for template_field in &self.template {
             if t == template_field.tag() {
                 return Some(template_field.clone());
             }
@@ -133,7 +133,7 @@ impl RepeatingGroup {
     }
 
     fn delimiter(&self) -> Tag {
-        self.template.get(0).unwrap().tag()
+        self.template.first().unwrap().tag()
     }
 
     fn is_delimiter(&self, t: Tag) -> bool {
@@ -218,7 +218,16 @@ impl FieldGroupReader for RepeatingGroup {
         }
 
         if self.groups.len() != expected_group_size {
-            return Err(repeating_group_fields_out_of_order(self.tag, format!("group {}: template is wrong or delimiter {} not found: expected {} groups, but found {}", self.tag, self.delimiter(), expected_group_size, self.groups.len())));
+            return Err(repeating_group_fields_out_of_order(
+                self.tag,
+                format!(
+                    "group {}: template is wrong or delimiter {} not found: expected {} groups, but found {}",
+                    self.tag,
+                    self.delimiter(),
+                    expected_group_size,
+                    self.groups.len()
+                ),
+            ));
         }
 
         Ok(tv)
@@ -236,7 +245,7 @@ impl FieldGroupWriter for RepeatingGroup {
         tv.init(self.tag, bytes_str.as_bytes());
         let mut tvs = vec![tv];
 
-        for group in self.groups.iter() {
+        for group in &self.groups {
             let tags = group.sorted_tags();
             for tag in tags {
                 let lock = group.field_map.rw_lock.read();
@@ -261,7 +270,7 @@ mod tests {
         field_map::LocalField,
         fix_string::FIXString,
         message::Message,
-        repeating_group::{group_element, GroupTemplate, RepeatingGroup},
+        repeating_group::{GroupTemplate, RepeatingGroup, group_element},
         tag::Tag,
         tag_value::TagValue,
     };
@@ -279,9 +288,9 @@ mod tests {
             expected_len: usize,
         }
 
-        let test_cases = vec![TestCase { expected_len: 1 }, TestCase { expected_len: 2 }];
+        let test_cases = [TestCase { expected_len: 1 }, TestCase { expected_len: 2 }];
 
-        for tc in test_cases.iter() {
+        for tc in &test_cases {
             let g = f.add();
 
             assert_eq!(
@@ -361,7 +370,7 @@ mod tests {
             expected: &'a [u8],
         }
 
-        let test_cases = vec![
+        let test_cases = [
             TestCase {
                 f: f1,
                 expected: "10=11=hello".as_bytes(),
@@ -380,11 +389,11 @@ mod tests {
             },
         ];
 
-        for tc in test_cases.iter() {
+        for tc in &test_cases {
             let mut tvbytes = vec![];
             let tvs = tc.f.write();
             let lock = tvs.data.lock();
-            for tv in lock.get(tvs.s_pos..tvs.e_pos).unwrap().iter() {
+            for tv in lock.get(tvs.s_pos..tvs.e_pos).unwrap() {
                 tvbytes.extend_from_slice(&tv.bytes);
             }
             assert_eq!(
@@ -393,7 +402,7 @@ mod tests {
                 "expected {} got {}",
                 String::from_utf8_lossy(tc.expected),
                 String::from_utf8_lossy(&tvbytes)
-            )
+            );
         }
     }
 
@@ -406,7 +415,7 @@ mod tests {
             expected_group_num: usize,
         }
 
-        let test_cases = vec![
+        let test_cases = [
             TestCase {
                 tv: LocalField::new(Arc::new(Mutex::new(vec![
                     TagValue {
@@ -454,13 +463,18 @@ mod tests {
             },
         ];
 
-        for tc in test_cases.iter() {
+        for tc in &test_cases {
             let mut f = RepeatingGroup {
                 template: single_field_template.clone(),
                 ..Default::default()
             };
             let read_result = f.read(tc.tv.clone());
-            assert!(read_result.is_err() && f.groups.len() == tc.expected_group_num, "Should have raised an error because expected group number is wrong: {} instead of {}", f.groups.len(), tc.expected_group_num);
+            assert!(
+                read_result.is_err() && f.groups.len() == tc.expected_group_num,
+                "Should have raised an error because expected group number is wrong: {} instead of {}",
+                f.groups.len(),
+                tc.expected_group_num
+            );
         }
     }
 
@@ -476,7 +490,7 @@ mod tests {
             expected_group_tvs: Vec<LocalField>,
         }
 
-        let mut test_cases = vec![
+        let mut test_cases = [
             TestCase {
                 group_template: Some(single_field_template.clone()),
                 tv: LocalField::new(Arc::new(Mutex::new(vec![TagValue {
@@ -683,7 +697,7 @@ mod tests {
             },
         ];
 
-        for tc in test_cases.iter_mut() {
+        for tc in &mut test_cases {
             let mut f = RepeatingGroup {
                 tag: 0,
                 template: tc.group_template.take().unwrap(),
@@ -829,14 +843,14 @@ mod tests {
             get_group.len()
         );
 
-        let expected_group_tags = vec![
+        let expected_group_tags = [
             vec![269 as Tag, 270 as Tag, 272 as Tag, 273 as Tag],
             vec![269 as Tag, 270 as Tag, 272 as Tag, 273 as Tag],
             vec![269 as Tag, 270 as Tag, 272 as Tag, 273 as Tag],
             vec![269 as Tag, 271 as Tag, 272 as Tag, 273 as Tag],
         ];
 
-        let expected_group_values = vec![
+        let expected_group_values = [
             vec![
                 FIXString::from("4"),
                 FIXString::from("0.07499"),
@@ -876,9 +890,7 @@ mod tests {
                 let get_result = group.field_map.get_field(*tag, &mut actual);
                 assert!(
                     get_result.is_ok(),
-                    "error getting field {} from group {}",
-                    tag,
-                    i
+                    "error getting field {tag} from group {i}"
                 );
                 assert_eq!(
                     expected_group_values[i][j], actual,

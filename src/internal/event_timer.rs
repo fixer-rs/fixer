@@ -27,7 +27,7 @@ impl EventTimer {
         let join = tokio::spawn(async move {
             loop {
                 tokio::select! {
-                    Some(_) = rx.recv() => {
+                    Some(()) = rx.recv() => {
                         timer.stop().await;
                         rx.close();
                         return

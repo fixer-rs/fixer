@@ -1,5 +1,5 @@
 use crate::field::{FieldValue, FieldValueReader, FieldValueWriter};
-use jiff::{civil, tz::TimeZone, Timestamp};
+use jiff::{Timestamp, civil, tz::TimeZone};
 use simple_error::SimpleResult;
 
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
@@ -128,7 +128,7 @@ mod tests {
             val: &'a [u8],
         }
 
-        let tests = vec![
+        let tests = [
             TestCase {
                 precision: TimestampPrecision::Millis,
                 val: "20160208-22:07:16.954".as_bytes(),
@@ -147,10 +147,11 @@ mod tests {
             },
         ];
 
-        for test in tests.iter() {
-            let mut f = FIXUTCTimestamp::default();
-            f.time = the_ts;
-            f.precision = test.precision;
+        for test in &tests {
+            let f = FIXUTCTimestamp {
+                time: the_ts,
+                precision: test.precision,
+            };
             let b = f.write();
             assert_eq!(b, test.val, "got {:?}; want {:?}", b, test.val);
         }
@@ -164,7 +165,7 @@ mod tests {
             expected_precision: TimestampPrecision,
         }
 
-        let tests = vec![
+        let tests = [
             TestCase {
                 time_str: "20160208-22:07:16.310",
                 expected_time: ts(2016, 2, 8, 22, 7, 16, 310_000_000),
@@ -187,10 +188,10 @@ mod tests {
             },
         ];
 
-        for test in tests.iter() {
+        for test in &tests {
             let mut f = FIXUTCTimestamp::default();
             let result = f.read(test.time_str.as_bytes());
-            assert!(result.is_ok(), "Unexpected error: {:?}", result);
+            assert!(result.is_ok(), "Unexpected error: {result:?}");
             assert_eq!(
                 f.time, test.expected_time,
                 "For Time expected {} got {}",

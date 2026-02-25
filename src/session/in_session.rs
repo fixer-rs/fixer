@@ -68,7 +68,7 @@ mod tests {
         delegate! {
             to self.ssr.suite {
                 fn message_type(&self, msg_type: String, msg: &Message);
-                fn field_equals<'a>(&self, tag: Tag, expected_value: FieldEqual<'a>, field_map: &FieldMap);
+                fn field_equals(&self, tag: Tag, expected_value: FieldEqual<'_>, field_map: &FieldMap);
             }
         }
     }

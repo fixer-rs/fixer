@@ -1,4 +1,5 @@
 use crate::{
+    BEGIN_STRING_FIX40,
     datadictionary::DataDictionary,
     errors::{MessageRejectErrorEnum, MessageRejectErrorResult},
     field::{
@@ -9,10 +10,9 @@ use crate::{
     registry::Messageable,
     tag::*,
     tag_value::TagValue,
-    BEGIN_STRING_FIX40,
 };
-use jiff::Timestamp;
 use delegate::delegate;
+use jiff::Timestamp;
 use parking_lot::Mutex;
 use std::{
     error::Error,
@@ -204,8 +204,8 @@ impl Message {
         self.body.copy_into(&mut to.body.field_map);
         self.trailer.copy_into(&mut to.trailer.field_map);
         to.receive_time = self.receive_time;
-        to.body_bytes = self.body_bytes.clone();
-        to.fields = self.fields.clone();
+        to.body_bytes.clone_from(&self.body_bytes);
+        to.fields.clone_from(&self.fields);
     }
 
     pub fn parse_message(&mut self, raw_message: &[u8]) -> Result<(), ParseError> {
@@ -342,7 +342,7 @@ impl Message {
                 }
                 Location::Body => {
                     found_body = true;
-                    trailer_bytes = raw_bytes.clone();
+                    trailer_bytes.clone_from(&raw_bytes);
 
                     self.body.add(LocalField::new_with_start_end(
                         self.original_field.clone(),
@@ -357,7 +357,7 @@ impl Message {
             }
 
             if !found_body {
-                self.body_bytes = raw_bytes.clone();
+                self.body_bytes.clone_from(&raw_bytes);
             }
 
             if tag == TAG_XML_DATA_LEN {
@@ -383,10 +383,9 @@ impl Message {
             .lock()
             .get(self.fields.s_pos..self.fields.e_pos)
             .unwrap()
-            .iter()
         {
             match field.tag {
-                TAG_BEGIN_STRING | TAG_BODY_LENGTH | TAG_CHECK_SUM => continue, // tags do not contribute to length
+                TAG_BEGIN_STRING | TAG_BODY_LENGTH | TAG_CHECK_SUM => {} // tags do not contribute to length
                 _ => length += field.length(),
             }
         }
@@ -401,10 +400,7 @@ impl Message {
         if let Ok(bl) = body_length {
             if bl != length && !xml_data_msg {
                 return Err(ParseError {
-                    orig_error: format!(
-                        "Incorrect Message Length, expected {} , got {}",
-                        bl, length
-                    ),
+                    orig_error: format!("Incorrect Message Length, expected {bl} , got {length}"),
                 });
             }
         }
@@ -583,16 +579,16 @@ fn extract_field(parsed_field_bytes: &mut TagValue, buffer: &[u8]) -> Result<Vec
 }
 
 fn format_check_sum(value: isize) -> String {
-    format!("{:03}", value)
+    format!("{value:03}")
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::BEGIN_STRING_FIX44;
     use crate::datadictionary::{DataDictionary, FieldDef, MessageDef};
     use crate::fixer_test::{FieldEqual, FixerSuite};
     use crate::tag::Tag;
-    use crate::BEGIN_STRING_FIX44;
     use delegate::delegate;
 
     struct MessageSuite {
@@ -648,7 +644,8 @@ mod tests {
             "Expected msg bytes to equal raw bytes"
         );
 
-        let expected_body_bytes = "11=10021=140=154=155=TSLA60=00010101-00:00:00.000".as_bytes();
+        let expected_body_bytes =
+            "11=10021=140=154=155=TSLA60=00010101-00:00:00.000".as_bytes();
         assert_eq!(
             &s.msg.body_bytes,
             expected_body_bytes,
@@ -667,8 +664,10 @@ mod tests {
     #[test]
     fn test_parse_message_with_data_dictionary() {
         let mut s = setup_test();
-        let mut dict = DataDictionary::default();
-        dict.header = MessageDef::default();
+        let mut dict = DataDictionary {
+            header: MessageDef::default(),
+            ..DataDictionary::default()
+        };
         let mut hd_fields = hashmap! {};
         let hd_fd = FieldDef::default();
         hd_fields.insert(10030, hd_fd);
@@ -705,7 +704,7 @@ mod tests {
         let mut s = setup_test();
         let raw_message =  "8=FIX.4.09=8135=D11=id21=338=10040=154=155=MSFT34=249=TW52=20140521-22:07:0956=ISLD10=250".as_bytes();
         let parse_result = s.msg.parse_message(raw_message);
-        assert!(parse_result.is_ok())
+        assert!(parse_result.is_ok());
     }
 
     #[test]
@@ -760,7 +759,8 @@ mod tests {
             String::from_utf8_lossy(expected_bytes),
         );
 
-        let expected_body_bytes = "11=10021=140=154=155=TSLA60=00010101-00:00:00.000".as_bytes();
+        let expected_body_bytes =
+            "11=10021=140=154=155=TSLA60=00010101-00:00:00.000".as_bytes();
 
         assert_eq!(
             &s.msg.body_bytes,
@@ -835,7 +835,7 @@ mod tests {
             },
         ];
 
-        for tc in tests.iter() {
+        for tc in &tests {
             let mut field = FIXString::default();
             let field_result = builder.header.get_field(tc.tag, &mut field);
             assert!(field_result.is_ok());
@@ -886,7 +886,7 @@ mod tests {
         let mut dest = Message::new();
         s.msg.copy_into(&mut dest);
 
-        check_field_int(&s, &dest.header.field_map, TAG_MSG_SEQ_NUM as isize, 2);
+        check_field_int(&s, &dest.header.field_map, TAG_MSG_SEQ_NUM, 2);
         check_field_int(&s, &dest.body.field_map, 21, 3);
         check_field_string(&s, &dest.body.field_map, 11, "ID");
         assert_eq!(dest.body_bytes.len(), s.msg.body_bytes.len());

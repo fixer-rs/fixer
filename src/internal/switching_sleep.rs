@@ -84,16 +84,13 @@ impl Future for SwitchingSleep {
             return Poll::Ready(());
         }
 
-        let sleeper = match me.sleeper {
-            Some(ref mut sleeper) => Some(sleeper.as_mut().poll(cx)),
-            None => None,
-        };
+        let sleeper = me.sleeper.as_mut().map(|sleeper| sleeper.as_mut().poll(cx));
 
         let recv = me.rx.recv();
         tokio::pin!(recv);
         let _ = recv.poll(cx);
 
-        if let Some(Poll::Ready(_)) = sleeper {
+        if let Some(Poll::Ready(())) = sleeper {
             Poll::Ready(())
         } else {
             Poll::Pending
@@ -121,19 +118,19 @@ impl ASwitchingSleep {
     /// Start the timer. Reset if already started.
     pub async fn start(&self) {
         let mut inner = self.0.write().await;
-        inner.start()
+        inner.start();
     }
 
     /// Stop the timer. It does nothing if already stopped.
     pub async fn stop(&self) {
         let mut inner = self.0.write().await;
-        inner.stop()
+        inner.stop();
     }
 
     /// Reset the timer with new duration.
     pub async fn reset(&self, period: Duration) {
         let mut inner = self.0.write().await;
-        inner.reset(period)
+        inner.reset(period);
     }
 
     /// Check if the timer (if any) is elapsed.
@@ -186,25 +183,25 @@ mod test {
             tokio::task::spawn(async move {
                 sleep(Duration::from_secs(5)).await;
 
-                assert_eq!(sleeper.is_elapsed().await, false);
+                assert!(!sleeper.is_elapsed().await);
 
                 sleeper.start().await;
 
                 sleep(Duration::from_secs(2)).await;
 
-                assert_eq!(sleeper.is_elapsed().await, false);
+                assert!(!sleeper.is_elapsed().await);
 
                 sleeper.stop().await;
 
                 sleep(Duration::from_secs(2)).await;
 
-                assert_eq!(sleeper.is_elapsed().await, false);
+                assert!(!sleeper.is_elapsed().await);
 
                 sleeper.start().await;
 
                 sleep(Duration::from_secs(2)).await;
 
-                assert_eq!(sleeper.is_elapsed().await, false);
+                assert!(!sleeper.is_elapsed().await);
             })
         };
 
@@ -213,21 +210,21 @@ mod test {
                 _ = &mut task => {
                     loop {
                         select! {
-                            _ = &mut sleeper => {
+                            () = &mut sleeper => {
                                 break;
                             }
                         }
                     }
                     break;
                 },
-                _ = &mut sleeper => break,
+                () = &mut sleeper => break,
             }
         }
 
         let stop = Instant::now();
         let diff = stop - start;
 
-        assert_eq!(sleeper.is_elapsed().await, true);
+        assert!(sleeper.is_elapsed().await);
         assert_eq!(diff.as_secs(), 12);
     }
 }

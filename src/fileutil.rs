@@ -2,7 +2,7 @@ use crate::session::session_id::SessionID;
 use simple_error::SimpleResult;
 use std::{io::ErrorKind, os::unix::prelude::PermissionsExt, sync::Arc};
 use tokio::{
-    fs::{metadata, remove_file as rm, File, OpenOptions},
+    fs::{File, OpenOptions, metadata, remove_file as rm},
     io::AsyncWriteExt,
 };
 
@@ -56,7 +56,7 @@ pub async fn remove_file(fname: &str) -> SimpleResult<()> {
             return Ok(());
         }
         return Err(simple_error!("remove {}", err));
-    };
+    }
     Ok(())
 }
 
@@ -66,6 +66,7 @@ pub async fn open_or_create_file(fname: &str, perm: u32) -> SimpleResult<File> {
         .read(true)
         .write(true)
         .create(true)
+        .truncate(false)
         .open(fname)
         .await
     {
@@ -105,7 +106,7 @@ mod tests {
         let md_result = metadata(fname).await;
         assert!(md_result.is_err());
         if let Err(err) = md_result {
-            assert_eq!(err.kind(), ErrorKind::NotFound)
+            assert_eq!(err.kind(), ErrorKind::NotFound);
         }
     }
     async fn require_file_exists(fname: &str) {

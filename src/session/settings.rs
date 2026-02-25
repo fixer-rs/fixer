@@ -183,11 +183,11 @@ mod tests {
         );
         assert_eq!(
             err.as_ref().unwrap(),
-            &(1005 as isize),
+            &1005_isize,
             "Expected {}, got {:?}",
             1005,
             err.as_ref()
-        )
+        );
     }
 
     #[test]
@@ -205,8 +205,7 @@ mod tests {
             expected: bool,
         }
 
-        let tests = vec![
-            TestCase {
+        let tests = [TestCase {
                 input: "Y",
                 expected: true,
             },
@@ -221,13 +220,12 @@ mod tests {
             TestCase {
                 input: "n",
                 expected: false,
-            },
-        ];
+            }];
 
-        for test in tests.iter() {
+        for test in &tests {
             s.set(config::RESET_ON_LOGON.to_string(), test.input.to_string());
             let err = s.bool_setting(config::RESET_ON_LOGON);
-            assert!(err.is_ok(), "Unexpected err {:?}", err);
+            assert!(err.is_ok(), "Unexpected err {err:?}");
             assert_eq!(
                 err.as_ref().unwrap(),
                 &test.expected,
@@ -247,8 +245,7 @@ mod tests {
             expected: &'a str,
         }
 
-        let tests = vec![
-            TestCase {
+        let tests = [TestCase {
                 input: config::SOCKET_ACCEPT_PORT,
                 expected: "101",
             },
@@ -259,16 +256,15 @@ mod tests {
             TestCase {
                 input: config::RESET_ON_LOGON,
                 expected: "N",
-            },
-        ];
+            }];
 
-        for test in tests.iter() {
+        for test in &tests {
             s.set(test.input.to_string(), test.expected.to_string());
         }
 
-        for test in tests.iter() {
+        for test in &tests {
             let err = &s.setting(test.input);
-            assert!(err.is_ok(), "Unexpected err {:?}", err);
+            assert!(err.is_ok(), "Unexpected err {err:?}");
             assert_eq!(
                 test.expected,
                 err.as_ref().unwrap(),
@@ -295,8 +291,7 @@ mod tests {
             expected: &'a str,
         }
 
-        let tests = vec![
-            TestCase {
+        let tests = [TestCase {
                 input: config::SOCKET_ACCEPT_PORT,
                 expected: "102",
             },
@@ -307,14 +302,13 @@ mod tests {
             TestCase {
                 input: config::SENDER_COMP_ID,
                 expected: "blah",
-            },
-        ];
+            }];
 
         s.overlay(&overlay);
 
-        for test in tests.iter() {
+        for test in &tests {
             let err = s.setting(test.input);
-            assert!(err.is_ok(), "Unexpected err {:?}", err);
+            assert!(err.is_ok(), "Unexpected err {err:?}");
             assert_eq!(
                 test.expected,
                 err.as_ref().unwrap(),

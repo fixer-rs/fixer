@@ -1,6 +1,6 @@
 use super::{
-    xml::{XMLComponent, XMLComponentEnum, XMLDoc, XMLField},
     Component, ComponentType, DataDictionary, Enum, FieldDef, FieldType, MessageDef, MessagePart,
+    xml::{XMLComponent, XMLComponentEnum, XMLDoc, XMLField},
 };
 use simple_error::{SimpleError, SimpleResult};
 use std::collections::HashMap;
@@ -39,12 +39,12 @@ impl Builder {
         self.dict.minor = minor;
 
         self.component_by_name = hashmap! {};
-        if doc.components.is_some() {
-            let inner_components = doc.components.as_ref().unwrap().clone();
-            if inner_components.components.is_some() {
-                for c in inner_components.components.as_ref().unwrap().iter() {
+        if let Some(components) = &doc.components {
+            let inner_components = components.clone();
+            if let Some(comps) = &inner_components.components {
+                for c in comps {
                     self.component_by_name
-                        .insert(c.name.as_ref().unwrap().to_string(), c.clone());
+                        .insert(c.name.as_ref().unwrap().clone(), c.clone());
                 }
             }
         }
@@ -55,15 +55,13 @@ impl Builder {
 
         self.build_message_defs()?;
 
-        if self.doc.header.is_some() {
-            let doc_header = self.doc.header.as_ref().unwrap().clone();
-            let header = self.build_message_def(&doc_header)?;
+        if let Some(doc_header) = &self.doc.header.clone() {
+            let header = self.build_message_def(doc_header)?;
             self.dict.header = header;
         }
 
-        if self.doc.trailer.is_some() {
-            let doc_trailer = self.doc.trailer.as_ref().unwrap().clone();
-            let trailer = self.build_message_def(&doc_trailer)?;
+        if let Some(doc_trailer) = &self.doc.trailer.clone() {
+            let trailer = self.build_message_def(doc_trailer)?;
             self.dict.trailer = trailer;
         }
 
@@ -99,31 +97,31 @@ impl Builder {
     fn build_component_type(&mut self, xml_component: XMLComponent) -> SimpleResult<ComponentType> {
         let mut parts: Vec<MessagePart> = vec![];
 
-        if xml_component.members.is_some() {
-            for member in xml_component.members.as_ref().unwrap().iter() {
+        if let Some(members) = &xml_component.members {
+            for member in members {
                 if member.is_component() {
                     let component_type = self.find_or_build_component_type(member.clone())?;
                     let child_component = Component::new(component_type, member.is_required());
                     parts.push(MessagePart::Component(child_component));
                 } else {
                     let field = self.build_field_def(member)?;
-                    parts.push(MessagePart::FieldDef(field))
+                    parts.push(MessagePart::FieldDef(field));
                 }
             }
         }
 
         Ok(ComponentType::new(
-            xml_component.name.as_ref().unwrap().to_string(),
+            xml_component.name.as_ref().unwrap().clone(),
             parts,
         ))
     }
 
     fn build_components(&mut self) -> SimpleResult<()> {
         self.dict.component_types = hashmap! {};
-        if self.doc.components.is_some() {
-            let inner_components = self.doc.components.as_ref().unwrap().clone();
-            if inner_components.components.is_some() {
-                for c in inner_components.components.as_ref().unwrap().iter() {
+        if let Some(components) = &self.doc.components.clone() {
+            let inner_components = components.clone();
+            if let Some(comps) = &inner_components.components {
+                for c in comps {
                     if !self
                         .dict
                         .component_types
@@ -132,7 +130,7 @@ impl Builder {
                         let built_component = self.build_component_type(c.clone())?;
                         self.dict
                             .component_types
-                            .insert(c.name.as_ref().unwrap().to_string(), built_component);
+                            .insert(c.name.as_ref().unwrap().clone(), built_component);
                     }
                 }
             }
@@ -144,12 +142,12 @@ impl Builder {
     fn build_message_defs(&mut self) -> SimpleResult<()> {
         self.dict.messages = hashmap! {};
 
-        if self.doc.messages.is_some() {
-            let inner_messages = self.doc.messages.as_ref().unwrap().clone();
-            if inner_messages.messages.is_some() {
-                for m in inner_messages.messages.as_ref().unwrap().iter() {
+        if let Some(messages) = &self.doc.messages.clone() {
+            let inner_messages = messages.clone();
+            if let Some(msgs) = &inner_messages.messages {
+                for m in msgs {
                     let message_def = self.build_message_def(m)?;
-                    let name = message_def.msg_type.to_string();
+                    let name = message_def.msg_type.clone();
                     self.dict.messages.insert(name, message_def);
                 }
             }
@@ -161,8 +159,8 @@ impl Builder {
     fn build_message_def(&mut self, xml_message: &XMLComponent) -> SimpleResult<MessageDef> {
         let mut parts: Vec<MessagePart> = vec![];
 
-        if xml_message.members.is_some() {
-            for member in xml_message.members.as_ref().unwrap().iter() {
+        if let Some(members) = &xml_message.members {
+            for member in members {
                 if member.is_component() {
                     if !self.dict.component_types.contains_key(member.name()) {
                         return Err(new_unknown_component(member.name()));
@@ -198,8 +196,8 @@ impl Builder {
 
         match xml_field {
             XMLComponentEnum::Component(c) => {
-                if c.fields.is_some() {
-                    for member in c.fields.as_ref().unwrap().iter() {
+                if let Some(fields) = &c.fields {
+                    for member in fields {
                         let comp_type = self.find_or_build_component_type(member.clone())?;
                         let comp = Component::new(comp_type, member.is_required());
                         parts.push(MessagePart::Component(comp));
@@ -207,8 +205,8 @@ impl Builder {
                 }
             }
             XMLComponentEnum::Field(f) => {
-                if f.fields.is_some() {
-                    for member in f.fields.as_ref().unwrap().iter() {
+                if let Some(fields) = &f.fields {
+                    for member in fields {
                         let f = self.build_field_def(member)?;
                         parts.push(MessagePart::FieldDef(f));
                     }
@@ -237,10 +235,9 @@ impl Builder {
     fn build_field_types(&mut self) {
         self.dict.field_type_by_tag = hashmap! {};
         self.dict.field_type_by_name = hashmap! {};
-        if self.doc.fields.is_some() {
-            let inner_fields = self.doc.fields.as_ref().unwrap();
-            if inner_fields.fields.is_some() {
-                for f in inner_fields.fields.as_ref().unwrap().iter() {
+        if let Some(inner_fields) = &self.doc.fields {
+            if let Some(fields) = &inner_fields.fields {
+                for f in fields {
                     let field = build_field_type(f);
                     self.dict
                         .field_type_by_tag
@@ -261,16 +258,18 @@ fn build_field_type(xml_field: &XMLField) -> FieldType {
         xml_field.r#type.as_ref().unwrap().clone(),
     );
 
-    if xml_field.values.is_some() && !xml_field.values.as_ref().unwrap().is_empty() {
-        field.enums = hashmap! {};
-        for e in xml_field.values.as_ref().unwrap().iter() {
-            field.enums.insert(
-                e.r#enum.to_string(),
-                Enum {
-                    value: e.r#enum.to_string(),
-                    description: e.description.to_string(),
-                },
-            );
+    if let Some(values) = &xml_field.values {
+        if !values.is_empty() {
+            field.enums = hashmap! {};
+            for e in values {
+                field.enums.insert(
+                    e.r#enum.clone(),
+                    Enum {
+                        value: e.r#enum.clone(),
+                        description: e.description.clone(),
+                    },
+                );
+            }
         }
     }
 

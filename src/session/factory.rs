@@ -300,7 +300,14 @@ impl SessionFactory {
                     TIME_ZONE
                 )?;
 
-                if loc_str != "Local" {
+                if loc_str == "Local" {
+                    loc = jiff::civil::date(2020, 10, 10)
+                        .at(10, 10, 10, 0)
+                        .to_zoned(TimeZone::system())
+                        .unwrap()
+                        .offset()
+                        .to_time_zone();
+                } else {
                     let tz = map_err_with!(
                         TimeZone::get(&loc_str).map_err(|err| simple_error!("{}", err)),
                         "problem parsing time zone '{}' for setting '{}'",
@@ -311,13 +318,6 @@ impl SessionFactory {
                     loc = jiff::civil::date(2020, 10, 10)
                         .at(10, 10, 10, 0)
                         .to_zoned(tz)
-                        .unwrap()
-                        .offset()
-                        .to_time_zone();
-                } else {
-                    loc = jiff::civil::date(2020, 10, 10)
-                        .at(10, 10, 10, 0)
-                        .to_zoned(TimeZone::system())
                         .unwrap()
                         .offset()
                         .to_time_zone();
@@ -334,10 +334,9 @@ impl SessionFactory {
                     let day_result = DAY_LOOKUP.get(day_str);
                     match day_result {
                         Some(day) => Ok(*day),
-                        None => Err(FixerError::new_incorrect_format_for_setting(
+                        None => Err(SimpleError::from(FixerError::new_incorrect_format_for_setting(
                             setting, day_str,
-                        ))
-                        .map_err(SimpleError::from),
+                        ))),
                     }
                 }
 
@@ -346,7 +345,7 @@ impl SessionFactory {
 
                 iss.session_time = Some(TimeRange::new_week_range_in_location(
                     start_time, end_time, start_day, end_day, loc,
-                ))
+                ));
             }
         }
 
@@ -364,11 +363,10 @@ impl SessionFactory {
             } else if precision_str == "NANOS" {
                 precision = TimestampPrecision::Nanos;
             } else {
-                return Err(FixerError::new_incorrect_format_for_setting(
+                return Err(SimpleError::from(FixerError::new_incorrect_format_for_setting(
                     TIME_STAMP_PRECISION,
                     precision_str.as_str(),
-                ))
-                .map_err(SimpleError::from);
+                )));
             }
         }
 
@@ -502,8 +500,8 @@ impl SessionFactory {
             let mut host_config = SOCKET_CONNECT_HOST.to_string();
             let mut port_config = SOCKET_CONNECT_PORT.to_string();
             if i > 0 {
-                host_config = format!("{}{}", SOCKET_CONNECT_HOST, i);
-                port_config = format!("{}{}", SOCKET_CONNECT_PORT, i);
+                host_config = format!("{SOCKET_CONNECT_HOST}{i}");
+                port_config = format!("{SOCKET_CONNECT_PORT}{i}");
                 if !(settings.has_setting(&host_config) || settings.has_setting(&port_config)) {
                     break;
                 }
@@ -528,7 +526,7 @@ impl SessionFactory {
                             SocketAddr::V6(SocketAddrV6::new(ip, socket_connect_port, 0, 0))
                         }
                     };
-                    Ok(format!("{}", socket))
+                    Ok(format!("{socket}"))
                 }
                 Err(_) => match parse_domain_name(socket_connect_host_string.as_str()) {
                     Ok(name) => Ok(format!("{}:{}", name.as_str(), socket_connect_port)),
@@ -670,18 +668,16 @@ mod tests {
             setting: &'a str,
             expected: bool,
         }
-        let tests = vec![
-            TestCase {
+        let tests = [TestCase {
                 setting: "Y",
                 expected: true,
             },
             TestCase {
                 setting: "N",
                 expected: false,
-            },
-        ];
+            }];
 
-        for tc in tests.iter() {
+        for tc in &tests {
             let mut s = SessionFactorySuite::setup_test();
             s.ss.set(RESET_ON_LOGON.to_string(), tc.setting.to_string());
             let session_result = s
@@ -706,18 +702,16 @@ mod tests {
             setting: &'a str,
             expected: bool,
         }
-        let tests = vec![
-            TestCase {
+        let tests = [TestCase {
                 setting: "Y",
                 expected: true,
             },
             TestCase {
                 setting: "N",
                 expected: false,
-            },
-        ];
+            }];
 
-        for tc in tests.iter() {
+        for tc in &tests {
             let mut s = SessionFactorySuite::setup_test();
             s.ss.set(REFRESH_ON_LOGON.to_string(), tc.setting.to_string());
             let session_result = s
@@ -742,18 +736,16 @@ mod tests {
             setting: &'a str,
             expected: bool,
         }
-        let tests = vec![
-            TestCase {
+        let tests = [TestCase {
                 setting: "Y",
                 expected: true,
             },
             TestCase {
                 setting: "N",
                 expected: false,
-            },
-        ];
+            }];
 
-        for tc in tests.iter() {
+        for tc in &tests {
             let mut s = SessionFactorySuite::setup_test();
             s.ss.set(RESET_ON_LOGOUT.to_string(), tc.setting.to_string());
             let session_result = s
@@ -778,18 +770,16 @@ mod tests {
             setting: &'a str,
             expected: bool,
         }
-        let tests = vec![
-            TestCase {
+        let tests = [TestCase {
                 setting: "Y",
                 expected: true,
             },
             TestCase {
                 setting: "N",
                 expected: false,
-            },
-        ];
+            }];
 
-        for tc in tests.iter() {
+        for tc in &tests {
             let mut s = SessionFactorySuite::setup_test();
             s.ss.set(RESET_ON_DISCONNECT.to_string(), tc.setting.to_string());
             let session_result = s
@@ -848,18 +838,16 @@ mod tests {
             setting: &'a str,
             expected: bool,
         }
-        let tests = vec![
-            TestCase {
+        let tests = [TestCase {
                 setting: "Y",
                 expected: true,
             },
             TestCase {
                 setting: "N",
                 expected: false,
-            },
-        ];
+            }];
 
-        for tc in tests.iter() {
+        for tc in &tests {
             let mut s = SessionFactorySuite::setup_test();
             s.ss.set(
                 ENABLE_LAST_MSG_SEQ_NUM_PROCESSED.to_string(),
@@ -887,18 +875,16 @@ mod tests {
             setting: &'a str,
             expected: bool,
         }
-        let tests = vec![
-            TestCase {
+        let tests = [TestCase {
                 setting: "Y",
                 expected: false,
             },
             TestCase {
                 setting: "N",
                 expected: true,
-            },
-        ];
+            }];
 
-        for tc in tests.iter() {
+        for tc in &tests {
             let mut s = SessionFactorySuite::setup_test();
             s.ss.set(CHECK_LATENCY.to_string(), tc.setting.to_string());
             let session_result = s
@@ -978,18 +964,16 @@ mod tests {
             start_day: &'a str,
             end_day: &'a str,
         }
-        let tests = vec![
-            TestCase {
+        let tests = [TestCase {
                 start_day: "Sunday",
                 end_day: "Thursday",
             },
             TestCase {
                 start_day: "Sun",
                 end_day: "Thu",
-            },
-        ];
+            }];
 
-        for tc in tests.iter() {
+        for tc in &tests {
             let mut s = SessionFactorySuite::setup_test();
             s.ss.set(START_TIME.to_string(), "12:00:00".to_string());
             s.ss.set(END_TIME.to_string(), "14:00:00".to_string());
@@ -1114,7 +1098,7 @@ mod tests {
 
         let mut s = SessionFactorySuite::setup_test();
         s.ss.set(START_TIME.to_string(), "12:00:00".to_string());
-        s.ss.set(END_TIME.to_string(), "".to_string());
+        s.ss.set(END_TIME.to_string(), String::new());
 
         let session_result = s
             .factory
@@ -1309,7 +1293,7 @@ mod tests {
             },
         ];
 
-        for tc in tests.iter() {
+        for tc in &tests {
             s.ss.set(DEFAULT_APPL_VER_ID.to_string(), tc.config.to_string());
             let session_result = s
                 .factory
@@ -1787,8 +1771,7 @@ mod tests {
             port: &'a str,
             expected: &'a str,
         }
-        let tests = vec![
-            TestCase {
+        let tests = [TestCase {
                 host: "127.0.0.1",
                 port: "3000",
                 expected: "127.0.0.1:3000",
@@ -1802,10 +1785,9 @@ mod tests {
                 host: "2001:db8:a0b:12f0::1",
                 port: "3001",
                 expected: "[2001:db8:a0b:12f0::1]:3001",
-            },
-        ];
+            }];
 
-        for tc in tests.iter() {
+        for tc in &tests {
             let mut sess = Session::default();
             s.ss.set(SOCKET_CONNECT_HOST.to_string(), tc.host.to_string());
             s.ss.set(SOCKET_CONNECT_PORT.to_string(), tc.port.to_string());
@@ -1846,7 +1828,7 @@ mod tests {
         assert!(configure_result.is_ok());
         assert_eq!(session.iss.socket_connect_address.len(), 3);
 
-        let tests = vec!["127.0.0.1:3000", "127.0.0.2:4000", "127.0.0.3:5000"];
+        let tests = ["127.0.0.1:3000", "127.0.0.2:4000", "127.0.0.3:5000"];
 
         for (i, tc) in tests.iter().enumerate() {
             assert_eq!(tc, &session.iss.socket_connect_address[i]);
@@ -1900,8 +1882,7 @@ mod tests {
             config: &'a str,
             precision: TimestampPrecision,
         }
-        let tests = vec![
-            TestCase {
+        let tests = [TestCase {
                 config: "SECONDS",
                 precision: TimestampPrecision::Seconds,
             },
@@ -1916,10 +1897,9 @@ mod tests {
             TestCase {
                 config: "NANOS",
                 precision: TimestampPrecision::Nanos,
-            },
-        ];
+            }];
 
-        for tc in tests.iter() {
+        for tc in &tests {
             s.ss.set(TIME_STAMP_PRECISION.to_string(), tc.config.to_string());
             let session_result = s
                 .factory
@@ -2002,18 +1982,16 @@ mod tests {
             setting: &'a str,
             expected: bool,
         }
-        let tests = vec![
-            TestCase {
+        let tests = [TestCase {
                 setting: "Y",
                 expected: false,
             },
             TestCase {
                 setting: "N",
                 expected: true,
-            },
-        ];
+            }];
 
-        for tc in tests.iter() {
+        for tc in &tests {
             let mut s = SessionFactorySuite::setup_test();
             s.ss.set(PERSIST_MESSAGES.to_string(), tc.setting.to_string());
             let session_result = s

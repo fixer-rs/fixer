@@ -10,7 +10,7 @@ pub trait FIXStringTrait {
 
 impl FIXStringTrait for FIXString {
     fn string(&self) -> String {
-        self.to_string()
+        self.clone()
     }
 }
 
@@ -40,11 +40,11 @@ mod tests {
             field: FIXString,
             val: String,
         }
-        let tests = vec![TestCase {
+        let tests = [TestCase {
             field: FIXString::from("CWB"),
             val: String::from("CWB"),
         }];
-        for test in tests.iter() {
+        for test in &tests {
             let b = test.field.write();
             assert_eq!(b, test.val.as_bytes(), "got {:?}; want {}", b, test.val);
         }
@@ -57,12 +57,12 @@ mod tests {
             value: String,
             expected_error: bool,
         }
-        let tests = vec![TestCase {
+        let tests = [TestCase {
             bytes: "blah".as_bytes(),
             value: String::from("blah"),
             expected_error: false,
         }];
-        for test in tests.iter() {
+        for test in &tests {
             let mut field = FIXString::new();
             let err = field.read(test.bytes);
             if test.expected_error {
@@ -73,7 +73,7 @@ mod tests {
                     test.bytes
                 );
             } else {
-                assert_eq!(Ok(()), err, "UnExpected '{:?}'", err);
+                assert_eq!(Ok(()), err, "UnExpected '{err:?}'");
             }
 
             assert_eq!(field, test.value, "got {} want {}", field, test.value);

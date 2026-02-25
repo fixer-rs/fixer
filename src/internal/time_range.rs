@@ -192,7 +192,7 @@ impl TimeRange {
 
         if self.end_day.is_none() {
             if self.start_time.d >= self.end_time.d && t1_time.d >= self.start_time.d {
-                day_offset = 1
+                day_offset = 1;
             }
         } else {
             let end_day = self.end_day.unwrap().to_sunday_zero_offset();
@@ -652,7 +652,7 @@ mod tests {
         start = TimeOfDay::new(1, 49, 0);
         end = TimeOfDay::new(1, 49, 0);
         time1 = zdt(2016, 8, 16, 1, 48, 21);
-        time2 = zdt(2016, 8, 16, 1, 49, 02);
+        time2 = zdt(2016, 8, 16, 1, 49, 2);
 
         assert!(!TimeRange::new_utc(start, end).is_in_same_range(&mut time1, &mut time2));
         assert!(!TimeRange::new_utc(start, end).is_in_same_range(&mut time2, &mut time1));
@@ -660,7 +660,7 @@ mod tests {
         start = TimeOfDay::new(1, 49, 0);
         end = TimeOfDay::new(1, 49, 0);
         time1 = zdt(2016, 8, 16, 13, 48, 21);
-        time2 = zdt(2016, 8, 16, 13, 49, 02);
+        time2 = zdt(2016, 8, 16, 13, 49, 2);
 
         assert!(TimeRange::new_utc(start, end).is_in_same_range(&mut time1, &mut time2));
         assert!(TimeRange::new_utc(start, end).is_in_same_range(&mut time2, &mut time1));
@@ -668,7 +668,7 @@ mod tests {
         start = TimeOfDay::new(13, 49, 0);
         end = TimeOfDay::new(13, 49, 0);
         time1 = zdt(2016, 8, 16, 13, 48, 21);
-        time2 = zdt(2016, 8, 16, 13, 49, 02);
+        time2 = zdt(2016, 8, 16, 13, 49, 2);
 
         assert!(!TimeRange::new_utc(start, end).is_in_same_range(&mut time1, &mut time2));
         assert!(!TimeRange::new_utc(start, end).is_in_same_range(&mut time2, &mut time1));

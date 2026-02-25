@@ -1,24 +1,27 @@
 use crate::{
+    BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIX42, BEGIN_STRING_FIX43,
+    BEGIN_STRING_FIX44, BEGIN_STRING_FIXT11,
     config::{
         BEGIN_STRING, SENDER_COMP_ID, SENDER_LOCATION_ID, SENDER_SUB_ID, SESSION_QUALIFIER,
         TARGET_COMP_ID, TARGET_LOCATION_ID, TARGET_SUB_ID,
     },
     session::{session_id::SessionID, settings::SessionSettings},
-    BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIX42, BEGIN_STRING_FIX43,
-    BEGIN_STRING_FIX44, BEGIN_STRING_FIXT11,
 };
 use dashmap::DashMap;
-use std::sync::LazyLock;
 use regex::Regex;
 use simple_error::{SimpleError, SimpleResult};
 use std::sync::Arc;
+use std::sync::LazyLock;
 use tokio::io::{AsyncBufRead, AsyncBufReadExt};
 
 pub static BLANK_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\s*$").unwrap());
 pub static COMMENT_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^#.*").unwrap());
-pub static DEFAULT_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\[(?i)DEFAULT\]\s*$").unwrap());
-pub static SESSION_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\[(?i)SESSION\]\s*$").unwrap());
-pub static SETTING_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^([^=]*)=(.*)$").unwrap());
+pub static DEFAULT_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^\[(?i)DEFAULT\]\s*$").unwrap());
+pub static SESSION_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^\[(?i)SESSION\]\s*$").unwrap());
+pub static SETTING_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^([^=]*)=(.*)$").unwrap());
 
 // The Settings type represents a collection of global and session settings.
 #[derive(Default, Debug)]
@@ -42,7 +45,7 @@ impl Settings {
 
     async fn lazy_init(&mut self) {
         if self.global_settings.is_none() {
-            self.init()
+            self.init();
         }
     }
 
@@ -116,6 +119,7 @@ impl Settings {
     }
 
     // session_settings return all session settings overlaying globalsettings.
+    #[allow(clippy::unused_async)]
     pub async fn session_settings(&self) -> DashMap<Arc<SessionID>, SessionSettings> {
         let all_session_settings = DashMap::new();
 
@@ -212,14 +216,14 @@ fn session_id_from_session_settings(
 #[cfg(test)]
 mod tests {
     use crate::{
+        BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIX42, BEGIN_STRING_FIX43,
+        BEGIN_STRING_FIX44, BEGIN_STRING_FIXT11,
         config::{
             BEGIN_STRING, RESET_ON_LOGON, SENDER_COMP_ID, SESSION_QUALIFIER, SOCKET_ACCEPT_PORT,
             TARGET_COMP_ID,
         },
         session::{session_id::SessionID, settings::SessionSettings},
-        settings::{session_id_from_session_settings, Settings},
-        BEGIN_STRING_FIX40, BEGIN_STRING_FIX41, BEGIN_STRING_FIX42, BEGIN_STRING_FIX43,
-        BEGIN_STRING_FIX44, BEGIN_STRING_FIXT11,
+        settings::{Settings, session_id_from_session_settings},
     };
     use std::sync::Arc;
 
@@ -258,7 +262,7 @@ mod tests {
         let res = s.settings.add_session(ss.clone()).await;
         assert!(res.is_err());
 
-        let cases = vec![
+        let cases = [
             BEGIN_STRING_FIX40,
             BEGIN_STRING_FIX41,
             BEGIN_STRING_FIX42,
@@ -266,7 +270,7 @@ mod tests {
             BEGIN_STRING_FIX44,
             BEGIN_STRING_FIXT11,
         ];
-        for begin_str in cases.iter() {
+        for begin_str in &cases {
             ss.set(BEGIN_STRING.to_string(), begin_str.to_string());
             let res = s.settings.add_session(ss.clone()).await;
             assert!(res.is_ok());
@@ -279,7 +283,7 @@ mod tests {
                     target_comp_id: "SS".to_string(),
                     ..Default::default()
                 }
-            )
+            );
         }
     }
 
@@ -324,7 +328,7 @@ mod tests {
             expected_session_id: SessionID,
         }
 
-        let tests = vec![
+        let tests = [
             TestCase {
                 settings: s1,
                 expected_session_id: session_id1.clone(),
@@ -335,7 +339,7 @@ mod tests {
             },
         ];
 
-        for test in tests.iter() {
+        for test in &tests {
             let sid_result = s.settings.add_session(test.settings.clone()).await;
             assert!(sid_result.is_ok());
             assert_eq!(*sid_result.unwrap(), test.expected_session_id);
@@ -350,7 +354,7 @@ mod tests {
             expected: &'a str,
         }
 
-        let cases = vec![
+        let cases = [
             Case {
                 session_id: arc_session_id1.clone(),
                 input: BEGIN_STRING,
@@ -381,7 +385,7 @@ mod tests {
         let session_settings = s.settings.session_settings().await;
         assert_eq!(session_settings.len(), 2);
 
-        for tc in cases.iter() {
+        for tc in &cases {
             let settings_result = session_settings.get(&tc.session_id);
             assert!(settings_result.is_some());
             let settings = settings_result.unwrap();
@@ -428,7 +432,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_settings_parse_settings() {
-        let cfg = r#"
+        let cfg = r"
 # default settings for sessions
 [DEFAULT]
 ConnectionType=initiator
@@ -459,7 +463,7 @@ HeartBtInt=30
 SocketConnectPort=8323
 SocketConnectHost=23.23.23.23
 DataDictionary=somewhere/FIX40.xml
-        
+
 [SESSION]
 BeginString=FIX.4.2
 SenderSubID=TWSub
@@ -474,14 +478,14 @@ ReconnectInterval=30
 HeartBtInt=30
 SocketConnectPort=6523
 SocketConnectHost=3.3.3.3
-            
+
 # (optional) alternate connection ports and hosts to cycle through on failover
 SocketConnectPort1=8392
 SocketConnectHost1=8.8.8.8
 SocketConnectPort2=2932
 SocketConnectHost2=12.12.12.12
 DataDictionary=somewhere/FIX42.xml
-"#
+"
         .as_bytes();
 
         let s_result = Settings::parse(cfg).await;
@@ -494,7 +498,7 @@ DataDictionary=somewhere/FIX42.xml
             expected: &'a str,
         }
 
-        let global_t_cs = vec![
+        let global_t_cs = [
             GlobalTC {
                 setting: "ConnectionType",
                 expected: "initiator",
@@ -510,7 +514,7 @@ DataDictionary=somewhere/FIX42.xml
         ];
 
         let global_settings = s.global_settings().await;
-        for tc in global_t_cs.iter() {
+        for tc in &global_t_cs {
             let actual_result = global_settings.as_ref().unwrap().setting(tc.setting);
             assert!(actual_result.is_ok());
             assert_eq!(tc.expected, actual_result.unwrap());
@@ -740,7 +744,7 @@ DataDictionary=somewhere/FIX42.xml
             },
         ];
 
-        for tc in session_t_cs.iter() {
+        for tc in &session_t_cs {
             let settings_result = session_settings.get(&tc.session_id);
             assert!(
                 settings_result.is_some(),
@@ -756,7 +760,7 @@ DataDictionary=somewhere/FIX42.xml
 
     #[tokio::test]
     async fn test_settings_parse_settings_with_equals_sign_in_value() {
-        let reader = r#"[DEFAULT]
+        let reader = r"[DEFAULT]
 ConnectionType=initiator
 SQLDriver=mysql
 SQLDataSourceName=root:root@/fixer?parseTime=true&loc=UTC
@@ -765,7 +769,7 @@ SQLDataSourceName=root:root@/fixer?parseTime=true&loc=UTC
 BeginString=FIX.4.2
 SenderCompID=SENDER
 TargetCompID=TARGET
-"#
+"
         .as_bytes();
 
         let s_result = Settings::parse(reader).await;
@@ -788,7 +792,7 @@ TargetCompID=TARGET
         assert_eq!(
             "root:root@/fixer?parseTime=true&loc=UTC",
             val_result.unwrap()
-        )
+        );
     }
 
     #[tokio::test]
@@ -804,7 +808,7 @@ TargetCompID=TARGET
             session_qualifier: &'a str,
             expected_session_id: SessionID,
         }
-        let test_cases = vec![
+        let test_cases = [
             TestCase {
                 global_begin_string: "FIX.4.0",
                 global_target_comp_id: "CB",
@@ -846,43 +850,43 @@ TargetCompID=TARGET
             },
         ];
 
-        for tc in test_cases.iter() {
+        for tc in &test_cases {
             let mut global_settings = SessionSettings::new();
             let mut session_settings = SessionSettings::new();
 
-            if tc.global_begin_string != "" {
+            if !tc.global_begin_string.is_empty() {
                 global_settings.set(BEGIN_STRING.to_string(), tc.global_begin_string.to_string());
             }
 
-            if tc.session_begin_string != "" {
+            if !tc.session_begin_string.is_empty() {
                 session_settings.set(
                     BEGIN_STRING.to_string(),
                     tc.session_begin_string.to_string(),
                 );
             }
 
-            if tc.global_target_comp_id != "" {
+            if !tc.global_target_comp_id.is_empty() {
                 global_settings.set(
                     TARGET_COMP_ID.to_string(),
                     tc.global_target_comp_id.to_string(),
                 );
             }
 
-            if tc.session_target_comp_id != "" {
+            if !tc.session_target_comp_id.is_empty() {
                 session_settings.set(
                     TARGET_COMP_ID.to_string(),
                     tc.session_target_comp_id.to_string(),
                 );
             }
 
-            if tc.global_sender_comp_id != "" {
+            if !tc.global_sender_comp_id.is_empty() {
                 global_settings.set(
                     SENDER_COMP_ID.to_string(),
                     tc.global_sender_comp_id.to_string(),
                 );
             }
 
-            if tc.session_sender_comp_id != "" {
+            if !tc.session_sender_comp_id.is_empty() {
                 session_settings.set(
                     SENDER_COMP_ID.to_string(),
                     tc.session_sender_comp_id.to_string(),

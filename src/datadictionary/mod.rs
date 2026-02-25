@@ -48,8 +48,7 @@ impl MessagePart {
 
     pub fn fields(&self) -> Option<&Vec<FieldDef>> {
         match self {
-            Self::FieldDef(_) => None,
-            Self::FieldType(_) => None,
+            Self::FieldDef(_) | Self::FieldType(_) => None,
             Self::ComponentType(ct) => Some(ct.fields()),
             Self::Component(c) => Some(c.fields()),
         }
@@ -97,7 +96,7 @@ impl ComponentType {
             ..Default::default()
         };
 
-        for part in comp.parts.iter() {
+        for part in &comp.parts {
             if part.required() {
                 comp.required_parts.push(part.clone());
             }
@@ -231,7 +230,7 @@ impl FieldDef {
             ..Default::default()
         };
 
-        for part in field.parts.iter() {
+        for part in &field.parts {
             if part.required() {
                 field.required_parts.push(part.clone());
             }
@@ -287,7 +286,7 @@ impl FieldDef {
     pub fn child_tags(&self) -> Vec<isize> {
         let mut tags = vec![];
 
-        for field in self.fields.iter() {
+        for field in &self.fields {
             tags.push(field.tag());
             tags.extend(field.child_tags());
         }
@@ -376,7 +375,7 @@ impl MessageDef {
             }
         };
 
-        for part in msg.parts.iter() {
+        for part in &msg.parts {
             if part.required() {
                 msg.required_parts.push(part.clone());
             }
@@ -396,7 +395,7 @@ impl MessageDef {
                         process_field(f, c.required());
                     }
                 }
-                _ => {} // TODO: other type should return error
+                MessagePart::FieldType(_) => {} // TODO: other type should return error
             }
         }
         msg
@@ -487,7 +486,7 @@ mod component_type_tests {
             expected_required_fields: Vec<FieldDef>,
         }
 
-        let tests = vec![
+        let tests = [
             TestCase {
                 test_name: String::from("test1"),
                 parts: vec![MessagePart::FieldDef(optional_field1.clone())],
@@ -537,7 +536,7 @@ mod component_type_tests {
             },
         ];
 
-        for test in tests.iter() {
+        for test in &tests {
             let ct = ComponentType::new(String::from("cname"), test.parts.clone());
 
             assert_eq!(String::from("cname"), ct.name(), "{}", test.test_name);
@@ -574,13 +573,14 @@ mod tests {
     #[tokio::test]
     async fn test_parse_recursive_components() {
         let result = DataDictionary::parse("./spec/FIX44.xml").await;
-        assert!(!result.is_err(), "Unexpected err: {:?}", result);
+        assert!(result.is_ok(), "Unexpected err: {result:?}");
         assert!(result.is_ok(), "Dictionary is nil");
     }
 
     // global variable
-    static DICT: LazyLock<DataDictionary> =
-        LazyLock::new(|| block_on(async { DataDictionary::parse("./spec/FIX43.xml").await.unwrap() }));
+    static DICT: LazyLock<DataDictionary> = LazyLock::new(|| {
+        block_on(async { DataDictionary::parse("./spec/FIX43.xml").await.unwrap() })
+    });
 
     #[tokio::test]
     async fn test_components() {
@@ -602,7 +602,7 @@ mod tests {
             enums_are_nil: bool,
         }
 
-        let tests = vec![
+        let tests = [
             TestCase {
                 tag: 655,
                 name: "ContraLegRefID",
@@ -617,7 +617,7 @@ mod tests {
             },
         ];
 
-        for test in tests.iter() {
+        for test in &tests {
             assert!(
                 d.field_type_by_tag.contains_key(&test.tag),
                 "{} not found",
@@ -640,14 +640,11 @@ mod tests {
                 test.r#type, f.r#type
             );
             assert!(
-                !(!f.enums.is_empty() && test.enums_are_nil),
+                f.enums.is_empty() || !test.enums_are_nil,
                 "Expected no enums"
             );
 
-            assert!(
-                !(f.enums.is_empty() && !test.enums_are_nil),
-                "Expected enums"
-            );
+            assert!(!f.enums.is_empty() || test.enums_are_nil, "Expected enums");
         }
     }
 
@@ -662,7 +659,7 @@ mod tests {
             description: &'a str,
         }
 
-        let tests = vec![
+        let tests = [
             TestCase {
                 value: "1",
                 description: "UNKNOWN_SYMBOL",
@@ -697,7 +694,7 @@ mod tests {
             f.enums.len()
         );
 
-        for test in tests.iter() {
+        for test in &tests {
             assert!(
                 f.enums.contains_key(test.value),
                 "Expected Enum {}",
@@ -747,7 +744,7 @@ mod tests {
             required: bool,
         }
 
-        let tests = vec![
+        let tests = [
             TestCase {
                 message_def: nos.clone(),
                 tag: 11,
@@ -780,19 +777,19 @@ mod tests {
             },
         ];
 
-        for test in tests.iter() {
+        for test in &tests {
             let TagSet(inner_tag) = &test.message_def.required_tags;
             let required = inner_tag.contains(&test.tag);
             assert!(
-                !(required && !test.required),
+                !required || test.required,
                 "{} should not be required",
                 &test.tag
             );
             assert!(
-                !(!required && test.required),
+                required || !test.required,
                 "{} should not required",
                 &test.tag
-            )
+            );
         }
     }
 
@@ -807,7 +804,7 @@ mod tests {
             tag: isize,
         }
 
-        let tests = vec![
+        let tests = [
             TestCase {
                 message_def: nos.clone(),
                 tag: 11,
@@ -834,7 +831,7 @@ mod tests {
             },
         ];
 
-        for test in tests.iter() {
+        for test in &tests {
             let TagSet(inner_tag) = &test.message_def.tags;
             assert!(inner_tag.contains(&test.tag), "{} is not known", &test.tag);
         }
@@ -853,9 +850,9 @@ mod field_def_tests {
             required: bool,
         }
 
-        let tests = vec![TestCase { required: true }];
+        let tests = [TestCase { required: true }];
 
-        for test in tests.iter() {
+        for test in &tests {
             let fd = FieldDef::new(ft.clone(), test.required);
             assert!(!fd.is_group(), "field def is not a group");
             assert_eq!("aname", fd.name());
@@ -937,7 +934,7 @@ mod message_def_tests {
             expected_required_parts: Vec<MessagePart>,
         }
 
-        let tests = vec![
+        let tests = [
             TestCase {
                 parts: vec![],
                 expected_tags: TagSet(hashset! {}),
@@ -979,7 +976,7 @@ mod message_def_tests {
             },
         ];
 
-        for test in tests.iter() {
+        for test in &tests {
             let md = MessageDef::new(
                 String::from("some message"),
                 String::from("X"),

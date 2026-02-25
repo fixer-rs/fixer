@@ -12,7 +12,7 @@ use std::sync::LazyLock;
 use std::sync::Mutex as StdMutex;
 use tokio::sync::mpsc::UnboundedSender;
 
-/// SessionRegistration holds the channel handles needed to communicate with a
+/// `SessionRegistration` holds the channel handles needed to communicate with a
 /// running session. This replaces the previous `Arc<Mutex<Session>>` — callers
 /// send commands through channels instead of locking the session directly.
 #[derive(Clone)]

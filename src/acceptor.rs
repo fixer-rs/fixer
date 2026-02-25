@@ -33,8 +33,8 @@ use tokio::{
     task::JoinHandle,
 };
 
-/// ConnectionValidator is a trait allowing custom authentication logic for
-/// incoming connections. For example, you may tie a SenderCompID to an IP range.
+/// `ConnectionValidator` is a trait allowing custom authentication logic for
+/// incoming connections. For example, you may tie a `SenderCompID` to an IP range.
 ///
 /// Equivalent to Go quickfix's `ConnectionValidator` interface.
 pub trait ConnectionValidator: Send + Sync + 'static {
@@ -125,9 +125,9 @@ impl Acceptor {
             .setting(config::SOCKET_ACCEPT_PORT)
             .map_err(|e| simple_error!("SocketAcceptPort is required: {}", e))?;
         let listen_address = if host.is_empty() {
-            format!("0.0.0.0:{}", port)
+            format!("0.0.0.0:{port}")
         } else {
-            format!("{}:{}", host, port)
+            format!("{host}:{port}")
         };
 
         // Load TLS config from global settings
@@ -154,7 +154,7 @@ impl Acceptor {
         let mut sessions = Vec::new();
         let session_settings = settings.session_settings().await;
 
-        for entry in session_settings.iter() {
+        for entry in &session_settings {
             let (session_id, ss) = entry.pair();
             let session = factory
                 .create_session(
@@ -251,27 +251,21 @@ impl Acceptor {
             loop {
                 tokio::select! {
                     accept_result = listener.accept() => {
-                        match accept_result {
-                            Ok((stream, remote_addr)) => {
-                                let validator = validator.clone();
-                                let dynamic_ctx = dynamic_ctx.clone();
-                                let tls_acceptor = tls_acceptor.clone();
-                                tokio::spawn(async move {
-                                    if let Some(tls_acceptor) = tls_acceptor {
-                                        match tls_acceptor.accept(stream).await {
-                                            Ok(tls_stream) => {
-                                                let (read_half, write_half) = tokio::io::split(tls_stream);
-                                                handle_connection(remote_addr, read_half, write_half, validator, dynamic_ctx).await;
-                                            }
-                                            Err(_) => {} // TLS handshake failed
-                                        }
-                                    } else {
-                                        let (read_half, write_half) = tokio::io::split(stream);
+                        if let Ok((stream, remote_addr)) = accept_result {
+                            let validator = validator.clone();
+                            let dynamic_ctx = dynamic_ctx.clone();
+                            let tls_acceptor = tls_acceptor.clone();
+                            tokio::spawn(async move {
+                                if let Some(tls_acceptor) = tls_acceptor {
+                                    if let Ok(tls_stream) = tls_acceptor.accept(stream).await {
+                                        let (read_half, write_half) = tokio::io::split(tls_stream);
                                         handle_connection(remote_addr, read_half, write_half, validator, dynamic_ctx).await;
                                     }
-                                });
-                            }
-                            Err(_) => {}
+                                } else {
+                                    let (read_half, write_half) = tokio::io::split(stream);
+                                    handle_connection(remote_addr, read_half, write_half, validator, dynamic_ctx).await;
+                                }
+                            });
                         }
                     }
                     _ = stop_rx.changed() => {
@@ -347,9 +341,8 @@ async fn handle_connection<R, W>(
     let mut parser = Parser::new(buf_reader);
 
     // Read the first message to identify the session
-    let first_msg_bytes = match parser.read_message().await {
-        Ok(bytes) => bytes,
-        Err(_) => return,
+    let Ok(first_msg_bytes) = parser.read_message().await else {
+        return;
     };
 
     // Parse to extract session identification fields
@@ -359,17 +352,14 @@ async fn handle_connection<R, W>(
     }
 
     // Extract fields from the incoming message header
-    let begin_string = match msg.header.get_string(TAG_BEGIN_STRING) {
-        Ok(v) => v,
-        Err(_) => return,
+    let Ok(begin_string) = msg.header.get_string(TAG_BEGIN_STRING) else {
+        return;
     };
-    let sender_comp_id = match msg.header.get_string(TAG_SENDER_COMP_ID) {
-        Ok(v) => v,
-        Err(_) => return,
+    let Ok(sender_comp_id) = msg.header.get_string(TAG_SENDER_COMP_ID) else {
+        return;
     };
-    let target_comp_id = match msg.header.get_string(TAG_TARGET_COMP_ID) {
-        Ok(v) => v,
-        Err(_) => return,
+    let Ok(target_comp_id) = msg.header.get_string(TAG_TARGET_COMP_ID) else {
+        return;
     };
 
     // Optional sub/location IDs
@@ -420,29 +410,26 @@ async fn handle_connection<R, W>(
 
     // Look up the session's admin channel in the global registry, or create a dynamic session
     let is_dynamic;
-    let admin_tx = match lookup_admin_tx(&session_id) {
-        Some(tx) => {
-            is_dynamic = false;
-            tx
-        }
-        None => {
-            // Session not found — try dynamic session creation
-            let Some(ref ctx) = dynamic_ctx else {
-                return;
-            };
-            let Ok(session) = ctx
-                .session_creator
-                .create_session(session_id.clone(), &ctx.global_settings)
-                .await
-            else {
-                return;
-            };
-            // Clone admin_tx before moving the owned session to the lifecycle loop
-            let tx = session.admin.tx.clone();
-            let _ = ctx.dynamic_session_tx.send(session);
-            is_dynamic = true;
-            tx
-        }
+    let admin_tx = if let Some(tx) = lookup_admin_tx(&session_id) {
+        is_dynamic = false;
+        tx
+    } else {
+        // Session not found — try dynamic session creation
+        let Some(ref ctx) = dynamic_ctx else {
+            return;
+        };
+        let Ok(session) = ctx
+            .session_creator
+            .create_session(session_id.clone(), &ctx.global_settings)
+            .await
+        else {
+            return;
+        };
+        // Clone admin_tx before moving the owned session to the lifecycle loop
+        let tx = session.admin.tx.clone();
+        let _ = ctx.dynamic_session_tx.send(session);
+        is_dynamic = true;
+        tx
     };
 
     // Create channels for this connection
@@ -538,16 +525,15 @@ mod tests {
 
     async fn make_acceptor_settings(port: &str) -> Settings {
         let cfg = format!(
-            r#"
+            r"
 [DEFAULT]
-SocketAcceptPort={}
+SocketAcceptPort={port}
 
 [SESSION]
 BeginString=FIX.4.2
 SenderCompID=ACCEPTOR
 TargetCompID=INITIATOR
-"#,
-            port
+"
         );
         Settings::parse(BufReader::new(cfg.as_bytes()))
             .await
@@ -591,14 +577,14 @@ TargetCompID=INITIATOR
     async fn test_acceptor_new_requires_accept_port() {
         clean_sessions();
 
-        let cfg = r#"
+        let cfg = r"
 [DEFAULT]
 
 [SESSION]
 BeginString=FIX.4.2
 SenderCompID=ACCEPTOR
 TargetCompID=INITIATOR
-"#;
+";
         let settings = Settings::parse(BufReader::new(cfg.as_bytes()))
             .await
             .unwrap();
@@ -799,17 +785,16 @@ TargetCompID=INITIATOR
             ""
         };
         let cfg = format!(
-            r#"
+            r"
 [DEFAULT]
-SocketAcceptPort={}
+SocketAcceptPort={port}
 DynamicSessions=Y
-{}
+{dq}
 [SESSION]
 BeginString=FIX.4.2
 SenderCompID=ACCEPTOR
 TargetCompID=INITIATOR
-"#,
-            port, dq
+"
         );
         Settings::parse(BufReader::new(cfg.as_bytes()))
             .await
@@ -1053,19 +1038,18 @@ TargetCompID=INITIATOR
 
     async fn make_tls_acceptor_settings(port: &str, cert_path: &str, key_path: &str) -> Settings {
         let cfg = format!(
-            r#"
+            r"
 [DEFAULT]
-SocketAcceptPort={}
+SocketAcceptPort={port}
 SocketUseSSL=Y
-SocketCertificateFile={}
-SocketPrivateKeyFile={}
+SocketCertificateFile={cert_path}
+SocketPrivateKeyFile={key_path}
 
 [SESSION]
 BeginString=FIX.4.2
 SenderCompID=ACCEPTOR
 TargetCompID=INITIATOR
-"#,
-            port, cert_path, key_path
+"
         );
         Settings::parse(BufReader::new(cfg.as_bytes()))
             .await

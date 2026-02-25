@@ -62,7 +62,7 @@ mod tests {
             },
         ];
 
-        for test in tests.iter() {
+        for test in &tests {
             let b = test.decimal.write();
             assert_eq!(test.expected.as_bytes(), b);
         }
@@ -75,8 +75,7 @@ mod tests {
             expected: Decimal,
             expect_error: bool,
         }
-        let tests = vec![
-            TestCase {
+        let tests = [TestCase {
                 bytes: String::from("15"),
                 expected: Decimal::new(15, 0),
                 expect_error: false,
@@ -105,10 +104,9 @@ mod tests {
                 bytes: String::from("+200.00"),
                 expected: Decimal::new(200, 0),
                 expect_error: false,
-            },
-        ];
+            }];
 
-        for test in tests.iter() {
+        for test in &tests {
             let decimal_result = Decimal::from_str_exact(&test.bytes);
             if test.expect_error {
                 assert!(decimal_result.is_err());

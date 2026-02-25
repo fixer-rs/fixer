@@ -188,7 +188,7 @@ impl MessageRouter {
                 .await;
         let key = &RouteKey {
             fix_version,
-            msg_type: msg_type.to_string(),
+            msg_type: msg_type.clone(),
         };
 
         let remove_result = g.mr.routes.remove(key);
@@ -197,13 +197,13 @@ impl MessageRouter {
             let (new_key, mut route) = remove_result.unwrap();
             let res = route(g, msg, session_id.clone());
             g.mr.routes.insert(new_key, Box::new(route));
-            return res;
+            res
         } else {
             if is_admin_msg || msg_type == "j" {
                 return Ok(());
             }
 
-            return Err(unsupported_message_type());
+            Err(unsupported_message_type())
         }
     }
 
@@ -274,25 +274,25 @@ mod tests {
     impl MessageRouterTestSuite {
         fn given_the_route(&self, begin_string: String, msg_type: String) {
             let msg_clone = msg_type.clone();
-            let begin_clone = begin_string.to_string();
+            let begin_clone = begin_string.clone();
 
             let add_route = move |payload: &mut MessageRouterTestSuite,
                                   msg: Arc<StdMutex<Message>>,
                                   session_id: Arc<SessionID>|
                   -> MessageRejectErrorResult {
-                payload.routed_by = format!("{}:{}", begin_clone, msg_type);
+                payload.routed_by = format!("{begin_clone}:{msg_type}");
                 payload.routed_session_id = (*session_id).clone();
                 payload.routed_message = msg.lock().clone();
                 let reject_result = payload.return_reject.clone();
 
                 match reject_result {
-                    Some(err) => return Err(err),
-                    None => return Ok(()),
+                    Some(err) => Err(err),
+                    None => Ok(()),
                 }
             };
 
             self.mr
-                .add_route(begin_string.to_string(), msg_clone, Box::new(add_route));
+                .add_route(begin_string.clone(), msg_clone, Box::new(add_route));
         }
 
         fn given_the_message(&mut self, msg_bytes: &[u8]) {
@@ -342,7 +342,7 @@ mod tests {
                 target_default_appl_ver_id,
             };
 
-            assert!(register_session(session_id.clone(), registration).is_ok())
+            assert!(register_session(session_id.clone(), registration).is_ok());
         }
 
         fn given_afix42_new_order_single(&mut self) {
@@ -367,7 +367,7 @@ mod tests {
         fn verify_message_routed_by(&self, begin_string: &str, msg_type: &str) {
             assert_ne!("", &*self.routed_by, "Message expected to be routed");
 
-            assert_eq!(format!("{}:{}", begin_string, msg_type), &*self.routed_by);
+            assert_eq!(format!("{begin_string}:{msg_type}"), &*self.routed_by);
             assert_eq!(self.session_id, self.routed_session_id);
             assert_eq!(self.msg.to_string(), &*self.routed_message.to_string());
         }
@@ -413,8 +413,7 @@ mod tests {
             let mut suite = MessageRouterTestSuite::setup_test().await;
 
             let msg = format!(
-                "8=FIX.4.39=8735={}49=TW34=356=ISLD52=20160421-14:43:5040=160=20160421-14:43:5054=121=311=id10=235",
-                test
+                "8=FIX.4.39=8735={test}49=TW34=356=ISLD52=20160421-14:43:5040=160=20160421-14:43:5054=121=311=id10=235"
             );
             suite.given_the_message(msg.as_bytes());
 
@@ -425,8 +424,7 @@ mod tests {
             suite.verify_message_not_routed();
             assert!(
                 rej.is_ok(),
-                "Message type '{}' should not be rejected by the MessageRouter",
-                test
+                "Message type '{test}' should not be rejected by the MessageRouter"
             );
         }
     }

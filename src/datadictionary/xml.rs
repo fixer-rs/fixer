@@ -100,13 +100,7 @@ impl XMLComponentEnum {
             XMLComponentEnum::Component(inner)
             | XMLComponentEnum::Field(inner)
             | XMLComponentEnum::Group(inner)
-            | XMLComponentEnum::Message(inner) => {
-                if inner.required.is_some() {
-                    inner.required.as_ref().unwrap() == "Y"
-                } else {
-                    false
-                }
-            }
+            | XMLComponentEnum::Message(inner) => inner.required.as_deref() == Some("Y"),
         }
     }
 }
@@ -153,12 +147,12 @@ pub struct XMLComponentMember {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use quick_xml::de::{from_str, DeError};
-    use std::sync::LazyLock;
+    use quick_xml::de::{DeError, from_str};
     use std::any::{Any, TypeId};
+    use std::sync::LazyLock;
 
     static CACHED_XML_DOC: LazyLock<XMLDoc> = LazyLock::new(|| {
-        let xml = r#"<fix major='4' type='FIX' servicepack='0' minor='3'>
+        let xml = r"<fix major='4' type='FIX' servicepack='0' minor='3'>
     <header>
         <field name='BeginString' required='Y' />
         <group name='NoHops' required='N'>
@@ -222,7 +216,7 @@ mod tests {
         <field name='CheckSum' required='Y' />
     </trailer>
     </fix>
-    "#;
+    ";
         let xml_doc: Result<XMLDoc, DeError> = from_str(xml);
         xml_doc.unwrap()
     });
@@ -236,7 +230,7 @@ mod tests {
             expected_value: Box<dyn Any>,
         }
 
-        let tests = vec![
+        let tests = [
             TestCase {
                 value: Box::new(doc.r#type),
                 expected_value: Box::new(String::from("FIX")),
@@ -251,15 +245,15 @@ mod tests {
             },
             TestCase {
                 value: Box::new(doc.service_pack),
-                expected_value: Box::new(0 as isize),
+                expected_value: Box::new(0_isize),
             },
         ];
 
-        for test in tests.iter() {
-            if (&*test.value).type_id() == TypeId::of::<String>() {
-                let value = (&*test.value).downcast_ref::<String>();
+        for test in &tests {
+            if (*test.value).type_id() == TypeId::of::<String>() {
+                let value = (*test.value).downcast_ref::<String>();
                 assert!(value.is_some());
-                let expected_value = (&*test.expected_value).downcast_ref::<String>();
+                let expected_value = (*test.expected_value).downcast_ref::<String>();
                 assert!(expected_value.is_some());
                 assert_eq!(
                     value.unwrap(),
@@ -269,10 +263,10 @@ mod tests {
                     expected_value.unwrap(),
                 );
             }
-            if (&*test.value).type_id() == TypeId::of::<isize>() {
-                let value = (&*test.value).downcast_ref::<isize>();
+            if (*test.value).type_id() == TypeId::of::<isize>() {
+                let value = (*test.value).downcast_ref::<isize>();
                 assert!(value.is_some());
-                let expected_value = (&*test.expected_value).downcast_ref::<isize>();
+                let expected_value = (*test.expected_value).downcast_ref::<isize>();
                 assert!(expected_value.is_some());
                 assert_eq!(
                     value.unwrap(),
@@ -301,8 +295,8 @@ mod tests {
                 value: {
                     let doc_clone = CACHED_XML_DOC.clone();
                     let header = doc_clone.header.as_ref().unwrap();
-                    let value = header.members.as_ref().unwrap()[0].clone();
-                    value
+
+                    header.members.as_ref().unwrap()[0].clone()
                 },
                 xml_name_local: "field",
                 name: "BeginString",
@@ -312,8 +306,8 @@ mod tests {
                 value: {
                     let doc_clone = CACHED_XML_DOC.clone();
                     let header = doc_clone.header.as_ref().unwrap();
-                    let value = header.members.as_ref().unwrap()[1].clone();
-                    value
+
+                    header.members.as_ref().unwrap()[1].clone()
                 },
                 xml_name_local: "group",
                 name: "NoHops",
@@ -339,8 +333,8 @@ mod tests {
                 value: {
                     let doc_clone = CACHED_XML_DOC.clone();
                     let trailer = doc_clone.trailer.as_ref().unwrap();
-                    let value = trailer.members.as_ref().unwrap()[0].clone();
-                    value
+
+                    trailer.members.as_ref().unwrap()[0].clone()
                 },
                 xml_name_local: "field",
                 name: "SignatureLength",
@@ -417,7 +411,7 @@ mod tests {
                 required: false,
             },
         ];
-        for test in tests.iter() {
+        for test in &tests {
             match &test.value {
                 XMLComponentEnum::Component(inner)
                 | XMLComponentEnum::Field(inner)
@@ -445,7 +439,7 @@ mod tests {
             msg_type: &'a str,
         }
 
-        let tests = vec![TestCase {
+        let tests = [TestCase {
             value: {
                 let doc_clone = &doc.clone();
                 let messages = &doc_clone.messages.as_ref().unwrap();
@@ -457,7 +451,7 @@ mod tests {
             msg_type: "0",
         }];
 
-        for test in tests.iter() {
+        for test in &tests {
             assert!(test.value.name.is_some());
             assert_eq!(test.value.name.as_ref().unwrap(), test.name);
             assert!(test.value.msg_cat.is_some());

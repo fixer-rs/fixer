@@ -78,13 +78,13 @@ mod tests {
             SessionStateEnum::new_pending_timeout_resend_state(),
         ];
 
-        let test_events = vec![NEED_HEARTBEAT, LOGON_TIMEOUT, LOGOUT_TIMEOUT];
+        let test_events = [NEED_HEARTBEAT, LOGON_TIMEOUT, LOGOUT_TIMEOUT];
 
         for test in tests {
             let mut s = SessionSuite::setup_test().await;
             s.ssr.session.sm.state = test.clone();
 
-            for event in test_events.iter() {
+            for event in &test_events {
                 s.ssr.session.sm_timeout(*event).await;
                 s.ssr.state(&test);
             }

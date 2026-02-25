@@ -3,10 +3,10 @@ use crate::session::settings::{ConditionallyRequiredSetting, IncorrectFormatForS
 use crate::tag::Tag;
 use delegate::delegate;
 use enum_dispatch::enum_dispatch;
-use std::sync::LazyLock;
 use simple_error::SimpleError;
 use std::error::Error;
 use std::fmt::{Display, Formatter, Result as FmtResult};
+use std::sync::LazyLock;
 use thiserror::Error as ThisError;
 
 // ERR_DO_NOT_SEND is a convenience error to indicate a DoNotSend in ToApp
@@ -92,7 +92,7 @@ impl MessageRejectErrorTrait for RejectLogon {
     }
 
     // business_reject_ref_id implements MessageRejectError
-    fn business_reject_ref_id(&self) -> &str {
+    fn business_reject_ref_id(&self) -> &'static str {
         ""
     }
 
@@ -208,10 +208,10 @@ pub fn incorrect_data_format_for_value(tag: Tag) -> MessageRejectErrorEnum {
 
 // repeating_group_fields_out_of_order returns an error indicating a problem parsing repeating groups fields
 pub fn repeating_group_fields_out_of_order(tag: Tag, mut reason: String) -> MessageRejectErrorEnum {
-    if !reason.is_empty() {
-        reason = format!("Repeating group fields out of order ({})", reason)
+    if reason.is_empty() {
+        reason = String::from("Repeating group fields out of order");
     } else {
-        reason = String::from("Repeating group fields out of order")
+        reason = format!("Repeating group fields out of order ({reason})");
     }
     MessageRejectError::new(
         reason,
@@ -232,7 +232,7 @@ pub fn value_is_incorrect(tag: Tag) -> MessageRejectErrorEnum {
 // conditionally_required_field_missing indicates that the requested field could not be found in the FIX message.
 pub fn conditionally_required_field_missing(tag: Tag) -> MessageRejectErrorEnum {
     new_business_message_reject_error(
-        format!("Conditionally Required Field Missing ({})", tag),
+        format!("Conditionally Required Field Missing ({tag})"),
         REJECT_REASON_CONDITIONALLY_REQUIRED_FIELD_MISSING,
         Some(tag),
     )
@@ -514,9 +514,7 @@ mod tests {
         assert_eq!(
             msg_rej.to_string(),
             expected_error_string,
-            "expected: {}, got: {}\n",
-            expected_error_string,
-            msg_rej,
+            "expected: {expected_error_string}, got: {msg_rej}\n",
         );
 
         assert_eq!(
@@ -539,7 +537,7 @@ mod tests {
             msg_rej.is_business_reject(),
             expected_is_business_reject,
             "Expected is_business_reject to be false\n",
-        )
+        );
     }
 
     #[test]
@@ -558,9 +556,7 @@ mod tests {
         assert_eq!(
             msg_rej.to_string(),
             expected_error_string,
-            "expected: {}, got: {}\n",
-            expected_error_string,
-            msg_rej,
+            "expected: {expected_error_string}, got: {msg_rej}\n",
         );
         assert_eq!(
             msg_rej.reject_reason(),
@@ -601,9 +597,7 @@ mod tests {
         assert_eq!(
             msg_rej.to_string(),
             expected_error_string,
-            "expected: {}, got: {}\n",
-            expected_error_string,
-            msg_rej.to_string(),
+            "expected: {expected_error_string}, got: {msg_rej}\n",
         );
         assert_eq!(
             msg_rej.reject_reason(),
@@ -645,9 +639,7 @@ mod tests {
         assert_eq!(
             msg_rej.to_string(),
             expected_error_string,
-            "expected: {}, got: {}\n",
-            expected_error_string,
-            msg_rej.to_string(),
+            "expected: {expected_error_string}, got: {msg_rej}\n",
         );
         assert_eq!(
             msg_rej.reject_reason(),
@@ -689,9 +681,7 @@ mod tests {
         assert_eq!(
             msg_rej.to_string(),
             expected_error_string,
-            "expected: {}, got: {}\n",
-            expected_error_string,
-            msg_rej.to_string(),
+            "expected: {expected_error_string}, got: {msg_rej}\n",
         );
         assert_eq!(
             msg_rej.reject_reason(),
@@ -711,10 +701,8 @@ mod tests {
     fn test_conditionally_required_field_missing() {
         let expected_reject_reason = 5;
         let expected_ref_tag_id: Tag = 44;
-        let expected_error_string = format!(
-            "Conditionally Required Field Missing ({})",
-            expected_ref_tag_id,
-        );
+        let expected_error_string =
+            format!("Conditionally Required Field Missing ({expected_ref_tag_id})",);
         let expected_is_business_reject = true;
 
         let msg_rej = conditionally_required_field_missing(expected_ref_tag_id);
@@ -729,9 +717,7 @@ mod tests {
         assert_eq!(
             msg_rej.to_string(),
             expected_error_string,
-            "expected: {}, got: {}\n",
-            expected_error_string,
-            msg_rej.to_string(),
+            "expected: {expected_error_string}, got: {msg_rej}\n",
         );
         assert_eq!(
             msg_rej.reject_reason(),
@@ -758,9 +744,7 @@ mod tests {
         assert_eq!(
             msg_rej.to_string(),
             expected_error_string,
-            "expected: {}, got: {}\n",
-            expected_error_string,
-            msg_rej.to_string(),
+            "expected: {expected_error_string}, got: {msg_rej}\n",
         );
         assert_eq!(
             msg_rej.reject_reason(),
@@ -799,9 +783,7 @@ mod tests {
         assert_eq!(
             msg_rej.to_string(),
             expected_error_string,
-            "expected: {}, got: {}\n",
-            expected_error_string,
-            msg_rej.to_string(),
+            "expected: {expected_error_string}, got: {msg_rej}\n",
         );
         assert_eq!(
             msg_rej.reject_reason(),
@@ -829,9 +811,7 @@ mod tests {
         assert_eq!(
             msg_rej.to_string(),
             expected_error_string,
-            "expected: {}, got: {}\n",
-            expected_error_string,
-            msg_rej.to_string(),
+            "expected: {expected_error_string}, got: {msg_rej}\n",
         );
         assert_eq!(
             msg_rej.reject_reason(),
@@ -866,9 +846,7 @@ mod tests {
         assert_eq!(
             msg_rej.to_string(),
             expected_error_string,
-            "expected: {}, got: {}\n",
-            expected_error_string,
-            msg_rej.to_string(),
+            "expected: {expected_error_string}, got: {msg_rej}\n",
         );
         assert_eq!(
             msg_rej.reject_reason(),
@@ -903,9 +881,7 @@ mod tests {
         assert_eq!(
             msg_rej.to_string(),
             expected_error_string,
-            "expected: {}, got: {}\n",
-            expected_error_string,
-            msg_rej.to_string(),
+            "expected: {expected_error_string}, got: {msg_rej}\n",
         );
         assert_eq!(
             msg_rej.reject_reason(),
@@ -940,9 +916,7 @@ mod tests {
         assert_eq!(
             msg_rej.to_string(),
             expected_error_string,
-            "expected: {}, got: {}\n",
-            expected_error_string,
-            msg_rej.to_string(),
+            "expected: {expected_error_string}, got: {msg_rej}\n",
         );
         assert_eq!(
             msg_rej.reject_reason(),

@@ -1,7 +1,7 @@
 use crate::session::session_id::SessionID;
 use crate::store::file_store::{FileStore, FileStoreFactory};
-use jiff::Timestamp;
 use enum_dispatch::enum_dispatch;
+use jiff::Timestamp;
 use simple_error::SimpleResult;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -145,7 +145,7 @@ impl MessageStoreTrait for MemoryStore {
         msg: Vec<u8>,
     ) -> SimpleResult<()> {
         self.save_message(seq_num, msg).await?;
-        Ok(self.incr_next_sender_msg_seq_num().await?)
+        self.incr_next_sender_msg_seq_num().await
     }
 
     async fn get_messages(
@@ -157,7 +157,7 @@ impl MessageStoreTrait for MemoryStore {
         let mut seq_num = begin_seq_num;
         while seq_num <= end_seq_num {
             if self.message_map.contains_key(&seq_num) {
-                msgs.push(self.message_map.get(&seq_num).unwrap().to_vec());
+                msgs.push(self.message_map.get(&seq_num).unwrap().clone());
             }
             seq_num += 1;
         }
@@ -172,9 +172,8 @@ pub struct MemoryStoreFactory;
 impl MessageStoreFactoryTrait for MemoryStoreFactory {
     async fn create(&self, _session_id: Arc<SessionID>) -> SimpleResult<MessageStoreEnum> {
         let mut m = MemoryStore::default();
-        let result = m.reset().await;
-        if result.is_err() {
-            return Err(simple_error!("reset: {}", result.unwrap_err()));
+        if let Err(err) = m.reset().await {
+            return Err(simple_error!("reset: {}", err));
         }
         Ok(MessageStoreEnum::MemoryStore(m))
     }
@@ -208,16 +207,18 @@ mod tests {
             &mut self,
         ) {
             // Given a MessageStore with the following sender and target seqnums
-            assert!(self
-                .msg_store
-                .set_next_sender_msg_seq_num(867)
-                .await
-                .is_ok());
-            assert!(self
-                .msg_store
-                .set_next_target_msg_seq_num(5309)
-                .await
-                .is_ok());
+            assert!(
+                self.msg_store
+                    .set_next_sender_msg_seq_num(867)
+                    .await
+                    .is_ok()
+            );
+            assert!(
+                self.msg_store
+                    .set_next_target_msg_seq_num(5309)
+                    .await
+                    .is_ok()
+            );
 
             // When the store is refreshed from its backing store
             assert!(self.msg_store.refresh().await.is_ok());
@@ -244,16 +245,18 @@ mod tests {
 
         pub async fn test_message_store_reset(&mut self) {
             // Given a MessageStore with the following sender and target seqnums
-            assert!(self
-                .msg_store
-                .set_next_sender_msg_seq_num(1234)
-                .await
-                .is_ok());
-            assert!(self
-                .msg_store
-                .set_next_target_msg_seq_num(5678)
-                .await
-                .is_ok());
+            assert!(
+                self.msg_store
+                    .set_next_sender_msg_seq_num(1234)
+                    .await
+                    .is_ok()
+            );
+            assert!(
+                self.msg_store
+                    .set_next_target_msg_seq_num(5678)
+                    .await
+                    .is_ok()
+            );
 
             // When the store is reset
             assert!(self.msg_store.reset().await.is_ok());
@@ -278,12 +281,13 @@ mod tests {
                 3 => String::from("and there was much rejoicing"),
             };
 
-            for (seq_num, msg) in expected_msgs_by_seq_num.iter() {
-                assert!(self
-                    .msg_store
-                    .save_message(*seq_num, msg.clone().into_bytes())
-                    .await
-                    .is_ok());
+            for (seq_num, msg) in &expected_msgs_by_seq_num {
+                assert!(
+                    self.msg_store
+                        .save_message(*seq_num, msg.clone().into_bytes())
+                        .await
+                        .is_ok()
+                );
             }
 
             // When the messages are retrieved from the MessageStore
@@ -331,11 +335,12 @@ mod tests {
         }
 
         pub async fn test_message_store_save_message_and_increment_get_message(&mut self) {
-            assert!(self
-                .msg_store
-                .set_next_sender_msg_seq_num(420)
-                .await
-                .is_ok());
+            assert!(
+                self.msg_store
+                    .set_next_sender_msg_seq_num(420)
+                    .await
+                    .is_ok()
+            );
 
             // Given the following saved messages
             let expected_msgs_by_seq_num: HashMap<isize, String> = hashmap! {
@@ -344,15 +349,16 @@ mod tests {
                 3 => String::from("and there was much rejoicing"),
             };
 
-            for (seq_num, msg) in expected_msgs_by_seq_num.iter() {
-                assert!(self
-                    .msg_store
-                    .save_message_and_incr_next_sender_msg_seq_num(
-                        *seq_num,
-                        msg.clone().into_bytes()
-                    )
-                    .await
-                    .is_ok());
+            for (seq_num, msg) in &expected_msgs_by_seq_num {
+                assert!(
+                    self.msg_store
+                        .save_message_and_incr_next_sender_msg_seq_num(
+                            *seq_num,
+                            msg.clone().into_bytes()
+                        )
+                        .await
+                        .is_ok()
+                );
             }
 
             assert_eq!(423, self.msg_store.next_sender_msg_seq_num().await);
@@ -418,21 +424,24 @@ mod tests {
 
         pub async fn test_message_store_get_messages_various_ranges(&mut self) {
             // Given the following saved messages
-            assert!(self
-                .msg_store
-                .save_message(1, "hello".as_bytes().to_vec())
-                .await
-                .is_ok());
-            assert!(self
-                .msg_store
-                .save_message(2, "cruel".as_bytes().to_vec())
-                .await
-                .is_ok());
-            assert!(self
-                .msg_store
-                .save_message(3, "world".as_bytes().to_vec())
-                .await
-                .is_ok());
+            assert!(
+                self.msg_store
+                    .save_message(1, "hello".as_bytes().to_vec())
+                    .await
+                    .is_ok()
+            );
+            assert!(
+                self.msg_store
+                    .save_message(2, "cruel".as_bytes().to_vec())
+                    .await
+                    .is_ok()
+            );
+            assert!(
+                self.msg_store
+                    .save_message(3, "world".as_bytes().to_vec())
+                    .await
+                    .is_ok()
+            );
 
             // When the following requests are made to the store
             struct TestCase {
@@ -498,7 +507,7 @@ mod tests {
             ];
 
             // Then the returned messages should be
-            for test in tests.iter() {
+            for test in &tests {
                 let actual_msgs_result = self
                     .msg_store
                     .get_messages(test.begin_seq_no, test.end_seq_no)
@@ -534,10 +543,10 @@ mod tests {
         let store_result = factory.create(Arc::new(SessionID::default())).await;
         assert!(store_result.is_ok());
         let store = store_result.unwrap();
-        let s = MemoryStoreTestSuite {
+
+        MemoryStoreTestSuite {
             suite: MessageStoreTestSuite { msg_store: store },
-        };
-        s
+        }
     }
 
     #[tokio::test]

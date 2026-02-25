@@ -19,7 +19,7 @@ impl FieldValueReader for FIXFloat {
         let f = fast_float::parse(input)
             .map_err(|_| simple_error!("invalid value {}", String::from_utf8_lossy(input)))?;
 
-        for chr in input.iter() {
+        for chr in input {
             if *chr != b'.' && *chr != b'-' && !chr.is_ascii_digit() {
                 return Err(simple_error!(
                     "invalid value {}",
@@ -53,11 +53,11 @@ mod tests {
             field: FIXFloat,
             val: &'a str,
         }
-        let tests = vec![TestCase {
+        let tests = [TestCase {
             field: 5.0,
             val: "5",
         }];
-        for test in tests.iter() {
+        for test in &tests {
             let b = test.field.write();
             assert_eq!(b, test.val.as_bytes(), "got {:?}; want {}", b, test.val);
         }
@@ -70,7 +70,7 @@ mod tests {
             value: f64,
             expect_error: bool,
         }
-        let tests = vec![
+        let tests = [
             TestCase {
                 bytes: "15".as_bytes(),
                 value: 15.0,
@@ -112,11 +112,16 @@ mod tests {
                 expect_error: true,
             },
         ];
-        for test in tests.iter() {
+        for test in &tests {
             let mut field = FIXFloat::default();
             let err = field.read(test.bytes);
             assert_eq!(test.expect_error, err.is_err());
-            assert_eq!(test.value, field.float64());
+            assert!(
+                (test.value - field.float64()).abs() < f64::EPSILON,
+                "expected {}, got {}",
+                test.value,
+                field.float64()
+            );
         }
     }
 }

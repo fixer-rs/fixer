@@ -55,7 +55,7 @@ impl TagValue {
 
     pub fn total(&self) -> isize {
         let mut total: isize = 0;
-        for b in self.bytes.iter() {
+        for b in &self.bytes {
             total += *b as isize;
         }
         total

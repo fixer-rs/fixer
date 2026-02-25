@@ -13,6 +13,6 @@ pub fn benchmark_in_range(c: &mut Criterion) {
     c.bench_function("benchmark_in_range", |b| {
         b.iter(|| {
             tr.is_in_range(&now);
-        })
+        });
     });
 }

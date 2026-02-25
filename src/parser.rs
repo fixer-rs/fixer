@@ -226,8 +226,7 @@ mod tests {
             expect_error: bool,
             expected_start: usize,
         }
-        let tests = vec![
-            TestCase {
+        let tests = [TestCase {
                 stream: "",
                 expect_error: true,
                 expected_start: 0,
@@ -241,9 +240,8 @@ mod tests {
                 stream: "hello8=FIX.4.0",
                 expect_error: false,
                 expected_start: 5,
-            },
-        ];
-        for test in tests.iter() {
+            }];
+        for test in &tests {
             let buf_reader = BufReader::new(test.stream.as_bytes());
             let mut s = Parser::new(buf_reader);
             let start_result = s.find_start().await;
@@ -262,14 +260,12 @@ mod tests {
         struct TestCase<'a> {
             stream: &'a str,
         }
-        let tests = vec![
-            TestCase { stream: "" },
+        let tests = [TestCase { stream: "" },
             TestCase {
                 stream: "hello8=FIX.4.0",
-            },
-        ];
+            }];
 
-        for test in tests.iter() {
+        for test in &tests {
             let buf_reader = BufReader::new(test.stream.as_bytes());
             let mut s = Parser::new(buf_reader);
 
@@ -290,8 +286,7 @@ mod tests {
             expected_buffer_cap: usize,
         }
 
-        let tests = vec![
-            TestCase {
+        let tests = [TestCase {
                 expected_bytes: "8=FIX.4.09=5blah10=103",
                 expected_buffer_cap: DEFAULT_BUF_SIZE - 31,
                 expected_buffer_len: stream.len() - 31,
@@ -300,10 +295,9 @@ mod tests {
                 expected_bytes: "8=FIX.4.09=4foo10=103",
                 expected_buffer_cap: DEFAULT_BUF_SIZE - 31 - 25,
                 expected_buffer_len: 0,
-            },
-        ];
+            }];
 
-        for test in tests.iter() {
+        for test in &tests {
             let msg_result = s.read_message().await;
             assert!(msg_result.is_ok());
 
@@ -329,7 +323,7 @@ mod tests {
             TestCase {
                 initial_buf_cap: 0,
                 expected_buffer_cap: (DEFAULT_BUF_SIZE - 31),
-                expected_buffer_len: (stream.as_bytes().len() - 31),
+                expected_buffer_len: (stream.len() - 31),
                 expected_big_buffer_len: DEFAULT_BUF_SIZE,
             },
             TestCase {
@@ -394,7 +388,7 @@ mod tests {
             },
         ];
 
-        for test in tests.iter() {
+        for test in &tests {
             let buf_reader = BufReader::new(stream.as_bytes());
             let mut s = Parser::new(buf_reader);
 

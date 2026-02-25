@@ -7,6 +7,6 @@ pub fn benchmark_fix_int_read(c: &mut Criterion) {
         b.iter(|| {
             let mut field = fix_int::FIXInt::default();
             let _ = field.read(val.as_bytes());
-        })
+        });
     });
 }

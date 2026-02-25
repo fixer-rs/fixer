@@ -53,8 +53,8 @@ impl FixerSuite {
         );
     }
 
-    pub fn field_equals<'a>(&self, tag: Tag, expected_value: FieldEqual<'a>, field_map: &FieldMap) {
-        assert!(field_map.has(tag), "Tag {} not set", tag);
+    pub fn field_equals(&self, tag: Tag, expected_value: FieldEqual<'_>, field_map: &FieldMap) {
+        assert!(field_map.has(tag), "Tag {tag} not set");
 
         match expected_value {
             FieldEqual::Num(ev) => {
@@ -74,7 +74,7 @@ impl FixerSuite {
                 assert_eq!(*val, ev);
             }
             FieldEqual::Other => {
-                assert!(false, "Field type not handled")
+                panic!("Field type not handled");
             }
         }
     }
@@ -83,7 +83,7 @@ impl FixerSuite {
         let actual_bytes = msg.build();
         assert_eq!(
             String::from_utf8_lossy(&actual_bytes),
-            String::from_utf8_lossy(&expected_bytes)
+            String::from_utf8_lossy(expected_bytes)
         );
     }
 }
@@ -366,7 +366,7 @@ impl Application for MockAppExtended {
             .expect_on_logout()
             .once()
             .return_const(())
-            .call(session_id)
+            .call(session_id);
     }
 
     fn from_admin(&self, msg: &Message, session_id: &Arc<SessionID>) -> MessageRejectErrorResult {
@@ -598,6 +598,12 @@ pub struct MockSessionReceiver {
     pub send_channel: SendChannel,
 }
 
+impl Default for MockSessionReceiver {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MockSessionReceiver {
     pub fn new() -> Self {
         let (tx, rx) = unbounded_channel::<Vec<u8>>();
@@ -731,10 +737,10 @@ impl SessionSuiteRig {
 
     pub fn state(&self, cur_state: &SessionStateEnum) {
         assert!(
-            std::mem::discriminant(&self.session.sm.state) == std::mem::discriminant(&cur_state),
+            std::mem::discriminant(&self.session.sm.state) == std::mem::discriminant(cur_state),
             "session state should be {}",
             &cur_state.to_string(),
-        )
+        );
     }
 
     pub async fn message_sent_equals(&mut self, msg: &Message) {
@@ -748,14 +754,14 @@ impl SessionSuiteRig {
         let last_to_app = self.mock_app.last_to_app.lock().unwrap().clone();
         assert!(last_to_app.is_some(), "Should be connected");
 
-        self.message_sent_equals(&last_to_app.as_ref().unwrap())
+        self.message_sent_equals(last_to_app.as_ref().unwrap())
             .await;
     }
 
     pub async fn last_to_admin_message_sent(&mut self) {
         let last_to_admin = self.mock_app.last_to_admin.lock().unwrap().clone();
         assert!(last_to_admin.is_some(), "No ToAdmin received");
-        self.message_sent_equals(&last_to_admin.as_ref().unwrap())
+        self.message_sent_equals(last_to_admin.as_ref().unwrap())
             .await;
     }
 
@@ -797,8 +803,7 @@ impl SessionSuiteRig {
         assert_eq!(
             expected,
             self.session.store.next_target_msg_seq_num().await,
-            "next_target_msg_seq_num should be {}",
-            expected
+            "next_target_msg_seq_num should be {expected}"
         );
     }
 
@@ -806,8 +811,7 @@ impl SessionSuiteRig {
         assert_eq!(
             expected,
             self.session.store.next_sender_msg_seq_num().await,
-            "next_sender_msg_seq_num should be {}",
-            expected
+            "next_sender_msg_seq_num should be {expected}"
         );
     }
 
@@ -851,8 +855,7 @@ impl SessionSuiteRig {
         assert_eq!(
             persisted_messages.len(),
             1,
-            "a message should be stored at {}",
-            seq_num,
+            "a message should be stored at {seq_num}",
         );
         self.suite.message_equals_bytes(&persisted_messages[0], msg);
     }

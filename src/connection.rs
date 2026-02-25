@@ -18,7 +18,7 @@ pub async fn write_loop<W>(
             Some(msg) = message_out.recv() => {
                 if let Err(err) = (connection).write(&msg).await {
                     log.on_event(&err.to_string()).await;
-                };
+                }
             },
             else => {
                 return
@@ -63,16 +63,16 @@ mod tests {
         let (msg_out_tx, msg_out_rx) = unbounded_channel::<Vec<u8>>();
 
         tokio::spawn(async move {
-            let _ = msg_out_tx.send(br#"test msg 1 "#.to_vec());
-            let _ = msg_out_tx.send(br#"test msg 2 "#.to_vec());
-            let _ = msg_out_tx.send(br#"test msg 3"#.to_vec());
+            let _ = msg_out_tx.send(br"test msg 1 ".to_vec());
+            let _ = msg_out_tx.send(br"test msg 2 ".to_vec());
+            let _ = msg_out_tx.send(br"test msg 3".to_vec());
         });
         let nl = LogEnum::NullLog(NullLog {});
         write_loop(&mut writer, msg_out_rx, nl).await;
 
         let expected = "test msg 1 test msg 2 test msg 3";
         let res = &String::from_utf8_lossy(&writer).to_string();
-        assert_eq!(res, expected, "expected {} got {}", expected, res);
+        assert_eq!(res, expected, "expected {expected} got {res}");
     }
 
     #[tokio::test]
@@ -89,8 +89,7 @@ mod tests {
             channel_closed: bool,
         }
 
-        let mut tests = vec![
-            TestCase {
+        let mut tests = [TestCase {
                 expected_msg: String::from("8=FIX.4.09=5blah10=103"),
                 channel_closed: false,
             },
@@ -99,12 +98,11 @@ mod tests {
                 channel_closed: false,
             },
             TestCase {
-                expected_msg: String::from(""),
+                expected_msg: String::new(),
                 channel_closed: true,
-            },
-        ];
+            }];
 
-        for test in tests.iter_mut() {
+        for test in &mut tests {
             let msg_result = msg_in_rx.recv().await;
             if msg_result.is_none() {
                 assert!(test.channel_closed, "Channel unexpectedly closed");

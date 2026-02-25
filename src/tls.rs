@@ -45,7 +45,12 @@ pub fn load_tls_acceptor(settings: &SessionSettings) -> SimpleResult<Option<TlsA
     };
 
     let mut server_config = if let (Some(certs), Some(key)) = (certs, key) {
-        if !allow_skip_client_certs {
+        if allow_skip_client_certs {
+            ServerConfig::builder()
+                .with_no_client_auth()
+                .with_single_cert(certs, key)
+                .map_err(|e| simple_error!("server config error: {}", e))?
+        } else {
             // Require client certs — need CA
             let client_roots = load_ca_roots(settings)?;
             let verifier =
@@ -54,11 +59,6 @@ pub fn load_tls_acceptor(settings: &SessionSettings) -> SimpleResult<Option<TlsA
                     .map_err(|e| simple_error!("failed to build client verifier: {}", e))?;
             ServerConfig::builder()
                 .with_client_cert_verifier(verifier)
-                .with_single_cert(certs, key)
-                .map_err(|e| simple_error!("server config error: {}", e))?
-        } else {
-            ServerConfig::builder()
-                .with_no_client_auth()
                 .with_single_cert(certs, key)
                 .map_err(|e| simple_error!("server config error: {}", e))?
         }
@@ -152,9 +152,7 @@ pub fn get_server_name(
     } else {
         // Extract hostname from "host:port"
         address
-            .rsplit_once(':')
-            .map(|(host, _)| host.to_string())
-            .unwrap_or_else(|| address.to_string())
+            .rsplit_once(':').map_or_else(|| address.to_string(), |(host, _)| host.to_string())
     };
     ServerName::try_from(name).map_err(|e| simple_error!("invalid server name: {}", e))
 }

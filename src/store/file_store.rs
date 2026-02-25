@@ -9,7 +9,7 @@ use crate::{
         MessageStoreTrait,
     },
 };
-use jiff::{tz::TimeZone, Timestamp};
+use jiff::{Timestamp, tz::TimeZone};
 use simple_error::{SimpleError, SimpleResult};
 // TODO: check windows os
 use sscanf::sscanf;
@@ -41,7 +41,7 @@ impl IndividualFile {
         self.file
             .as_mut()
             .unwrap()
-            .write(format!("{:19}", seq_num).as_bytes())
+            .write(format!("{seq_num:19}").as_bytes())
             .await
             .map_err(|err| simple_error!("unable to write to file: {}: {}", self.file_name, err))?;
 
@@ -55,7 +55,8 @@ impl IndividualFile {
 }
 
 pub struct FileStore {
-    #[allow(dead_code)] // stored for parity with Go quickfix fileStore; may be used by future extensions
+    #[allow(dead_code)]
+    // stored for parity with Go quickfix fileStore; may be used by future extensions
     session_id: Arc<SessionID>,
     cache: MemoryStore,
     offsets: HashMap<isize, MsgDef>,
@@ -81,7 +82,7 @@ impl MessageStoreTrait for FileStore {
             self.cache.set_next_sender_msg_seq_num(next_seq_num).await,
             "cache"
         )?;
-        Ok(self.sender_seq_nums_file.set_seq_num(next_seq_num).await?)
+        self.sender_seq_nums_file.set_seq_num(next_seq_num).await
     }
 
     async fn set_next_target_msg_seq_num(&mut self, next_seq_num: isize) -> SimpleResult<()> {
@@ -89,23 +90,21 @@ impl MessageStoreTrait for FileStore {
             self.cache.set_next_target_msg_seq_num(next_seq_num).await,
             "cache"
         )?;
-        Ok(self.target_seq_nums_file.set_seq_num(next_seq_num).await?)
+        self.target_seq_nums_file.set_seq_num(next_seq_num).await
     }
 
     async fn incr_next_sender_msg_seq_num(&mut self) -> SimpleResult<()> {
         map_err_with!(self.cache.incr_next_sender_msg_seq_num().await, "cache")?;
-        Ok(self
-            .sender_seq_nums_file
+        self.sender_seq_nums_file
             .set_seq_num(self.cache.next_sender_msg_seq_num().await)
-            .await?)
+            .await
     }
 
     async fn incr_next_target_msg_seq_num(&mut self) -> SimpleResult<()> {
         map_err_with!(self.cache.incr_next_target_msg_seq_num().await, "cache")?;
-        Ok(self
-            .target_seq_nums_file
+        self.target_seq_nums_file
             .set_seq_num(self.cache.next_target_msg_seq_num().await)
-            .await?)
+            .await
     }
 
     async fn creation_time(&self) -> Timestamp {
@@ -216,7 +215,7 @@ impl MessageStoreTrait for FileStore {
         msg: Vec<u8>,
     ) -> SimpleResult<()> {
         self.save_message(seq_num, msg).await?;
-        Ok(self.incr_next_sender_msg_seq_num().await?)
+        self.incr_next_sender_msg_seq_num().await
     }
 
     async fn get_messages(
@@ -412,7 +411,8 @@ impl FileStore {
             if file.read_to_end(&mut sender_seq_num_bytes).await.is_ok() {
                 let sender_seq_num_string = String::from_utf8_lossy(&sender_seq_num_bytes);
                 let sender_seq_num_str = sender_seq_num_string.trim();
-                if let Ok(sender_seq_num) = atoi_simd::parse::<isize, false, false>(sender_seq_num_str.as_bytes())
+                if let Ok(sender_seq_num) =
+                    atoi_simd::parse::<isize, false, false>(sender_seq_num_str.as_bytes())
                 {
                     map_err_with!(
                         self.cache.set_next_sender_msg_seq_num(sender_seq_num).await,
@@ -427,7 +427,8 @@ impl FileStore {
             if file.read_to_end(&mut target_seq_num_bytes).await.is_ok() {
                 let target_seq_num_string = String::from_utf8_lossy(&target_seq_num_bytes);
                 let target_seq_num_str = target_seq_num_string.trim();
-                if let Ok(target_seq_num) = atoi_simd::parse::<isize, false, false>(target_seq_num_str.as_bytes())
+                if let Ok(target_seq_num) =
+                    atoi_simd::parse::<isize, false, false>(target_seq_num_str.as_bytes())
                 {
                     map_err_with!(
                         self.cache.set_next_target_msg_seq_num(target_seq_num).await,
@@ -549,22 +550,17 @@ impl MessageStoreFactoryTrait for FileStoreFactory {
 
         let session_settings_wrapper = lock.session_settings().await;
         let session_settings_option = session_settings_wrapper.get(&session_id);
-        match session_settings_option {
-            Some(session_settings_pair) => {
-                let session_settings = session_settings_pair.value();
-                return create_file_store(session_id, session_settings).await;
-            }
-            None => {
-                if dynamic_sessions {
-                    return create_file_store(session_id, global_settings).await;
-                } else {
-                    return Err(simple_error!(
-                        "unknown session: {}",
-                        &session_id.to_string()
-                    ));
-                }
-            }
-        };
+        if let Some(session_settings_pair) = session_settings_option {
+            let session_settings = session_settings_pair.value();
+            return create_file_store(session_id, session_settings).await;
+        }
+        if dynamic_sessions {
+            return create_file_store(session_id, global_settings).await;
+        }
+        Err(simple_error!(
+            "unknown session: {}",
+            &session_id.to_string()
+        ))
     }
 }
 
@@ -601,8 +597,8 @@ mod tests {
         session::session_id::SessionID,
         settings::Settings,
         store::{
-            file_store::FileStoreFactory, tests::MessageStoreTestSuite, MessageStoreEnum,
-            MessageStoreFactoryTrait, MessageStoreTrait,
+            MessageStoreEnum, MessageStoreFactoryTrait, MessageStoreTrait,
+            file_store::FileStoreFactory, tests::MessageStoreTestSuite,
         },
     };
     use jiff::Timestamp;
@@ -628,14 +624,14 @@ mod tests {
 
         // create settings
         let cfg_str = format!(
-            r#"
+            r"
 [DEFAULT]
 FileStorePath={}
 
 [SESSION]
 BeginString={}
 SenderCompID={}
-TargetCompID={}"#,
+TargetCompID={}",
             file_store_path.to_str().unwrap(),
             session_id.begin_string,
             session_id.sender_comp_id,
@@ -652,11 +648,11 @@ TargetCompID={}"#,
         let store_result = factory.create(Arc::new(session_id.clone())).await;
         assert!(store_result.is_ok());
         let store = store_result.unwrap();
-        let s = FileStoreTestSuite {
+
+        FileStoreTestSuite {
             suite: MessageStoreTestSuite { msg_store: store },
             file_store_root_path: path.to_str().unwrap().to_string(),
-        };
-        s
+        }
     }
 
     #[tokio::test]

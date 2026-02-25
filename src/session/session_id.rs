@@ -59,8 +59,7 @@ mod tests {
             session_id: SessionID,
             expected_string: String,
         }
-        let tests = vec![
-            TestCase {
+        let tests = [TestCase {
                 session_id: SessionID {
                     begin_string: String::from("FIX.4.2"),
                     sender_comp_id: String::from("SND"),
@@ -103,10 +102,9 @@ mod tests {
                     ..Default::default()
                 },
                 expected_string: String::from("FIX.4.2:SND/SLOC->TAR/TSUB/TLOC"),
-            },
-        ];
+            }];
 
-        for test in tests.iter() {
+        for test in &tests {
             let actual = test.session_id.to_string();
             assert_eq!(test.expected_string, actual);
         }
