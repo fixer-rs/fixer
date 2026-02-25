@@ -53,6 +53,7 @@ pub const SQL_STORE_DATA_SOURCE_NAME: &str = "SQLStoreDataSourceName";
 pub const SQL_STORE_CONN_MAX_LIFETIME: &str = "SQLStoreConnMaxLifetime";
 pub const MONGO_STORE_CONNECTION: &str = "MongoStoreConnection";
 pub const MONGO_STORE_DATABASE: &str = "MongoStoreDatabase";
+pub const MONGO_STORE_REPLICA_SET: &str = "MongoStoreReplicaSet";
 pub const VALIDATE_FIELDS_OUT_OF_ORDER: &str = "ValidateFieldsOutOfOrder";
 pub const RESEND_REQUEST_CHUNK_SIZE: &str = "ResendRequestChunkSize";
 pub const ENABLE_LAST_MSG_SEQ_NUM_PROCESSED: &str = "EnableLastMsgSeqNumProcessed";

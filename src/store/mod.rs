@@ -1,5 +1,7 @@
 use crate::session::session_id::SessionID;
 use crate::store::file_store::{FileStore, FileStoreFactory};
+#[cfg(feature = "mongo_store")]
+use crate::store::mongo_store::{MongoStore, MongoStoreFactory};
 #[cfg(feature = "sql_store")]
 use crate::store::sql_store::{SqlStore, SqlStoreFactory};
 use enum_dispatch::enum_dispatch;
@@ -9,6 +11,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 pub mod file_store;
+#[cfg(feature = "mongo_store")]
+pub mod mongo_store;
 #[cfg(feature = "sql_store")]
 pub mod sql_store;
 
@@ -57,6 +61,8 @@ pub trait MessageStoreFactoryTrait {
 pub enum MessageStoreEnum {
     MemoryStore,
     FileStore,
+    #[cfg(feature = "mongo_store")]
+    MongoStore,
     #[cfg(feature = "sql_store")]
     SqlStore,
     #[cfg(test)]
@@ -74,6 +80,8 @@ impl Default for MessageStoreEnum {
 pub enum MessageStoreFactoryEnum {
     MemoryStoreFactory,
     FileStoreFactory,
+    #[cfg(feature = "mongo_store")]
+    MongoStoreFactory,
     #[cfg(feature = "sql_store")]
     SqlStoreFactory,
 }

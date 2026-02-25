@@ -15,9 +15,17 @@ use tokio_rustls::{
     TlsAcceptor, TlsConnector,
 };
 
+fn ensure_crypto_provider() {
+    // When multiple rustls crypto features are enabled (e.g., aws-lc-rs + ring from mongodb),
+    // rustls cannot auto-detect the provider. Explicitly install aws-lc-rs as the default.
+    // This is idempotent — ignored if already installed.
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+}
+
 /// Load TLS acceptor (server) configuration from settings.
 /// Returns None if TLS is not configured.
 pub fn load_tls_acceptor(settings: &SessionSettings) -> SimpleResult<Option<TlsAcceptor>> {
+    ensure_crypto_provider();
     let allow_skip_client_certs = if settings.has_setting(config::SOCKET_USE_SSL) {
         settings.bool_setting(config::SOCKET_USE_SSL).unwrap_or(false)
     } else {
@@ -77,6 +85,7 @@ pub fn load_tls_acceptor(settings: &SessionSettings) -> SimpleResult<Option<TlsA
 /// Load TLS connector (client) configuration from settings.
 /// Returns None if TLS is not configured.
 pub fn load_tls_connector(settings: &SessionSettings) -> SimpleResult<Option<TlsConnector>> {
+    ensure_crypto_provider();
     let allow_skip_client_certs = if settings.has_setting(config::SOCKET_USE_SSL) {
         settings.bool_setting(config::SOCKET_USE_SSL).unwrap_or(false)
     } else {
