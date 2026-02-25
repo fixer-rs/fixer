@@ -418,7 +418,7 @@ impl Message {
     }
 
     // is_msg_type_of returns true if the Header contains MsgType (tag 35) field and its value is the specified one.
-    fn is_msg_type_of(&self, msg_type: &str) -> bool {
+    pub fn is_msg_type_of(&self, msg_type: &str) -> bool {
         let v = self.msg_type();
         if let Ok(w_unwrap) = v {
             return w_unwrap == msg_type;

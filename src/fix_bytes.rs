@@ -2,7 +2,7 @@ use crate::field::{FieldValue, FieldValueReader, FieldValueWriter};
 use simple_error::SimpleResult;
 
 // FIXBytes is a generic FIX field value, implements FieldValue.  Enables zero copy read from a FieldMap
-type FIXBytes = Vec<u8>;
+pub type FIXBytes = Vec<u8>;
 
 impl FieldValueReader for FIXBytes {
     fn read(&mut self, input: &[u8]) -> SimpleResult<()> {

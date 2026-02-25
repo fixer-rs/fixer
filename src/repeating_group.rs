@@ -95,17 +95,17 @@ impl RepeatingGroup {
     }
 
     // len returns the number of Groups in this RepeatingGroup.
-    fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.groups.len()
     }
 
     // get returns the ith group in this RepeatingGroup.
-    fn get(&self, i: usize) -> Arc<Group> {
+    pub fn get(&self, i: usize) -> Arc<Group> {
         self.groups[i].clone()
     }
 
     // add appends a new group to the RepeatingGroup and returns the new Group.
-    fn add(&mut self) -> Arc<Group> {
+    pub fn add(&mut self) -> Arc<Group> {
         let g = Arc::new(Group {
             field_map: FieldMap::default(),
         });
