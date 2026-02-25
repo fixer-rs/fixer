@@ -214,6 +214,7 @@ impl Session {
         self.target_default_appl_ver_id.clone()
     }
 
+    #[allow(dead_code)] // exists in Go quickfix session.go, used by acceptor/initiator
     async fn connect(
         &self,
         message_in: UnboundedReceiver<FixIn>,
@@ -234,14 +235,17 @@ impl Session {
         Ok(())
     }
 
+    #[allow(dead_code)]
     async fn send_stop_req(&self) {
         let _ = self.admin.tx.send(AdminEnum::StopReq(StopReq));
     }
 
+    #[allow(dead_code)] // exists in Go quickfix session.go, used by acceptor/initiator
     async fn stop(&self) {
         self.stop_once.get_or_init(|| self.send_stop_req()).await;
     }
 
+    #[allow(dead_code)] // exists in Go quickfix session.go, used by initiator
     async fn wait_for_in_session_time(&self) {
         let (tx, mut rx) = unbounded_channel::<WaitChan>();
 
@@ -487,6 +491,7 @@ impl Session {
     }
 
     // drop_and_send will validate and persist the message, then drops the send queue and sends the message.
+    #[allow(dead_code)] // exists in Go quickfix session.go, used internally and in tests
     async fn drop_and_send(&mut self, msg: &Message) -> Result<(), FixerError> {
         self.drop_and_send_in_reply_to(msg, None).await
     }
@@ -1333,14 +1338,17 @@ impl Session {
         self.on_disconnect().await;
     }
 
+    #[allow(dead_code)] // exported in Go quickfix as IsLoggedOn()
     fn sm_is_logged_on(&self) -> bool {
         self.sm.is_logged_on()
     }
 
+    #[allow(dead_code)] // exported in Go quickfix as IsConnected()
     fn sm_is_connected(&self) -> bool {
         self.sm.is_connected()
     }
 
+    #[allow(dead_code)] // exported in Go quickfix as IsSessionTime()
     fn sm_is_session_time(&self) -> bool {
         self.sm.is_session_time()
     }

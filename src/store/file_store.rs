@@ -55,6 +55,7 @@ impl IndividualFile {
 }
 
 pub struct FileStore {
+    #[allow(dead_code)] // stored for parity with Go quickfix fileStore; may be used by future extensions
     session_id: Arc<SessionID>,
     cache: MemoryStore,
     offsets: HashMap<isize, MsgDef>,
@@ -611,6 +612,7 @@ mod tests {
     // FileStoreTestSuite runs all tests in the MessageStoreTestSuite against the FileStore implementation.
     struct FileStoreTestSuite<S: MessageStoreTrait> {
         suite: MessageStoreTestSuite<S>,
+        #[allow(dead_code)] // stored for test cleanup parity with Go quickfix filestore_test.go
         file_store_root_path: String,
     }
 

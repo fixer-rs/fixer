@@ -3,10 +3,7 @@ use crate::{
     connection::{read_loop, write_loop},
     log::{LogEnum, LogFactoryEnum},
     parser::Parser,
-    session::{
-        factory::SessionFactory, session_id::SessionID, AdminEnum, Connect, FixIn, Session,
-        StopReq,
-    },
+    session::{factory::SessionFactory, AdminEnum, Connect, FixIn, Session, StopReq},
     settings::Settings,
     store::MessageStoreFactoryEnum,
 };
@@ -21,7 +18,6 @@ use tokio::{
 };
 
 struct SessionHandle {
-    session_id: Arc<SessionID>,
     session: Arc<Mutex<Session>>,
     admin_tx: UnboundedSender<AdminEnum>,
 }
@@ -62,7 +58,6 @@ impl Initiator {
             let admin_tx = session.lock().await.admin.tx.clone();
 
             sessions.push(SessionHandle {
-                session_id: session_id.clone(),
                 session,
                 admin_tx,
             });

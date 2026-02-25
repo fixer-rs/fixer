@@ -9,6 +9,7 @@ use std::sync::Arc;
 pub mod file_store;
 
 // The MessageStoreTrait interface provides methods to record and retrieve messages for resend purposes
+#[allow(async_fn_in_trait)] // dispatched via enum_dispatch, not used as trait object
 #[enum_dispatch]
 pub trait MessageStoreTrait {
     async fn next_sender_msg_seq_num(&mut self) -> isize;
@@ -41,6 +42,7 @@ pub trait MessageStoreTrait {
 }
 
 // The MessageStoreFactoryTrait interface is used by session to create a session specific message store
+#[allow(async_fn_in_trait)] // dispatched via enum_dispatch, not used as trait object
 #[enum_dispatch]
 pub trait MessageStoreFactoryTrait {
     async fn create(&self, session_id: Arc<SessionID>) -> SimpleResult<MessageStoreEnum>;

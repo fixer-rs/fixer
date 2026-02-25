@@ -27,7 +27,6 @@ use tokio::{
 };
 
 struct SessionHandle {
-    session_id: Arc<SessionID>,
     session: Arc<Mutex<Session>>,
     admin_tx: UnboundedSender<AdminEnum>,
 }
@@ -87,7 +86,6 @@ impl Acceptor {
             let admin_tx = session.lock().await.admin.tx.clone();
 
             sessions.push(SessionHandle {
-                session_id: session_id.clone(),
                 session,
                 admin_tx,
             });
@@ -281,7 +279,6 @@ mod tests {
     use crate::application::NOPApp;
     use crate::log::LogFactoryEnum;
     use crate::registry::{unregister_session, SESSIONS};
-    use crate::session::session_id::SessionID;
     use crate::store::MessageStoreFactoryEnum;
     use serial_test::serial;
     use tokio::io::BufReader;

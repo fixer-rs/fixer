@@ -10,6 +10,7 @@ pub mod null_log;
 pub mod screen_log;
 
 // Log is a generic trait for logging FIX messages and events.
+#[allow(async_fn_in_trait)] // dispatched via enum_dispatch, not used as trait object
 #[enum_dispatch]
 pub trait LogTrait {
     // on_incoming log incoming fix message
@@ -26,6 +27,7 @@ pub trait LogTrait {
 }
 
 // The LogFactory trait creates global and session specific Log instances
+#[allow(async_fn_in_trait)] // dispatched via enum_dispatch, not used as trait object
 #[enum_dispatch]
 pub trait LogFactoryTrait {
     // create global log

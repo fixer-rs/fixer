@@ -90,6 +90,7 @@ impl FixerSuite {
 
 // MockStore wraps a memory store and mocks Refresh for convenience.
 #[derive(Default)]
+#[allow(dead_code)] // used only as #[automock] base to generate MockStore
 struct Store {}
 
 #[automock]
