@@ -11,8 +11,7 @@ use crate::{
     session::session_id::SessionID,
     tag::{TAG_APPL_VER_ID, TAG_BEGIN_STRING, TAG_MSG_TYPE},
 };
-use dashmap::DashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 #[derive(Eq, PartialEq, Hash)]
 pub struct RouteKey {
@@ -35,7 +34,7 @@ pub const APPL_VER_ID_FIX50_SP2: &str = "9";
 #[derive(Default)]
 pub struct MessageRouter {
     #[cfg(not(test))]
-    pub routes: DashMap<
+    pub routes: HashMap<
         RouteKey,
         Box<
             dyn FnMut(
@@ -47,7 +46,7 @@ pub struct MessageRouter {
     >,
 
     #[cfg(test)]
-    pub routes: DashMap<
+    pub routes: HashMap<
         RouteKey,
         Box<
             dyn FnMut(
@@ -63,14 +62,14 @@ impl MessageRouter {
     // new returns an initialized MessageRouter instance.
     pub fn new() -> Self {
         Self {
-            routes: DashMap::new(),
+            routes: HashMap::new(),
         }
     }
 
     // add_route adds a route to the MessageRouter instance keyed to begin string and msg_type.
     #[cfg(not(test))]
     pub fn add_route(
-        &self,
+        &mut self,
         begin_string: String,
         msg_type: String,
         router: Box<
@@ -85,12 +84,12 @@ impl MessageRouter {
             fix_version: begin_string,
             msg_type,
         };
-        let _ = self.routes.insert(hash, router);
+        self.routes.insert(hash, router);
     }
 
     #[cfg(test)]
     pub fn add_route(
-        &self,
+        &mut self,
         begin_string: String,
         msg_type: String,
         router: Box<
@@ -105,7 +104,7 @@ impl MessageRouter {
             fix_version: begin_string,
             msg_type,
         };
-        let _ = self.routes.insert(hash, router);
+        self.routes.insert(hash, router);
     }
 
     // route may be called from the from_app/from_admin callbacks. Messages that cannot be routed will be rejected with UNSUPPORTED_MESSAGE_TYPE.
@@ -147,16 +146,14 @@ impl MessageRouter {
         let fix_version =
             Self::get_fix_version(begin_string, is_admin_msg, msg, session_id.clone())
                 .await;
-        let key = &RouteKey {
-            fix_version,
+        let key = RouteKey {
+            fix_version: fix_version.clone(),
             msg_type: msg_type.to_string(),
         };
 
-        let remove_result = g.routes.remove(key);
-        if remove_result.is_some() {
-            let (new_key, mut route) = remove_result.unwrap();
+        if let Some(mut route) = g.routes.remove(&key) {
             let res = route(g, msg, session_id.clone());
-            g.routes.insert(new_key, Box::new(route));
+            g.routes.insert(key, route);
             res
         } else {
             if is_admin_msg || msg_type == "j" {
@@ -179,17 +176,14 @@ impl MessageRouter {
         let fix_version =
             Self::get_fix_version(begin_string, is_admin_msg, msg, session_id.clone())
                 .await;
-        let key = &RouteKey {
-            fix_version,
+        let key = RouteKey {
+            fix_version: fix_version.clone(),
             msg_type: msg_type.clone(),
         };
 
-        let remove_result = g.mr.routes.remove(key);
-
-        if remove_result.is_some() {
-            let (new_key, mut route) = remove_result.unwrap();
+        if let Some(mut route) = g.mr.routes.remove(&key) {
             let res = route(g, msg, session_id.clone());
-            g.mr.routes.insert(new_key, Box::new(route));
+            g.mr.routes.insert(key, route);
             res
         } else {
             if is_admin_msg || msg_type == "j" {
@@ -263,7 +257,7 @@ mod tests {
     }
 
     impl MessageRouterTestSuite {
-        fn given_the_route(&self, begin_string: String, msg_type: String) {
+        fn given_the_route(&mut self, begin_string: String, msg_type: String) {
             let msg_clone = msg_type.clone();
             let begin_clone = begin_string.clone();
 
