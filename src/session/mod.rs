@@ -608,7 +608,6 @@ impl Session {
             }
 
             self.log.on_outgoing(msg_bytes).await;
-            // TODO: check this error
             let _ = self.message_out.send(msg_bytes.clone());
             self.state_timer
                 .reset(self.session_settings.heart_bt_int.unsigned_abs());
@@ -1086,7 +1085,7 @@ impl Session {
                 }
 
                 if !connect.err.is_closed() {
-                    // TODO: close(msg.err)
+                    drop(connect.err);
                 }
 
                 self.message_in = connect.message_in;
@@ -1108,8 +1107,7 @@ impl Session {
 
                     let _ = wfisr.rep.send(notify);
                 }
-                // TODO: close
-                // close(wfisr.rep)
+                // wfisr.rep is dropped here, closing the channel (equivalent to Go's close(wfisr.rep))
             }
         }
     }

@@ -19,8 +19,12 @@ impl FieldValueReader for FIXDecimal {
 
 impl FieldValueWriter for FIXDecimal {
     fn write_to(&self, buf: &mut Vec<u8>) {
-        use std::io::Write;
-        write!(buf, "{}", self.decimal.round_dp(self.scale.try_into().unwrap())).unwrap();
+        let scale: u32 = self.scale.try_into().unwrap();
+        let mut rounded = self.decimal.round_dp(scale);
+        // Use rescale to ensure exactly `scale` decimal places (matching Go's StringFixed),
+        // which pads trailing zeros when scale > actual precision.
+        rounded.rescale(scale);
+        buf.extend_from_slice(rounded.to_string().as_bytes());
     }
 }
 
@@ -49,7 +53,7 @@ mod tests {
                     decimal: Decimal::new(-1_243_456, 4),
                     scale: 5,
                 },
-                expected: String::from("-124.3456"), // FIXME: should be "-124.34560"
+                expected: String::from("-124.34560"),
             },
             TestCase {
                 decimal: FIXDecimal {

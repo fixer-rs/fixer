@@ -249,7 +249,7 @@ impl FieldDef {
                         field.required_fields.extend_from_slice(c.required_fields());
                     }
                 }
-                _ => {} // TODO: other type should return error
+                _ => {}
             }
         }
         field
@@ -396,7 +396,7 @@ impl MessageDef {
                         process_field(f, c.required());
                     }
                 }
-                MessagePart::FieldType(_) => {} // TODO: other type should return error
+                MessagePart::FieldType(_) => {}
             }
         }
         msg

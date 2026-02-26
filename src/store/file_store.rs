@@ -11,7 +11,6 @@ use crate::{
 };
 use jiff::{Timestamp, tz::TimeZone};
 use simple_error::{SimpleError, SimpleResult};
-// TODO: check windows os
 use sscanf::sscanf;
 use std::{io::SeekFrom, os::unix::prelude::PermissionsExt, path::Path, sync::Arc};
 use tokio::{
