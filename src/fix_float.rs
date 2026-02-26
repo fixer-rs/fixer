@@ -16,7 +16,7 @@ impl FIXFloatTrait for FIXFloat {
 
 impl FieldValueReader for FIXFloat {
     fn read(&mut self, input: &[u8]) -> SimpleResult<()> {
-        let f = fast_float::parse(input)
+        let f = fast_float2::parse(input)
             .map_err(|_| simple_error!("invalid value {}", String::from_utf8_lossy(input)))?;
 
         for chr in input {
