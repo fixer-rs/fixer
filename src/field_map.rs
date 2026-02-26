@@ -14,7 +14,8 @@ use crate::{
     tag_value::TagValue,
 };
 use jiff::Timestamp;
-use std::{cmp::Ordering, collections::HashMap, fmt, sync::Arc, vec};
+use rustc_hash::FxHashMap;
+use std::{cmp::Ordering, fmt, sync::Arc, vec};
 
 #[derive(Debug, Default, Clone)]
 pub struct LocalField {
@@ -57,7 +58,7 @@ pub enum TagOrderType {
     Normal,
     Header,
     Trailer,
-    RepeatingGroup(Arc<HashMap<Tag, usize>>),
+    RepeatingGroup(Arc<FxHashMap<Tag, usize>>),
     Custom(TagOrder),
 }
 
@@ -92,7 +93,7 @@ impl TagSort {
 
 #[derive(Debug, Clone)]
 pub struct FieldMapContent {
-    pub tag_lookup: HashMap<Tag, LocalField>,
+    pub tag_lookup: FxHashMap<Tag, LocalField>,
     pub tag_sort: TagSort,
     // All parsed tag-values in order, including duplicates from repeating groups.
     // Populated during message parsing; used by get_group to read group members.
@@ -109,7 +110,7 @@ impl Default for FieldMap {
     fn default() -> Self {
         FieldMap {
             content: FieldMapContent {
-                tag_lookup: hashmap! {},
+                tag_lookup: FxHashMap::default(),
                 tag_sort: TagSort {
                     tags: vec![],
                     compare_type: TagOrderType::Normal,
@@ -166,14 +167,13 @@ impl FieldMap {
     }
 
     // get_bytes is a zero-copy get_field wrapper for []bytes fields
-    // TODO: return reference instead
-    pub fn get_bytes(&self, tag: Tag) -> Result<Vec<u8>, MessageRejectErrorEnum> {
+    pub fn get_bytes(&self, tag: Tag) -> Result<&[u8], MessageRejectErrorEnum> {
         let f = self
             .content
             .tag_lookup
             .get(&tag)
             .ok_or_else(|| conditionally_required_field_missing(tag))?;
-        Ok(f.data[0].value.clone())
+        Ok(&f.data[0].value)
     }
 
     // with_bytes borrows the raw bytes for the given tag and passes them to a

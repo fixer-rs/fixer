@@ -41,7 +41,7 @@ impl Header {
                 tag: Tag,
                 parser: &mut P,
             ) -> MessageRejectErrorResult;
-            pub fn get_bytes(&self, tag: Tag) -> Result<Vec<u8>, MessageRejectErrorEnum>;
+            pub fn get_bytes(&self, tag: Tag) -> Result<&[u8], MessageRejectErrorEnum>;
             pub fn get_bool(&self, tag: Tag) -> Result<bool, MessageRejectErrorEnum>;
             pub fn get_int(&self, tag: Tag) -> Result<isize, MessageRejectErrorEnum>;
             pub fn get_time(&self, tag: Tag) -> Result<Timestamp, MessageRejectErrorEnum>;
@@ -86,7 +86,7 @@ impl Body {
                 tag: Tag,
                 parser: &mut P,
             ) -> MessageRejectErrorResult;
-            pub fn get_bytes(&self, tag: Tag) -> Result<Vec<u8>, MessageRejectErrorEnum>;
+            pub fn get_bytes(&self, tag: Tag) -> Result<&[u8], MessageRejectErrorEnum>;
             pub fn get_bool(&self, tag: Tag) -> Result<bool, MessageRejectErrorEnum>;
             pub fn get_int(&self, tag: Tag) -> Result<isize, MessageRejectErrorEnum>;
             pub fn get_time(&self, tag: Tag) -> Result<Timestamp, MessageRejectErrorEnum>;
@@ -132,7 +132,7 @@ impl Trailer {
                 tag: Tag,
                 parser: &mut P,
             ) -> MessageRejectErrorResult;
-            pub fn get_bytes(&self, tag: Tag) -> Result<Vec<u8>, MessageRejectErrorEnum>;
+            pub fn get_bytes(&self, tag: Tag) -> Result<&[u8], MessageRejectErrorEnum>;
             pub fn get_bool(&self, tag: Tag) -> Result<bool, MessageRejectErrorEnum>;
             pub fn get_int(&self, tag: Tag) -> Result<isize, MessageRejectErrorEnum>;
             pub fn get_time(&self, tag: Tag) -> Result<Timestamp, MessageRejectErrorEnum>;
@@ -250,33 +250,33 @@ impl Message {
         let raw_bytes = extract_specific_field(
             &mut parsed_fields[field_index],
             TAG_BODY_LENGTH,
-            &raw_bytes,
+            raw_bytes,
         )?;
         self.header
             .add(LocalField::new(vec![parsed_fields[field_index].clone()]));
         field_index += 1;
 
         let mut raw_bytes =
-            extract_specific_field(&mut parsed_fields[field_index], TAG_MSG_TYPE, &raw_bytes)?;
+            extract_specific_field(&mut parsed_fields[field_index], TAG_MSG_TYPE, raw_bytes)?;
         let mut xml_data_len = 0_isize;
         let mut xml_data_msg = false;
         self.header
             .add(LocalField::new(vec![parsed_fields[field_index].clone()]));
         field_index += 1;
 
-        let mut trailer_bytes = vec![];
+        let mut trailer_bytes: &[u8] = &[];
         let mut found_body = false;
         let mut body_tvs: Vec<TagValue> = Vec::new();
 
         loop {
             let pf = &mut parsed_fields[field_index];
             raw_bytes = if xml_data_len.is_positive() {
-                let raw_bytes = extract_xml_data_field(pf, &raw_bytes, xml_data_len)?;
+                let raw_bytes = extract_xml_data_field(pf, raw_bytes, xml_data_len)?;
                 xml_data_len = 0;
                 xml_data_msg = true;
                 raw_bytes
             } else {
-                extract_field(pf, &raw_bytes)?
+                extract_field(pf, raw_bytes)?
             };
 
             let tag = pf.tag;
@@ -288,7 +288,7 @@ impl Message {
                 self.trailer.add(field_lf);
             } else {
                 found_body = true;
-                trailer_bytes.clone_from(&raw_bytes);
+                trailer_bytes = raw_bytes;
                 body_tvs.push(pf.clone());
                 self.body.add(field_lf);
             }
@@ -298,7 +298,7 @@ impl Message {
             }
 
             if !found_body {
-                self.body_bytes.clone_from(&raw_bytes);
+                self.body_bytes = raw_bytes.to_vec();
             }
 
             if tag == TAG_XML_DATA_LEN {
@@ -309,11 +309,7 @@ impl Message {
         }
 
         if self.body_bytes.len() > trailer_bytes.len() {
-            self.body_bytes = self
-                .body_bytes
-                .get(..self.body_bytes.len() - trailer_bytes.len())
-                .unwrap()
-                .to_vec();
+            self.body_bytes.truncate(self.body_bytes.len() - trailer_bytes.len());
         }
 
         parsed_fields.truncate(field_index + 1);
@@ -468,11 +464,11 @@ fn is_trailer_field(tag: &Tag, data_dict: &Option<Arc<DataDictionary>>) -> bool 
     data_dict.as_ref().unwrap().trailer.fields.contains_key(tag)
 }
 
-fn extract_specific_field(
+fn extract_specific_field<'a>(
     field: &mut TagValue,
     expected_tag: Tag,
-    buffer: &[u8],
-) -> Result<Vec<u8>, ParseError> {
+    buffer: &'a [u8],
+) -> Result<&'a [u8], ParseError> {
     let rem_buffer = extract_field(field, buffer)?;
     if field.tag != expected_tag {
         return Err(ParseError {
@@ -486,11 +482,11 @@ fn extract_specific_field(
 }
 
 #[allow(clippy::cast_sign_loss)]
-fn extract_xml_data_field(
+fn extract_xml_data_field<'a>(
     parsed_field_bytes: &mut TagValue,
-    buffer: &[u8],
+    buffer: &'a [u8],
     data_len: isize,
-) -> Result<Vec<u8>, ParseError> {
+) -> Result<&'a [u8], ParseError> {
     let mut end_index = buffer.iter().position(|x| *x == b'=').ok_or(ParseError {
         orig_error: format!(
             "extract_field: No Trailing Delim in {}",
@@ -503,10 +499,13 @@ fn extract_xml_data_field(
         .parse(buffer_slice)
         .map_err(|err| ParseError { orig_error: err })?;
 
-    Ok(buffer.get((end_index + 1)..).unwrap().to_vec())
+    Ok(buffer.get((end_index + 1)..).unwrap())
 }
 
-fn extract_field(parsed_field_bytes: &mut TagValue, buffer: &[u8]) -> Result<Vec<u8>, ParseError> {
+fn extract_field<'a>(
+    parsed_field_bytes: &mut TagValue,
+    buffer: &'a [u8],
+) -> Result<&'a [u8], ParseError> {
     let end_index = buffer.iter().position(|x| *x == 1).ok_or(ParseError {
         orig_error: format!(
             "extract_field: No Trailing Delim in {}",
@@ -517,7 +516,7 @@ fn extract_field(parsed_field_bytes: &mut TagValue, buffer: &[u8]) -> Result<Vec
     parsed_field_bytes
         .parse(buffer_slice)
         .map_err(|err| ParseError { orig_error: err })?;
-    Ok(buffer.get((end_index + 1)..).unwrap().to_vec())
+    Ok(buffer.get((end_index + 1)..).unwrap())
 }
 
 fn format_check_sum(value: isize) -> String {

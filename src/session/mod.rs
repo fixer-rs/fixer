@@ -524,11 +524,13 @@ impl Session {
         msg.header.set_field(TAG_MSG_SEQ_NUM, seq_num);
 
         let msg_type = msg.header.get_bytes(TAG_MSG_TYPE)?;
+        let is_admin = is_admin_message_type(msg_type);
+        let is_logon = msg_type == MSG_TYPE_LOGON;
 
-        if is_admin_message_type(&msg_type) {
+        if is_admin {
             self.application.to_admin(msg, &self.session_id);
 
-            if msg_type == MSG_TYPE_LOGON {
+            if is_logon {
                 let mut reset_seq_num_flag = FIXBoolean::default();
                 if msg.body.has(TAG_RESET_SEQ_NUM_FLAG) {
                     msg.body
@@ -801,7 +803,7 @@ impl Session {
     async fn from_callback(&mut self, msg: &Message) -> MessageRejectErrorResult {
         let msg_type = msg.header.get_bytes(TAG_MSG_TYPE)?;
 
-        if is_admin_message_type(&msg_type) {
+        if is_admin_message_type(msg_type) {
             return self.application.from_admin(msg, &self.session_id);
         }
 
@@ -1608,7 +1610,7 @@ impl Session {
 
             let sent_message_seq_num = msg.header.get_int(TAG_MSG_SEQ_NUM)?;
 
-            if is_admin_message_type(&msg_type) {
+            if is_admin_message_type(msg_type) {
                 next_seq_num = sent_message_seq_num + 1;
                 continue;
             }
@@ -1880,7 +1882,7 @@ impl Session {
         }
 
         let msg_type = msg_type_result.unwrap();
-        match msg_type.as_ref() {
+        match msg_type {
             MSG_TYPE_LOGON => {
                 let handle_result = self.handle_logon(msg).await;
                 if handle_result.is_err() {

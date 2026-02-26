@@ -41,7 +41,6 @@ where
 
     async fn read_more(&mut self) -> SimpleResult<isize> {
         if self.len == self.cap {
-            let mut new_buffer = vec![];
             if self.big_buffer.is_empty() {
                 self.big_buffer = Vec::with_capacity(DEFAULT_BUF_SIZE);
                 self.big_buffer.resize(DEFAULT_BUF_SIZE, 0);
@@ -49,28 +48,23 @@ where
                 self.end = 0;
                 self.len = 0;
                 self.cap = DEFAULT_BUF_SIZE;
-                new_buffer.copy_from_slice(&self.big_buffer[0..0]);
             } else if self.len * 2 <= self.big_buffer.len() {
-                new_buffer.resize(self.len, 0);
-                new_buffer.copy_from_slice(&self.big_buffer[self.start..self.end]);
+                // Enough room — shift data to the front in-place
+                self.big_buffer.copy_within(self.start..self.end, 0);
                 self.start = 0;
                 self.end = self.len;
             } else {
-                new_buffer.resize(self.len, 0);
-                new_buffer.copy_from_slice(&self.big_buffer[self.start..self.end]);
+                // Need to grow — shift data to front, then resize
+                self.big_buffer.copy_within(self.start..self.end, 0);
                 self.cap = 2 * self.len;
                 let new_reserve = self.cap - self.big_buffer.len();
                 self.big_buffer.reserve_exact(new_reserve);
-                self.big_buffer.clear();
                 self.big_buffer.resize(self.cap, 0);
-
                 self.start = 0;
                 self.end = self.len;
             }
 
             self.cap = self.big_buffer.capacity();
-            let new_len = new_buffer.len();
-            self.big_buffer[0..new_len].copy_from_slice(&new_buffer);
         }
 
         let n = self

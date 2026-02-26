@@ -7,7 +7,8 @@ use crate::{
 };
 use delegate::delegate;
 use dyn_clone::{DynClone, clone_trait_object};
-use std::{collections::HashMap, sync::Arc};
+use rustc_hash::FxHashMap;
+use std::sync::Arc;
 
 // GroupItem interface is used to construct repeating group templates.
 // Tag returns the tag identifying this GroupItem.
@@ -117,7 +118,7 @@ impl RepeatingGroup {
         None
     }
 
-    fn group_tag_order(&self) -> Arc<HashMap<Tag, usize>> {
+    fn group_tag_order(&self) -> Arc<FxHashMap<Tag, usize>> {
         Arc::new(
             self.template
                 .iter()

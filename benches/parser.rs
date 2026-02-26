@@ -2,15 +2,18 @@ use criterion::Criterion;
 use fixer::parser;
 use tokio::io::BufReader;
 
-#[allow(clippy::let_underscore_future)]
 pub fn benchmark_parser_read_message(c: &mut Criterion) {
-    const STREAM: &str = "8=FIXT.1.19=11135=D34=449=TW52=20140511-23:10:3456=ISLD11=ID21=340=154=155=INTC60=20140511-23:10:3410=2348=FIXT.1.19=9535=D34=549=TW52=20140511-23:10:3456=ISLD11=ID21=340=154=155=INTC60=20140511-23:10:3410=198";
+    const STREAM: &str = "8=FIXT.1.19=11135=D34=449=TW52=20140511-23:10:3456=ISLD11=ID21=340=154=155=INTC60=20140511-23:10:3410=2348=FIXT.1.19=9535=D34=549=TW52=20140511-23:10:3456=ISLD11=ID21=340=154=155=INTC60=20140511-23:10:3410=198";
+
+    let rt = tokio::runtime::Runtime::new().unwrap();
 
     c.bench_function("parser_read_message", |b| {
         b.iter(|| {
-            let reader = BufReader::new(STREAM.as_bytes());
-            let mut parser = parser::Parser::new(reader);
-            let _ = parser.read_message();
+            rt.block_on(async {
+                let reader = BufReader::new(STREAM.as_bytes());
+                let mut parser = parser::Parser::new(reader);
+                let _ = parser.read_message().await;
+            });
         });
     });
 }
