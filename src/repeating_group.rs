@@ -74,15 +74,27 @@ pub struct RepeatingGroup {
     tag: Tag,
     template: GroupTemplate,
     pub groups: Vec<Group>,
+    // Pre-computed lookup: tag → index in template. Built once in `new()`.
+    template_lookup: FxHashMap<Tag, usize>,
+    // Pre-computed tag ordering for group FieldMaps. Built once in `new()`.
+    tag_order: Arc<FxHashMap<Tag, usize>>,
 }
 
 impl RepeatingGroup {
     // new returns an initilized RepeatingGroup instance.
     pub fn new(tag: Tag, template: GroupTemplate) -> Self {
+        let template_lookup: FxHashMap<Tag, usize> = template
+            .iter()
+            .enumerate()
+            .map(|(i, item)| (item.tag(), i))
+            .collect();
+        let tag_order = Arc::new(template_lookup.clone());
         RepeatingGroup {
             tag,
             template,
             groups: vec![],
+            template_lookup,
+            tag_order,
         }
     }
 
@@ -110,22 +122,8 @@ impl RepeatingGroup {
     }
 
     fn find_item_in_group_template(&self, t: Tag) -> Option<Box<dyn GroupItem>> {
-        for template_field in &self.template {
-            if t == template_field.tag() {
-                return Some(template_field.clone());
-            }
-        }
-        None
-    }
-
-    fn group_tag_order(&self) -> Arc<FxHashMap<Tag, usize>> {
-        Arc::new(
-            self.template
-                .iter()
-                .enumerate()
-                .map(|template_field| (template_field.1.tag(), template_field.0))
-                .collect(),
-        )
+        let &idx = self.template_lookup.get(&t)?;
+        Some(self.template[idx].clone())
     }
 
     fn delimiter(&self) -> Tag {
@@ -158,7 +156,7 @@ impl FieldGroupReader for RepeatingGroup {
         }
 
         let mut tv = LocalField::new(tv.data[1..].to_vec());
-        let tag_ordering = self.group_tag_order();
+        let tag_ordering = self.tag_order.clone();
 
         while !tv.is_empty() {
             let tag = tv.data[0].tag;
@@ -244,10 +242,7 @@ mod tests {
 
     #[test]
     fn test_repeating_group_add() {
-        let mut f = RepeatingGroup {
-            template: vec![group_element(1)],
-            ..Default::default()
-        };
+        let mut f = RepeatingGroup::new(0, vec![group_element(1)]);
 
         struct TestCase {
             expected_len: usize,
@@ -288,41 +283,25 @@ mod tests {
 
     #[test]
     fn test_repeating_group_write() {
-        let mut f1 = RepeatingGroup {
-            tag: 10,
-            template: vec![group_element(1), group_element(2)],
-            ..Default::default()
-        };
+        let mut f1 = RepeatingGroup::new(10, vec![group_element(1), group_element(2)]);
 
         f1.add();
         f1.groups.last_mut().unwrap().field_map.set_field(1, FIXString::from("hello"));
 
-        let mut f2 = RepeatingGroup {
-            tag: 11,
-            template: vec![group_element(1), group_element(2)],
-            ..Default::default()
-        };
+        let mut f2 = RepeatingGroup::new(11, vec![group_element(1), group_element(2)]);
 
         f2.add();
         f2.groups.last_mut().unwrap().field_map.set_field(1, FIXString::from("hello"));
         f2.groups.last_mut().unwrap().field_map.set_field(2, FIXString::from("world"));
 
-        let mut f3 = RepeatingGroup {
-            tag: 12,
-            template: vec![group_element(1), group_element(2)],
-            ..Default::default()
-        };
+        let mut f3 = RepeatingGroup::new(12, vec![group_element(1), group_element(2)]);
 
         f3.add();
         f3.groups.last_mut().unwrap().field_map.set_field(1, FIXString::from("hello"));
         f3.add();
         f3.groups.last_mut().unwrap().field_map.set_field(1, FIXString::from("world"));
 
-        let mut f4 = RepeatingGroup {
-            tag: 13,
-            template: vec![group_element(1), group_element(2)],
-            ..Default::default()
-        };
+        let mut f4 = RepeatingGroup::new(13, vec![group_element(1), group_element(2)]);
 
         f4.add();
         f4.groups.last_mut().unwrap().field_map.set_field(1, FIXString::from("hello"));
@@ -400,10 +379,7 @@ mod tests {
         ];
 
         for tc in &test_cases {
-            let mut f = RepeatingGroup {
-                template: single_field_template.clone(),
-                ..Default::default()
-            };
+            let mut f = RepeatingGroup::new(0, single_field_template.clone());
             let read_result = f.read(tc.tv.clone());
             assert!(
                 read_result.is_err() && f.groups.len() == tc.expected_group_num,
@@ -502,11 +478,7 @@ mod tests {
         ];
 
         for tc in &mut test_cases {
-            let mut f = RepeatingGroup {
-                tag: 0,
-                template: tc.group_template.take().unwrap(),
-                ..Default::default()
-            };
+            let mut f = RepeatingGroup::new(0, tc.group_template.take().unwrap());
 
             let read_result = f.read(tc.tv.clone());
             assert!(read_result.is_ok());
@@ -585,11 +557,7 @@ mod tests {
             group_element(273),
         ];
 
-        let f = RepeatingGroup {
-            tag: 268,
-            template,
-            ..Default::default()
-        };
+        let f = RepeatingGroup::new(268, template);
 
         let get_group_result = msg.body.get_group(f);
         assert!(

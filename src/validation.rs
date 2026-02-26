@@ -341,10 +341,11 @@ fn validate_field(
     let field_type = d.field_type_by_tag.get(&field.tag).unwrap();
 
     let allowed_values = &field_type.enums;
-    if !allowed_values.is_empty()
-        && !allowed_values.contains_key(String::from_utf8_lossy(value).as_ref())
-    {
-        return Err(value_is_incorrect(field.tag));
+    if !allowed_values.is_empty() {
+        let value_str = std::str::from_utf8(value).map_err(|_| value_is_incorrect(field.tag))?;
+        if !allowed_values.contains_key(value_str) {
+            return Err(value_is_incorrect(field.tag));
+        }
     }
 
     let valid = match field_type.r#type.as_str() {
