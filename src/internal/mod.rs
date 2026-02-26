@@ -1,5 +1,5 @@
-pub mod event;
-pub mod event_timer;
-pub mod session_settings;
-pub mod switching_sleep;
+pub(crate) mod event;
+pub(crate) mod event_timer;
+pub(crate) mod session_settings;
+pub(crate) mod switching_sleep;
 pub mod time_range;
