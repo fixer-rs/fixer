@@ -11,7 +11,8 @@ use crate::{
     session::session_id::SessionID,
     tag::{TAG_APPL_VER_ID, TAG_BEGIN_STRING, TAG_MSG_TYPE},
 };
-use std::{collections::HashMap, sync::Arc};
+use rustc_hash::FxHashMap;
+use std::sync::Arc;
 
 #[derive(Eq, PartialEq, Hash)]
 pub struct RouteKey {
@@ -43,14 +44,14 @@ type RouteCallback = Box<
 // A MessageRouter routes FIX messages to registered callbacks.
 #[derive(Default)]
 pub struct MessageRouter {
-    pub routes: HashMap<RouteKey, RouteCallback>,
+    pub routes: FxHashMap<RouteKey, RouteCallback>,
 }
 
 impl MessageRouter {
     // new returns an initialized MessageRouter instance.
     pub fn new() -> Self {
         Self {
-            routes: HashMap::new(),
+            routes: FxHashMap::default(),
         }
     }
 

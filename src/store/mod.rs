@@ -7,7 +7,7 @@ use crate::store::sql_store::{SqlStore, SqlStoreFactory};
 use enum_dispatch::enum_dispatch;
 use jiff::Timestamp;
 use simple_error::SimpleResult;
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::sync::Arc;
 
 pub mod file_store;
@@ -97,7 +97,7 @@ pub struct MemoryStore {
     pub sender_msg_seq_num: isize,
     pub target_msg_seq_num: isize,
     pub creation_time: Timestamp,
-    pub message_map: HashMap<isize, Vec<u8>>,
+    pub message_map: FxHashMap<isize, Vec<u8>>,
 }
 
 impl MessageStoreTrait for MemoryStore {
@@ -214,7 +214,8 @@ mod tests {
         },
     };
     use jiff::Timestamp;
-    use std::{collections::HashMap, sync::Arc};
+    use rustc_hash::FxHashMap;
+    use std::sync::Arc;
 
     // MessageStoreTestSuite is the suite of all tests that should be run against all MessageStore implementations.
     pub struct MessageStoreTestSuite<S: MessageStoreTrait> {
@@ -294,7 +295,7 @@ mod tests {
 
         pub async fn test_message_store_save_message_get_message(&mut self) {
             // Given the following saved messages
-            let expected_msgs_by_seq_num: HashMap<isize, String> = hashmap! {
+            let expected_msgs_by_seq_num: FxHashMap<isize, String> = hashmap! {
                 1 => String::from("In the frozen land of Nador"),
                 2 => String::from("they were forced to eat Robin's minstrels"),
                 3 => String::from("and there was much rejoicing"),
@@ -362,7 +363,7 @@ mod tests {
             );
 
             // Given the following saved messages
-            let expected_msgs_by_seq_num: HashMap<isize, String> = hashmap! {
+            let expected_msgs_by_seq_num: FxHashMap<isize, String> = hashmap! {
                 1 => String::from("In the frozen land of Nador"),
                 2 => String::from("they were forced to eat Robin's minstrels"),
                 3 => String::from("and there was much rejoicing"),

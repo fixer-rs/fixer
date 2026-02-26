@@ -23,8 +23,8 @@ impl FieldValueReader for FIXString {
 }
 
 impl FieldValueWriter for FIXString {
-    fn write(&self) -> Vec<u8> {
-        self.as_bytes().to_vec()
+    fn write_to(&self, buf: &mut Vec<u8>) {
+        buf.extend_from_slice(self.as_bytes());
     }
 }
 

@@ -1,7 +1,41 @@
 #[macro_use]
 extern crate simple_error;
-#[macro_use]
-extern crate maplit;
+
+/// Constructs an `FxHashMap` from key-value pairs.
+macro_rules! hashmap {
+    (@single $($x:tt)*) => (());
+    (@count $($rest:expr),*) => (<[()]>::len(&[$(hashmap!(@single $rest)),*]));
+    ($($key:expr => $value:expr,)+) => { hashmap!($($key => $value),+) };
+    ($($key:expr => $value:expr),*) => {
+        {
+            let _cap = hashmap!(@count $($key),*);
+            let mut _map = ::rustc_hash::FxHashMap::with_capacity_and_hasher(_cap, Default::default());
+            $(
+                let _ = _map.insert($key, $value);
+            )*
+            _map
+        }
+    };
+    () => { ::rustc_hash::FxHashMap::default() };
+}
+
+/// Constructs a `HashSet` from values.
+macro_rules! hashset {
+    (@single $($x:tt)*) => (());
+    (@count $($rest:expr),*) => (<[()]>::len(&[$(hashset!(@single $rest)),*]));
+    ($($value:expr,)+) => { hashset!($($value),+) };
+    ($($value:expr),*) => {
+        {
+            let _cap = hashset!(@count $($value),*);
+            let mut _set = ::std::collections::HashSet::with_capacity(_cap);
+            $(
+                let _ = _set.insert($value);
+            )*
+            _set
+        }
+    };
+    () => { ::std::collections::HashSet::new() };
+}
 
 pub mod acceptor;
 pub mod application;

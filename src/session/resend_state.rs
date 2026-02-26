@@ -1,11 +1,11 @@
 use crate::{message::Message, session::session_state::LoggedOn};
 use delegate::delegate;
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
 #[derive(Default, Debug, Clone)]
 pub struct ResendState {
     pub logged_on: LoggedOn,
-    pub message_stash: HashMap<isize, Message>,
+    pub message_stash: FxHashMap<isize, Message>,
     pub current_resend_range_end: isize,
     pub resend_range_end: isize,
 }

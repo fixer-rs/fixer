@@ -1,11 +1,8 @@
 use crate::datadictionary::{DataDictionary, FieldDef, TagSet};
 use crate::errors::*;
-use crate::field::*;
+use crate::field::FieldValueReader;
 use crate::field_map::FieldMap;
-use crate::fix_boolean::FIXBoolean;
 use crate::fix_float::FIXFloat;
-use crate::fix_int::FIXInt;
-use crate::fix_string::FIXString;
 use crate::fix_utc_timestamp::FIXUTCTimestamp;
 use crate::message::Message;
 use crate::msg_type::is_admin_message_type;
@@ -209,10 +206,7 @@ fn validate_visit_group_field<'a>(
 ) -> Result<&'a [TagValue], MessageRejectErrorEnum> {
     let first_field_stack = field_stack.first().unwrap();
     let num_in_group_tag = first_field_stack.tag;
-    let mut num_in_group = FIXInt::default();
-
-    num_in_group
-        .read(&first_field_stack.value)
+    let num_in_group: isize = atoi_simd::parse::<isize, false, false>(first_field_stack.value())
         .map_err(|_| incorrect_data_format_for_value(num_in_group_tag))?;
 
     let mut field_stack = field_stack.get(1..).unwrap();
@@ -335,7 +329,8 @@ fn validate_field(
     _valid_fields: &TagSet,
     field: &TagValue,
 ) -> MessageRejectErrorResult {
-    if field.value.is_empty() {
+    let value = field.value();
+    if value.is_empty() {
         return Err(tag_specified_without_a_value(field.tag));
     }
 
@@ -347,14 +342,12 @@ fn validate_field(
 
     let allowed_values = &field_type.enums;
     if !allowed_values.is_empty()
-        && !allowed_values.contains_key(String::from_utf8_lossy(&field.value).as_ref())
+        && !allowed_values.contains_key(String::from_utf8_lossy(value).as_ref())
     {
         return Err(value_is_incorrect(field.tag));
     }
 
-    let mut prototype = <dyn FieldValue>::default();
-
-    match field_type.r#type.as_str() {
+    let valid = match field_type.r#type.as_str() {
         "MULTIPLESTRINGVALUE"
         | "MULTIPLEVALUESTRING"
         | "MULTIPLECHARVALUE"
@@ -373,21 +366,23 @@ fn validate_field(
         | "UTCDATE"
         | "TZTIMEONLY"
         | "TZTIMESTAMP"
-        | "STRING" => prototype = Box::<FIXString>::default(),
-        "BOOLEAN" => prototype = Box::<FIXBoolean>::default(),
+        | "STRING" => true, // strings are always valid
         "LENGTH" | "DAYOFMONTH" | "NUMINGROUP" | "SEQNUM" | "INT" => {
-            prototype = Box::<FIXInt>::default();
+            atoi_simd::parse::<isize, false, false>(value).is_ok()
         }
-        "UTCTIMESTAMP" | "TIME" => prototype = Box::<FIXUTCTimestamp>::default(),
+        "UTCTIMESTAMP" | "TIME" => {
+            FIXUTCTimestamp::default().read(value).is_ok()
+        }
         "QTY" | "QUANTITY" | "AMT" | "PRICE" | "PRICEOFFSET" | "PERCENTAGE" | "FLOAT" => {
-            prototype = Box::<FIXFloat>::default();
+            FIXFloat::default().read(value).is_ok()
         }
-        _ => {}
-    }
+        // Unknown types: validate as boolean (matches original default behavior)
+        _ => value == b"Y" || value == b"N",
+    };
 
-    (*prototype)
-        .read(&field.value)
-        .map_err(|_| incorrect_data_format_for_value(field.tag))?;
+    if !valid {
+        return Err(incorrect_data_format_for_value(field.tag));
+    }
 
     Ok(())
 }
@@ -431,6 +426,8 @@ mod tests {
     use super::*;
     use crate::{
         datadictionary::{DataDictionary, FieldType},
+        fix_int::FIXInt,
+        fix_string::FIXString,
         fix_utc_timestamp::TimestampPrecision,
         tag_value::TagValue,
     };

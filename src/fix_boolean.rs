@@ -32,11 +32,8 @@ impl FieldValueReader for FIXBoolean {
 }
 
 impl FieldValueWriter for FIXBoolean {
-    fn write(&self) -> Vec<u8> {
-        if *self {
-            return vec![b'Y'];
-        }
-        vec![b'N']
+    fn write_to(&self, buf: &mut Vec<u8>) {
+        buf.push(if *self { b'Y' } else { b'N' });
     }
 }
 

@@ -1,34 +1,68 @@
 use crate::tag::Tag;
 
-// TagValue is a low-level FIX field abstraction
+// TagValue is a low-level FIX field abstraction.
+// Only `bytes` (the full `tag=value\x01` wire format) is stored; `value` is
+// derived on demand via `sep_index` (the position of `=` in `bytes`).
 #[derive(Default, Clone, Debug, PartialEq)]
 pub struct TagValue {
     pub tag: Tag,
-    pub value: Vec<u8>,
     pub bytes: Vec<u8>,
+    // Position of '=' in bytes. Value slice is bytes[sep_index+1..bytes.len()-1].
+    sep_index: usize,
 }
 
 impl TagValue {
-    pub fn init(&mut self, tag: Tag, value: &[u8]) {
-        self.bytes = itoa::Buffer::new().format(tag).as_bytes().to_vec();
+    pub fn new(tag: Tag, value: &[u8]) -> Self {
+        let mut tv = Self::default();
+        tv.init(tag, value);
+        tv
+    }
+
+    #[inline]
+    pub fn value(&self) -> &[u8] {
+        if self.bytes.is_empty() {
+            return &[];
+        }
+        &self.bytes[self.sep_index + 1..self.bytes.len() - 1]
+    }
+
+    pub fn init_with_writer<W: crate::field::FieldValueWriter>(&mut self, tag: Tag, writer: &W) {
+        self.bytes.clear();
+        let mut tag_str = itoa::Buffer::new();
+        let tag_bytes = tag_str.format(tag).as_bytes();
+        self.bytes.extend_from_slice(tag_bytes);
         self.bytes.push(b'=');
+        self.sep_index = self.bytes.len() - 1;
+        writer.write_to(&mut self.bytes);
+        self.bytes.push(1); // SOH delimiter
+        self.tag = tag;
+    }
+
+    pub fn init(&mut self, tag: Tag, value: &[u8]) {
+        self.bytes.clear();
+        let mut tag_str = itoa::Buffer::new();
+        let tag_bytes = tag_str.format(tag).as_bytes();
+        self.bytes.reserve(tag_bytes.len() + 1 + value.len() + 1);
+        self.bytes.extend_from_slice(tag_bytes);
+        self.bytes.push(b'=');
+        self.sep_index = self.bytes.len() - 1;
         self.bytes.extend_from_slice(value);
-        self.bytes.push(b'');
+        self.bytes.push(1); // SOH delimiter
 
         self.tag = tag;
-        self.value = value.to_vec();
     }
 
     pub fn parse(&mut self, raw_field_bytes: &[u8]) -> Result<(), String> {
-        let sep_index_option = raw_field_bytes.iter().position(|x| '=' == *x as char);
-        if sep_index_option.is_none() {
-            return Err(format!(
-                "TagValue::parse: No '=' in '{}'",
-                String::from_utf8_lossy(raw_field_bytes)
-            ));
-        }
+        let sep_index = raw_field_bytes
+            .iter()
+            .position(|x| *x == b'=')
+            .ok_or_else(|| {
+                format!(
+                    "TagValue::parse: No '=' in '{}'",
+                    String::from_utf8_lossy(raw_field_bytes)
+                )
+            })?;
 
-        let sep_index = sep_index_option.unwrap();
         if sep_index == 0 {
             return Err(format!(
                 "TagValue::parse: No tag in '{}'",
@@ -45,8 +79,7 @@ impl TagValue {
         })?;
 
         self.tag = parsed_tag;
-        let n = raw_field_bytes.len();
-        self.value = raw_field_bytes.get(sep_index + 1..n - 1).unwrap().to_vec();
+        self.sep_index = sep_index;
         self.bytes = raw_field_bytes.to_vec();
 
         Ok(())
@@ -81,7 +114,7 @@ mod tests {
     fn test_tag_value_init() {
         let mut tv = TagValue::default();
         tv.init(8, "blahblah".as_bytes());
-        let expected_data = "8=blahblah".as_bytes();
+        let expected_data = "8=blahblah\x01".as_bytes();
 
         assert_eq!(
             &tv.bytes, expected_data,
@@ -91,61 +124,61 @@ mod tests {
 
         let expected_value = "blahblah".as_bytes();
         assert_eq!(
-            &tv.value, expected_value,
+            tv.value(), expected_value,
             "Expected {:?}, got {:?}",
-            expected_value, tv.value,
+            expected_value, tv.value(),
         );
     }
 
     #[test]
     fn test_tag_value_parse() {
-        let string_field = "8=FIX.4.0";
+        let string_field = "8=FIX.4.0\x01";
         let mut tv = TagValue::default();
         let result = tv.parse(string_field.as_bytes());
         assert!(result.is_ok());
         assert_eq!(8, tv.tag);
         assert_eq!(tv.bytes, string_field.as_bytes());
-        assert_eq!(tv.value, "FIX.4.0".as_bytes());
+        assert_eq!(tv.value(), "FIX.4.0".as_bytes());
     }
 
     #[test]
     fn test_tag_value_parse_fail() {
-        let mut string_field = "not_tag_equal_value";
+        let mut string_field = "not_tag_equal_value";
         let mut tv = TagValue::default();
         let result = tv.parse(string_field.as_bytes());
         assert!(result.is_err());
 
-        string_field = "tag_not_an_int=uhoh";
+        string_field = "tag_not_an_int=uhoh";
         let result = tv.parse(string_field.as_bytes());
         assert!(result.is_err());
 
-        string_field = "=notag";
+        string_field = "=notag";
         let result = tv.parse(string_field.as_bytes());
         assert!(result.is_err());
     }
 
     #[test]
     fn test_tag_value_string() {
-        let string_field = "8=FIX.4.0";
+        let string_field = "8=FIX.4.0\x01";
         let mut tv = TagValue::default();
         let result = tv.parse(string_field.as_bytes());
         assert!(result.is_ok());
 
-        assert_eq!(String::from("8=FIX.4.0"), tv.to_string());
+        assert_eq!(String::from("8=FIX.4.0\x01"), tv.to_string());
     }
 
     #[test]
     fn test_tag_value_length() {
-        let string_field = "8=FIX.4.0";
+        let string_field = "8=FIX.4.0\x01";
         let mut tv = TagValue::default();
         let result = tv.parse(string_field.as_bytes());
         assert!(result.is_ok());
-        assert_eq!(string_field.chars().count() as isize, tv.length());
+        assert_eq!(string_field.len() as isize, tv.length());
     }
 
     #[test]
     fn test_tag_value_total() {
-        let string_field = "1=hello";
+        let string_field = "1=hello\x01";
         let mut tv = TagValue::default();
         let result = tv.parse(string_field.as_bytes());
         assert!(result.is_ok());

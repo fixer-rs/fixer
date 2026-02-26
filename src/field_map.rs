@@ -160,7 +160,7 @@ impl FieldMap {
             .ok_or_else(|| conditionally_required_field_missing(tag))?;
 
         parser
-            .read(&f.data[0].value)
+            .read(f.data[0].value())
             .map_err(|_| incorrect_data_format_for_value(tag))?;
 
         Ok(())
@@ -173,7 +173,7 @@ impl FieldMap {
             .tag_lookup
             .get(&tag)
             .ok_or_else(|| conditionally_required_field_missing(tag))?;
-        Ok(&f.data[0].value)
+        Ok(f.data[0].value())
     }
 
     // with_bytes borrows the raw bytes for the given tag and passes them to a
@@ -187,7 +187,7 @@ impl FieldMap {
             .tag_lookup
             .get(&tag)
             .ok_or_else(|| conditionally_required_field_missing(tag))?;
-        f(&field.data[0].value)
+        f(field.data[0].value())
     }
 
     // get_bool is a get_field wrapper for bool fields
@@ -264,7 +264,9 @@ impl FieldMap {
     // set_field sets the field with Tag tag
     #[allow(clippy::needless_pass_by_value)]
     pub fn set_field<F: FieldValueWriter>(&mut self, tag: Tag, field: F) -> &FieldMap {
-        self.set_bytes(tag, &field.write())
+        let f = self.get_or_create(tag);
+        f.data[0].init_with_writer(tag, &field);
+        self
     }
 
     // set_bytes sets bytes
@@ -281,7 +283,9 @@ impl FieldMap {
 
     // set_int is a set_field wrapper for int fields
     pub fn set_int(&mut self, tag: Tag, value: isize) -> &FieldMap {
-        self.set_bytes(tag, &(value as FIXInt).write())
+        let f = self.get_or_create(tag);
+        f.data[0].init_with_writer(tag, &(value as FIXInt));
+        self
     }
 
     // set_string is a set_field wrapper for string fields
@@ -330,9 +334,8 @@ impl FieldMap {
     #[allow(clippy::needless_pass_by_value)]
     pub fn set<F: FieldWriter>(&mut self, field: F) -> &FieldMap {
         let tag = field.tag();
-        let bytes = field.write();
         let f = self.get_or_create(tag);
-        f.init_field(tag, &bytes);
+        f.data[0].init_with_writer(tag, &field);
         self
     }
 

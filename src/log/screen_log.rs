@@ -4,7 +4,8 @@ use crate::{
 };
 use jiff::{tz::TimeZone, Timestamp};
 use ramhorns::Template;
-use std::{collections::HashMap, sync::Arc};
+use rustc_hash::FxHashMap;
+use std::sync::Arc;
 use tokio::io::{self, AsyncWriteExt};
 
 pub struct ScreenLog {
@@ -53,7 +54,7 @@ impl LogTrait for ScreenLog {
         let _ = stdout.write_all(output.as_bytes()).await;
     }
 
-    async fn on_eventf(&mut self, fmt: &str, params: HashMap<String, String>) {
+    async fn on_eventf(&mut self, fmt: &str, params: FxHashMap<String, String>) {
         let tpl = Template::new(fmt).unwrap();
         self.on_event(&tpl.render(&params)).await;
     }

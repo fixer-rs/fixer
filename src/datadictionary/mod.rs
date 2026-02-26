@@ -1,8 +1,9 @@
 use delegate::delegate;
 use quick_xml::de::from_reader;
 use simple_error::{SimpleError, SimpleResult};
+use rustc_hash::FxHashMap;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     fmt,
     io::BufRead,
 };
@@ -301,7 +302,7 @@ pub struct FieldType {
     name: String,
     tag: isize,
     pub r#type: String,
-    pub enums: HashMap<String, Enum>,
+    pub enums: FxHashMap<String, Enum>,
 }
 
 impl FieldType {
@@ -341,7 +342,7 @@ pub struct Enum {
 pub struct MessageDef {
     pub name: String,
     pub msg_type: String,
-    pub fields: HashMap<isize, FieldDef>,
+    pub fields: FxHashMap<isize, FieldDef>,
     // Parts are the MessageParts of contained in this MessageDef in declaration order
     pub parts: Vec<MessagePart>,
     pub required_parts: Vec<MessagePart>,
@@ -414,10 +415,10 @@ pub struct DataDictionary {
     pub major: isize,
     pub minor: isize,
     pub service_pack: isize,
-    pub field_type_by_tag: HashMap<isize, FieldType>,
-    pub field_type_by_name: HashMap<String, FieldType>,
-    pub messages: HashMap<String, MessageDef>,
-    pub component_types: HashMap<String, ComponentType>,
+    pub field_type_by_tag: FxHashMap<isize, FieldType>,
+    pub field_type_by_name: FxHashMap<String, FieldType>,
+    pub messages: FxHashMap<String, MessageDef>,
+    pub component_types: FxHashMap<String, ComponentType>,
     pub header: MessageDef,
     pub trailer: MessageDef,
 }

@@ -7,7 +7,8 @@ use crate::{
     settings::Settings,
 };
 use ramhorns::Template;
-use std::{collections::HashMap, path::Path, sync::Arc};
+use rustc_hash::FxHashMap;
+use std::{path::Path, sync::Arc};
 use tokio::{
     fs::{DirBuilder, File, OpenOptions},
     io::AsyncWriteExt,
@@ -39,7 +40,7 @@ impl LogTrait for FileLog {
         let _ = self.event_file.write_all(&mut_data).await;
     }
 
-    async fn on_eventf(&mut self, fmt: &str, params: HashMap<String, String>) {
+    async fn on_eventf(&mut self, fmt: &str, params: FxHashMap<String, String>) {
         let tpl = Template::new(fmt).unwrap();
         self.on_event(&tpl.render(&params)).await;
     }
@@ -86,7 +87,7 @@ impl FileLog {
 #[derive(Default, Clone)]
 pub struct FileLogFactory {
     global_log_path: String,
-    session_log_paths: HashMap<Arc<SessionID>, String>,
+    session_log_paths: FxHashMap<Arc<SessionID>, String>,
 }
 
 impl FileLogFactory {

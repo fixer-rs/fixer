@@ -1,6 +1,6 @@
 use crate::log::{LogEnum, LogFactoryEnum, LogFactoryTrait, LogTrait};
 use crate::session::session_id::SessionID;
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::sync::Arc;
 
 #[derive(Default)]
@@ -10,7 +10,7 @@ impl LogTrait for NullLog {
     async fn on_incoming(&mut self, _data: &[u8]) {}
     async fn on_outgoing(&mut self, _data: &[u8]) {}
     async fn on_event(&mut self, _data: &str) {}
-    async fn on_eventf(&mut self, _format: &str, _params: HashMap<String, String>) {}
+    async fn on_eventf(&mut self, _format: &str, _params: FxHashMap<String, String>) {}
 }
 
 #[derive(Clone)]

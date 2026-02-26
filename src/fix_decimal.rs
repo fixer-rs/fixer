@@ -18,11 +18,9 @@ impl FieldValueReader for FIXDecimal {
 }
 
 impl FieldValueWriter for FIXDecimal {
-    fn write(&self) -> Vec<u8> {
-        self.decimal
-            .round_dp(self.scale.try_into().unwrap())
-            .to_string()
-            .into_bytes()
+    fn write_to(&self, buf: &mut Vec<u8>) {
+        use std::io::Write;
+        write!(buf, "{}", self.decimal.round_dp(self.scale.try_into().unwrap())).unwrap();
     }
 }
 

@@ -37,8 +37,8 @@ use addr::parse_domain_name;
 use jiff::{SignedDuration, civil::Weekday, tz::TimeZone};
 use simple_error::{SimpleError, SimpleResult};
 use std::sync::LazyLock;
+use rustc_hash::FxHashMap;
 use std::{
-    collections::HashMap,
     net::{IpAddr, SocketAddr, SocketAddrV4, SocketAddrV6},
     ops::Deref,
     str::FromStr,
@@ -46,7 +46,7 @@ use std::{
 };
 use tokio::sync::mpsc::{channel, unbounded_channel};
 
-static DAY_LOOKUP: LazyLock<HashMap<&str, Weekday>> = LazyLock::new(|| {
+static DAY_LOOKUP: LazyLock<FxHashMap<&str, Weekday>> = LazyLock::new(|| {
     hashmap! {
         "Sunday"    => Weekday::Sunday,
         "Monday"    => Weekday::Monday,
@@ -66,7 +66,7 @@ static DAY_LOOKUP: LazyLock<HashMap<&str, Weekday>> = LazyLock::new(|| {
     }
 });
 
-static APPL_VER_ID_LOOKUP: LazyLock<HashMap<&str, &str>> = LazyLock::new(|| {
+static APPL_VER_ID_LOOKUP: LazyLock<FxHashMap<&str, &str>> = LazyLock::new(|| {
     hashmap! {
         BEGIN_STRING_FIX40 => "2",
         BEGIN_STRING_FIX41 => "3",

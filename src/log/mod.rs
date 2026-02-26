@@ -3,7 +3,8 @@ use enum_dispatch::enum_dispatch;
 use file_log::{FileLog, FileLogFactory};
 use null_log::{NullLog, NullLogFactory};
 use screen_log::{ScreenLog, ScreenLogFactory};
-use std::{collections::HashMap, sync::Arc};
+use rustc_hash::FxHashMap;
+use std::sync::Arc;
 
 pub mod file_log;
 pub mod null_log;
@@ -23,7 +24,7 @@ pub trait LogTrait {
     async fn on_event(&mut self, data: &str);
 
     // on_eventf log fix event according to format specifier
-    async fn on_eventf(&mut self, format: &str, params: HashMap<String, String>);
+    async fn on_eventf(&mut self, format: &str, params: FxHashMap<String, String>);
 }
 
 // The LogFactory trait creates global and session specific Log instances

@@ -149,7 +149,7 @@ impl FieldGroupReader for RepeatingGroup {
             return Ok(LocalField::new(vec![]));
         }
 
-        let Ok(expected_group_size) = atoi_simd::parse::<usize, false, false>(&tv.data[0].value) else {
+        let Ok(expected_group_size) = atoi_simd::parse::<usize, false, false>(tv.data[0].value()) else {
             return Ok(tv);
         };
 
@@ -382,46 +382,18 @@ mod tests {
         let test_cases = [
             TestCase {
                 tv: LocalField::new(vec![
-                    TagValue {
-                        tag: 0,
-                        value: "1".as_bytes().to_vec(),
-                        bytes: vec![],
-                    },
-                    TagValue {
-                        tag: 2,
-                        value: "not in template".as_bytes().to_vec(),
-                        bytes: vec![],
-                    },
-                    TagValue {
-                        tag: 1,
-                        value: "hello".as_bytes().to_vec(),
-                        bytes: vec![],
-                    },
+                    TagValue::new(0, b"1"),
+                    TagValue::new(2, b"not in template"),
+                    TagValue::new(1, b"hello"),
                 ]),
                 expected_group_num: 0,
             },
             TestCase {
                 tv: LocalField::new(vec![
-                    TagValue {
-                        tag: 0,
-                        value: "2".as_bytes().to_vec(),
-                        bytes: vec![],
-                    },
-                    TagValue {
-                        tag: 1,
-                        value: "hello".as_bytes().to_vec(),
-                        bytes: vec![],
-                    },
-                    TagValue {
-                        tag: 2,
-                        value: "not in template".as_bytes().to_vec(),
-                        bytes: vec![],
-                    },
-                    TagValue {
-                        tag: 1,
-                        value: "hello".as_bytes().to_vec(),
-                        bytes: vec![],
-                    },
+                    TagValue::new(0, b"2"),
+                    TagValue::new(1, b"hello"),
+                    TagValue::new(2, b"not in template"),
+                    TagValue::new(1, b"hello"),
                 ]),
                 expected_group_num: 1,
             },
@@ -457,206 +429,74 @@ mod tests {
         let mut test_cases = [
             TestCase {
                 group_template: Some(single_field_template.clone()),
-                tv: LocalField::new(vec![TagValue {
-                    tag: 0,
-                    value: "0".as_bytes().to_vec(),
-                    ..Default::default()
-                }]),
+                tv: LocalField::new(vec![TagValue::new(0, b"0")]),
                 ..Default::default()
             },
             TestCase {
                 group_template: Some(single_field_template.clone()),
                 tv: LocalField::new(vec![
-                    TagValue {
-                        tag: 0,
-                        value: "1".as_bytes().to_vec(),
-                        ..Default::default()
-                    },
-                    TagValue {
-                        tag: 1,
-                        value: "hello".as_bytes().to_vec(),
-                        ..Default::default()
-                    },
+                    TagValue::new(0, b"1"),
+                    TagValue::new(1, b"hello"),
                 ]),
-                expected_group_tvs: vec![LocalField::new(vec![TagValue {
-                    tag: 1,
-                    value: "hello".as_bytes().to_vec(),
-                    ..Default::default()
-                }])],
+                expected_group_tvs: vec![LocalField::new(vec![TagValue::new(1, b"hello")])],
             },
             TestCase {
                 group_template: Some(single_field_template.clone()),
                 tv: LocalField::new(vec![
-                    TagValue {
-                        tag: 0,
-                        value: "1".as_bytes().to_vec(),
-                        ..Default::default()
-                    },
-                    TagValue {
-                        tag: 1,
-                        value: "hello".as_bytes().to_vec(),
-                        ..Default::default()
-                    },
-                    TagValue {
-                        tag: 2,
-                        value: "not in group".as_bytes().to_vec(),
-                        ..Default::default()
-                    },
+                    TagValue::new(0, b"1"),
+                    TagValue::new(1, b"hello"),
+                    TagValue::new(2, b"not in group"),
                 ]),
-                expected_group_tvs: vec![LocalField::new(vec![TagValue {
-                    tag: 1,
-                    value: "hello".as_bytes().to_vec(),
-                    ..Default::default()
-                }])],
+                expected_group_tvs: vec![LocalField::new(vec![TagValue::new(1, b"hello")])],
             },
             TestCase {
                 group_template: Some(single_field_template.clone()),
                 tv: LocalField::new(vec![
-                    TagValue {
-                        tag: 0,
-                        value: "2".as_bytes().to_vec(),
-                        ..Default::default()
-                    },
-                    TagValue {
-                        tag: 1,
-                        value: "hello".as_bytes().to_vec(),
-                        ..Default::default()
-                    },
-                    TagValue {
-                        tag: 1,
-                        value: "world".as_bytes().to_vec(),
-                        ..Default::default()
-                    },
+                    TagValue::new(0, b"2"),
+                    TagValue::new(1, b"hello"),
+                    TagValue::new(1, b"world"),
                 ]),
                 expected_group_tvs: vec![
-                    LocalField::new(vec![TagValue {
-                        tag: 1,
-                        value: "hello".as_bytes().to_vec(),
-                        ..Default::default()
-                    }]),
-                    LocalField::new(vec![TagValue {
-                        tag: 1,
-                        value: "world".as_bytes().to_vec(),
-                        ..Default::default()
-                    }]),
+                    LocalField::new(vec![TagValue::new(1, b"hello")]),
+                    LocalField::new(vec![TagValue::new(1, b"world")]),
                 ],
             },
             TestCase {
                 group_template: Some(multi_field_template.clone()),
                 tv: LocalField::new(vec![
-                    TagValue {
-                        tag: 0,
-                        value: "2".as_bytes().to_vec(),
-                        ..Default::default()
-                    },
-                    TagValue {
-                        tag: 1,
-                        value: "hello".as_bytes().to_vec(),
-                        ..Default::default()
-                    },
-                    TagValue {
-                        tag: 1,
-                        value: "goodbye".as_bytes().to_vec(),
-                        ..Default::default()
-                    },
-                    TagValue {
-                        tag: 2,
-                        value: "cruel".as_bytes().to_vec(),
-                        ..Default::default()
-                    },
-                    TagValue {
-                        tag: 3,
-                        value: "world".as_bytes().to_vec(),
-                        ..Default::default()
-                    },
+                    TagValue::new(0, b"2"),
+                    TagValue::new(1, b"hello"),
+                    TagValue::new(1, b"goodbye"),
+                    TagValue::new(2, b"cruel"),
+                    TagValue::new(3, b"world"),
                 ]),
                 expected_group_tvs: vec![
-                    LocalField::new(vec![TagValue {
-                        tag: 1,
-                        value: "hello".as_bytes().to_vec(),
-                        ..Default::default()
-                    }]),
+                    LocalField::new(vec![TagValue::new(1, b"hello")]),
                     LocalField::new(vec![
-                        TagValue {
-                            tag: 1,
-                            value: "goodbye".as_bytes().to_vec(),
-                            ..Default::default()
-                        },
-                        TagValue {
-                            tag: 2,
-                            value: "cruel".as_bytes().to_vec(),
-                            ..Default::default()
-                        },
-                        TagValue {
-                            tag: 3,
-                            value: "world".as_bytes().to_vec(),
-                            ..Default::default()
-                        },
+                        TagValue::new(1, b"goodbye"),
+                        TagValue::new(2, b"cruel"),
+                        TagValue::new(3, b"world"),
                     ]),
                 ],
             },
             TestCase {
                 group_template: Some(multi_field_template.clone()),
                 tv: LocalField::new(vec![
-                    TagValue {
-                        tag: 0,
-                        value: "3".as_bytes().to_vec(),
-                        ..Default::default()
-                    },
-                    TagValue {
-                        tag: 1,
-                        value: "hello".as_bytes().to_vec(),
-                        ..Default::default()
-                    },
-                    TagValue {
-                        tag: 1,
-                        value: "goodbye".as_bytes().to_vec(),
-                        ..Default::default()
-                    },
-                    TagValue {
-                        tag: 2,
-                        value: "cruel".as_bytes().to_vec(),
-                        ..Default::default()
-                    },
-                    TagValue {
-                        tag: 3,
-                        value: "world".as_bytes().to_vec(),
-                        ..Default::default()
-                    },
-                    TagValue {
-                        tag: 1,
-                        value: "another".as_bytes().to_vec(),
-                        ..Default::default()
-                    },
+                    TagValue::new(0, b"3"),
+                    TagValue::new(1, b"hello"),
+                    TagValue::new(1, b"goodbye"),
+                    TagValue::new(2, b"cruel"),
+                    TagValue::new(3, b"world"),
+                    TagValue::new(1, b"another"),
                 ]),
                 expected_group_tvs: vec![
-                    LocalField::new(vec![TagValue {
-                        tag: 1,
-                        value: "hello".as_bytes().to_vec(),
-                        ..Default::default()
-                    }]),
+                    LocalField::new(vec![TagValue::new(1, b"hello")]),
                     LocalField::new(vec![
-                        TagValue {
-                            tag: 1,
-                            value: "goodbye".as_bytes().to_vec(),
-                            ..Default::default()
-                        },
-                        TagValue {
-                            tag: 2,
-                            value: "cruel".as_bytes().to_vec(),
-                            ..Default::default()
-                        },
-                        TagValue {
-                            tag: 3,
-                            value: "world".as_bytes().to_vec(),
-                            ..Default::default()
-                        },
+                        TagValue::new(1, b"goodbye"),
+                        TagValue::new(2, b"cruel"),
+                        TagValue::new(3, b"world"),
                     ]),
-                    LocalField::new(vec![TagValue {
-                        tag: 1,
-                        value: "another".as_bytes().to_vec(),
-                        ..Default::default()
-                    }]),
+                    LocalField::new(vec![TagValue::new(1, b"another")]),
                 ],
             },
         ];
@@ -687,12 +527,12 @@ mod tests {
                     assert!(!group.field_map.content.tag_sort.tags.is_empty());
                     assert_eq!(group.field_map.content.tag_sort.tags.len(), group.field_map.content.tag_lookup.len());
                     assert_eq!(
-                        String::from_utf8_lossy(&expected.value),
+                        String::from_utf8_lossy(expected.value()),
                         actual,
                         "{}, {}: expected {}, got {}",
                         g,
                         expected.tag,
-                        String::from_utf8_lossy(&expected.value),
+                        String::from_utf8_lossy(expected.value()),
                         actual
                     );
                 }
@@ -711,51 +551,15 @@ mod tests {
 
         let mut f = RepeatingGroup::new(1, parent_template);
         let read_result = f.read(LocalField::new(vec![
-            TagValue {
-                tag: 0,
-                value: "2".as_bytes().to_vec(),
-                ..Default::default()
-            },
-            TagValue {
-                tag: 2,
-                value: "hello".as_bytes().to_vec(),
-                ..Default::default()
-            },
-            TagValue {
-                tag: 3,
-                value: "1".as_bytes().to_vec(),
-                ..Default::default()
-            },
-            TagValue {
-                tag: 4,
-                value: "foo".as_bytes().to_vec(),
-                ..Default::default()
-            },
-            TagValue {
-                tag: 2,
-                value: "world".as_bytes().to_vec(),
-                ..Default::default()
-            },
-            TagValue {
-                tag: 3,
-                value: "2".as_bytes().to_vec(),
-                ..Default::default()
-            },
-            TagValue {
-                tag: 4,
-                value: "foo".as_bytes().to_vec(),
-                ..Default::default()
-            },
-            TagValue {
-                tag: 4,
-                value: "bar".as_bytes().to_vec(),
-                ..Default::default()
-            },
-            TagValue {
-                tag: 5,
-                value: "fubar".as_bytes().to_vec(),
-                ..Default::default()
-            },
+            TagValue::new(0, b"2"),
+            TagValue::new(2, b"hello"),
+            TagValue::new(3, b"1"),
+            TagValue::new(4, b"foo"),
+            TagValue::new(2, b"world"),
+            TagValue::new(3, b"2"),
+            TagValue::new(4, b"foo"),
+            TagValue::new(4, b"bar"),
+            TagValue::new(5, b"fubar"),
         ]));
         assert!(read_result.is_ok());
         assert_eq!(2, f.len());

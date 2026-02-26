@@ -44,8 +44,8 @@ impl FieldValueReader for FIXInt {
 }
 
 impl FieldValueWriter for FIXInt {
-    fn write(&self) -> Vec<u8> {
-        itoa::Buffer::new().format(*self).to_string().into_bytes()
+    fn write_to(&self, buf: &mut Vec<u8>) {
+        buf.extend_from_slice(itoa::Buffer::new().format(*self).as_bytes());
     }
 }
 

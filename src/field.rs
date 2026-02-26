@@ -1,5 +1,4 @@
 use crate::errors::MessageRejectErrorEnum;
-use crate::fix_boolean::FIXBoolean;
 use crate::{field_map::LocalField, tag::Tag};
 use simple_error::SimpleResult;
 
@@ -9,8 +8,15 @@ pub trait FieldTag {
 
 // FieldValueWriter is an interface for writing field values
 pub trait FieldValueWriter {
-    // write writes out the contents of the FieldValue to a []byte
-    fn write(&self) -> Vec<u8>;
+    // write_to appends the field value bytes to buf
+    fn write_to(&self, buf: &mut Vec<u8>);
+
+    // write returns the field value as a new Vec<u8>
+    fn write(&self) -> Vec<u8> {
+        let mut buf = Vec::new();
+        self.write_to(&mut buf);
+        buf
+    }
 }
 
 // FieldValueReader is an interface for reading field values
@@ -41,10 +47,3 @@ pub trait FieldGroupReader: FieldTag {
 
 // FieldGroup is the interface implemented by all typed Groups in a Message
 pub trait FieldGroup: FieldTag + FieldGroupWriter + FieldGroupReader {}
-
-impl dyn FieldValue {
-    #[allow(clippy::should_implement_trait)]
-    pub fn default() -> Box<dyn FieldValue + Send> {
-        Box::<FIXBoolean>::default()
-    }
-}

@@ -12,8 +12,8 @@ impl FieldValueReader for FIXBytes {
 }
 
 impl FieldValueWriter for FIXBytes {
-    fn write(&self) -> Vec<u8> {
-        self.clone()
+    fn write_to(&self, buf: &mut Vec<u8>) {
+        buf.extend_from_slice(self);
     }
 }
 

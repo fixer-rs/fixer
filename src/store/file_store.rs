@@ -10,11 +10,12 @@ use crate::{
     },
 };
 use jiff::{Timestamp, tz::TimeZone};
+use rustc_hash::FxHashMap;
 use simple_error::{SimpleError, SimpleResult};
 // TODO: check windows os
 use sscanf::sscanf;
 use std::{
-    collections::HashMap, io::SeekFrom, os::unix::prelude::PermissionsExt, path::Path, sync::Arc,
+    io::SeekFrom, os::unix::prelude::PermissionsExt, path::Path, sync::Arc,
 };
 use tokio::{
     fs::{self, File},
@@ -59,7 +60,7 @@ pub struct FileStore {
     // stored for parity with Go quickfix fileStore; may be used by future extensions
     session_id: Arc<SessionID>,
     cache: MemoryStore,
-    offsets: HashMap<isize, MsgDef>,
+    offsets: FxHashMap<isize, MsgDef>,
     body_file: IndividualFile,
     header_file: IndividualFile,
     session_file: IndividualFile,

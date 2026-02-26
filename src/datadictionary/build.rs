@@ -2,14 +2,14 @@ use super::{
     Component, ComponentType, DataDictionary, Enum, FieldDef, FieldType, MessageDef, MessagePart,
     xml::{XMLComponent, XMLComponentEnum, XMLDoc, XMLField},
 };
+use rustc_hash::FxHashMap;
 use simple_error::{SimpleError, SimpleResult};
-use std::collections::HashMap;
 
 #[derive(Default)]
 pub struct Builder {
     doc: XMLDoc,
     dict: DataDictionary,
-    component_by_name: HashMap<String, XMLComponent>,
+    component_by_name: FxHashMap<String, XMLComponent>,
 }
 
 impl Builder {
@@ -405,7 +405,7 @@ mod tests {
                 XMLComponentEnum::Group(comp)
             };
 
-            let field_type_by_name: HashMap<String, FieldType> = hashmap! {
+            let field_type_by_name: FxHashMap<String, FieldType> = hashmap! {
                 "myfield".to_string() => FieldType::new("some field".to_string(), 11, "INT".to_string()),
             };
 

@@ -65,29 +65,15 @@ impl FieldValueReader for FIXUTCTimestamp {
 }
 
 impl FieldValueWriter for FIXUTCTimestamp {
-    fn write(&self) -> Vec<u8> {
-        match self.precision {
-            TimestampPrecision::Seconds => self
-                .time
-                .strftime(UTC_TIMESTAMP_SECONDS_FORMAT)
-                .to_string()
-                .into_bytes(),
-            TimestampPrecision::Millis => self
-                .time
-                .strftime(UTC_TIMESTAMP_MILLIS_FORMAT)
-                .to_string()
-                .into_bytes(),
-            TimestampPrecision::Micros => self
-                .time
-                .strftime(UTC_TIMESTAMP_MICROS_FORMAT)
-                .to_string()
-                .into_bytes(),
-            TimestampPrecision::Nanos => self
-                .time
-                .strftime(UTC_TIMESTAMP_NANOS_FORMAT)
-                .to_string()
-                .into_bytes(),
-        }
+    fn write_to(&self, buf: &mut Vec<u8>) {
+        use std::io::Write;
+        let fmt = match self.precision {
+            TimestampPrecision::Seconds => UTC_TIMESTAMP_SECONDS_FORMAT,
+            TimestampPrecision::Millis => UTC_TIMESTAMP_MILLIS_FORMAT,
+            TimestampPrecision::Micros => UTC_TIMESTAMP_MICROS_FORMAT,
+            TimestampPrecision::Nanos => UTC_TIMESTAMP_NANOS_FORMAT,
+        };
+        write!(buf, "{}", self.time.strftime(fmt)).unwrap();
     }
 }
 

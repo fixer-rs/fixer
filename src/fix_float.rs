@@ -35,8 +35,9 @@ impl FieldValueReader for FIXFloat {
 }
 
 impl FieldValueWriter for FIXFloat {
-    fn write(&self) -> Vec<u8> {
-        self.to_string().into_bytes()
+    fn write_to(&self, buf: &mut Vec<u8>) {
+        use std::io::Write;
+        write!(buf, "{self}").unwrap();
     }
 }
 
