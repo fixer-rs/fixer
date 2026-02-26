@@ -42,6 +42,12 @@ pub trait MessageStoreTrait {
         begin_seq_num: isize,
         end_seq_num: isize,
     ) -> SimpleResult<Vec<Vec<u8>>>;
+    async fn iterate_messages(
+        &mut self,
+        begin_seq_num: isize,
+        end_seq_num: isize,
+        cb: &mut (dyn FnMut(&[u8]) -> SimpleResult<()> + Send),
+    ) -> SimpleResult<()>;
 
     async fn refresh(&mut self) -> SimpleResult<()>;
     async fn reset(&mut self) -> SimpleResult<()>;
@@ -165,20 +171,31 @@ impl MessageStoreTrait for MemoryStore {
         self.incr_next_sender_msg_seq_num().await
     }
 
+    async fn iterate_messages(
+        &mut self,
+        begin_seq_num: isize,
+        end_seq_num: isize,
+        cb: &mut (dyn FnMut(&[u8]) -> SimpleResult<()> + Send),
+    ) -> SimpleResult<()> {
+        for seq_num in begin_seq_num..=end_seq_num {
+            if let Some(m) = self.message_map.get(&seq_num) {
+                cb(m)?;
+            }
+        }
+        Ok(())
+    }
+
     async fn get_messages(
         &mut self,
         begin_seq_num: isize,
         end_seq_num: isize,
     ) -> SimpleResult<Vec<Vec<u8>>> {
         let mut msgs: Vec<Vec<u8>> = vec![];
-        let mut seq_num = begin_seq_num;
-        while seq_num <= end_seq_num {
-            if self.message_map.contains_key(&seq_num) {
-                msgs.push(self.message_map.get(&seq_num).unwrap().clone());
-            }
-            seq_num += 1;
-        }
-
+        self.iterate_messages(begin_seq_num, end_seq_num, &mut |m| {
+            msgs.push(m.to_vec());
+            Ok(())
+        })
+        .await?;
         Ok(msgs)
     }
 }

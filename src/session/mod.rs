@@ -7,9 +7,9 @@ use crate::{
     errors::{
         FixerError, IncorrectBeginString, MessageRejectErrorEnum, MessageRejectErrorResult,
         MessageRejectErrorTrait, REJECT_REASON_COMP_ID_PROBLEM, REJECT_REASON_INVALID_MSG_TYPE,
-        REJECT_REASON_SENDING_TIME_ACCURACY_PROBLEM, TargetTooHigh, TargetTooLow, comp_id_problem,
-        required_tag_missing, sending_time_accuracy_problem, tag_specified_without_a_value,
-        value_is_incorrect_no_tag,
+        REJECT_REASON_SENDING_TIME_ACCURACY_PROBLEM, RejectLogon, TargetTooHigh, TargetTooLow,
+        comp_id_problem, required_tag_missing, sending_time_accuracy_problem,
+        tag_specified_without_a_value, value_is_incorrect_no_tag,
     },
     fix_boolean::FIXBoolean,
     fix_int::FIXInt,
@@ -37,10 +37,11 @@ use crate::{
         TAG_BEGIN_SEQ_NO, TAG_BEGIN_STRING, TAG_BUSINESS_REJECT_REASON, TAG_BUSINESS_REJECT_REF_ID,
         TAG_DEFAULT_APPL_VER_ID, TAG_ENCRYPT_METHOD, TAG_END_SEQ_NO, TAG_GAP_FILL_FLAG,
         TAG_HEART_BT_INT, TAG_LAST_MSG_SEQ_NUM_PROCESSED, TAG_MSG_SEQ_NUM, TAG_MSG_TYPE,
-        TAG_NEW_SEQ_NO, TAG_ORIG_SENDING_TIME, TAG_POSS_DUP_FLAG, TAG_REF_MSG_TYPE, TAG_REF_TAG_ID,
-        TAG_RESET_SEQ_NUM_FLAG, TAG_SENDER_COMP_ID, TAG_SENDER_LOCATION_ID, TAG_SENDER_SUB_ID,
-        TAG_SENDING_TIME, TAG_SESSION_REJECT_REASON, TAG_TARGET_COMP_ID, TAG_TARGET_LOCATION_ID,
-        TAG_TARGET_SUB_ID, TAG_TEST_REQ_ID, TAG_TEXT, Tag,
+        TAG_NEW_SEQ_NO, TAG_NEXT_EXPECTED_MSG_SEQ_NUM, TAG_ORIG_SENDING_TIME, TAG_POSS_DUP_FLAG,
+        TAG_REF_MSG_TYPE, TAG_REF_TAG_ID, TAG_RESET_SEQ_NUM_FLAG, TAG_SENDER_COMP_ID,
+        TAG_SENDER_LOCATION_ID, TAG_SENDER_SUB_ID, TAG_SENDING_TIME, TAG_SESSION_REJECT_REASON,
+        TAG_TARGET_COMP_ID, TAG_TARGET_LOCATION_ID, TAG_TARGET_SUB_ID, TAG_TEST_REQ_ID, TAG_TEXT,
+        Tag,
     },
     validation::{Validator, ValidatorEnum},
 };
@@ -146,6 +147,7 @@ pub struct Session {
     pub transport_data_dictionary: Option<Arc<DataDictionary>>,
     pub app_data_dictionary: Option<Arc<DataDictionary>>,
     pub timestamp_precision: TimestampPrecision,
+    pub last_checked_reset_seq_time: Option<Timestamp>,
 }
 
 #[cfg(test)]
@@ -192,6 +194,7 @@ impl Default for Session {
             transport_data_dictionary: Option::default(),
             app_data_dictionary: Option::default(),
             timestamp_precision: TimestampPrecision::default(),
+            last_checked_reset_seq_time: None,
         }
     }
 }
@@ -398,6 +401,38 @@ impl Session {
                 TAG_DEFAULT_APPL_VER_ID,
                 FIXString::from(&self.iss.default_appl_ver_id),
             );
+        }
+
+        // Evaluate tag 789.
+        if self.iss.enable_next_expected_msg_seq_num {
+            if let Some(irt) = in_reply_to {
+                if let Ok(target_wants_next) =
+                    irt.body.get_int(TAG_NEXT_EXPECTED_MSG_SEQ_NUM)
+                {
+                    let actual_next_num = self.store.next_sender_msg_seq_num().await;
+                    // Is the 789 we received too high?
+                    if target_wants_next > actual_next_num {
+                        return Err(FixerError::Reject(
+                            MessageRejectErrorEnum::RejectLogon(RejectLogon {
+                                text: format!(
+                                    "Tag 789 (NextExpectedMsgSeqNum) is higher than expected. Expected {}, Received {}",
+                                    actual_next_num, target_wants_next
+                                ),
+                            }),
+                        ));
+                    }
+                    let next_seq_num = self.store.next_target_msg_seq_num().await;
+                    logon
+                        .body
+                        .set_field(TAG_NEXT_EXPECTED_MSG_SEQ_NUM, next_seq_num + 1);
+                }
+            } else {
+                // We are sending a logon (not in reply).
+                let next_seq_num = self.store.next_target_msg_seq_num().await;
+                logon
+                    .body
+                    .set_field(TAG_NEXT_EXPECTED_MSG_SEQ_NUM, next_seq_num + 1);
+            }
         }
 
         self.drop_and_send_in_reply_to(&mut logon, in_reply_to)
@@ -693,6 +728,8 @@ impl Session {
             }
         }
 
+        let next_sender_msg_num_at_logon_received = self.store.next_sender_msg_seq_num().await;
+
         // Make sure this is a valid session before resetting the store.
         self.verify_msg_against_app_impl(msg).await?;
 
@@ -735,6 +772,30 @@ impl Session {
 
         self.peer_timer.reset(Duration::from_nanos(duration)).await;
         self.application.on_logon(&self.session_id);
+
+        // Evaluate tag 789 to see if we end up with an implied gapfill/resend.
+        if self.iss.enable_next_expected_msg_seq_num && !msg.body.has(TAG_RESET_SEQ_NUM_FLAG) {
+            if let Ok(target_wants_next) = msg.body.get_int(TAG_NEXT_EXPECTED_MSG_SEQ_NUM) {
+                if target_wants_next != next_sender_msg_num_at_logon_received {
+                    if !self.iss.disable_message_persist {
+                        self.in_session_generate_sequence_reset(
+                            target_wants_next,
+                            next_sender_msg_num_at_logon_received + 1,
+                            msg,
+                        )
+                        .await?;
+                    } else {
+                        return Err(FixerError::Reject(
+                            MessageRejectErrorEnum::TargetTooHigh(TargetTooHigh {
+                                received_target: target_wants_next,
+                                expected_target: next_sender_msg_num_at_logon_received,
+                                ..Default::default()
+                            }),
+                        ));
+                    }
+                }
+            }
+        }
 
         self.check_target_too_high(msg).await?;
 
@@ -1105,7 +1166,9 @@ impl Session {
                     self.sm_timeout(event).await;
                 },
                 _ = ticker.tick() => {
-                    self.sm_check_session_time(&mut gen_now()).await;
+                    let mut now = gen_now();
+                    self.sm_check_session_time(&mut now).await;
+                    self.sm_check_reset_time(&now).await;
                 },
             }
         }
@@ -1317,6 +1380,46 @@ impl Session {
             self.sm_set_state(SessionStateEnum::new_latent_state())
                 .await;
         }
+    }
+
+    async fn sm_check_reset_time(&mut self, now: &Zoned) {
+        if !self.iss.enable_reset_seq_time {
+            return;
+        }
+
+        let now_ts = now.timestamp();
+
+        // If the last checked reset seq time is not set or we are not connected, just record now.
+        if self.last_checked_reset_seq_time.is_none() || !self.sm.is_connected() {
+            self.last_checked_reset_seq_time = Some(now_ts);
+            return;
+        }
+
+        let reset_time = self.iss.reset_seq_time.as_ref().unwrap();
+        let tz = &self.iss.reset_seq_time_zone;
+
+        // Get the reset time for today in the configured timezone
+        let now_in_tz = now_ts.to_zoned(tz.clone());
+        let reset_today = now_in_tz
+            .date()
+            .at(
+                reset_time.hour() as i8,
+                reset_time.minute() as i8,
+                reset_time.second() as i8,
+                0,
+            )
+            .to_zoned(tz.clone())
+            .unwrap();
+        let reset_today_ts = reset_today.timestamp();
+
+        let last_checked = self.last_checked_reset_seq_time.unwrap();
+
+        // If we have crossed the reset time boundary in between checks, send the reset
+        if last_checked < reset_today_ts && now_ts >= reset_today_ts {
+            let _ = self.send_logon_in_reply_to(true, None).await;
+        }
+
+        self.last_checked_reset_seq_time = Some(now_ts);
     }
 
     async fn sm_set_state(&mut self, next_state: SessionStateEnum) {

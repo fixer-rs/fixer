@@ -39,6 +39,18 @@ impl TimeOfDay {
         }
     }
 
+    pub fn hour(&self) -> isize {
+        self.hour
+    }
+
+    pub fn minute(&self) -> isize {
+        self.minute
+    }
+
+    pub fn second(&self) -> isize {
+        self.second
+    }
+
     pub fn parse(input: &str) -> SimpleResult<Self> {
         let parsed = civil::Time::strptime(SHORT_FORM, input);
         let t = map_err_with!(parsed, "time must be in the format HH:MM:SS")?;
@@ -55,6 +67,7 @@ impl TimeOfDay {
 pub struct TimeRange {
     pub start_time: TimeOfDay,
     pub end_time: TimeOfDay,
+    pub weekdays: Vec<Weekday>,
     pub start_day: Option<Weekday>,
     pub end_day: Option<Weekday>,
     pub loc: TimeZone,
@@ -66,11 +79,31 @@ impl TimeRange {
         Self::new_in_location(start_time, end_time, utc())
     }
 
+    // new_utc_with_weekdays returns a time range in UTC with specific weekdays
+    pub fn new_utc_with_weekdays(
+        start_time: TimeOfDay,
+        end_time: TimeOfDay,
+        weekdays: Vec<Weekday>,
+    ) -> Self {
+        Self::new_in_location_with_weekdays(start_time, end_time, weekdays, utc())
+    }
+
     // new_in_location returns a time range in a given location
     pub fn new_in_location(start_time: TimeOfDay, end_time: TimeOfDay, loc: TimeZone) -> Self {
+        Self::new_in_location_with_weekdays(start_time, end_time, vec![], loc)
+    }
+
+    // new_in_location_with_weekdays returns a time range in a given location with specific weekdays
+    pub fn new_in_location_with_weekdays(
+        start_time: TimeOfDay,
+        end_time: TimeOfDay,
+        weekdays: Vec<Weekday>,
+        loc: TimeZone,
+    ) -> Self {
         Self {
             start_time,
             end_time,
+            weekdays,
             start_day: None,
             end_day: None,
             loc,
@@ -95,11 +128,23 @@ impl TimeRange {
         end_day: Weekday,
         loc: TimeZone,
     ) -> TimeRange {
-        let mut r = Self::new_in_location(start_time, end_time, loc);
+        let mut r = Self::new_in_location_with_weekdays(start_time, end_time, vec![], loc);
         r.start_day = Some(start_day);
         r.end_day = Some(end_day);
 
         r
+    }
+
+    fn is_in_weekdays(&self, day: Weekday) -> bool {
+        if !self.weekdays.is_empty() {
+            return self.weekdays.iter().any(|&wd| wd == day);
+        }
+        true
+    }
+
+    fn add_weekday_offset(day: Weekday, offset: i8) -> Weekday {
+        let val = (day.to_sunday_zero_offset() as i8 + offset).rem_euclid(7);
+        Weekday::from_sunday_zero_offset(val).unwrap()
     }
 
     fn is_in_time_range(&self, t: &Zoned) -> bool {
@@ -112,10 +157,21 @@ impl TimeRange {
         .d;
 
         if self.start_time.d < self.end_time.d {
-            return self.start_time.d <= ts && ts <= self.end_time.d;
+            if self.is_in_weekdays(new_t.weekday()) {
+                return self.start_time.d <= ts && ts <= self.end_time.d;
+            }
+            return false;
         }
 
-        !(self.end_time.d < ts && ts < self.start_time.d)
+        if ts <= self.end_time.d {
+            return self.is_in_weekdays(Self::add_weekday_offset(new_t.weekday(), -1));
+        }
+
+        if ts >= self.start_time.d {
+            return self.is_in_weekdays(new_t.weekday());
+        }
+
+        false
     }
 
     fn is_in_week_range(&self, t: &Zoned) -> bool {

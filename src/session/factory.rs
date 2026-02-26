@@ -6,13 +6,15 @@ use crate::{
     application::Application,
     config::{
         ALLOW_UNKNOWN_MSG_FIELDS, APP_DATA_DICTIONARY, CHECK_LATENCY, DATA_DICTIONARY,
-        DEFAULT_APPL_VER_ID, ENABLE_LAST_MSG_SEQ_NUM_PROCESSED, END_DAY, END_TIME, HEART_BT_INT,
+        DEFAULT_APPL_VER_ID, ENABLE_LAST_MSG_SEQ_NUM_PROCESSED,
+        ENABLE_NEXT_EXPECTED_MSG_SEQ_NUM, END_DAY, END_TIME, HEART_BT_INT,
         HEART_BT_INT_OVERRIDE, LOGON_TIMEOUT, LOGOUT_TIMEOUT, MAX_LATENCY, PERSIST_MESSAGES,
         RECONNECT_INTERVAL, REFRESH_ON_LOGON, REJECT_INVALID_MESSAGE, RESEND_REQUEST_CHUNK_SIZE,
-        RESET_ON_DISCONNECT, RESET_ON_LOGON, RESET_ON_LOGOUT, SOCKET_CONNECT_HOST,
-        SOCKET_CONNECT_PORT, START_DAY, START_TIME, TIME_STAMP_PRECISION, TIME_ZONE,
+        RESET_ON_DISCONNECT, RESET_ON_LOGON, RESET_ON_LOGOUT, RESET_SEQ_TIME,
+        SOCKET_CONNECT_HOST, SOCKET_CONNECT_PORT, START_DAY, START_TIME, TIME_STAMP_PRECISION,
+        TIME_ZONE,
         TRANSPORT_DATA_DICTIONARY, VALIDATE_FIELDS_HAVE_VALUES, VALIDATE_FIELDS_OUT_OF_ORDER,
-        VALIDATE_USER_DEFINED_FIELDS,
+        VALIDATE_USER_DEFINED_FIELDS, WEEKDAYS,
     },
     datadictionary::DataDictionary,
     errors::FixerError,
@@ -269,6 +271,11 @@ impl SessionFactory {
             iss.enable_last_msg_seq_num_processed = st;
         }
 
+        if settings.has_setting(ENABLE_NEXT_EXPECTED_MSG_SEQ_NUM) {
+            iss.enable_next_expected_msg_seq_num =
+                settings.bool_setting(ENABLE_NEXT_EXPECTED_MSG_SEQ_NUM)?;
+        }
+
         if settings.has_setting(CHECK_LATENCY) {
             let st = settings.bool_setting(CHECK_LATENCY)?;
             iss.skip_check_latency = !st;
@@ -341,8 +348,30 @@ impl SessionFactory {
             }
 
             if !settings.has_setting(START_DAY) && !settings.has_setting(END_DAY) {
-                iss.session_time = Some(TimeRange::new_in_location(start_time, end_time, loc));
+                let mut weekdays = vec![];
+                if settings.has_setting(WEEKDAYS) {
+                    let weekdays_str = settings.setting(WEEKDAYS)?;
+                    for day_str in weekdays_str.split(',') {
+                        let day = DAY_LOOKUP.get(day_str).ok_or_else(|| {
+                            SimpleError::from(FixerError::new_incorrect_format_for_setting(
+                                WEEKDAYS,
+                                &weekdays_str,
+                            ))
+                        })?;
+                        weekdays.push(*day);
+                    }
+                }
+
+                iss.session_time = Some(TimeRange::new_in_location_with_weekdays(
+                    start_time, end_time, weekdays, loc,
+                ));
             } else {
+                if settings.has_setting(WEEKDAYS) {
+                    return Err(SimpleError::new(
+                        "Weekdays cannot be specified with StartDay/EndDay",
+                    ));
+                }
+
                 let start_day_string = settings.setting(START_DAY)?;
                 let end_day_string = settings.setting(END_DAY)?;
 
@@ -364,6 +393,45 @@ impl SessionFactory {
                     start_time, end_time, start_day, end_day, loc,
                 ));
             }
+        }
+
+        if settings.has_setting(RESET_SEQ_TIME) {
+            let mut loc = TimeZone::UTC;
+            if settings.has_setting(TIME_ZONE) {
+                let loc_str = settings.setting(TIME_ZONE)?;
+                if loc_str == "Local" {
+                    loc = jiff::civil::date(2020, 10, 10)
+                        .at(10, 10, 10, 0)
+                        .to_zoned(TimeZone::system())
+                        .unwrap()
+                        .offset()
+                        .to_time_zone();
+                } else {
+                    let tz = map_err_with!(
+                        TimeZone::get(&loc_str).map_err(|err| simple_error!("{}", err)),
+                        "problem parsing time zone '{}' for setting '{}'",
+                        loc_str,
+                        TIME_ZONE
+                    )?;
+                    loc = jiff::civil::date(2020, 10, 10)
+                        .at(10, 10, 10, 0)
+                        .to_zoned(tz)
+                        .unwrap()
+                        .offset()
+                        .to_time_zone();
+                }
+            }
+
+            let seq_time_str = settings.setting(RESET_SEQ_TIME)?;
+            let seq_time = map_err_with!(
+                TimeOfDay::parse(&seq_time_str),
+                "problem parsing time of day '{}' for setting '{}'",
+                seq_time_str,
+                RESET_SEQ_TIME
+            )?;
+            iss.enable_reset_seq_time = true;
+            iss.reset_seq_time = Some(seq_time);
+            iss.reset_seq_time_zone = loc;
         }
 
         let mut precision = TimestampPrecision::default();
@@ -452,6 +520,7 @@ impl SessionFactory {
             transport_data_dictionary,
             app_data_dictionary,
             timestamp_precision: precision,
+            last_checked_reset_seq_time: None,
         })
     }
 

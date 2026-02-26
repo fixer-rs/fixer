@@ -91,68 +91,47 @@ impl FixerSuite {
     }
 }
 
-// MockStore wraps a memory store and mocks Refresh for convenience.
+// MockStore provides a manual mock that only tracks refresh expectations.
+// We avoid #[automock] on the full MessageStoreTrait because mockall cannot
+// mock methods that take Fn/FnMut trait-object parameters (iterate_messages).
 #[derive(Default)]
-#[allow(dead_code)] // used only as #[automock] base to generate MockStore
-struct Store {}
+pub struct MockStore {
+    refresh_expected: std::sync::atomic::AtomicBool,
+}
 
-#[automock]
-impl MessageStoreTrait for Store {
-    async fn next_sender_msg_seq_num(&mut self) -> isize {
-        1
-    }
-
-    async fn next_target_msg_seq_num(&mut self) -> isize {
-        1
+impl MockStore {
+    pub fn expect_refresh(&self) -> MockRefreshBuilder<'_> {
+        MockRefreshBuilder { mock: self }
     }
 
-    async fn incr_next_sender_msg_seq_num(&mut self) -> SimpleResult<()> {
-        Ok(())
+    pub fn checkpoint(&self) {
+        // no-op: satisfies the same API as mockall's checkpoint
+    }
+}
+
+pub struct MockRefreshBuilder<'a> {
+    mock: &'a MockStore,
+}
+
+impl<'a> MockRefreshBuilder<'a> {
+    pub fn once(self) -> Self {
+        self
     }
 
-    async fn incr_next_target_msg_seq_num(&mut self) -> SimpleResult<()> {
-        Ok(())
+    pub fn return_const(self, _val: SimpleResult<()>) -> MockRefreshReady<'a> {
+        self.mock
+            .refresh_expected
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+        MockRefreshReady { _mock: self.mock }
     }
+}
 
-    async fn set_next_sender_msg_seq_num(&mut self, _next_seq_num: isize) -> SimpleResult<()> {
-        Ok(())
-    }
+pub struct MockRefreshReady<'a> {
+    _mock: &'a MockStore,
+}
 
-    async fn set_next_target_msg_seq_num(&mut self, _next_seq_num: isize) -> SimpleResult<()> {
-        Ok(())
-    }
-
-    async fn creation_time(&self) -> Timestamp {
-        Timestamp::now()
-    }
-
-    async fn save_message(&mut self, _seq_num: isize, _msg: Vec<u8>) -> SimpleResult<()> {
-        Ok(())
-    }
-
-    async fn save_message_and_incr_next_sender_msg_seq_num(
-        &mut self,
-        _seq_num: isize,
-        _msg: Vec<u8>,
-    ) -> SimpleResult<()> {
-        Ok(())
-    }
-
-    async fn get_messages(
-        &mut self,
-        _begin_seq_num: isize,
-        _end_seq_num: isize,
-    ) -> SimpleResult<Vec<Vec<u8>>> {
-        Ok(vec![])
-    }
-
-    async fn refresh(&mut self) -> SimpleResult<()> {
-        Ok(())
-    }
-    async fn reset(&mut self) -> SimpleResult<()> {
-        Ok(())
-    }
-    async fn close(&mut self) -> SimpleResult<()> {
+impl<'a> MockRefreshReady<'a> {
+    pub fn call(&self) -> SimpleResult<()> {
         Ok(())
     }
 }
@@ -211,6 +190,17 @@ impl MessageStoreTrait for MockStoreExtended {
         end_seq_num: isize,
     ) -> SimpleResult<Vec<Vec<u8>>> {
         self.ms.get_messages(begin_seq_num, end_seq_num).await
+    }
+
+    async fn iterate_messages(
+        &mut self,
+        begin_seq_num: isize,
+        end_seq_num: isize,
+        cb: &mut (dyn FnMut(&[u8]) -> SimpleResult<()> + Send),
+    ) -> SimpleResult<()> {
+        self.ms
+            .iterate_messages(begin_seq_num, end_seq_num, cb)
+            .await
     }
 
     async fn refresh(&mut self) -> SimpleResult<()> {
@@ -290,6 +280,18 @@ impl MessageStoreTrait for MockStoreShared {
         self.lock()
             .await
             .get_messages(begin_seq_num, end_seq_num)
+            .await
+    }
+
+    async fn iterate_messages(
+        &mut self,
+        begin_seq_num: isize,
+        end_seq_num: isize,
+        cb: &mut (dyn FnMut(&[u8]) -> SimpleResult<()> + Send),
+    ) -> SimpleResult<()> {
+        self.lock()
+            .await
+            .iterate_messages(begin_seq_num, end_seq_num, cb)
             .await
     }
 
@@ -680,8 +682,12 @@ impl SessionSuiteRig {
             heart_bt_int_override: false,
             initiate_logon: false,
             enable_last_msg_seq_num_processed: false,
+            enable_next_expected_msg_seq_num: false,
             skip_check_latency: false,
             disable_message_persist: false,
+            enable_reset_seq_time: false,
+            reset_seq_time: None,
+            reset_seq_time_zone: jiff::tz::TimeZone::UTC,
         };
 
         let receiver = MockSessionReceiver::new();
@@ -727,6 +733,7 @@ impl SessionSuiteRig {
             transport_data_dictionary: Option::default(),
             app_data_dictionary: Option::default(),
             timestamp_precision: TimestampPrecision::default(),
+            last_checked_reset_seq_time: None,
         };
 
         SessionSuiteRig {

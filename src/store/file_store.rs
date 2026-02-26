@@ -215,19 +215,32 @@ impl MessageStoreTrait for FileStore {
         self.incr_next_sender_msg_seq_num().await
     }
 
+    async fn iterate_messages(
+        &mut self,
+        begin_seq_num: isize,
+        end_seq_num: isize,
+        cb: &mut (dyn FnMut(&[u8]) -> SimpleResult<()> + Send),
+    ) -> SimpleResult<()> {
+        for seq_num in begin_seq_num..=end_seq_num {
+            let (m, found) = self.get_message(seq_num).await?;
+            if found {
+                cb(&m)?;
+            }
+        }
+        Ok(())
+    }
+
     async fn get_messages(
         &mut self,
         begin_seq_num: isize,
         end_seq_num: isize,
     ) -> SimpleResult<Vec<Vec<u8>>> {
         let mut msgs = vec![];
-        for seq_num in begin_seq_num..=end_seq_num {
-            let (m, found) = self.get_message(seq_num).await?;
-            if found {
-                msgs.push(m);
-            }
-        }
-
+        self.iterate_messages(begin_seq_num, end_seq_num, &mut |m| {
+            msgs.push(m.to_vec());
+            Ok(())
+        })
+        .await?;
         Ok(msgs)
     }
 

@@ -294,11 +294,12 @@ impl MessageStoreTrait for SqlStore {
         self.incr_next_sender_msg_seq_num().await
     }
 
-    async fn get_messages(
+    async fn iterate_messages(
         &mut self,
         begin_seq_num: isize,
         end_seq_num: isize,
-    ) -> SimpleResult<Vec<Vec<u8>>> {
+        cb: &mut (dyn FnMut(&[u8]) -> SimpleResult<()> + Send),
+    ) -> SimpleResult<()> {
         let s = &self.session_id;
 
         let sql = format!(
@@ -312,14 +313,27 @@ impl MessageStoreTrait for SqlStore {
             .await
             .map_err(|e| simple_error!("query messages: {e}"))?;
 
-        let mut msgs = Vec::with_capacity(rows.len());
         for row in &rows {
             let message: String = row
                 .try_get("message")
                 .map_err(|e| simple_error!("get message column: {e}"))?;
-            msgs.push(message.into_bytes());
+            cb(message.as_bytes())?;
         }
 
+        Ok(())
+    }
+
+    async fn get_messages(
+        &mut self,
+        begin_seq_num: isize,
+        end_seq_num: isize,
+    ) -> SimpleResult<Vec<Vec<u8>>> {
+        let mut msgs = Vec::new();
+        self.iterate_messages(begin_seq_num, end_seq_num, &mut |m| {
+            msgs.push(m.to_vec());
+            Ok(())
+        })
+        .await?;
         Ok(msgs)
     }
 

@@ -249,11 +249,12 @@ impl MessageStoreTrait for MongoStore {
         self.incr_next_sender_msg_seq_num().await
     }
 
-    async fn get_messages(
+    async fn iterate_messages(
         &mut self,
         begin_seq_num: isize,
         end_seq_num: isize,
-    ) -> SimpleResult<Vec<Vec<u8>>> {
+        cb: &mut (dyn FnMut(&[u8]) -> SimpleResult<()> + Send),
+    ) -> SimpleResult<()> {
         let mut filter = session_filter(&self.session_id);
         filter.insert("msgseq", doc! {
             "$gte": begin_seq_num as i32,
@@ -268,17 +269,30 @@ impl MessageStoreTrait for MongoStore {
             .await
             .map_err(|e| simple_error!("query messages: {e}"))?;
 
-        let mut msgs = Vec::new();
         while let Some(doc) = cursor
             .try_next()
             .await
             .map_err(|e| simple_error!("cursor next: {e}"))?
         {
             if let Some(Bson::Binary(binary)) = doc.get("message") {
-                msgs.push(binary.bytes.clone());
+                cb(&binary.bytes)?;
             }
         }
 
+        Ok(())
+    }
+
+    async fn get_messages(
+        &mut self,
+        begin_seq_num: isize,
+        end_seq_num: isize,
+    ) -> SimpleResult<Vec<Vec<u8>>> {
+        let mut msgs = Vec::new();
+        self.iterate_messages(begin_seq_num, end_seq_num, &mut |m| {
+            msgs.push(m.to_vec());
+            Ok(())
+        })
+        .await?;
         Ok(msgs)
     }
 

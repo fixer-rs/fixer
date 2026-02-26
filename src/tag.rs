@@ -34,6 +34,7 @@ pub const TAG_XML_DATA: Tag = 213;
 pub const TAG_MESSAGE_ENCODING: Tag = 347;
 pub const TAG_LAST_MSG_SEQ_NUM_PROCESSED: Tag = 369;
 pub const TAG_ON_BEHALF_OF_SENDING_TIME: Tag = 370;
+pub const TAG_NEXT_EXPECTED_MSG_SEQ_NUM: Tag = 789;
 pub const TAG_APPL_VER_ID: Tag = 1128;
 pub const TAG_CSTM_APPL_VER_ID: Tag = 1129;
 pub const TAG_NO_HOPS: Tag = 627;
