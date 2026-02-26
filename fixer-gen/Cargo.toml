@@ -2,17 +2,20 @@
 authors = ["Karuna Murti <karuna.murti@gmail.com>"]
 description = "Code generator for fixer FIX protocol types"
 edition = "2024"
+homepage = "https://github.com/fixer-rs/fixer"
 license = "Apache-2.0"
 name = "fixer-gen"
+readme = "../README.md"
+repository = "https://github.com/fixer-rs/fixer"
 rust-version = "1.85"
-version = "0.1.0"
+version = "0.9.0"
 
 [[bin]]
 name = "fixer-gen"
 path = "src/main.rs"
 
 [dependencies]
-fixer = { path = "../fixer" }
+fixer = { path = "../fixer", version = "0.9.0" }
 clap = { version = "4", features = ["derive"] }
 rustc-hash = "2"
 tera = "1"
