@@ -33,7 +33,7 @@ impl PendingTimeout {
 mod tests {
     use crate::{
         fixer_test::SessionSuiteRig,
-        internal::event::{LOGON_TIMEOUT, LOGOUT_TIMEOUT, NEED_HEARTBEAT, PEER_TIMEOUT},
+        session::event::{LOGON_TIMEOUT, LOGOUT_TIMEOUT, NEED_HEARTBEAT, PEER_TIMEOUT},
         session::session_state::SessionStateEnum,
     };
 

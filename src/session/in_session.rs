@@ -34,7 +34,7 @@ mod tests {
             FieldEqual, SessionSuiteRig, TestApplication, OVERRIDE_TIMES,
             OVERRIDE_TIMES_TO_APP_RETURN_ERROR,
         },
-        internal::event::{NEED_HEARTBEAT, PEER_TIMEOUT},
+        session::event::{LOGOUT_TIMEOUT, NEED_HEARTBEAT, PEER_TIMEOUT},
         message::Message,
         msg_type::{
             MSG_TYPE_HEARTBEAT, MSG_TYPE_LOGOUT, MSG_TYPE_REJECT, MSG_TYPE_RESEND_REQUEST,
@@ -102,7 +102,7 @@ mod tests {
     #[tokio::test]
     async fn test_logout_enable_last_msg_seq_num_processed() {
         let mut s = SessionSuite::setup_test().await;
-        s.ssr.session.iss.enable_last_msg_seq_num_processed = true;
+        s.ssr.session.session_settings.enable_last_msg_seq_num_processed = true;
         let mut msg = s.ssr.message_factory.logout();
         s.ssr.session.sm_fix_msg_in(&mut msg).await;
 
@@ -130,7 +130,7 @@ mod tests {
     #[tokio::test]
     async fn test_logout_reset_on_logout() {
         let mut s = SessionSuite::setup_test().await;
-        s.ssr.session.iss.reset_on_logout = true;
+        s.ssr.session.session_settings.reset_on_logout = true;
         let mut msg = s.ssr.message_factory.new_order_single();
         assert!(s.ssr.session.queue_for_send(&mut msg).await.is_ok());
 
@@ -198,8 +198,8 @@ mod tests {
             s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap(),
         );
 
-        let event = s.ssr.session.session_event.rx.recv().await.unwrap();
-        s.ssr.session.sm_timeout(event).await;
+        (&mut s.ssr.session.logout_timer).await;
+        s.ssr.session.sm_timeout(LOGOUT_TIMEOUT).await;
         s.ssr.stopped();
         s.ssr.disconnected().await;
     }
@@ -207,7 +207,7 @@ mod tests {
     #[tokio::test]
     async fn test_fix_msg_in_target_too_high_enable_last_msg_seq_num_processed() {
         let mut s = SessionSuite::setup_test().await;
-        s.ssr.session.iss.enable_last_msg_seq_num_processed = true;
+        s.ssr.session.session_settings.enable_last_msg_seq_num_processed = true;
         s.ssr.message_factory.seq_num = 5;
 
         let mut msg_seq_num_too_high = s.ssr.message_factory.new_order_single();
@@ -325,7 +325,7 @@ mod tests {
         for test in tests {
             let mut s = SessionSuite::setup_test().await;
             s.ssr.message_factory.seq_num = 5;
-            s.ssr.session.iss.resend_request_chunk_size = test.chunk_size;
+            s.ssr.session.session_settings.resend_request_chunk_size = test.chunk_size;
 
             let mut msg_seq_num_too_high = s.ssr.message_factory.new_order_single();
             s.ssr.session.sm_fix_msg_in(&mut msg_seq_num_too_high).await;
@@ -609,7 +609,7 @@ mod tests {
     #[tokio::test]
     async fn test_fix_msg_in_resend_request_no_message_persist() {
         let mut s = SessionSuite::setup_test().await;
-        s.ssr.session.iss.disable_message_persist = true;
+        s.ssr.session.session_settings.disable_message_persist = true;
         let mut session_id = (*s.ssr.session.session_id).clone();
         session_id.qualifier = OVERRIDE_TIMES.to_string();
         s.ssr.session.session_id = Arc::new(session_id);

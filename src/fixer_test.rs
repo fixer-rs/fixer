@@ -5,9 +5,8 @@ use crate::field_map::FieldMap;
 use crate::fix_boolean::FIXBoolean;
 use crate::fix_string::FIXString;
 use crate::fix_utc_timestamp::{FIXUTCTimestamp, TimestampPrecision};
-use crate::internal::event::Event;
-use crate::internal::event_timer::EventTimer;
-use crate::internal::session_settings::SessionSettings;
+use crate::session::session_settings::SessionSettings;
+use crate::session::event_timer::EventTimer;
 use crate::log::LogEnum;
 use crate::log::null_log::NullLog;
 use crate::message::Message;
@@ -17,7 +16,7 @@ use crate::msg_type::{
 };
 use crate::session::session_id::SessionID;
 use crate::session::session_state::{SessionStateEnum, StateMachine};
-use crate::session::{Admin, AdminEnum, FixIn, MessageEvent, Session, SessionEvent};
+use crate::session::{Admin, AdminEnum, FixIn, MessageEvent, Session};
 use crate::store::{MemoryStore, MessageStoreEnum, MessageStoreTrait};
 use crate::tag::{
     TAG_BEGIN_SEQ_NO, TAG_BEGIN_STRING, TAG_END_SEQ_NO, TAG_MSG_SEQ_NUM, TAG_MSG_TYPE,
@@ -657,7 +656,6 @@ impl SessionSuiteRig {
         let mock_store_shared = MockStoreShared::new_mock_store(mock_store_extended);
 
         let (_, message_in_rx) = channel::<FixIn>(1);
-        let (session_event_tx, session_event_rx) = unbounded_channel::<Event>();
         let (message_event_tx, message_event_rx) = channel::<bool>(1);
         let (admin_tx, admin_rx) = unbounded_channel::<AdminEnum>();
 
@@ -705,10 +703,6 @@ impl SessionSuiteRig {
             message_out: receiver.send_channel.tx.clone(),
             message_in: message_in_rx,
             to_send: Vec::default(),
-            session_event: SessionEvent {
-                tx: session_event_tx,
-                rx: session_event_rx,
-            },
             message_event: MessageEvent {
                 tx: message_event_tx,
                 rx: message_event_rx,
@@ -721,8 +715,10 @@ impl SessionSuiteRig {
                 stopped: false,
                 notify_on_in_session_time: None,
             },
-            state_timer: EventTimer::new(Arc::new(|| {})),
-            peer_timer: EventTimer::new(Arc::new(|| {})),
+            state_timer: EventTimer::new(),
+            peer_timer: EventTimer::new(),
+            logon_timer: EventTimer::new(),
+            logout_timer: EventTimer::new(),
             sent_reset: bool::default(),
             stop_once: OnceCell::default(),
             target_default_appl_ver_id: Arc::new(std::sync::Mutex::new(String::new())),
@@ -730,7 +726,7 @@ impl SessionSuiteRig {
                 tx: admin_tx,
                 rx: admin_rx,
             },
-            iss: session_settings,
+            session_settings,
             transport_data_dictionary: Option::default(),
             app_data_dictionary: Option::default(),
             timestamp_precision: TimestampPrecision::default(),

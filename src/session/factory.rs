@@ -19,19 +19,16 @@ use crate::{
     datadictionary::DataDictionary,
     errors::FixerError,
     fix_utc_timestamp::TimestampPrecision,
-    internal::{
-        event::Event,
-        event_timer::EventTimer,
-        session_settings::SessionSettings as InternalSessionSetting,
-        time_range::{TimeOfDay, TimeRange},
-    },
     log::{LogFactoryTrait, LogTrait},
     registry::{SessionRegistration, register_session},
     session::{
-        Admin, AdminEnum, FixIn, MessageEvent, Session, SessionEvent,
+        Admin, AdminEnum, FixIn, MessageEvent, Session,
         session_id::SessionID,
+        session_settings::SessionSettings,
         session_state::{SessionStateEnum, StateMachine},
-        settings::SessionSettings,
+        event_timer::EventTimer,
+        settings::SessionSettings as ConfigSessionSettings,
+        time_range::{TimeOfDay, TimeRange},
     },
     store::MessageStoreFactoryTrait,
     validation::{ValidatorEnum, ValidatorSettings},
@@ -98,7 +95,7 @@ impl SessionFactory {
         &self,
         session_id: Arc<SessionID>,
         store_factory: F,
-        settings: &SessionSettings,
+        settings: &ConfigSessionSettings,
         log_factory: L,
         application: Arc<dyn Application>,
     ) -> SimpleResult<Session> {
@@ -116,7 +113,7 @@ impl SessionFactory {
         let admin_tx = session.admin.tx.clone();
         let target_default_appl_ver_id = session.target_default_appl_ver_id.clone();
 
-        let in_chan_capacity = session.iss.in_chan_capacity;
+        let in_chan_capacity = session.session_settings.in_chan_capacity;
 
         register_session(
             session_id.clone(),
@@ -138,11 +135,11 @@ impl SessionFactory {
         &self,
         session_id: Arc<SessionID>,
         store_factory: F,
-        settings: &SessionSettings,
+        settings: &ConfigSessionSettings,
         mut log_factory: L,
         application: Arc<dyn Application>,
     ) -> SimpleResult<Session> {
-        let mut iss = InternalSessionSetting::default();
+        let mut session_settings = SessionSettings::default();
 
         let mut validator_settings = ValidatorSettings::default();
         if settings.has_setting(VALIDATE_FIELDS_OUT_OF_ORDER) {
@@ -176,10 +173,10 @@ impl SessionFactory {
 
         let validator = if session_id.is_fixt() {
             default_appl_ver_id = settings.setting(DEFAULT_APPL_VER_ID)?;
-            iss.default_appl_ver_id = default_appl_ver_id.clone();
+            session_settings.default_appl_ver_id = default_appl_ver_id.clone();
 
             if let Some(appl_ver_id) = APPL_VER_ID_LOOKUP.get(default_appl_ver_id.as_str()) {
-                iss.default_appl_ver_id = appl_ver_id.to_string();
+                session_settings.default_appl_ver_id = appl_ver_id.to_string();
             }
 
             // If the transport or app data dictionary setting is set, the other also needs to be set.
@@ -251,37 +248,37 @@ impl SessionFactory {
 
         if settings.has_setting(RESET_ON_LOGON) {
             let st = settings.bool_setting(RESET_ON_LOGON)?;
-            iss.reset_on_logon = st;
+            session_settings.reset_on_logon = st;
         }
 
         if settings.has_setting(REFRESH_ON_LOGON) {
             let st = settings.bool_setting(REFRESH_ON_LOGON)?;
-            iss.refresh_on_logon = st;
+            session_settings.refresh_on_logon = st;
         }
 
         if settings.has_setting(RESET_ON_LOGOUT) {
             let st = settings.bool_setting(RESET_ON_LOGOUT)?;
-            iss.reset_on_logout = st;
+            session_settings.reset_on_logout = st;
         }
 
         if settings.has_setting(RESET_ON_DISCONNECT) {
             let st = settings.bool_setting(RESET_ON_DISCONNECT)?;
-            iss.reset_on_disconnect = st;
+            session_settings.reset_on_disconnect = st;
         }
 
         if settings.has_setting(ENABLE_LAST_MSG_SEQ_NUM_PROCESSED) {
             let st = settings.bool_setting(ENABLE_LAST_MSG_SEQ_NUM_PROCESSED)?;
-            iss.enable_last_msg_seq_num_processed = st;
+            session_settings.enable_last_msg_seq_num_processed = st;
         }
 
         if settings.has_setting(ENABLE_NEXT_EXPECTED_MSG_SEQ_NUM) {
-            iss.enable_next_expected_msg_seq_num =
+            session_settings.enable_next_expected_msg_seq_num =
                 settings.bool_setting(ENABLE_NEXT_EXPECTED_MSG_SEQ_NUM)?;
         }
 
         if settings.has_setting(CHECK_LATENCY) {
             let st = settings.bool_setting(CHECK_LATENCY)?;
-            iss.skip_check_latency = !st;
+            session_settings.skip_check_latency = !st;
         }
 
         if settings.has_setting(MAX_LATENCY) {
@@ -289,14 +286,14 @@ impl SessionFactory {
             if st <= 0 {
                 return Err(simple_error!("MaxLatency must be a positive integer"));
             }
-            iss.max_latency = SignedDuration::from_secs(st as i64);
+            session_settings.max_latency = SignedDuration::from_secs(st as i64);
         } else {
-            iss.max_latency = SignedDuration::from_secs(120);
+            session_settings.max_latency = SignedDuration::from_secs(120);
         }
 
         if settings.has_setting(RESEND_REQUEST_CHUNK_SIZE) {
             let st = settings.int_setting(RESEND_REQUEST_CHUNK_SIZE)?;
-            iss.resend_request_chunk_size = st;
+            session_settings.resend_request_chunk_size = st;
         }
 
         if settings.has_setting(START_TIME) || settings.has_setting(END_TIME) {
@@ -365,7 +362,7 @@ impl SessionFactory {
                     }
                 }
 
-                iss.session_time = Some(TimeRange::new_in_location_with_weekdays(
+                session_settings.session_time = Some(TimeRange::new_in_location_with_weekdays(
                     start_time, end_time, weekdays, loc,
                 ));
             } else {
@@ -392,7 +389,7 @@ impl SessionFactory {
                 let start_day = parse_day(START_DAY, &start_day_string)?;
                 let end_day = parse_day(END_DAY, &end_day_string)?;
 
-                iss.session_time = Some(TimeRange::new_week_range_in_location(
+                session_settings.session_time = Some(TimeRange::new_week_range_in_location(
                     start_time, end_time, start_day, end_day, loc,
                 ));
             }
@@ -432,9 +429,9 @@ impl SessionFactory {
                 seq_time_str,
                 RESET_SEQ_TIME
             )?;
-            iss.enable_reset_seq_time = true;
-            iss.reset_seq_time = Some(seq_time);
-            iss.reset_seq_time_zone = loc;
+            session_settings.enable_reset_seq_time = true;
+            session_settings.reset_seq_time = Some(seq_time);
+            session_settings.reset_seq_time_zone = loc;
         }
 
         let mut precision = TimestampPrecision::default();
@@ -462,7 +459,7 @@ impl SessionFactory {
 
         if settings.has_setting(PERSIST_MESSAGES) {
             let st = settings.bool_setting(PERSIST_MESSAGES)?;
-            iss.disable_message_persist = !st;
+            session_settings.disable_message_persist = !st;
         }
 
         if settings.has_setting(IN_CHAN_CAPACITY) {
@@ -470,13 +467,13 @@ impl SessionFactory {
             if cap < 0 {
                 return Err(simple_error!("InChanCapacity must be zero or a positive integer"));
             }
-            iss.in_chan_capacity = cap as usize;
+            session_settings.in_chan_capacity = cap as usize;
         }
 
         if self.build_initiators {
-            self.build_initiator_settings(&mut iss, settings).await?;
+            self.build_initiator_settings(&mut session_settings, settings).await?;
         } else {
-            self.build_acceptor_settings(&mut iss, settings).await?;
+            self.build_acceptor_settings(&mut session_settings, settings).await?;
         }
 
         let log = log_factory
@@ -486,12 +483,11 @@ impl SessionFactory {
 
         let store = store_factory.create(session_id.clone()).await?;
 
-        let (session_event_tx, session_event_rx) = unbounded_channel::<Event>();
         let (message_event_tx, message_event_rx) = channel::<bool>(1);
         let (admin_tx, admin_rx) = unbounded_channel::<AdminEnum>();
         let (message_out_tx, _) = unbounded_channel::<Vec<u8>>();
-        let in_cap = if iss.in_chan_capacity > 0 {
-            iss.in_chan_capacity
+        let in_cap = if session_settings.in_chan_capacity > 0 {
+            session_settings.in_chan_capacity
         } else {
             1 // tokio::mpsc::channel requires capacity >= 1
         };
@@ -505,10 +501,6 @@ impl SessionFactory {
             message_out: message_out_tx,
             message_in: message_in_rx,
             to_send: Vec::default(),
-            session_event: SessionEvent {
-                tx: session_event_tx,
-                rx: session_event_rx,
-            },
             message_event: MessageEvent {
                 tx: message_event_tx,
                 rx: message_event_rx,
@@ -520,8 +512,10 @@ impl SessionFactory {
                 stopped: false,
                 notify_on_in_session_time: None,
             },
-            state_timer: EventTimer::new(Arc::new(|| {})),
-            peer_timer: EventTimer::new(Arc::new(|| {})),
+            state_timer: EventTimer::new(),
+            peer_timer: EventTimer::new(),
+            logon_timer: EventTimer::new(),
+            logout_timer: EventTimer::new(),
             sent_reset: Default::default(),
             // stop_once is initialized here in the factory (not in run()) to prevent
             // deadlocks on sequential start/stop cycles. In Rust this is inherently
@@ -532,7 +526,7 @@ impl SessionFactory {
                 tx: admin_tx,
                 rx: admin_rx,
             },
-            iss,
+            session_settings,
             transport_data_dictionary,
             app_data_dictionary,
             timestamp_precision: precision,
@@ -542,59 +536,59 @@ impl SessionFactory {
 
     async fn build_acceptor_settings(
         &self,
-        iss: &mut InternalSessionSetting,
-        settings: &SessionSettings,
+        session_settings: &mut SessionSettings,
+        settings: &ConfigSessionSettings,
     ) -> SimpleResult<()> {
-        self.build_heart_bt_int_settings(iss, settings, false).await
+        self.build_heart_bt_int_settings(session_settings, settings, false).await
     }
 
     async fn build_initiator_settings(
         &self,
-        iss: &mut InternalSessionSetting,
-        settings: &SessionSettings,
+        session_settings: &mut SessionSettings,
+        settings: &ConfigSessionSettings,
     ) -> SimpleResult<()> {
-        iss.initiate_logon = true;
+        session_settings.initiate_logon = true;
 
-        self.build_heart_bt_int_settings(iss, settings, true)
+        self.build_heart_bt_int_settings(session_settings, settings, true)
             .await?;
 
-        iss.reconnect_interval = SignedDuration::from_secs(30);
+        session_settings.reconnect_interval = SignedDuration::from_secs(30);
         if settings.has_setting(RECONNECT_INTERVAL) {
-            iss.reconnect_interval =
+            session_settings.reconnect_interval =
                 Self::parse_duration_or_int_setting(settings, RECONNECT_INTERVAL)?;
-            if iss.reconnect_interval <= SignedDuration::ZERO {
+            if session_settings.reconnect_interval <= SignedDuration::ZERO {
                 return Err(simple_error!("ReconnectInterval must be greater than zero"));
             }
         }
 
-        iss.logout_timeout = SignedDuration::from_secs(2);
+        session_settings.logout_timeout = SignedDuration::from_secs(2);
         if settings.has_setting(LOGOUT_TIMEOUT) {
-            iss.logout_timeout =
+            session_settings.logout_timeout =
                 Self::parse_duration_or_int_setting(settings, LOGOUT_TIMEOUT)?;
-            if iss.logout_timeout <= SignedDuration::ZERO {
+            if session_settings.logout_timeout <= SignedDuration::ZERO {
                 return Err(simple_error!("LogoutTimeout must be greater than zero"));
             }
         }
 
-        iss.logon_timeout = SignedDuration::from_secs(10);
+        session_settings.logon_timeout = SignedDuration::from_secs(10);
         if settings.has_setting(LOGON_TIMEOUT) {
-            iss.logon_timeout =
+            session_settings.logon_timeout =
                 Self::parse_duration_or_int_setting(settings, LOGON_TIMEOUT)?;
-            if iss.logon_timeout <= SignedDuration::ZERO {
+            if session_settings.logon_timeout <= SignedDuration::ZERO {
                 return Err(simple_error!("LogonTimeout must be greater than zero"));
             }
         }
 
-        self.configure_socket_connect_address(iss, settings).await
+        self.configure_socket_connect_address(session_settings, settings).await
     }
 
     #[allow(clippy::unused_async)]
     async fn configure_socket_connect_address(
         &self,
-        iss: &mut InternalSessionSetting,
-        settings: &SessionSettings,
+        session_settings: &mut SessionSettings,
+        settings: &ConfigSessionSettings,
     ) -> SimpleResult<()> {
-        iss.socket_connect_address = vec![];
+        session_settings.socket_connect_address = vec![];
 
         let mut i = 0;
 
@@ -639,7 +633,7 @@ impl SessionFactory {
                 return Err(err);
             }
 
-            iss.socket_connect_address
+            session_settings.socket_connect_address
                 .push(socket_connect_address_result.unwrap());
 
             i += 1;
@@ -651,7 +645,7 @@ impl SessionFactory {
     /// Parse a setting as a duration string (e.g., "30s", "10m") first, falling
     /// back to parsing as integer seconds for backward compatibility.
     fn parse_duration_or_int_setting(
-        settings: &SessionSettings,
+        settings: &ConfigSessionSettings,
         setting: &str,
     ) -> SimpleResult<SignedDuration> {
         if let Ok(duration) = settings.duration_setting(setting) {
@@ -665,21 +659,21 @@ impl SessionFactory {
     #[allow(clippy::unused_async)]
     async fn build_heart_bt_int_settings(
         &self,
-        iss: &mut InternalSessionSetting,
-        settings: &SessionSettings,
+        session_settings: &mut SessionSettings,
+        settings: &ConfigSessionSettings,
         must_provide: bool,
     ) -> SimpleResult<()> {
         if settings.has_setting(HEART_BT_INT_OVERRIDE) {
             let st = settings.bool_setting(HEART_BT_INT_OVERRIDE)?;
-            iss.heart_bt_int_override = st;
+            session_settings.heart_bt_int_override = st;
         }
 
-        if iss.heart_bt_int_override || must_provide {
+        if session_settings.heart_bt_int_override || must_provide {
             let heart_bt_int = settings.int_setting(HEART_BT_INT)?;
             if heart_bt_int <= 0 {
                 return Err(simple_error!("Heartbeat must be greater than zero"));
             }
-            iss.heart_bt_int = SignedDuration::from_secs(heart_bt_int as i64);
+            session_settings.heart_bt_int = SignedDuration::from_secs(heart_bt_int as i64);
         }
         Ok(())
     }
@@ -701,10 +695,11 @@ mod tests {
         },
         fix_utc_timestamp::TimestampPrecision,
         fixer_test::MockApp,
-        internal::time_range::{TimeOfDay, TimeRange},
         log::LogFactoryEnum,
         session::{
-            Session, factory::SessionFactory, session_id::SessionID, settings::SessionSettings,
+            Session, factory::SessionFactory, session_id::SessionID,
+            settings::SessionSettings as ConfigSessionSettings,
+            time_range::{TimeOfDay, TimeRange},
         },
         store::{MemoryStoreFactory, MessageStoreFactoryEnum},
     };
@@ -715,7 +710,7 @@ mod tests {
         factory: SessionFactory,
         session_id: Arc<SessionID>,
         store_factory: MessageStoreFactoryEnum,
-        ss: SessionSettings,
+        ss: ConfigSessionSettings,
         log_factory: LogFactoryEnum,
         app: Arc<dyn Application>,
     }
@@ -730,7 +725,7 @@ mod tests {
                 ..Default::default()
             });
             let store_factory = MemoryStoreFactory::new();
-            let ss = SessionSettings::default();
+            let ss = ConfigSessionSettings::default();
             let log_factory = LogFactoryEnum::default();
             let app: Arc<dyn Application> = Arc::new(MockApp::default());
             SessionFactorySuite {
@@ -760,24 +755,24 @@ mod tests {
         assert!(session_result.is_ok());
         let session = session_result.unwrap();
 
-        assert!(!session.iss.reset_on_logon);
-        assert!(!session.iss.refresh_on_logon);
-        assert!(!session.iss.reset_on_logout);
-        assert!(!session.iss.reset_on_disconnect);
+        assert!(!session.session_settings.reset_on_logon);
+        assert!(!session.session_settings.refresh_on_logon);
+        assert!(!session.session_settings.reset_on_logout);
+        assert!(!session.session_settings.reset_on_disconnect);
         assert!(
-            session.iss.session_time.is_none(),
+            session.session_settings.session_time.is_none(),
             "By default, start and end time unset"
         );
-        assert_eq!("", &session.iss.default_appl_ver_id);
+        assert_eq!("", &session.session_settings.default_appl_ver_id);
 
-        assert!(!session.iss.initiate_logon);
-        assert_eq!(0, session.iss.resend_request_chunk_size);
-        assert!(!session.iss.enable_last_msg_seq_num_processed);
-        assert!(!session.iss.skip_check_latency);
+        assert!(!session.session_settings.initiate_logon);
+        assert_eq!(0, session.session_settings.resend_request_chunk_size);
+        assert!(!session.session_settings.enable_last_msg_seq_num_processed);
+        assert!(!session.session_settings.skip_check_latency);
         assert_eq!(TimestampPrecision::Millis, session.timestamp_precision);
-        assert_eq!(SignedDuration::from_secs(120), session.iss.max_latency);
-        assert!(!session.iss.disable_message_persist);
-        assert!(!session.iss.heart_bt_int_override);
+        assert_eq!(SignedDuration::from_secs(120), session.session_settings.max_latency);
+        assert!(!session.session_settings.disable_message_persist);
+        assert!(!session.session_settings.heart_bt_int_override);
     }
 
     #[tokio::test]
@@ -812,7 +807,7 @@ mod tests {
                 .await;
             assert!(session_result.is_ok());
             let session = session_result.unwrap();
-            assert_eq!(tc.expected, session.iss.reset_on_logon);
+            assert_eq!(tc.expected, session.session_settings.reset_on_logon);
         }
     }
 
@@ -848,7 +843,7 @@ mod tests {
                 .await;
             assert!(session_result.is_ok());
             let session = session_result.unwrap();
-            assert_eq!(tc.expected, session.iss.refresh_on_logon);
+            assert_eq!(tc.expected, session.session_settings.refresh_on_logon);
         }
     }
 
@@ -884,7 +879,7 @@ mod tests {
                 .await;
             assert!(session_result.is_ok());
             let session = session_result.unwrap();
-            assert_eq!(tc.expected, session.iss.reset_on_logout);
+            assert_eq!(tc.expected, session.session_settings.reset_on_logout);
         }
     }
 
@@ -920,7 +915,7 @@ mod tests {
                 .await;
             assert!(session_result.is_ok());
             let session = session_result.unwrap();
-            assert_eq!(tc.expected, session.iss.reset_on_disconnect);
+            assert_eq!(tc.expected, session.session_settings.reset_on_disconnect);
         }
     }
 
@@ -940,7 +935,7 @@ mod tests {
             .await;
         assert!(session_result.is_ok());
         let session = session_result.unwrap();
-        assert_eq!(2500, session.iss.resend_request_chunk_size);
+        assert_eq!(2500, session.session_settings.resend_request_chunk_size);
         s.ss.set(
             RESEND_REQUEST_CHUNK_SIZE.to_string(),
             "notanint".to_string(),
@@ -993,7 +988,7 @@ mod tests {
                 .await;
             assert!(session_result.is_ok());
             let session = session_result.unwrap();
-            assert_eq!(tc.expected, session.iss.enable_last_msg_seq_num_processed);
+            assert_eq!(tc.expected, session.session_settings.enable_last_msg_seq_num_processed);
         }
     }
 
@@ -1029,7 +1024,7 @@ mod tests {
                 .await;
             assert!(session_result.is_ok());
             let session = session_result.unwrap();
-            assert_eq!(tc.expected, session.iss.skip_check_latency);
+            assert_eq!(tc.expected, session.session_settings.skip_check_latency);
         }
     }
 
@@ -1050,10 +1045,10 @@ mod tests {
             .await;
         assert!(session_result.is_ok());
         let session = session_result.unwrap();
-        assert!(session.iss.session_time.is_some());
+        assert!(session.session_settings.session_time.is_some());
         assert_eq!(
             TimeRange::new_utc(TimeOfDay::new(12, 0, 0), TimeOfDay::new(14, 0, 0)),
-            session.iss.session_time.unwrap()
+            session.session_settings.session_time.unwrap()
         );
     }
 
@@ -1084,7 +1079,7 @@ mod tests {
 
         assert_eq!(
             TimeRange::new_in_location(TimeOfDay::new(12, 0, 0), TimeOfDay::new(14, 0, 0), offset),
-            session.iss.session_time.unwrap()
+            session.session_settings.session_time.unwrap()
         );
     }
 
@@ -1132,7 +1127,7 @@ mod tests {
                     Weekday::Sunday,
                     Weekday::Thursday
                 ),
-                session.iss.session_time.unwrap()
+                session.session_settings.session_time.unwrap()
             );
         }
     }
@@ -1173,7 +1168,7 @@ mod tests {
                 Weekday::Thursday,
                 offset,
             ),
-            session.iss.session_time.unwrap()
+            session.session_settings.session_time.unwrap()
         );
     }
 
@@ -1439,7 +1434,7 @@ mod tests {
                 .await;
             assert!(session_result.is_ok());
             let session = session_result.unwrap();
-            assert_eq!(tc.expected, &session.iss.default_appl_ver_id);
+            assert_eq!(tc.expected, &session.session_settings.default_appl_ver_id);
         }
     }
 
@@ -1463,16 +1458,16 @@ mod tests {
             .await;
         assert!(session_result.is_ok());
         let session = session_result.unwrap();
-        assert!(session.iss.initiate_logon);
+        assert!(session.session_settings.initiate_logon);
 
-        assert_eq!(SignedDuration::from_secs(34), session.iss.heart_bt_int);
+        assert_eq!(SignedDuration::from_secs(34), session.session_settings.heart_bt_int);
         assert_eq!(
             SignedDuration::from_secs(30),
-            session.iss.reconnect_interval
+            session.session_settings.reconnect_interval
         );
-        assert_eq!(SignedDuration::from_secs(10), session.iss.logon_timeout);
-        assert_eq!(SignedDuration::from_secs(2), session.iss.logout_timeout);
-        assert_eq!("127.0.0.1:5000", session.iss.socket_connect_address[0]);
+        assert_eq!(SignedDuration::from_secs(10), session.session_settings.logon_timeout);
+        assert_eq!(SignedDuration::from_secs(2), session.session_settings.logout_timeout);
+        assert_eq!("127.0.0.1:5000", session.session_settings.socket_connect_address[0]);
     }
 
     #[tokio::test]
@@ -1494,9 +1489,9 @@ mod tests {
         assert!(session_result.is_ok());
         let session = session_result.unwrap();
 
-        assert!(!session.iss.initiate_logon);
-        assert_eq!(session.iss.heart_bt_int, SignedDuration::ZERO);
-        assert!(!session.iss.heart_bt_int_override);
+        assert!(!session.session_settings.initiate_logon);
+        assert_eq!(session.session_settings.heart_bt_int, SignedDuration::ZERO);
+        assert!(!session.session_settings.heart_bt_int_override);
 
         s.ss.set(HEART_BT_INT_OVERRIDE.to_string(), "Y".to_string());
 
@@ -1513,9 +1508,9 @@ mod tests {
         assert!(session_result.is_ok());
         let session = session_result.unwrap();
 
-        assert!(!session.iss.initiate_logon);
-        assert_eq!(session.iss.heart_bt_int, SignedDuration::from_secs(34));
-        assert!(session.iss.heart_bt_int_override);
+        assert!(!session.session_settings.initiate_logon);
+        assert_eq!(session.session_settings.heart_bt_int, SignedDuration::from_secs(34));
+        assert!(session.session_settings.heart_bt_int_override);
     }
 
     #[tokio::test]
@@ -1674,7 +1669,7 @@ mod tests {
         let session = session_result.unwrap();
         assert_eq!(
             SignedDuration::from_secs(45),
-            session.iss.reconnect_interval
+            session.session_settings.reconnect_interval
         );
 
         s.ss.set(RECONNECT_INTERVAL.to_string(), "not a number".to_string());
@@ -1747,7 +1742,7 @@ mod tests {
             .await;
         assert!(session_result.is_ok());
         let session = session_result.unwrap();
-        assert_eq!(SignedDuration::from_secs(45), session.iss.logout_timeout);
+        assert_eq!(SignedDuration::from_secs(45), session.session_settings.logout_timeout);
 
         s.ss.set(LOGOUT_TIMEOUT.to_string(), "not a number".to_string());
         let session_result = s
@@ -1816,7 +1811,7 @@ mod tests {
             .await;
         assert!(session_result.is_ok());
         let session = session_result.unwrap();
-        assert_eq!(SignedDuration::from_secs(45), session.iss.logon_timeout);
+        assert_eq!(SignedDuration::from_secs(45), session.session_settings.logon_timeout);
 
         s.ss.set(LOGON_TIMEOUT.to_string(), "not a number".to_string());
         let session_result = s
@@ -1870,7 +1865,7 @@ mod tests {
         let mut sess = Session::default();
         let configure_result = s
             .factory
-            .configure_socket_connect_address(&mut sess.iss, &s.ss)
+            .configure_socket_connect_address(&mut sess.session_settings, &s.ss)
             .await;
         assert!(
             configure_result.is_err(),
@@ -1880,18 +1875,18 @@ mod tests {
         s.ss.set(SOCKET_CONNECT_HOST.to_string(), "127.0.0.1".to_string());
         let configure_result = s
             .factory
-            .configure_socket_connect_address(&mut sess.iss, &s.ss)
+            .configure_socket_connect_address(&mut sess.session_settings, &s.ss)
             .await;
         assert!(
             configure_result.is_err(),
             "SocketConnectHost and SocketConnectPort should be required"
         );
 
-        s.ss = SessionSettings::new();
+        s.ss = ConfigSessionSettings::new();
         s.ss.set(SOCKET_CONNECT_PORT.to_string(), "5000".to_string());
         let configure_result = s
             .factory
-            .configure_socket_connect_address(&mut sess.iss, &s.ss)
+            .configure_socket_connect_address(&mut sess.session_settings, &s.ss)
             .await;
         assert!(
             configure_result.is_err(),
@@ -1927,11 +1922,11 @@ mod tests {
             s.ss.set(SOCKET_CONNECT_PORT.to_string(), tc.port.to_string());
             let configure_result = s
                 .factory
-                .configure_socket_connect_address(&mut sess.iss, &s.ss)
+                .configure_socket_connect_address(&mut sess.session_settings, &s.ss)
                 .await;
             assert!(configure_result.is_ok());
-            assert_eq!(sess.iss.socket_connect_address.len(), 1);
-            assert_eq!(tc.expected, &sess.iss.socket_connect_address[0]);
+            assert_eq!(sess.session_settings.socket_connect_address.len(), 1);
+            assert_eq!(tc.expected, &sess.session_settings.socket_connect_address[0]);
         }
     }
 
@@ -1957,15 +1952,15 @@ mod tests {
 
         let configure_result = s
             .factory
-            .configure_socket_connect_address(&mut session.iss, &s.ss)
+            .configure_socket_connect_address(&mut session.session_settings, &s.ss)
             .await;
         assert!(configure_result.is_ok());
-        assert_eq!(session.iss.socket_connect_address.len(), 3);
+        assert_eq!(session.session_settings.socket_connect_address.len(), 3);
 
         let tests = ["127.0.0.1:3000", "127.0.0.2:4000", "127.0.0.3:5000"];
 
         for (i, tc) in tests.iter().enumerate() {
-            assert_eq!(tc, &session.iss.socket_connect_address[i]);
+            assert_eq!(tc, &session.session_settings.socket_connect_address[i]);
         }
 
         s.ss.set(
@@ -1975,7 +1970,7 @@ mod tests {
 
         let configure_result = s
             .factory
-            .configure_socket_connect_address(&mut session.iss, &s.ss)
+            .configure_socket_connect_address(&mut session.session_settings, &s.ss)
             .await;
         assert!(
             configure_result.is_err(),
@@ -1987,7 +1982,7 @@ mod tests {
 
         let configure_result = s
             .factory
-            .configure_socket_connect_address(&mut session.iss, &s.ss)
+            .configure_socket_connect_address(&mut session.session_settings, &s.ss)
             .await;
         assert!(
             configure_result.is_err(),
@@ -2109,7 +2104,7 @@ mod tests {
             .await;
         assert!(session_result.is_ok());
         let session = session_result.unwrap();
-        assert_eq!(SignedDuration::from_secs(20), session.iss.max_latency);
+        assert_eq!(SignedDuration::from_secs(20), session.session_settings.max_latency);
     }
 
     #[tokio::test]
@@ -2144,7 +2139,7 @@ mod tests {
                 .await;
             assert!(session_result.is_ok());
             let session = session_result.unwrap();
-            assert_eq!(tc.expected, session.iss.disable_message_persist);
+            assert_eq!(tc.expected, session.session_settings.disable_message_persist);
         }
     }
 
@@ -2163,7 +2158,7 @@ mod tests {
             .await;
         assert!(session_result.is_ok());
         let session = session_result.unwrap();
-        assert_eq!(1, session.iss.in_chan_capacity, "default should be 1");
+        assert_eq!(1, session.session_settings.in_chan_capacity, "default should be 1");
     }
 
     #[tokio::test]
@@ -2182,7 +2177,7 @@ mod tests {
             .await;
         assert!(session_result.is_ok());
         let session = session_result.unwrap();
-        assert_eq!(16, session.iss.in_chan_capacity);
+        assert_eq!(16, session.session_settings.in_chan_capacity);
 
         // Negative value should fail
         s.ss.set(IN_CHAN_CAPACITY.to_string(), "-1".to_string());
@@ -2211,7 +2206,7 @@ mod tests {
             )
             .await;
         assert!(session_result.is_ok());
-        assert_eq!(0, session_result.unwrap().iss.in_chan_capacity);
+        assert_eq!(0, session_result.unwrap().session_settings.in_chan_capacity);
     }
 
     #[tokio::test]
@@ -2237,7 +2232,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             SignedDuration::from_secs(90),
-            session.iss.reconnect_interval
+            session.session_settings.reconnect_interval
         );
 
         // Plain integer still works (backward compat)
@@ -2255,7 +2250,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             SignedDuration::from_secs(45),
-            session.iss.reconnect_interval
+            session.session_settings.reconnect_interval
         );
     }
 
@@ -2279,7 +2274,7 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(SignedDuration::from_secs(30), session.iss.logon_timeout);
+        assert_eq!(SignedDuration::from_secs(30), session.session_settings.logon_timeout);
     }
 
     #[tokio::test]
@@ -2302,6 +2297,6 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(SignedDuration::from_secs(5), session.iss.logout_timeout);
+        assert_eq!(SignedDuration::from_secs(5), session.session_settings.logout_timeout);
     }
 }

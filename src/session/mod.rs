@@ -15,9 +15,8 @@ use crate::{
     fix_int::FIXInt,
     fix_string::FIXString,
     fix_utc_timestamp::{FIXUTCTimestamp, TimestampPrecision},
-    internal::event::{Event, LOGON_TIMEOUT, LOGOUT_TIMEOUT, NEED_HEARTBEAT, PEER_TIMEOUT},
-    internal::event_timer::EventTimer,
-    internal::{session_settings::SessionSettings as InternalSessionSettings, time_range::gen_now},
+    session::event::{Event, LOGON_TIMEOUT, LOGOUT_TIMEOUT, NEED_HEARTBEAT, PEER_TIMEOUT},
+    session::{session_settings::SessionSettings, time_range::gen_now},
     log::{LogEnum, LogTrait},
     message::Message,
     msg_type::{
@@ -57,13 +56,18 @@ use tokio::sync::{
     mpsc::{Receiver, Sender, UnboundedReceiver, UnboundedSender, unbounded_channel},
     oneshot,
 };
-use tokio::time::{Duration, interval, sleep};
+use tokio::time::{Duration, interval};
 
 // session main
+pub mod event;
 pub mod factory;
 pub mod session_id;
+pub mod session_settings;
 pub mod session_state;
 pub mod settings;
+pub mod time_range;
+pub mod event_timer;
+use event_timer::EventTimer;
 
 // states
 pub mod in_session;
@@ -84,11 +88,6 @@ impl MessageEvent {
     async fn send(&self, event: bool) {
         let _ = self.tx.try_send(event);
     }
-}
-
-pub struct SessionEvent {
-    pub tx: UnboundedSender<Event>,
-    pub rx: UnboundedReceiver<Event>,
 }
 
 pub struct Connect {
@@ -131,19 +130,20 @@ pub struct Session {
 
     // application messages are queued up for send here
     pub to_send: Vec<Vec<u8>>,
-    pub session_event: SessionEvent,
     pub message_event: MessageEvent,
     pub application: Arc<dyn Application>,
     pub validator: Option<ValidatorEnum>,
     pub sm: StateMachine,
     pub state_timer: EventTimer,
     pub peer_timer: EventTimer,
+    pub logon_timer: EventTimer,
+    pub logout_timer: EventTimer,
     pub sent_reset: bool,
     pub stop_once: OnceCell<()>,
     pub target_default_appl_ver_id: Arc<StdMutex<String>>,
 
     pub admin: Admin,
-    pub iss: InternalSessionSettings,
+    pub session_settings: SessionSettings,
     pub transport_data_dictionary: Option<Arc<DataDictionary>>,
     pub app_data_dictionary: Option<Arc<DataDictionary>>,
     pub timestamp_precision: TimestampPrecision,
@@ -157,7 +157,6 @@ impl Default for Session {
         let (admin_tx, admin_rx) = unbounded_channel::<AdminEnum>();
         let (message_event_tx, message_event_rx) = channel::<bool>(1);
         let (_, message_in_rx) = channel::<FixIn>(1);
-        let (session_event_tx, session_event_rx) = unbounded_channel::<Event>();
         Session {
             store: MessageStoreEnum::default(),
             log: LogEnum::default(),
@@ -165,10 +164,6 @@ impl Default for Session {
             message_out: message_out_tx,
             message_in: message_in_rx,
             to_send: Vec::default(),
-            session_event: SessionEvent {
-                tx: session_event_tx,
-                rx: session_event_rx,
-            },
             message_event: MessageEvent {
                 tx: message_event_tx,
                 rx: message_event_rx,
@@ -181,8 +176,10 @@ impl Default for Session {
                 stopped: false,
                 notify_on_in_session_time: None,
             },
-            state_timer: EventTimer::new(Arc::new(|| {})),
-            peer_timer: EventTimer::new(Arc::new(|| {})),
+            state_timer: EventTimer::new(),
+            peer_timer: EventTimer::new(),
+            logon_timer: EventTimer::new(),
+            logout_timer: EventTimer::new(),
             sent_reset: bool::default(),
             stop_once: OnceCell::default(),
             target_default_appl_ver_id: Arc::new(StdMutex::new(String::new())),
@@ -190,7 +187,7 @@ impl Default for Session {
                 tx: admin_tx,
                 rx: admin_rx,
             },
-            iss: InternalSessionSettings::default(),
+            session_settings: SessionSettings::default(),
             transport_data_dictionary: Option::default(),
             app_data_dictionary: Option::default(),
             timestamp_precision: TimestampPrecision::default(),
@@ -213,11 +210,6 @@ pub struct WaitForInSessionReq {
     pub rep: UnboundedSender<WaitChan>,
 }
 
-impl SessionEvent {
-    fn send(&self, event: Event) {
-        let _ = self.tx.send(event);
-    }
-}
 
 impl Session {
     async fn log_error(&mut self, err: &str) {
@@ -326,7 +318,7 @@ impl Session {
 
         self.insert_sending_time(msg);
 
-        if self.iss.enable_last_msg_seq_num_processed {
+        if self.session_settings.enable_last_msg_seq_num_processed {
             if let Some(irt) = in_reply_to {
                 let get_int_result = irt.header.get_int(TAG_MSG_SEQ_NUM);
                 match get_int_result {
@@ -353,7 +345,7 @@ impl Session {
         // other way:
         // if self.session_id.begin_string.as_str() < BEGIN_STRING_FIX41 { return false; }
 
-        (self.iss.reset_on_logon || self.iss.reset_on_disconnect || self.iss.reset_on_logout)
+        (self.session_settings.reset_on_logon || self.session_settings.reset_on_disconnect || self.session_settings.reset_on_logout)
             && self.store.next_target_msg_seq_num().await == 1
             && self.store.next_sender_msg_seq_num().await == 1
     }
@@ -388,7 +380,7 @@ impl Session {
             .set_field(TAG_ENCRYPT_METHOD, FIXString::from("0"));
         logon
             .body
-            .set_field(TAG_HEART_BT_INT, self.iss.heart_bt_int.as_secs() as FIXInt);
+            .set_field(TAG_HEART_BT_INT, self.session_settings.heart_bt_int.as_secs() as FIXInt);
 
         if set_reset_seq_num {
             logon
@@ -396,15 +388,15 @@ impl Session {
                 .set_field(TAG_RESET_SEQ_NUM_FLAG, true as FIXBoolean);
         }
 
-        if !self.iss.default_appl_ver_id.is_empty() {
+        if !self.session_settings.default_appl_ver_id.is_empty() {
             logon.body.set_field(
                 TAG_DEFAULT_APPL_VER_ID,
-                FIXString::from(&self.iss.default_appl_ver_id),
+                FIXString::from(&self.session_settings.default_appl_ver_id),
             );
         }
 
         // Evaluate tag 789.
-        if self.iss.enable_next_expected_msg_seq_num {
+        if self.session_settings.enable_next_expected_msg_seq_num {
             if let Some(irt) = in_reply_to {
                 if let Ok(target_wants_next) =
                     irt.body.get_int(TAG_NEXT_EXPECTED_MSG_SEQ_NUM)
@@ -596,7 +588,7 @@ impl Session {
     }
 
     async fn persist(&mut self, seq_num: isize, msg_bytes: &[u8]) -> Result<(), FixerError> {
-        if !self.iss.disable_message_persist {
+        if !self.session_settings.disable_message_persist {
             self.store
                 .save_message_and_incr_next_sender_msg_seq_num(seq_num, msg_bytes.to_vec())
                 .await?;
@@ -619,8 +611,7 @@ impl Session {
             // TODO: check this error
             let _ = self.message_out.send(msg_bytes.clone());
             self.state_timer
-                .reset(self.iss.heart_bt_int.unsigned_abs())
-                .await;
+                .reset(self.session_settings.heart_bt_int.unsigned_abs());
         }
         self.drop_queued();
     }
@@ -668,8 +659,8 @@ impl Session {
             .set_bytes(TAG_MSG_TYPE, MSG_TYPE_RESEND_REQUEST);
         resend.body.set_field(TAG_BEGIN_SEQ_NO, begin_seq);
 
-        let mut end_seq_no = if self.iss.resend_request_chunk_size != 0 {
-            begin_seq + self.iss.resend_request_chunk_size - 1
+        let mut end_seq_no = if self.session_settings.resend_request_chunk_size != 0 {
+            begin_seq + self.session_settings.resend_request_chunk_size - 1
         } else {
             end_seq
         };
@@ -717,13 +708,13 @@ impl Session {
         }
 
         let mut reset_store = false;
-        if self.iss.initiate_logon {
+        if self.session_settings.initiate_logon {
             self.log.on_event("Received logon response").await;
         } else {
             self.log.on_event("Received logon request").await;
-            reset_store = self.iss.reset_on_logon;
+            reset_store = self.session_settings.reset_on_logon;
 
-            if self.iss.refresh_on_logon {
+            if self.session_settings.refresh_on_logon {
                 self.store.refresh().await?;
             }
         }
@@ -752,13 +743,13 @@ impl Session {
         // since we just did that above. Don't need to double check.
         self.verify_ignore_seq_num_too_high(msg).await?;
 
-        if !self.iss.initiate_logon {
-            if !self.iss.heart_bt_int_override {
+        if !self.session_settings.initiate_logon {
+            if !self.session_settings.heart_bt_int_override {
                 let mut heart_bt_int = FIXInt::default();
 
                 let get_field_result = msg.body.get_field(TAG_HEART_BT_INT, &mut heart_bt_int);
                 if get_field_result.is_ok() {
-                    self.iss.heart_bt_int = SignedDuration::from_secs(heart_bt_int as i64);
+                    self.session_settings.heart_bt_int = SignedDuration::from_secs(heart_bt_int as i64);
                 }
             }
 
@@ -768,17 +759,17 @@ impl Session {
         }
         self.sent_reset = false;
 
-        let duration = (1.2_f64 * (self.iss.heart_bt_int.as_nanos() as f64)).round() as u64;
+        let duration = (1.2_f64 * (self.session_settings.heart_bt_int.as_nanos() as f64)).round() as u64;
 
-        self.peer_timer.reset(Duration::from_nanos(duration)).await;
+        self.peer_timer.reset(Duration::from_nanos(duration));
         self.application.on_logon(&self.session_id);
 
         // Evaluate tag 789 to see if we end up with an implied gapfill/resend.
-        if self.iss.enable_next_expected_msg_seq_num && !msg.body.has(TAG_RESET_SEQ_NUM_FLAG) {
+        if self.session_settings.enable_next_expected_msg_seq_num && !msg.body.has(TAG_RESET_SEQ_NUM_FLAG) {
             if let Ok(target_wants_next) = msg.body.get_int(TAG_NEXT_EXPECTED_MSG_SEQ_NUM) {
                 if target_wants_next != next_sender_msg_num_at_logon_received {
-                    if !self.iss.disable_message_persist {
-                        self.in_session_generate_sequence_reset(
+                    if !self.session_settings.disable_message_persist {
+                        self.generate_sequence_reset(
                             target_wants_next,
                             next_sender_msg_num_at_logon_received + 1,
                             msg,
@@ -816,10 +807,10 @@ impl Session {
             return Err(err);
         }
 
-        self.log.on_event("Inititated logout request").await;
+        self.log.on_event("Initiated logout request").await;
 
-        sleep(self.iss.logout_timeout.unsigned_abs()).await;
-        self.session_event.send(LOGOUT_TIMEOUT);
+        self.logout_timer
+            .reset(self.session_settings.logout_timeout.unsigned_abs());
         Ok(())
     }
 
@@ -959,7 +950,7 @@ impl Session {
     }
 
     fn check_sending_time(&self, msg: &Message) -> MessageRejectErrorResult {
-        if self.iss.skip_check_latency {
+        if self.session_settings.skip_check_latency {
             return Ok(());
         }
 
@@ -970,7 +961,7 @@ impl Session {
         let sending_time = msg.header.get_time(TAG_SENDING_TIME)?;
 
         let delta = Timestamp::now().duration_since(sending_time);
-        if delta <= -self.iss.max_latency || delta >= self.iss.max_latency {
+        if delta <= -self.session_settings.max_latency || delta >= self.session_settings.max_latency {
             return Err(sending_time_accuracy_problem());
         }
 
@@ -1063,7 +1054,7 @@ impl Session {
 
     async fn on_disconnect(&mut self) {
         self.log.on_event("Disconnected").await;
-        if self.iss.reset_on_disconnect {
+        if self.session_settings.reset_on_disconnect {
             let drop_result = self.drop_and_reset().await;
             if let Err(err) = drop_result {
                 self.log_error(&err.to_string()).await;
@@ -1123,24 +1114,8 @@ impl Session {
         }
     }
 
-    // TODO: use tokio::spawn instead of tokio::select! in order to run parallelly
     pub(crate) async fn run(&mut self) {
         self.sm_start().await;
-        let tx = self.session_event.tx.clone();
-
-        let send_heartbeat = Arc::new(move || {
-            let _ = tx.send(NEED_HEARTBEAT);
-        });
-        self.state_timer = EventTimer::new(send_heartbeat);
-
-        let tx = self.session_event.tx.clone();
-
-        let peer_timeout = Arc::new(move || {
-            let _ = tx.send(PEER_TIMEOUT);
-        });
-
-        // TODO: await
-        self.peer_timer = EventTimer::new(peer_timeout);
 
         let mut ticker = interval(Duration::from_secs(1));
 
@@ -1162,8 +1137,17 @@ impl Session {
                         }
                     }
                 }
-                Some(event) = self.session_event.rx.recv() => {
-                    self.sm_timeout(event).await;
+                () = &mut self.state_timer => {
+                    self.sm_timeout(NEED_HEARTBEAT).await;
+                },
+                () = &mut self.peer_timer => {
+                    self.sm_timeout(PEER_TIMEOUT).await;
+                },
+                () = &mut self.logon_timer => {
+                    self.sm_timeout(LOGON_TIMEOUT).await;
+                },
+                () = &mut self.logout_timer => {
+                    self.sm_timeout(LOGOUT_TIMEOUT).await;
                 },
                 _ = ticker.tick() => {
                     let mut now = gen_now();
@@ -1172,9 +1156,6 @@ impl Session {
                 },
             }
         }
-
-        self.state_timer.stop().await;
-        self.peer_timer.stop().await;
     }
 
     async fn handle_state_error(&mut self, err: &str) -> SessionStateEnum {
@@ -1192,12 +1173,12 @@ impl Session {
 
     pub async fn sm_connect(&mut self) {
         // No special logon logic needed for FIX Acceptors.
-        if !self.iss.initiate_logon {
+        if !self.session_settings.initiate_logon {
             self.sm_set_state(SessionStateEnum::new_logon_state()).await;
             return;
         }
 
-        if self.iss.refresh_on_logon {
+        if self.session_settings.refresh_on_logon {
             let refresh_result = self.store.refresh().await;
             if let Err(err) = refresh_result {
                 self.log_error(&err.to_string()).await;
@@ -1213,9 +1194,8 @@ impl Session {
 
         self.sm_set_state(SessionStateEnum::new_logon_state()).await;
 
-        // Fire logon timeout event after the pre-configured delay period.
-        sleep(self.iss.logon_timeout.unsigned_abs()).await;
-        self.session_event.send(LOGON_TIMEOUT);
+        self.logon_timer
+            .reset(self.session_settings.logon_timeout.unsigned_abs());
     }
 
     async fn sm_stop(&mut self) {
@@ -1278,9 +1258,9 @@ impl Session {
             self.sm_fix_msg_in(&mut msg).await;
         }
 
-        let duration = (1.2_f64 * (self.iss.heart_bt_int.as_nanos() as f64)).round() as u64;
+        let duration = (1.2_f64 * (self.session_settings.heart_bt_int.as_nanos() as f64)).round() as u64;
 
-        self.peer_timer.reset(Duration::from_nanos(duration)).await;
+        self.peer_timer.reset(Duration::from_nanos(duration));
     }
 
     // sm_fix_msg_in is called by the session on incoming messages from the counter party.
@@ -1334,7 +1314,7 @@ impl Session {
 
     async fn sm_check_session_time(&mut self, now: &mut Zoned) {
         let mut check_first = false;
-        if let Some(session_time) = self.iss.session_time.as_ref() {
+        if let Some(session_time) = self.session_settings.session_time.as_ref() {
             if !session_time.is_in_range(now) {
                 check_first = true;
             }
@@ -1362,7 +1342,7 @@ impl Session {
         }
 
         let mut check_third = false;
-        if let Some(session_time) = self.iss.session_time.as_ref() {
+        if let Some(session_time) = self.session_settings.session_time.as_ref() {
             let creation_time = self.store.creation_time().await;
             let mut creation_time_zoned = creation_time.to_zoned(jiff::tz::TimeZone::UTC);
             if !session_time.is_in_same_range(&mut creation_time_zoned, now) {
@@ -1383,7 +1363,7 @@ impl Session {
     }
 
     async fn sm_check_reset_time(&mut self, now: &Zoned) {
-        if !self.iss.enable_reset_seq_time {
+        if !self.session_settings.enable_reset_seq_time {
             return;
         }
 
@@ -1395,8 +1375,8 @@ impl Session {
             return;
         }
 
-        let reset_time = self.iss.reset_seq_time.as_ref().unwrap();
-        let tz = &self.iss.reset_seq_time_zone;
+        let reset_time = self.session_settings.reset_seq_time.as_ref().unwrap();
+        let tz = &self.session_settings.reset_seq_time_zone;
 
         // Get the reset time for today in the configured timezone
         let now_in_tz = now_ts.to_zoned(tz.clone());
@@ -1449,7 +1429,7 @@ impl Session {
         if let SessionStateEnum::LogoutState(_) = self.sm.state {
             do_on_logout = true;
         } else if let SessionStateEnum::LogonState(_) = self.sm.state {
-            if self.iss.initiate_logon {
+            if self.session_settings.initiate_logon {
                 do_on_logout = true;
             }
         }
@@ -1534,7 +1514,7 @@ impl Session {
             self.log_error(&err.to_string()).await;
         }
 
-        if self.iss.reset_on_logout {
+        if self.session_settings.reset_on_logout {
             let drop_result = self.drop_and_reset().await;
             if let Err(err) = drop_result {
                 self.log_error(&err.to_string()).await;
@@ -1708,8 +1688,8 @@ impl Session {
         end_seq_no: isize,
         in_reply_to: &Message,
     ) -> Result<(), FixerError> {
-        if self.iss.disable_message_persist {
-            self.in_session_generate_sequence_reset(begin_seq_no, end_seq_no + 1, in_reply_to)
+        if self.session_settings.disable_message_persist {
+            self.generate_sequence_reset(begin_seq_no, end_seq_no + 1, in_reply_to)
                 .await?;
         }
 
@@ -1752,7 +1732,7 @@ impl Session {
             }
 
             if seq_num != sent_message_seq_num {
-                self.in_session_generate_sequence_reset(seq_num, sent_message_seq_num, in_reply_to)
+                self.generate_sequence_reset(seq_num, sent_message_seq_num, in_reply_to)
                     .await?;
             }
 
@@ -1775,7 +1755,7 @@ impl Session {
 
         if seq_num != next_seq_num {
             // gapfill for catch-up
-            self.in_session_generate_sequence_reset(seq_num, next_seq_num, in_reply_to)
+            self.generate_sequence_reset(seq_num, next_seq_num, in_reply_to)
                 .await?;
         }
 
@@ -1920,7 +1900,7 @@ impl Session {
         SessionStateEnum::new_in_session().await
     }
 
-    async fn in_session_generate_sequence_reset(
+    async fn generate_sequence_reset(
         &mut self,
         begin_seq_no: isize,
         end_seq_no: isize,
@@ -1978,36 +1958,41 @@ impl Session {
         clippy::cast_precision_loss
     )]
     async fn in_session_timeout(&mut self, event: Event) -> SessionStateEnum {
-        if event == NEED_HEARTBEAT {
-            let mut heart_beat = Message::new();
-            heart_beat
-                .header
-                .set_field(TAG_MSG_TYPE, FIXString::from("0"));
-            let send_result = self.send(&mut heart_beat).await;
-            if let Err(err) = send_result {
-                return self.handle_state_error(&err.to_string()).await;
+        match event {
+            Event::NeedHeartbeat => {
+                let mut heart_beat = Message::new();
+                heart_beat
+                    .header
+                    .set_field(TAG_MSG_TYPE, FIXString::from("0"));
+                let send_result = self.send(&mut heart_beat).await;
+                if let Err(err) = send_result {
+                    return self.handle_state_error(&err.to_string()).await;
+                }
+                SessionStateEnum::new_in_session().await
             }
-        } else if event == PEER_TIMEOUT {
-            let mut test_req = Message::new();
-            test_req
-                .header
-                .set_field(TAG_MSG_TYPE, FIXString::from("1"));
-            test_req
-                .body
-                .set_field(TAG_TEST_REQ_ID, FIXString::from("TEST"));
-            let send_result = self.send(&mut test_req).await;
-            if let Err(err) = send_result {
-                return self.handle_state_error(&err.to_string()).await;
+            Event::PeerTimeout => {
+                let mut test_req = Message::new();
+                test_req
+                    .header
+                    .set_field(TAG_MSG_TYPE, FIXString::from("1"));
+                test_req
+                    .body
+                    .set_field(TAG_TEST_REQ_ID, FIXString::from("TEST"));
+                let send_result = self.send(&mut test_req).await;
+                if let Err(err) = send_result {
+                    return self.handle_state_error(&err.to_string()).await;
+                }
+
+                self.log.on_event("Sent test request TEST").await;
+                let duration =
+                    (1.2_f64 * (self.session_settings.heart_bt_int.as_nanos() as f64)).round() as u64;
+
+                self.peer_timer.reset(Duration::from_nanos(duration));
+
+                SessionStateEnum::new_pending_timeout_in_session()
             }
-
-            self.log.on_event("Sent test request TEST").await;
-            let duration = (1.2_f64 * (self.iss.heart_bt_int.as_nanos() as f64)).round() as u64;
-
-            self.peer_timer.reset(Duration::from_nanos(duration)).await;
-
-            return SessionStateEnum::new_pending_timeout_in_session();
+            _ => SessionStateEnum::new_in_session().await,
         }
-        SessionStateEnum::new_in_session().await
     }
 
     async fn in_session_fix_msg_in(&mut self, msg: &mut Message) -> SessionStateEnum {
@@ -2136,25 +2121,27 @@ impl Session {
     }
 
     async fn logon_timeout(&mut self, event: Event) -> SessionStateEnum {
-        if event == LOGON_TIMEOUT {
-            self.log
-                .on_event("Timed out waiting for logon response")
-                .await;
-            return SessionStateEnum::new_latent_state();
+        match event {
+            Event::LogonTimeout => {
+                self.log
+                    .on_event("Timed out waiting for logon response")
+                    .await;
+                SessionStateEnum::new_latent_state()
+            }
+            _ => SessionStateEnum::new_logon_state(),
         }
-
-        SessionStateEnum::new_logon_state()
     }
 
     async fn logout_timeout(&mut self, event: Event) -> SessionStateEnum {
-        if event == LOGOUT_TIMEOUT {
-            self.log
-                .on_event("Timed out waiting for logout response")
-                .await;
-            return SessionStateEnum::new_latent_state();
+        match event {
+            Event::LogoutTimeout => {
+                self.log
+                    .on_event("Timed out waiting for logout response")
+                    .await;
+                SessionStateEnum::new_latent_state()
+            }
+            _ => SessionStateEnum::new_logout_state(),
         }
-
-        SessionStateEnum::new_logout_state()
     }
 
     async fn logout_fix_msg_in(&mut self, msg: &mut Message) -> SessionStateEnum {
@@ -2170,11 +2157,13 @@ impl Session {
         event: Event,
         pt: PendingTimeout,
     ) -> SessionStateEnum {
-        if event == PEER_TIMEOUT {
-            self.log.on_event("Session Timeout").await;
-            return SessionStateEnum::new_latent_state();
+        match event {
+            Event::PeerTimeout => {
+                self.log.on_event("Session Timeout").await;
+                SessionStateEnum::new_latent_state()
+            }
+            _ => SessionStateEnum::PendingTimeout(pt),
         }
-        SessionStateEnum::PendingTimeout(pt)
     }
 
     async fn pending_timeout_fix_msg_in(
@@ -2309,15 +2298,13 @@ mod tests {
             FieldEqual, MockStore, MockStoreExtended, SessionSuiteRig, TO_APP_RETURN_ERROR,
             TestApplication,
         },
-        internal::{
-            event::{LOGON_TIMEOUT, LOGOUT_TIMEOUT, NEED_HEARTBEAT, PEER_TIMEOUT},
-            time_range::{TimeOfDay, TimeRange, gen_now},
-        },
         message::Message,
         msg_type::{MSG_TYPE_LOGON, MSG_TYPE_LOGOUT},
         session::{
             AdminEnum, Connect, FixIn, StopReq,
+            event::{LOGON_TIMEOUT, LOGOUT_TIMEOUT, NEED_HEARTBEAT, PEER_TIMEOUT},
             session_state::{SessionState, SessionStateEnum},
+            time_range::{TimeOfDay, TimeRange, gen_now},
         },
         store::{MemoryStore, MessageStoreEnum, MessageStoreTrait},
         tag::{
@@ -2644,7 +2631,7 @@ mod tests {
     #[tokio::test]
     async fn test_check_sending_time() {
         let mut s = SessionSuite::setup_test().await;
-        s.ssr.session.iss.max_latency = SignedDuration::from_secs(120);
+        s.ssr.session.session_settings.max_latency = SignedDuration::from_secs(120);
         let mut msg = Message::new();
 
         let mut check_result = s.ssr.session.check_sending_time(&msg);
@@ -2692,7 +2679,7 @@ mod tests {
         check_result = s.ssr.session.check_sending_time(&msg);
         assert!(check_result.is_ok(), "sending time should be ok");
 
-        s.ssr.session.iss.skip_check_latency = true;
+        s.ssr.session.session_settings.skip_check_latency = true;
         sending_time = Timestamp::now()
             .checked_sub(SignedDuration::from_secs(200))
             .unwrap();
@@ -2978,9 +2965,9 @@ mod tests {
             session_id.begin_string = test.begin_string.to_string();
             s.ssr.session.session_id = Arc::new(session_id);
 
-            s.ssr.session.iss.reset_on_logon = test.reset_on_logon;
-            s.ssr.session.iss.reset_on_disconnect = test.reset_on_disconnect;
-            s.ssr.session.iss.reset_on_logout = test.reset_on_logout;
+            s.ssr.session.session_settings.reset_on_logon = test.reset_on_logon;
+            s.ssr.session.session_settings.reset_on_disconnect = test.reset_on_disconnect;
+            s.ssr.session.session_settings.reset_on_logout = test.reset_on_logout;
 
             assert!(
                 s.ssr
@@ -3044,7 +3031,7 @@ mod tests {
 
         for test in &mut tests {
             let mut s = SessionSuite::setup_test().await;
-            s.ssr.session.iss.session_time = None;
+            s.ssr.session.session_settings.session_time = None;
             s.ssr.session.sm.state = test.before.clone();
 
             s.ssr.session.sm_check_session_time(&mut gen_now()).await;
@@ -3141,7 +3128,7 @@ mod tests {
 
             let one_hour_from_now = now_utc.checked_add(SignedDuration::from_hours(1)).unwrap();
 
-            s.ssr.session.iss.session_time = Some(TimeRange::new_utc(
+            s.ssr.session.session_settings.session_time = Some(TimeRange::new_utc(
                 TimeOfDay::new(
                     now_utc.hour() as isize,
                     now_utc.minute() as isize,
@@ -3239,7 +3226,7 @@ mod tests {
         for test in &mut tests {
             let mut s = SessionSuite::setup_test().await;
             s.ssr.session.sm.state = test.before.clone();
-            s.ssr.session.iss.initiate_logon = test.initiate_logon;
+            s.ssr.session.session_settings.initiate_logon = test.initiate_logon;
 
             s.ssr.incr_next_sender_msg_seq_num().await;
             s.ssr.incr_next_target_msg_seq_num().await;
@@ -3248,7 +3235,7 @@ mod tests {
             let one_hour_from_now = now.checked_add(SignedDuration::from_hours(1)).unwrap();
             let two_hour_from_now = now.checked_add(SignedDuration::from_hours(2)).unwrap();
 
-            s.ssr.session.iss.session_time = Some(TimeRange::new_utc(
+            s.ssr.session.session_settings.session_time = Some(TimeRange::new_utc(
                 TimeOfDay::new(
                     one_hour_from_now.hour() as isize,
                     one_hour_from_now.minute() as isize,
@@ -3362,7 +3349,7 @@ mod tests {
         for test in &mut tests {
             let mut s = SessionSuite::setup_test().await;
             s.ssr.session.sm.state = test.before.clone();
-            s.ssr.session.iss.initiate_logon = test.initiate_logon;
+            s.ssr.session.session_settings.initiate_logon = test.initiate_logon;
 
             assert!(s.ssr.session.store.reset().await.is_ok());
             s.ssr.incr_next_sender_msg_seq_num().await;
@@ -3372,7 +3359,7 @@ mod tests {
             let one_hour_before_now = now_utc.checked_sub(SignedDuration::from_hours(1)).unwrap();
             let two_hours_from_now = now_utc.checked_add(SignedDuration::from_hours(2)).unwrap();
 
-            s.ssr.session.iss.session_time = Some(TimeRange::new_utc(
+            s.ssr.session.session_settings.session_time = Some(TimeRange::new_utc(
                 TimeOfDay::new(
                     one_hour_before_now.hour() as isize,
                     one_hour_before_now.minute() as isize,
@@ -3488,7 +3475,7 @@ mod tests {
         for test in &mut tests {
             let mut s = SessionSuite::setup_test().await;
             s.ssr.session.sm.state = test.before.clone();
-            s.ssr.session.iss.initiate_logon = test.initiate_logon;
+            s.ssr.session.session_settings.initiate_logon = test.initiate_logon;
 
             s.ssr.incr_next_sender_msg_seq_num().await;
             s.ssr.incr_next_target_msg_seq_num().await;
@@ -3497,7 +3484,7 @@ mod tests {
             let one_hour_from_now = now.checked_add(SignedDuration::from_hours(1)).unwrap();
             let two_hours_from_now = now.checked_add(SignedDuration::from_hours(2)).unwrap();
 
-            s.ssr.session.iss.session_time = Some(TimeRange::new_utc(
+            s.ssr.session.session_settings.session_time = Some(TimeRange::new_utc(
                 TimeOfDay::new(
                     one_hour_from_now.hour() as isize,
                     one_hour_from_now.minute() as isize,
@@ -3589,7 +3576,7 @@ mod tests {
         for test in &mut tests {
             let mut s = SessionSuite::setup_test().await;
             s.ssr.session.sm.state = test.before.clone();
-            s.ssr.session.iss.initiate_logon = test.initiate_logon;
+            s.ssr.session.session_settings.initiate_logon = test.initiate_logon;
 
             s.ssr.incr_next_sender_msg_seq_num().await;
             s.ssr.incr_next_target_msg_seq_num().await;
@@ -3606,7 +3593,7 @@ mod tests {
             let one_hour_from_now = now.checked_add(SignedDuration::from_hours(1)).unwrap();
             let two_hours_from_now = now.checked_add(SignedDuration::from_hours(2)).unwrap();
 
-            s.ssr.session.iss.session_time = Some(TimeRange::new_utc(
+            s.ssr.session.session_settings.session_time = Some(TimeRange::new_utc(
                 TimeOfDay::new(
                     one_hour_from_now.hour() as isize,
                     one_hour_from_now.minute() as isize,
@@ -3692,7 +3679,7 @@ mod tests {
                 let mut s = SessionSuite::setup_test().await;
 
                 s.ssr.session.sm.state = test.before.clone();
-                s.ssr.session.iss.initiate_logon = test.initiate_logon;
+                s.ssr.session.session_settings.initiate_logon = test.initiate_logon;
 
                 s.ssr.incr_next_sender_msg_seq_num().await;
                 s.ssr.incr_next_target_msg_seq_num().await;
@@ -3701,7 +3688,7 @@ mod tests {
                 let one_hour_from_now = now.checked_add(SignedDuration::from_hours(1)).unwrap();
                 let two_hours_from_now = now.checked_add(SignedDuration::from_hours(2)).unwrap();
 
-                s.ssr.session.iss.session_time = Some(TimeRange::new_utc(
+                s.ssr.session.session_settings.session_time = Some(TimeRange::new_utc(
                     TimeOfDay::new(
                         one_hour_from_now.hour() as isize,
                         one_hour_from_now.minute() as isize,
@@ -3742,9 +3729,9 @@ mod tests {
         };
 
         s.ssr.session.sm.state = SessionStateEnum::new_latent_state();
-        s.ssr.session.iss.heart_bt_int = SignedDuration::from_secs(45);
+        s.ssr.session.session_settings.heart_bt_int = SignedDuration::from_secs(45);
         s.ssr.incr_next_sender_msg_seq_num().await;
-        s.ssr.session.iss.initiate_logon = true;
+        s.ssr.session.session_settings.initiate_logon = true;
 
         s.ssr
             .session
@@ -3753,7 +3740,7 @@ mod tests {
 
         s.ssr.mock_app.mock_app.lock().unwrap().checkpoint();
 
-        assert!(s.ssr.session.iss.initiate_logon);
+        assert!(s.ssr.session.session_settings.initiate_logon);
         assert!(!s.ssr.session.sent_reset);
         s.ssr.state(&SessionStateEnum::new_logon_state());
         s.ssr.last_to_admin_message_sent().await;
@@ -3812,10 +3799,10 @@ mod tests {
         };
 
         s.ssr.session.sm.state = SessionStateEnum::new_latent_state();
-        s.ssr.session.iss.heart_bt_int = SignedDuration::from_secs(45);
+        s.ssr.session.session_settings.heart_bt_int = SignedDuration::from_secs(45);
         s.ssr.incr_next_target_msg_seq_num().await;
         s.ssr.incr_next_sender_msg_seq_num().await;
-        s.ssr.session.iss.initiate_logon = true;
+        s.ssr.session.session_settings.initiate_logon = true;
 
         fn decorate_to_admin(msg: &mut Message) {
             msg.body
@@ -3827,7 +3814,7 @@ mod tests {
             .on_admin(AdminEnum::Connect(admin_message))
             .await;
 
-        assert!(s.ssr.session.iss.initiate_logon);
+        assert!(s.ssr.session.session_settings.initiate_logon);
         assert!(s.ssr.session.sent_reset);
         s.ssr.state(&SessionStateEnum::new_logon_state());
         s.ssr.last_to_admin_message_sent().await;
@@ -3881,8 +3868,8 @@ mod tests {
         session_id.begin_string = String::from(BEGIN_STRING_FIXT11);
         s.ssr.session.session_id = Arc::new(session_id);
 
-        s.ssr.session.iss.default_appl_ver_id = String::from("8");
-        s.ssr.session.iss.initiate_logon = true;
+        s.ssr.session.session_settings.default_appl_ver_id = String::from("8");
+        s.ssr.session.session_settings.initiate_logon = true;
 
         let (_, in_rx) = channel::<FixIn>(1);
         let (err_tx, _) = unbounded_channel::<SimpleResult<()>>();
@@ -3900,7 +3887,7 @@ mod tests {
             .on_admin(AdminEnum::Connect(admin_message))
             .await;
 
-        assert!(s.ssr.session.iss.initiate_logon);
+        assert!(s.ssr.session.session_settings.initiate_logon);
         s.ssr.state(&SessionStateEnum::new_logon_state());
         s.ssr.last_to_admin_message_sent().await;
         s.message_type(
@@ -3934,7 +3921,7 @@ mod tests {
 
         for do_refresh in tests {
             let mut s = SessionSuite::setup_test().await;
-            s.ssr.session.iss.refresh_on_logon = do_refresh;
+            s.ssr.session.session_settings.refresh_on_logon = do_refresh;
 
             let (_, in_rx) = channel::<FixIn>(1);
             let (err_tx, _) = unbounded_channel::<SimpleResult<()>>();
@@ -3946,7 +3933,7 @@ mod tests {
             };
 
             s.ssr.session.sm.state = SessionStateEnum::new_latent_state();
-            s.ssr.session.iss.initiate_logon = true;
+            s.ssr.session.session_settings.initiate_logon = true;
 
             if do_refresh {
                 let _ = s.ssr.mock_store.refresh().await;
@@ -3981,7 +3968,7 @@ mod tests {
             .session
             .on_admin(AdminEnum::Connect(admin_message))
             .await;
-        assert!(!s.ssr.session.iss.initiate_logon);
+        assert!(!s.ssr.session.session_settings.initiate_logon);
         s.ssr.state(&SessionStateEnum::new_logon_state());
         s.ssr.no_message_sent().await;
         s.ssr.next_sender_msg_seq_num(2).await;
@@ -3994,7 +3981,7 @@ mod tests {
         for do_initiate_logon in tests {
             let mut s = SessionSuite::setup_test().await;
             s.ssr.session.sm.state = SessionStateEnum::new_not_session_time();
-            s.ssr.session.iss.initiate_logon = do_initiate_logon;
+            s.ssr.session.session_settings.initiate_logon = do_initiate_logon;
             s.ssr.incr_next_sender_msg_seq_num().await;
 
             let (_, in_rx) = channel::<FixIn>(1);
@@ -4035,13 +4022,13 @@ mod tests {
         s.ssr.incr_next_target_msg_seq_num().await;
         s.ssr.incr_next_sender_msg_seq_num().await;
 
-        s.ssr.session.iss.reset_on_disconnect = false;
+        s.ssr.session.session_settings.reset_on_disconnect = false;
         s.ssr.session.on_disconnect().await;
 
         s.ssr.next_sender_msg_seq_num(2).await;
         s.ssr.next_target_msg_seq_num(2).await;
 
-        s.ssr.session.iss.reset_on_disconnect = true;
+        s.ssr.session.session_settings.reset_on_disconnect = true;
         s.ssr.session.on_disconnect().await;
         s.ssr.expect_store_reset().await;
     }
@@ -4349,7 +4336,7 @@ mod tests {
     async fn test_send_enable_last_msg_seq_num_processed() {
         let mut s = SessionSendTestSuite::setup_test().await;
         s.ssr.session.sm.state = SessionStateEnum::new_in_session().await;
-        s.ssr.session.iss.enable_last_msg_seq_num_processed = true;
+        s.ssr.session.session_settings.enable_last_msg_seq_num_processed = true;
         assert!(
             s.ssr
                 .session
@@ -4386,7 +4373,7 @@ mod tests {
     async fn test_send_disable_message_persist() {
         let mut s = SessionSendTestSuite::setup_test().await;
         s.ssr.session.sm.state = SessionStateEnum::new_in_session().await;
-        s.ssr.session.iss.disable_message_persist = true;
+        s.ssr.session.session_settings.disable_message_persist = true;
 
         assert!(
             s.ssr

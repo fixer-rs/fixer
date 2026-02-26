@@ -54,7 +54,6 @@ pub mod fix_int;
 pub mod fix_string;
 pub mod fix_utc_timestamp;
 pub mod initiator;
-pub mod internal;
 pub mod log;
 pub mod message;
 pub mod message_router;

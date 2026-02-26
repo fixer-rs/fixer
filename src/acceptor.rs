@@ -465,7 +465,7 @@ async fn handle_connection<R, W>(
             };
             // Clone admin_tx and read capacity before moving the owned session
             let tx = session.admin.tx.clone();
-            let cap = session.iss.in_chan_capacity;
+            let cap = session.session_settings.in_chan_capacity;
             let _ = ctx.dynamic_session_tx.send(session);
             is_dynamic = true;
             (tx, cap)

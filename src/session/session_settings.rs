@@ -1,4 +1,4 @@
-use crate::internal::time_range::{TimeOfDay, TimeRange};
+use crate::session::time_range::{TimeOfDay, TimeRange};
 use jiff::{SignedDuration, tz::TimeZone};
 
 // SessionSettings stores all of the configuration for a given session

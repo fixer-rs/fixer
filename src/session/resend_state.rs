@@ -33,7 +33,7 @@ mod tests {
         field_map::FieldMap,
         fix_utc_timestamp::FIXUTCTimestamp,
         fixer_test::{FieldEqual, SessionSuiteRig, TestApplication, OVERRIDE_TIMES},
-        internal::event::{LOGON_TIMEOUT, LOGOUT_TIMEOUT, NEED_HEARTBEAT, PEER_TIMEOUT},
+        session::event::{LOGON_TIMEOUT, LOGOUT_TIMEOUT, NEED_HEARTBEAT, PEER_TIMEOUT},
         message::Message,
         msg_type::MSG_TYPE_RESEND_REQUEST,
         session::session_state::SessionStateEnum,
@@ -222,7 +222,7 @@ mod tests {
     async fn test_fix_msg_in_resend_chunk() {
         let mut s = SessionSuite::setup_test().await;
         s.ssr.session.sm.state = SessionStateEnum::new_in_session().await;
-        s.ssr.session.iss.resend_request_chunk_size = 2;
+        s.ssr.session.session_settings.resend_request_chunk_size = 2;
 
         // In session expects seq number 1, send too high.
         s.ssr.message_factory.set_next_seq_num(4);
@@ -340,7 +340,7 @@ mod tests {
     async fn test_fix_msg_resend_with_old_sending_time() {
         let mut s = SessionSuite::setup_test().await;
         s.ssr.session.sm.state = SessionStateEnum::new_in_session().await;
-        s.ssr.session.iss.resend_request_chunk_size = 2;
+        s.ssr.session.session_settings.resend_request_chunk_size = 2;
 
         // In session expects seq number 1, send too high.
         s.ssr.message_factory.set_next_seq_num(4);
@@ -389,7 +389,7 @@ mod tests {
         // Set the sending time far enough in the past to trip the staleness check.
         msg_seq_num5.header.field_map.set_field(
             TAG_SENDING_TIME,
-            FIXUTCTimestamp::from_time(Timestamp::now().checked_sub(s.ssr.session.iss.max_latency).unwrap()),
+            FIXUTCTimestamp::from_time(Timestamp::now().checked_sub(s.ssr.session.session_settings.max_latency).unwrap()),
         );
         s.ssr.session.sm_fix_msg_in(&mut msg_seq_num5).await;
         s.ssr.state(&SessionStateEnum::new_resend_state());

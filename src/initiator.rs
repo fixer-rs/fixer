@@ -94,13 +94,13 @@ impl Initiator {
                 .take()
                 .expect("Initiator::start() called more than once");
 
-            let connect_addresses = session.iss.socket_connect_address.clone();
+            let connect_addresses = session.session_settings.socket_connect_address.clone();
             let reconnect_interval = session
-                .iss
+                .session_settings
                 .reconnect_interval
                 .try_into()
                 .unwrap_or(std::time::Duration::from_secs(30));
-            let in_chan_capacity = session.iss.in_chan_capacity;
+            let in_chan_capacity = session.session_settings.in_chan_capacity;
 
             let admin_tx = handle.admin_tx.clone();
             let mut stop_rx = self.stop_rx.clone();
@@ -331,9 +331,9 @@ SocketConnectPort={port}
             .session
             .as_ref()
             .expect("session should exist before start()");
-        assert!(session.iss.initiate_logon, "should be an initiator session");
+        assert!(session.session_settings.initiate_logon, "should be an initiator session");
         assert_eq!(
-            "127.0.0.1:5000", session.iss.socket_connect_address[0],
+            "127.0.0.1:5000", session.session_settings.socket_connect_address[0],
             "should have correct connect address"
         );
 

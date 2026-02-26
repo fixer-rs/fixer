@@ -1,5 +1,5 @@
 use criterion::Criterion;
-use fixer::internal::time_range::{utc, TimeOfDay, TimeRange};
+use fixer::session::time_range::{utc, TimeOfDay, TimeRange};
 
 pub fn benchmark_in_range(c: &mut Criterion) {
     let start = TimeOfDay::new(3, 0, 0);

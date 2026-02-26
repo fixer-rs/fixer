@@ -28,7 +28,7 @@ mod tests {
     use crate::{
         errors::conditionally_required_field_missing,
         fixer_test::{SessionSuiteRig, TestApplication, FROM_APP_RETURN_ERROR},
-        internal::event::{LOGON_TIMEOUT, LOGOUT_TIMEOUT, NEED_HEARTBEAT, PEER_TIMEOUT},
+        session::event::{LOGON_TIMEOUT, LOGOUT_TIMEOUT, NEED_HEARTBEAT, PEER_TIMEOUT},
         session::session_state::SessionStateEnum,
         tag::Tag,
     };
@@ -138,7 +138,7 @@ mod tests {
     #[tokio::test]
     async fn test_fix_msg_in_logout_reset_on_logout() {
         let mut s = SessionSuite::setup_test().await;
-        s.ssr.session.iss.reset_on_logout = true;
+        s.ssr.session.session_settings.reset_on_logout = true;
 
         assert!(s
             .ssr

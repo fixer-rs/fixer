@@ -34,7 +34,7 @@ mod tests {
             FieldEqual, SessionSuiteRig, TestApplication, OVERRIDE_TIMES,
             OVERRIDE_TIMES_FROM_ADMIN_RETURN_ERROR,
         },
-        internal::event::{LOGON_TIMEOUT, LOGOUT_TIMEOUT, NEED_HEARTBEAT, PEER_TIMEOUT},
+        session::event::{LOGON_TIMEOUT, LOGOUT_TIMEOUT, NEED_HEARTBEAT, PEER_TIMEOUT},
         message::Message,
         msg_type::{MSG_TYPE_LOGON, MSG_TYPE_LOGOUT, MSG_TYPE_RESEND_REQUEST},
         session::session_state::SessionStateEnum,
@@ -87,7 +87,7 @@ mod tests {
     #[tokio::test]
     async fn test_timeout_logon_timeout_initiated_logon() {
         let mut s = SessionSuite::setup_test().await;
-        s.ssr.session.iss.initiate_logon = true;
+        s.ssr.session.session_settings.initiate_logon = true;
 
         s.ssr.session.sm_timeout(LOGON_TIMEOUT).await;
 
@@ -134,12 +134,12 @@ mod tests {
         let mut logon = s.ssr.message_factory.logon();
         logon.body.set_field(TAG_HEART_BT_INT, 32 as FIXInt);
 
-        assert!(s.ssr.session.iss.heart_bt_int.is_zero());
+        assert!(s.ssr.session.session_settings.heart_bt_int.is_zero());
         s.ssr.session.sm_fix_msg_in(&mut logon).await;
 
         s.ssr.state(&SessionStateEnum::new_in_session().await);
-        assert_eq!(SignedDuration::from_secs(32), s.ssr.session.iss.heart_bt_int); // Should be written from logon message.
-        assert!(!s.ssr.session.iss.heart_bt_int_override);
+        assert_eq!(SignedDuration::from_secs(32), s.ssr.session.session_settings.heart_bt_int); // Should be written from logon message.
+        assert!(!s.ssr.session.session_settings.heart_bt_int_override);
 
         s.ssr.last_to_admin_message_sent().await;
         s.message_type(
@@ -174,13 +174,13 @@ mod tests {
         let mut logon = s.ssr.message_factory.logon();
         logon.body.set_field(TAG_HEART_BT_INT, 32 as FIXInt);
 
-        s.ssr.session.iss.heart_bt_int_override = true;
-        s.ssr.session.iss.heart_bt_int = SignedDuration::from_secs(1);
+        s.ssr.session.session_settings.heart_bt_int_override = true;
+        s.ssr.session.session_settings.heart_bt_int = SignedDuration::from_secs(1);
         s.ssr.session.sm_fix_msg_in(&mut logon).await;
 
         s.ssr.state(&SessionStateEnum::new_in_session().await);
-        assert_eq!(SignedDuration::from_secs(1), s.ssr.session.iss.heart_bt_int); // Should not have changed.
-        assert!(s.ssr.session.iss.heart_bt_int_override);
+        assert_eq!(SignedDuration::from_secs(1), s.ssr.session.session_settings.heart_bt_int); // Should not have changed.
+        assert!(s.ssr.session.session_settings.heart_bt_int_override);
 
         s.ssr.last_to_admin_message_sent().await;
         s.message_type(
@@ -208,7 +208,7 @@ mod tests {
     #[tokio::test]
     async fn test_fix_msg_in_logon_enable_last_msg_seq_num_processed() {
         let mut s = SessionSuite::setup_test().await;
-        s.ssr.session.iss.enable_last_msg_seq_num_processed = true;
+        s.ssr.session.session_settings.enable_last_msg_seq_num_processed = true;
 
         s.ssr.message_factory.set_next_seq_num(2);
         s.ssr.incr_next_sender_msg_seq_num().await;
@@ -253,7 +253,7 @@ mod tests {
         s.ssr.session.sm_fix_msg_in(&mut logon).await;
 
         s.ssr.state(&SessionStateEnum::new_in_session().await);
-        assert_eq!(SignedDuration::from_secs(32), s.ssr.session.iss.heart_bt_int);
+        assert_eq!(SignedDuration::from_secs(32), s.ssr.session.session_settings.heart_bt_int);
 
         s.ssr.last_to_admin_message_sent().await;
         s.message_type(
@@ -294,7 +294,7 @@ mod tests {
     #[tokio::test]
     async fn test_fix_msg_in_logon_initiate_logon() {
         let mut s = SessionSuite::setup_test().await;
-        s.ssr.session.iss.initiate_logon = true;
+        s.ssr.session.session_settings.initiate_logon = true;
         s.ssr.incr_next_sender_msg_seq_num().await;
         s.ssr.message_factory.seq_num = 1;
         s.ssr.incr_next_target_msg_seq_num().await;
@@ -313,7 +313,7 @@ mod tests {
     #[tokio::test]
     async fn test_fix_msg_in_logon_initiate_logon_expect_reset_seq_num() {
         let mut s = SessionSuite::setup_test().await;
-        s.ssr.session.iss.initiate_logon = true;
+        s.ssr.session.session_settings.initiate_logon = true;
         s.ssr.session.sent_reset = true;
         assert!(s
             .ssr
@@ -340,7 +340,7 @@ mod tests {
     #[tokio::test]
     async fn test_fix_msg_in_logon_initiate_logon_un_expected_reset_seq_num() {
         let mut s = SessionSuite::setup_test().await;
-        s.ssr.session.iss.initiate_logon = true;
+        s.ssr.session.session_settings.initiate_logon = true;
         s.ssr.session.sent_reset = false;
         s.ssr.incr_next_target_msg_seq_num().await;
         s.ssr.incr_next_sender_msg_seq_num().await;
@@ -365,7 +365,7 @@ mod tests {
 
         for test in tests {
             let mut s = SessionSuite::setup_test().await;
-            s.ssr.session.iss.refresh_on_logon = test;
+            s.ssr.session.session_settings.refresh_on_logon = test;
 
             let mut logon = s.ssr.message_factory.logon();
             logon.body.set_field(TAG_HEART_BT_INT, 32 as FIXInt);
@@ -380,7 +380,7 @@ mod tests {
 
         for test in tests {
             let mut s = SessionSuite::setup_test().await;
-            s.ssr.session.iss.initiate_logon = test;
+            s.ssr.session.session_settings.initiate_logon = test;
 
             s.ssr.session.sm_stop().await;
             s.ssr.disconnected().await;
