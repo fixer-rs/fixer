@@ -2,15 +2,23 @@ use crate::session::session_id::SessionID;
 use composite_log::{CompositeLog, CompositeLogFactory};
 use enum_dispatch::enum_dispatch;
 use file_log::{FileLog, FileLogFactory};
+#[cfg(feature = "mongo_log")]
+use mongo_log::{MongoLog, MongoLogFactory};
 use null_log::{NullLog, NullLogFactory};
 use screen_log::{ScreenLog, ScreenLogFactory};
+#[cfg(feature = "sql_log")]
+use sql_log::{SqlLog, SqlLogFactory};
 use rustc_hash::FxHashMap;
 use std::sync::Arc;
 
 pub mod composite_log;
 pub mod file_log;
+#[cfg(feature = "mongo_log")]
+pub mod mongo_log;
 pub mod null_log;
 pub mod screen_log;
+#[cfg(feature = "sql_log")]
+pub mod sql_log;
 
 // Log is a generic trait for logging FIX messages and events.
 #[allow(async_fn_in_trait)] // dispatched via enum_dispatch, not used as trait object
@@ -46,6 +54,10 @@ pub enum LogEnum {
     ScreenLog,
     FileLog,
     CompositeLog,
+    #[cfg(feature = "mongo_log")]
+    MongoLog,
+    #[cfg(feature = "sql_log")]
+    SqlLog,
 }
 
 impl Default for LogEnum {
@@ -61,6 +73,10 @@ pub enum LogFactoryEnum {
     ScreenLogFactory,
     FileLogFactory,
     CompositeLogFactory,
+    #[cfg(feature = "mongo_log")]
+    MongoLogFactory,
+    #[cfg(feature = "sql_log")]
+    SqlLogFactory,
 }
 
 impl Default for LogFactoryEnum {

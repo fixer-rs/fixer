@@ -56,7 +56,9 @@ tokio = { version = "1.49", features = [
 [features]
 default = []
 mongo_store = ["mongodb"]
+mongo_log = ["mongodb"]
 sql_store = ["sqlx"]
+sql_log = ["sqlx"]
 
 [dev-dependencies]
 criterion = "0.5"
