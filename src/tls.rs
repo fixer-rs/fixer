@@ -1,4 +1,4 @@
-// TLS configuration loader, equivalent to Go quickfix's tls.go loadTLSConfig().
+// TLS configuration loader.
 //
 // Reads TLS settings from SessionSettings and builds rustls ClientConfig/ServerConfig.
 
@@ -7,12 +7,11 @@ use rustls_pemfile;
 use simple_error::SimpleResult;
 use std::{fs, io::BufReader, sync::Arc};
 use tokio_rustls::{
-    rustls::{
-        self,
-        pki_types::{CertificateDer, PrivateKeyDer, ServerName},
-        ClientConfig, RootCertStore, ServerConfig,
-    },
     TlsAcceptor, TlsConnector,
+    rustls::{
+        self, ClientConfig, RootCertStore, ServerConfig,
+        pki_types::{CertificateDer, PrivateKeyDer, ServerName},
+    },
 };
 
 fn ensure_crypto_provider() {
@@ -27,7 +26,9 @@ fn ensure_crypto_provider() {
 pub fn load_tls_acceptor(settings: &SessionSettings) -> SimpleResult<Option<TlsAcceptor>> {
     ensure_crypto_provider();
     let allow_skip_client_certs = if settings.has_setting(config::SOCKET_USE_SSL) {
-        settings.bool_setting(config::SOCKET_USE_SSL).unwrap_or(false)
+        settings
+            .bool_setting(config::SOCKET_USE_SSL)
+            .unwrap_or(false)
     } else {
         false
     };
@@ -61,10 +62,9 @@ pub fn load_tls_acceptor(settings: &SessionSettings) -> SimpleResult<Option<TlsA
         } else {
             // Require client certs — need CA
             let client_roots = load_ca_roots(settings)?;
-            let verifier =
-                rustls::server::WebPkiClientVerifier::builder(Arc::new(client_roots))
-                    .build()
-                    .map_err(|e| simple_error!("failed to build client verifier: {}", e))?;
+            let verifier = rustls::server::WebPkiClientVerifier::builder(Arc::new(client_roots))
+                .build()
+                .map_err(|e| simple_error!("failed to build client verifier: {}", e))?;
             ServerConfig::builder()
                 .with_client_cert_verifier(verifier)
                 .with_single_cert(certs, key)
@@ -87,7 +87,9 @@ pub fn load_tls_acceptor(settings: &SessionSettings) -> SimpleResult<Option<TlsA
 pub fn load_tls_connector(settings: &SessionSettings) -> SimpleResult<Option<TlsConnector>> {
     ensure_crypto_provider();
     let allow_skip_client_certs = if settings.has_setting(config::SOCKET_USE_SSL) {
-        settings.bool_setting(config::SOCKET_USE_SSL).unwrap_or(false)
+        settings
+            .bool_setting(config::SOCKET_USE_SSL)
+            .unwrap_or(false)
     } else {
         false
     };
@@ -161,7 +163,8 @@ pub fn get_server_name(
     } else {
         // Extract hostname from "host:port"
         address
-            .rsplit_once(':').map_or_else(|| address.to_string(), |(host, _)| host.to_string())
+            .rsplit_once(':')
+            .map_or_else(|| address.to_string(), |(host, _)| host.to_string())
     };
     ServerName::try_from(name).map_err(|e| simple_error!("invalid server name: {}", e))
 }
@@ -174,9 +177,10 @@ fn load_cert_and_key(
 ) -> SimpleResult<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>)> {
     let cert_data = fs::read(cert_file)
         .map_err(|e| simple_error!("failed to read certificate file {}: {}", cert_file, e))?;
-    let certs: Vec<CertificateDer<'static>> = rustls_pemfile::certs(&mut BufReader::new(cert_data.as_slice()))
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| simple_error!("failed to parse certificate: {}", e))?;
+    let certs: Vec<CertificateDer<'static>> =
+        rustls_pemfile::certs(&mut BufReader::new(cert_data.as_slice()))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| simple_error!("failed to parse certificate: {}", e))?;
     if certs.is_empty() {
         return Err(simple_error!("no certificates found in {}", cert_file));
     }
@@ -219,13 +223,11 @@ fn load_ca_roots(settings: &SessionSettings) -> SimpleResult<RootCertStore> {
 // The SocketMinimumTLSVersion setting is accepted but only "TLS12" and "TLS13" are
 // meaningful — both are already enabled by default.
 fn set_min_tls_version_server(_settings: &SessionSettings, _config: &mut ServerConfig) {
-    // rustls defaults to TLS 1.2+, matching Go quickfix's default.
-    // No action needed — rustls only supports TLS 1.2 and 1.3.
+    // rustls defaults to TLS 1.2+; no action needed — rustls only supports TLS 1.2 and 1.3.
 }
 
 fn set_min_tls_version_client(_settings: &SessionSettings, _config: &mut ClientConfig) {
-    // rustls defaults to TLS 1.2+, matching Go quickfix's default.
-    // No action needed — rustls only supports TLS 1.2 and 1.3.
+    // rustls defaults to TLS 1.2+; no action needed — rustls only supports TLS 1.2 and 1.3.
 }
 
 // Certificate verifier that skips all verification (for InsecureSkipVerify).
@@ -287,8 +289,7 @@ mod tests {
 
         // Generate server cert signed by CA
         let server_key = KeyPair::generate().unwrap();
-        let server_params =
-            CertificateParams::new(vec!["localhost".to_string()]).unwrap();
+        let server_params = CertificateParams::new(vec!["localhost".to_string()]).unwrap();
         let ca_issuer = Issuer::from_params(&ca_params, &ca_key);
         let server_cert = server_params.signed_by(&server_key, &ca_issuer).unwrap();
 
@@ -299,7 +300,9 @@ mod tests {
         cert_file.write_all(server_cert.pem().as_bytes()).unwrap();
 
         let mut key_file = NamedTempFile::new().unwrap();
-        key_file.write_all(server_key.serialize_pem().as_bytes()).unwrap();
+        key_file
+            .write_all(server_key.serialize_pem().as_bytes())
+            .unwrap();
 
         (ca_file, cert_file, key_file)
     }
@@ -329,8 +332,16 @@ mod tests {
     #[test]
     fn test_load_tls_invalid_key_or_cert() {
         let mut settings = SessionSettings::new();
-        set(&mut settings, config::SOCKET_PRIVATE_KEY_FILE, "nonexistent");
-        set(&mut settings, config::SOCKET_CERTIFICATE_FILE, "nonexistent");
+        set(
+            &mut settings,
+            config::SOCKET_PRIVATE_KEY_FILE,
+            "nonexistent",
+        );
+        set(
+            &mut settings,
+            config::SOCKET_CERTIFICATE_FILE,
+            "nonexistent",
+        );
         let result = load_tls_acceptor(&settings);
         assert!(result.is_err());
     }
@@ -339,8 +350,16 @@ mod tests {
     fn test_load_tls_valid_cert_and_key() {
         let (_ca, cert, key) = generate_test_certs();
         let mut settings = SessionSettings::new();
-        set(&mut settings, config::SOCKET_PRIVATE_KEY_FILE, key.path().to_str().unwrap());
-        set(&mut settings, config::SOCKET_CERTIFICATE_FILE, cert.path().to_str().unwrap());
+        set(
+            &mut settings,
+            config::SOCKET_PRIVATE_KEY_FILE,
+            key.path().to_str().unwrap(),
+        );
+        set(
+            &mut settings,
+            config::SOCKET_CERTIFICATE_FILE,
+            cert.path().to_str().unwrap(),
+        );
         set(&mut settings, config::SOCKET_USE_SSL, "Y");
         let result = load_tls_acceptor(&settings);
         assert!(result.is_ok());
@@ -351,9 +370,21 @@ mod tests {
     fn test_load_tls_with_ca() {
         let (ca, cert, key) = generate_test_certs();
         let mut settings = SessionSettings::new();
-        set(&mut settings, config::SOCKET_PRIVATE_KEY_FILE, key.path().to_str().unwrap());
-        set(&mut settings, config::SOCKET_CERTIFICATE_FILE, cert.path().to_str().unwrap());
-        set(&mut settings, config::SOCKET_CA_FILE, ca.path().to_str().unwrap());
+        set(
+            &mut settings,
+            config::SOCKET_PRIVATE_KEY_FILE,
+            key.path().to_str().unwrap(),
+        );
+        set(
+            &mut settings,
+            config::SOCKET_CERTIFICATE_FILE,
+            cert.path().to_str().unwrap(),
+        );
+        set(
+            &mut settings,
+            config::SOCKET_CA_FILE,
+            ca.path().to_str().unwrap(),
+        );
         let result = load_tls_acceptor(&settings);
         assert!(result.is_ok());
         assert!(result.unwrap().is_some());
@@ -380,9 +411,21 @@ mod tests {
     fn test_load_tls_connector_with_client_cert() {
         let (ca, cert, key) = generate_test_certs();
         let mut settings = SessionSettings::new();
-        set(&mut settings, config::SOCKET_PRIVATE_KEY_FILE, key.path().to_str().unwrap());
-        set(&mut settings, config::SOCKET_CERTIFICATE_FILE, cert.path().to_str().unwrap());
-        set(&mut settings, config::SOCKET_CA_FILE, ca.path().to_str().unwrap());
+        set(
+            &mut settings,
+            config::SOCKET_PRIVATE_KEY_FILE,
+            key.path().to_str().unwrap(),
+        );
+        set(
+            &mut settings,
+            config::SOCKET_CERTIFICATE_FILE,
+            cert.path().to_str().unwrap(),
+        );
+        set(
+            &mut settings,
+            config::SOCKET_CA_FILE,
+            ca.path().to_str().unwrap(),
+        );
         let result = load_tls_connector(&settings).unwrap();
         assert!(result.is_some());
     }
@@ -406,8 +449,16 @@ mod tests {
     fn test_load_tls_bad_ca_file() {
         let (_, cert, key) = generate_test_certs();
         let mut settings = SessionSettings::new();
-        set(&mut settings, config::SOCKET_PRIVATE_KEY_FILE, key.path().to_str().unwrap());
-        set(&mut settings, config::SOCKET_CERTIFICATE_FILE, cert.path().to_str().unwrap());
+        set(
+            &mut settings,
+            config::SOCKET_PRIVATE_KEY_FILE,
+            key.path().to_str().unwrap(),
+        );
+        set(
+            &mut settings,
+            config::SOCKET_CERTIFICATE_FILE,
+            cert.path().to_str().unwrap(),
+        );
         set(&mut settings, config::SOCKET_CA_FILE, "nonexistent_ca_file");
         let result = load_tls_acceptor(&settings);
         assert!(result.is_err());

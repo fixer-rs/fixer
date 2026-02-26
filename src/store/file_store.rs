@@ -14,9 +14,7 @@ use rustc_hash::FxHashMap;
 use simple_error::{SimpleError, SimpleResult};
 // TODO: check windows os
 use sscanf::sscanf;
-use std::{
-    io::SeekFrom, os::unix::prelude::PermissionsExt, path::Path, sync::Arc,
-};
+use std::{io::SeekFrom, os::unix::prelude::PermissionsExt, path::Path, sync::Arc};
 use tokio::{
     fs::{self, File},
     io::{AsyncBufReadExt, AsyncReadExt, AsyncSeekExt, AsyncWriteExt, BufReader},
@@ -57,7 +55,7 @@ impl IndividualFile {
 
 pub struct FileStore {
     #[allow(dead_code)]
-    // stored for parity with Go quickfix fileStore; may be used by future extensions
+    // stored for parity; may be used by future extensions
     session_id: Arc<SessionID>,
     cache: MemoryStore,
     offsets: FxHashMap<isize, MsgDef>,
@@ -80,32 +78,30 @@ impl MessageStoreTrait for FileStore {
 
     async fn set_next_sender_msg_seq_num(&mut self, next_seq_num: isize) -> SimpleResult<()> {
         map_err_with!(
-            self.cache.set_next_sender_msg_seq_num(next_seq_num).await,
-            "cache"
+            self.sender_seq_nums_file.set_seq_num(next_seq_num).await,
+            "file"
         )?;
-        self.sender_seq_nums_file.set_seq_num(next_seq_num).await
+        self.cache.set_next_sender_msg_seq_num(next_seq_num).await
     }
 
     async fn set_next_target_msg_seq_num(&mut self, next_seq_num: isize) -> SimpleResult<()> {
         map_err_with!(
-            self.cache.set_next_target_msg_seq_num(next_seq_num).await,
-            "cache"
+            self.target_seq_nums_file.set_seq_num(next_seq_num).await,
+            "file"
         )?;
-        self.target_seq_nums_file.set_seq_num(next_seq_num).await
+        self.cache.set_next_target_msg_seq_num(next_seq_num).await
     }
 
     async fn incr_next_sender_msg_seq_num(&mut self) -> SimpleResult<()> {
-        map_err_with!(self.cache.incr_next_sender_msg_seq_num().await, "cache")?;
-        self.sender_seq_nums_file
-            .set_seq_num(self.cache.next_sender_msg_seq_num().await)
-            .await
+        let next = self.cache.next_sender_msg_seq_num().await + 1;
+        map_err_with!(self.set_next_sender_msg_seq_num(next).await, "file")?;
+        Ok(())
     }
 
     async fn incr_next_target_msg_seq_num(&mut self) -> SimpleResult<()> {
-        map_err_with!(self.cache.incr_next_target_msg_seq_num().await, "cache")?;
-        self.target_seq_nums_file
-            .set_seq_num(self.cache.next_target_msg_seq_num().await)
-            .await
+        let next = self.cache.next_target_msg_seq_num().await + 1;
+        map_err_with!(self.set_next_target_msg_seq_num(next).await, "file")?;
+        Ok(())
     }
 
     async fn creation_time(&self) -> Timestamp {
@@ -610,7 +606,7 @@ mod tests {
     // FileStoreTestSuite runs all tests in the MessageStoreTestSuite against the FileStore implementation.
     struct FileStoreTestSuite<S: MessageStoreTrait> {
         suite: MessageStoreTestSuite<S>,
-        #[allow(dead_code)] // stored for test cleanup parity with Go quickfix filestore_test.go
+        #[allow(dead_code)] // stored for test cleanup
         file_store_root_path: String,
     }
 

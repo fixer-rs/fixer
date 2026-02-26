@@ -167,7 +167,7 @@ pub struct Message {
     pub receive_time: Timestamp,
     raw_message: Vec<u8>,
     // slice of Bytes corresponding to the message body
-    body_bytes: Vec<u8>,
+    pub(crate) body_bytes: Vec<u8>,
     // all parsed fields in order, used by validation
     pub fields: Vec<TagValue>,
 }
@@ -241,17 +241,17 @@ impl Message {
         let mut field_index = 0;
 
         // message must start with begin string, body length, msg type
-        let raw_bytes =
-            extract_specific_field(&mut parsed_fields[field_index], TAG_BEGIN_STRING, raw_message)?;
+        let raw_bytes = extract_specific_field(
+            &mut parsed_fields[field_index],
+            TAG_BEGIN_STRING,
+            raw_message,
+        )?;
         self.header
             .add(LocalField::new(vec![parsed_fields[field_index].clone()]));
         field_index += 1;
 
-        let raw_bytes = extract_specific_field(
-            &mut parsed_fields[field_index],
-            TAG_BODY_LENGTH,
-            raw_bytes,
-        )?;
+        let raw_bytes =
+            extract_specific_field(&mut parsed_fields[field_index], TAG_BODY_LENGTH, raw_bytes)?;
         self.header
             .add(LocalField::new(vec![parsed_fields[field_index].clone()]));
         field_index += 1;
@@ -308,8 +308,13 @@ impl Message {
             field_index += 1;
         }
 
-        if self.body_bytes.len() > trailer_bytes.len() {
-            self.body_bytes.truncate(self.body_bytes.len() - trailer_bytes.len());
+        // If there are no body fields (only header + trailer), body_bytes should
+        // be empty.
+        if !found_body {
+            self.body_bytes.clear();
+        } else if self.body_bytes.len() > trailer_bytes.len() {
+            self.body_bytes
+                .truncate(self.body_bytes.len() - trailer_bytes.len());
         }
 
         parsed_fields.truncate(field_index + 1);
@@ -369,25 +374,85 @@ impl Message {
             }
         };
 
-        copy(&mut reverse_msg.header, TAG_SENDER_COMP_ID, TAG_TARGET_COMP_ID, &self.header);
-        copy(&mut reverse_msg.header, TAG_SENDER_SUB_ID, TAG_TARGET_SUB_ID, &self.header);
-        copy(&mut reverse_msg.header, TAG_SENDER_LOCATION_ID, TAG_TARGET_LOCATION_ID, &self.header);
+        copy(
+            &mut reverse_msg.header,
+            TAG_SENDER_COMP_ID,
+            TAG_TARGET_COMP_ID,
+            &self.header,
+        );
+        copy(
+            &mut reverse_msg.header,
+            TAG_SENDER_SUB_ID,
+            TAG_TARGET_SUB_ID,
+            &self.header,
+        );
+        copy(
+            &mut reverse_msg.header,
+            TAG_SENDER_LOCATION_ID,
+            TAG_TARGET_LOCATION_ID,
+            &self.header,
+        );
 
-        copy(&mut reverse_msg.header, TAG_TARGET_COMP_ID, TAG_SENDER_COMP_ID, &self.header);
-        copy(&mut reverse_msg.header, TAG_TARGET_SUB_ID, TAG_SENDER_SUB_ID, &self.header);
-        copy(&mut reverse_msg.header, TAG_TARGET_LOCATION_ID, TAG_SENDER_LOCATION_ID, &self.header);
+        copy(
+            &mut reverse_msg.header,
+            TAG_TARGET_COMP_ID,
+            TAG_SENDER_COMP_ID,
+            &self.header,
+        );
+        copy(
+            &mut reverse_msg.header,
+            TAG_TARGET_SUB_ID,
+            TAG_SENDER_SUB_ID,
+            &self.header,
+        );
+        copy(
+            &mut reverse_msg.header,
+            TAG_TARGET_LOCATION_ID,
+            TAG_SENDER_LOCATION_ID,
+            &self.header,
+        );
 
-        copy(&mut reverse_msg.header, TAG_ON_BEHALF_OF_COMP_ID, TAG_DELIVER_TO_COMP_ID, &self.header);
-        copy(&mut reverse_msg.header, TAG_ON_BEHALF_OF_SUB_ID, TAG_DELIVER_TO_SUB_ID, &self.header);
-        copy(&mut reverse_msg.header, TAG_DELIVER_TO_COMP_ID, TAG_ON_BEHALF_OF_COMP_ID, &self.header);
-        copy(&mut reverse_msg.header, TAG_DELIVER_TO_SUB_ID, TAG_ON_BEHALF_OF_SUB_ID, &self.header);
+        copy(
+            &mut reverse_msg.header,
+            TAG_ON_BEHALF_OF_COMP_ID,
+            TAG_DELIVER_TO_COMP_ID,
+            &self.header,
+        );
+        copy(
+            &mut reverse_msg.header,
+            TAG_ON_BEHALF_OF_SUB_ID,
+            TAG_DELIVER_TO_SUB_ID,
+            &self.header,
+        );
+        copy(
+            &mut reverse_msg.header,
+            TAG_DELIVER_TO_COMP_ID,
+            TAG_ON_BEHALF_OF_COMP_ID,
+            &self.header,
+        );
+        copy(
+            &mut reverse_msg.header,
+            TAG_DELIVER_TO_SUB_ID,
+            TAG_ON_BEHALF_OF_SUB_ID,
+            &self.header,
+        );
 
         // tags added in 4.1
         let mut begin_string = FIXString::new();
         let get_field = self.header.get_field(TAG_BEGIN_STRING, &mut begin_string);
         if get_field.is_ok() && begin_string != BEGIN_STRING_FIX40 {
-            copy(&mut reverse_msg.header, TAG_ON_BEHALF_OF_LOCATION_ID, TAG_DELIVER_TO_LOCATION_ID, &self.header);
-            copy(&mut reverse_msg.header, TAG_DELIVER_TO_LOCATION_ID, TAG_ON_BEHALF_OF_LOCATION_ID, &self.header);
+            copy(
+                &mut reverse_msg.header,
+                TAG_ON_BEHALF_OF_LOCATION_ID,
+                TAG_DELIVER_TO_LOCATION_ID,
+                &self.header,
+            );
+            copy(
+                &mut reverse_msg.header,
+                TAG_DELIVER_TO_LOCATION_ID,
+                TAG_ON_BEHALF_OF_LOCATION_ID,
+                &self.header,
+            );
         }
 
         reverse_msg
@@ -395,7 +460,7 @@ impl Message {
 
     // build constructs a []byte from a Message instance
     pub fn build(&mut self) -> Vec<u8> {
-        self.cook();
+        self.cook(self.body.length(), self.body.total());
 
         let mut b = vec![];
         self.header.write(&mut b);
@@ -404,10 +469,27 @@ impl Message {
         b
     }
 
-    fn cook(&mut self) {
-        let body_length = self.header.length() + self.body.length() + self.trailer.length();
+    /// Constructs a `Vec<u8>` from a Message instance, using the given `body_bytes`.
+    /// This is a workaround for the fact that repeating group field ordering is
+    /// not preserved through parse → field map → serialize round-trips.
+    /// This lets us pull the Message from the Store, parse it, update the Header
+    /// (e.g. `PossDupFlag`, `OrigSendingTime`), and then build it back into bytes
+    /// using the original raw body, bypassing field map serialization.
+    #[allow(clippy::cast_possible_wrap)]
+    pub fn build_with_body_bytes(&mut self, body_bytes: &[u8]) -> Vec<u8> {
+        self.cook(body_bytes.len() as isize, bytes_total(body_bytes));
+
+        let mut b = vec![];
+        self.header.write(&mut b);
+        b.extend_from_slice(body_bytes);
+        self.trailer.write(&mut b);
+        b
+    }
+
+    fn cook(&mut self, body_len: isize, body_total: isize) {
+        let body_length = self.header.length() + body_len + self.trailer.length();
         self.header.set_int(TAG_BODY_LENGTH, body_length);
-        let check_sum = (self.header.total() + self.body.total() + self.trailer.total()) % 256;
+        let check_sum = (self.header.total() + body_total + self.trailer.total()) % 256;
         self.trailer
             .set_string(TAG_CHECK_SUM, &format_check_sum(check_sum));
     }
@@ -517,6 +599,15 @@ fn extract_field<'a>(
         .parse(buffer_slice)
         .map_err(|err| ParseError { orig_error: err })?;
     Ok(buffer.get((end_index + 1)..).unwrap())
+}
+
+/// Compute the total (sum of all byte values) for a raw byte slice.
+fn bytes_total(bytes: &[u8]) -> isize {
+    let mut total: isize = 0;
+    for b in bytes {
+        total += *b as isize;
+    }
+    total
 }
 
 fn format_check_sum(value: isize) -> String {

@@ -24,7 +24,6 @@ pub struct ValidatorSettings {
 }
 
 // Default configuration for message validation.
-// See http://www.quickfixengine.org/quickfix/doc/html/configuration.html.
 impl Default for ValidatorSettings {
     fn default() -> Self {
         ValidatorSettings {
@@ -371,9 +370,7 @@ fn validate_field(
         "LENGTH" | "DAYOFMONTH" | "NUMINGROUP" | "SEQNUM" | "INT" => {
             atoi_simd::parse::<isize, false, false>(value).is_ok()
         }
-        "UTCTIMESTAMP" | "TIME" => {
-            FIXUTCTimestamp::default().read(value).is_ok()
-        }
+        "UTCTIMESTAMP" | "TIME" => FIXUTCTimestamp::default().read(value).is_ok(),
         "QTY" | "QUANTITY" | "AMT" | "PRICE" | "PRICEOFFSET" | "PERCENTAGE" | "FLOAT" => {
             FIXFloat::default().read(value).is_ok()
         }
@@ -1632,21 +1629,14 @@ mod tests {
             TestCase {
                 expected_rem_fields: 0,
                 field_def: group_field_def.clone(),
-                fields: vec![
-                    group_id.clone(),
-                    rep_field1.clone(),
-                ],
+                fields: vec![group_id.clone(), rep_field1.clone()],
                 ..Default::default()
             },
             // multiple field group
             TestCase {
                 expected_rem_fields: 0,
                 field_def: group_field_def.clone(),
-                fields: vec![
-                    group_id.clone(),
-                    rep_field1.clone(),
-                    rep_field2.clone(),
-                ],
+                fields: vec![group_id.clone(), rep_field1.clone(), rep_field2.clone()],
                 ..Default::default()
             },
             // test with trailing tag not in group
@@ -1726,32 +1716,32 @@ mod tests {
             let validate_result = validate_visit_field(&tc.field_def, &tc.fields);
 
             if tc.expect_reject {
-                    assert!(validate_result.is_err(), "Expected Reject");
+                assert!(validate_result.is_err(), "Expected Reject");
 
-                    let reject = validate_result.unwrap_err();
+                let reject = validate_result.unwrap_err();
 
-                    assert_eq!(
-                        reject.reject_reason(),
-                        tc.expected_reject_reason,
-                        "Expected reject reason {} got {}",
-                        tc.expected_reject_reason,
-                        reject.reject_reason()
-                    );
+                assert_eq!(
+                    reject.reject_reason(),
+                    tc.expected_reject_reason,
+                    "Expected reject reason {} got {}",
+                    tc.expected_reject_reason,
+                    reject.reject_reason()
+                );
             } else {
-                    assert!(
-                        validate_result.is_ok(),
-                        "Unexpected reject: {validate_result:?}",
-                    );
+                assert!(
+                    validate_result.is_ok(),
+                    "Unexpected reject: {validate_result:?}",
+                );
 
-                    let rem_fields = validate_result.unwrap();
+                let rem_fields = validate_result.unwrap();
 
-                    assert_eq!(
-                        rem_fields.len(),
-                        tc.expected_rem_fields,
-                        "Expected len {} got {}",
-                        tc.expected_rem_fields,
-                        rem_fields.len(),
-                    );
+                assert_eq!(
+                    rem_fields.len(),
+                    tc.expected_rem_fields,
+                    "Expected len {} got {}",
+                    tc.expected_rem_fields,
+                    rem_fields.len(),
+                );
             }
         }
     }

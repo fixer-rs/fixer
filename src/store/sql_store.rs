@@ -241,14 +241,12 @@ impl MessageStoreTrait for SqlStore {
     }
 
     async fn incr_next_sender_msg_seq_num(&mut self) -> SimpleResult<()> {
-        self.cache.incr_next_sender_msg_seq_num().await?;
-        let next = self.cache.next_sender_msg_seq_num().await;
+        let next = self.cache.next_sender_msg_seq_num().await + 1;
         self.set_next_sender_msg_seq_num(next).await
     }
 
     async fn incr_next_target_msg_seq_num(&mut self) -> SimpleResult<()> {
-        self.cache.incr_next_target_msg_seq_num().await?;
-        let next = self.cache.next_target_msg_seq_num().await;
+        let next = self.cache.next_target_msg_seq_num().await + 1;
         self.set_next_target_msg_seq_num(next).await
     }
 

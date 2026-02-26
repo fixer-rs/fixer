@@ -35,9 +35,9 @@ use crate::{
 };
 use addr::parse_domain_name;
 use jiff::{SignedDuration, civil::Weekday, tz::TimeZone};
+use rustc_hash::FxHashMap;
 use simple_error::{SimpleError, SimpleResult};
 use std::sync::LazyLock;
-use rustc_hash::FxHashMap;
 use std::{
     net::{IpAddr, SocketAddr, SocketAddrV4, SocketAddrV6},
     ops::Deref,
@@ -335,9 +335,9 @@ impl SessionFactory {
                     let day_result = DAY_LOOKUP.get(day_str);
                     match day_result {
                         Some(day) => Ok(*day),
-                        None => Err(SimpleError::from(FixerError::new_incorrect_format_for_setting(
-                            setting, day_str,
-                        ))),
+                        None => Err(SimpleError::from(
+                            FixerError::new_incorrect_format_for_setting(setting, day_str),
+                        )),
                     }
                 }
 
@@ -364,10 +364,12 @@ impl SessionFactory {
             } else if precision_str == "NANOS" {
                 precision = TimestampPrecision::Nanos;
             } else {
-                return Err(SimpleError::from(FixerError::new_incorrect_format_for_setting(
-                    TIME_STAMP_PRECISION,
-                    precision_str.as_str(),
-                )));
+                return Err(SimpleError::from(
+                    FixerError::new_incorrect_format_for_setting(
+                        TIME_STAMP_PRECISION,
+                        precision_str.as_str(),
+                    ),
+                ));
             }
         }
 
@@ -421,6 +423,9 @@ impl SessionFactory {
             state_timer: EventTimer::new(Arc::new(|| {})),
             peer_timer: EventTimer::new(Arc::new(|| {})),
             sent_reset: Default::default(),
+            // stop_once is initialized here in the factory (not in run()) to prevent
+            // deadlocks on sequential start/stop cycles. In Rust this is inherently
+            // safe because Session is moved into the task and never reused.
             stop_once: tokio::sync::OnceCell::default(),
             target_default_appl_ver_id: Arc::new(StdMutex::new(default_appl_ver_id)),
             admin: Admin {
@@ -672,14 +677,16 @@ mod tests {
             setting: &'a str,
             expected: bool,
         }
-        let tests = [TestCase {
+        let tests = [
+            TestCase {
                 setting: "Y",
                 expected: true,
             },
             TestCase {
                 setting: "N",
                 expected: false,
-            }];
+            },
+        ];
 
         for tc in &tests {
             let mut s = SessionFactorySuite::setup_test();
@@ -706,14 +713,16 @@ mod tests {
             setting: &'a str,
             expected: bool,
         }
-        let tests = [TestCase {
+        let tests = [
+            TestCase {
                 setting: "Y",
                 expected: true,
             },
             TestCase {
                 setting: "N",
                 expected: false,
-            }];
+            },
+        ];
 
         for tc in &tests {
             let mut s = SessionFactorySuite::setup_test();
@@ -740,14 +749,16 @@ mod tests {
             setting: &'a str,
             expected: bool,
         }
-        let tests = [TestCase {
+        let tests = [
+            TestCase {
                 setting: "Y",
                 expected: true,
             },
             TestCase {
                 setting: "N",
                 expected: false,
-            }];
+            },
+        ];
 
         for tc in &tests {
             let mut s = SessionFactorySuite::setup_test();
@@ -774,14 +785,16 @@ mod tests {
             setting: &'a str,
             expected: bool,
         }
-        let tests = [TestCase {
+        let tests = [
+            TestCase {
                 setting: "Y",
                 expected: true,
             },
             TestCase {
                 setting: "N",
                 expected: false,
-            }];
+            },
+        ];
 
         for tc in &tests {
             let mut s = SessionFactorySuite::setup_test();
@@ -842,14 +855,16 @@ mod tests {
             setting: &'a str,
             expected: bool,
         }
-        let tests = [TestCase {
+        let tests = [
+            TestCase {
                 setting: "Y",
                 expected: true,
             },
             TestCase {
                 setting: "N",
                 expected: false,
-            }];
+            },
+        ];
 
         for tc in &tests {
             let mut s = SessionFactorySuite::setup_test();
@@ -879,14 +894,16 @@ mod tests {
             setting: &'a str,
             expected: bool,
         }
-        let tests = [TestCase {
+        let tests = [
+            TestCase {
                 setting: "Y",
                 expected: false,
             },
             TestCase {
                 setting: "N",
                 expected: true,
-            }];
+            },
+        ];
 
         for tc in &tests {
             let mut s = SessionFactorySuite::setup_test();
@@ -968,14 +985,16 @@ mod tests {
             start_day: &'a str,
             end_day: &'a str,
         }
-        let tests = [TestCase {
+        let tests = [
+            TestCase {
                 start_day: "Sunday",
                 end_day: "Thursday",
             },
             TestCase {
                 start_day: "Sun",
                 end_day: "Thu",
-            }];
+            },
+        ];
 
         for tc in &tests {
             let mut s = SessionFactorySuite::setup_test();
@@ -1775,7 +1794,8 @@ mod tests {
             port: &'a str,
             expected: &'a str,
         }
-        let tests = [TestCase {
+        let tests = [
+            TestCase {
                 host: "127.0.0.1",
                 port: "3000",
                 expected: "127.0.0.1:3000",
@@ -1789,7 +1809,8 @@ mod tests {
                 host: "2001:db8:a0b:12f0::1",
                 port: "3001",
                 expected: "[2001:db8:a0b:12f0::1]:3001",
-            }];
+            },
+        ];
 
         for tc in &tests {
             let mut sess = Session::default();
@@ -1886,7 +1907,8 @@ mod tests {
             config: &'a str,
             precision: TimestampPrecision,
         }
-        let tests = [TestCase {
+        let tests = [
+            TestCase {
                 config: "SECONDS",
                 precision: TimestampPrecision::Seconds,
             },
@@ -1901,7 +1923,8 @@ mod tests {
             TestCase {
                 config: "NANOS",
                 precision: TimestampPrecision::Nanos,
-            }];
+            },
+        ];
 
         for tc in &tests {
             s.ss.set(TIME_STAMP_PRECISION.to_string(), tc.config.to_string());
@@ -1986,14 +2009,16 @@ mod tests {
             setting: &'a str,
             expected: bool,
         }
-        let tests = [TestCase {
+        let tests = [
+            TestCase {
                 setting: "Y",
                 expected: false,
             },
             TestCase {
                 setting: "N",
                 expected: true,
-            }];
+            },
+        ];
 
         for tc in &tests {
             let mut s = SessionFactorySuite::setup_test();

@@ -36,7 +36,7 @@ use tokio::{
 /// `ConnectionValidator` is a trait allowing custom authentication logic for
 /// incoming connections. For example, you may tie a `SenderCompID` to an IP range.
 ///
-/// Equivalent to Go quickfix's `ConnectionValidator` interface.
+/// Validates incoming connections before they are associated with a session.
 pub trait ConnectionValidator: Send + Sync + 'static {
     /// Validate the connection. Return `Ok(())` to accept, `Err` to reject.
     fn validate(&self, remote_addr: SocketAddr, session_id: &SessionID) -> SimpleResult<()>;
@@ -83,6 +83,7 @@ impl DynSessionCreator for SessionCreator {
 struct SessionHandle {
     session: Option<Session>,
     admin_tx: UnboundedSender<AdminEnum>,
+    session_id: Arc<SessionID>,
 }
 
 #[allow(clippy::struct_field_names)]
@@ -168,10 +169,12 @@ impl Acceptor {
                 .await?;
 
             let admin_tx = session.admin.tx.clone();
+            let sid = session.session_id.clone();
 
             sessions.push(SessionHandle {
                 session: Some(session),
                 admin_tx,
+                session_id: sid,
             });
         }
 
@@ -298,6 +301,12 @@ impl Acceptor {
         for task in self.task_handles.drain(..) {
             let _ = task.await;
         }
+
+        // Unregister all sessions from the global registry so that
+        // restarting does not cause duplicate session errors.
+        for handle in &self.sessions {
+            let _ = unregister_session(&handle.session_id);
+        }
     }
 
     /// Sets an optional connection validator for custom authentication logic.
@@ -402,7 +411,7 @@ async fn handle_connection<R, W>(
 
     // Validate the connection if a validator is configured.
     // This runs after session ID is determined but before session lookup,
-    // matching the Go quickfix placement.
+    // matching the expected placement in the connection lifecycle.
     if let Some(ref validator) = validator {
         if validator.validate(remote_addr, &session_id).is_err() {
             return;
@@ -541,7 +550,6 @@ TargetCompID=INITIATOR
             .unwrap()
     }
 
-    // Ported from Go quickfix TestAcceptor_Start (accepter_test.go).
     // Verifies that Acceptor::start() binds a listener and Acceptor::stop() shuts down cleanly.
     #[tokio::test]
     #[serial]
@@ -1020,9 +1028,7 @@ TargetCompID=INITIATOR
         let server_key = KeyPair::generate().unwrap();
         let server_params = CertificateParams::new(vec!["localhost".to_string()]).unwrap();
         let ca_issuer = Issuer::from_params(&ca_params, &ca_key);
-        let server_cert = server_params
-            .signed_by(&server_key, &ca_issuer)
-            .unwrap();
+        let server_cert = server_params.signed_by(&server_key, &ca_issuer).unwrap();
 
         let mut ca_file = tempfile::NamedTempFile::new().unwrap();
         ca_file.write_all(ca_cert.pem().as_bytes()).unwrap();

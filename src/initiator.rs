@@ -3,7 +3,10 @@ use crate::{
     connection::{read_loop, write_loop},
     log::{LogEnum, LogFactoryEnum},
     parser::Parser,
-    session::{AdminEnum, Connect, FixIn, Session, StopReq, factory::SessionFactory},
+    registry::unregister_session,
+    session::{
+        AdminEnum, Connect, FixIn, Session, StopReq, factory::SessionFactory, session_id::SessionID,
+    },
     settings::Settings,
     store::MessageStoreFactoryEnum,
     tls,
@@ -23,6 +26,7 @@ pub(crate) struct SessionHandle {
     admin_tx: UnboundedSender<AdminEnum>,
     tls_connector: Option<tokio_rustls::TlsConnector>,
     session_settings: crate::session::settings::SessionSettings,
+    session_id: Arc<SessionID>,
 }
 
 pub struct Initiator {
@@ -62,11 +66,13 @@ impl Initiator {
 
             let tls_connector = tls::load_tls_connector(ss)?;
 
+            let sid = session.session_id.clone();
             sessions.push(SessionHandle {
                 session: Some(session),
                 admin_tx,
                 tls_connector,
                 session_settings: ss.clone(),
+                session_id: sid,
             });
         }
 
@@ -121,85 +127,85 @@ impl Initiator {
                     address_index = address_index.wrapping_add(1);
 
                     if let Ok(tcp_stream) = TcpStream::connect(address).await {
-                            // Optionally wrap with TLS
-                            let connected = if let Some(ref connector) = tls_connector {
-                                let Ok(server_name) = tls::get_server_name(&session_settings, address) else {
-                                        // Bad server name, retry
-                                        tokio::select! {
-                                            () = sleep(reconnect_interval) => {},
-                                            _ = stop_rx.changed() => { break; }
-                                        }
-                                        continue;
-                                    };
-                                match connector.connect(server_name, tcp_stream).await {
-                                    Ok(tls_stream) => {
-                                        let (r, w) = tokio::io::split(tls_stream);
-                                        Some((
-                                            Box::new(r)
-                                                as Box<dyn tokio::io::AsyncRead + Unpin + Send>,
-                                            Box::new(w)
-                                                as Box<dyn tokio::io::AsyncWrite + Unpin + Send>,
-                                        ))
-                                    }
-                                    Err(_) => None, // TLS handshake failed
-                                }
-                            } else {
-                                let (r, w) = tokio::io::split(tcp_stream);
-                                Some((
-                                    Box::new(r) as Box<dyn tokio::io::AsyncRead + Unpin + Send>,
-                                    Box::new(w) as Box<dyn tokio::io::AsyncWrite + Unpin + Send>,
-                                ))
-                            };
-
-                            let Some((read_half, write_half)) = connected else {
-                                // TLS handshake failed, retry
+                        // Optionally wrap with TLS
+                        let connected = if let Some(ref connector) = tls_connector {
+                            let Ok(server_name) = tls::get_server_name(&session_settings, address)
+                            else {
+                                // Bad server name, retry
                                 tokio::select! {
                                     () = sleep(reconnect_interval) => {},
                                     _ = stop_rx.changed() => { break; }
                                 }
                                 continue;
                             };
-
-                            let (msg_out_tx, msg_out_rx) =
-                                tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
-                            let (msg_in_tx, msg_in_rx) =
-                                tokio::sync::mpsc::unbounded_channel::<FixIn>();
-                            let (err_tx, mut err_rx) =
-                                tokio::sync::mpsc::unbounded_channel::<SimpleResult<()>>();
-
-                            let _ = admin_tx.send(AdminEnum::Connect(Connect {
-                                message_out: msg_out_tx,
-                                message_in: msg_in_rx,
-                                err: err_tx,
-                            }));
-
-                            // Wait for connect acknowledgement
-                            if let Some(result) = err_rx.recv().await {
-                                if result.is_err() {
-                                    // Connect rejected, retry after interval
-                                    tokio::select! {
-                                        () = sleep(reconnect_interval) => {},
-                                        _ = stop_rx.changed() => { break; }
-                                    }
-                                    continue;
+                            match connector.connect(server_name, tcp_stream).await {
+                                Ok(tls_stream) => {
+                                    let (r, w) = tokio::io::split(tls_stream);
+                                    Some((
+                                        Box::new(r) as Box<dyn tokio::io::AsyncRead + Unpin + Send>,
+                                        Box::new(w)
+                                            as Box<dyn tokio::io::AsyncWrite + Unpin + Send>,
+                                    ))
                                 }
+                                Err(_) => None, // TLS handshake failed
                             }
+                        } else {
+                            let (r, w) = tokio::io::split(tcp_stream);
+                            Some((
+                                Box::new(r) as Box<dyn tokio::io::AsyncRead + Unpin + Send>,
+                                Box::new(w) as Box<dyn tokio::io::AsyncWrite + Unpin + Send>,
+                            ))
+                        };
 
-                            let buf_reader = BufReader::new(read_half);
-                            let parser = Parser::new(buf_reader);
-
-                            let read_task =
-                                tokio::spawn(async move { read_loop(parser, msg_in_tx).await });
-                            let write_task = tokio::spawn(async move {
-                                write_loop(write_half, msg_out_rx, LogEnum::default()).await;
-                            });
-
-                            // Wait for disconnect
+                        let Some((read_half, write_half)) = connected else {
+                            // TLS handshake failed, retry
                             tokio::select! {
-                                _ = read_task => {},
-                                _ = write_task => {},
+                                () = sleep(reconnect_interval) => {},
                                 _ = stop_rx.changed() => { break; }
                             }
+                            continue;
+                        };
+
+                        let (msg_out_tx, msg_out_rx) =
+                            tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
+                        let (msg_in_tx, msg_in_rx) =
+                            tokio::sync::mpsc::unbounded_channel::<FixIn>();
+                        let (err_tx, mut err_rx) =
+                            tokio::sync::mpsc::unbounded_channel::<SimpleResult<()>>();
+
+                        let _ = admin_tx.send(AdminEnum::Connect(Connect {
+                            message_out: msg_out_tx,
+                            message_in: msg_in_rx,
+                            err: err_tx,
+                        }));
+
+                        // Wait for connect acknowledgement
+                        if let Some(result) = err_rx.recv().await {
+                            if result.is_err() {
+                                // Connect rejected, retry after interval
+                                tokio::select! {
+                                    () = sleep(reconnect_interval) => {},
+                                    _ = stop_rx.changed() => { break; }
+                                }
+                                continue;
+                            }
+                        }
+
+                        let buf_reader = BufReader::new(read_half);
+                        let parser = Parser::new(buf_reader);
+
+                        let read_task =
+                            tokio::spawn(async move { read_loop(parser, msg_in_tx).await });
+                        let write_task = tokio::spawn(async move {
+                            write_loop(write_half, msg_out_rx, LogEnum::default()).await;
+                        });
+
+                        // Wait for disconnect
+                        tokio::select! {
+                            _ = read_task => {},
+                            _ = write_task => {},
+                            _ = stop_rx.changed() => { break; }
+                        }
                     }
 
                     // Reconnect delay
@@ -232,6 +238,12 @@ impl Initiator {
         // Wait for all tasks to complete
         for task in self.task_handles.drain(..) {
             let _ = task.await;
+        }
+
+        // Unregister all sessions from the global registry so that
+        // restarting does not cause duplicate session errors.
+        for handle in &self.sessions {
+            let _ = unregister_session(&handle.session_id);
         }
     }
 }
@@ -273,8 +285,7 @@ SocketConnectPort={port}
     }
 
     // Verifies that Initiator::new() creates sessions with initiate_logon=true
-    // and correct socket_connect_address. Ported from Go quickfix
-    // TestNewSessionBuildInitiators (session_factory_test.go:362).
+    // and correct socket_connect_address.
     #[tokio::test]
     #[serial]
     async fn test_initiator_new_creates_sessions() {

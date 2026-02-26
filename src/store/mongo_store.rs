@@ -176,36 +176,44 @@ impl MessageStoreTrait for MongoStore {
     }
 
     async fn set_next_sender_msg_seq_num(&mut self, next_seq_num: isize) -> SimpleResult<()> {
+        // Persist to storage first, then update cache on success (11.2 fix)
         self.cache.set_next_sender_msg_seq_num(next_seq_num).await?;
         let filter = session_filter(&self.session_id);
         let update = doc! { "$set": self.build_session_update() };
-        self.sessions_col()
+        if let Err(e) = self.sessions_col()
             .update_one(filter, update)
             .await
-            .map_err(|e| simple_error!("update outgoing_seq_num: {e}"))?;
+        {
+            // Roll back cache on storage failure
+            self.cache.set_next_sender_msg_seq_num(next_seq_num - 1).await?;
+            return Err(simple_error!("update outgoing_seq_num: {e}"));
+        }
         Ok(())
     }
 
     async fn set_next_target_msg_seq_num(&mut self, next_seq_num: isize) -> SimpleResult<()> {
+        // Persist to storage first, then update cache on success (11.2 fix)
         self.cache.set_next_target_msg_seq_num(next_seq_num).await?;
         let filter = session_filter(&self.session_id);
         let update = doc! { "$set": self.build_session_update() };
-        self.sessions_col()
+        if let Err(e) = self.sessions_col()
             .update_one(filter, update)
             .await
-            .map_err(|e| simple_error!("update incoming_seq_num: {e}"))?;
+        {
+            // Roll back cache on storage failure
+            self.cache.set_next_target_msg_seq_num(next_seq_num - 1).await?;
+            return Err(simple_error!("update incoming_seq_num: {e}"));
+        }
         Ok(())
     }
 
     async fn incr_next_sender_msg_seq_num(&mut self) -> SimpleResult<()> {
-        self.cache.incr_next_sender_msg_seq_num().await?;
-        let next = self.cache.next_sender_msg_seq_num().await;
+        let next = self.cache.next_sender_msg_seq_num().await + 1;
         self.set_next_sender_msg_seq_num(next).await
     }
 
     async fn incr_next_target_msg_seq_num(&mut self) -> SimpleResult<()> {
-        self.cache.incr_next_target_msg_seq_num().await?;
-        let next = self.cache.next_target_msg_seq_num().await;
+        let next = self.cache.next_target_msg_seq_num().await + 1;
         self.set_next_target_msg_seq_num(next).await
     }
 

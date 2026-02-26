@@ -386,7 +386,9 @@ impl FieldMap {
                         }
                     });
             }
-            // In the trailer, CheckSum (tag 10) must be last
+            // In the trailer, CheckSum (tag 10) must be last.
+            // Other trailer fields are ordered descending so that
+            // SignatureLength (93) comes before Signature (89).
             TagOrderType::Trailer => {
                 content
                     .tag_sort
@@ -398,7 +400,7 @@ impl FieldMap {
                         if *j == TAG_CHECK_SUM {
                             return Ordering::Less;
                         }
-                        i.cmp(j)
+                        j.cmp(i)
                     });
             }
             TagOrderType::RepeatingGroup(tag_map) => {

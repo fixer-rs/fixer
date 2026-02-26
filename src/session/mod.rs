@@ -227,7 +227,7 @@ impl Session {
         self.target_default_appl_ver_id.lock().unwrap().clone()
     }
 
-    #[allow(dead_code)] // exists in Go quickfix session.go, used by acceptor/initiator
+    #[allow(dead_code)] // used by acceptor/initiator
     async fn connect(
         &self,
         message_in: UnboundedReceiver<FixIn>,
@@ -253,12 +253,12 @@ impl Session {
         let _ = self.admin.tx.send(AdminEnum::StopReq(StopReq));
     }
 
-    #[allow(dead_code)] // exists in Go quickfix session.go, used by acceptor/initiator
+    #[allow(dead_code)] // used by acceptor/initiator
     async fn stop(&self) {
         self.stop_once.get_or_init(|| self.send_stop_req()).await;
     }
 
-    #[allow(dead_code)] // exists in Go quickfix session.go, used by initiator
+    #[allow(dead_code)] // used by initiator
     async fn wait_for_in_session_time(&self) {
         let (tx, mut rx) = unbounded_channel::<WaitChan>();
 
@@ -400,7 +400,8 @@ impl Session {
             );
         }
 
-        self.drop_and_send_in_reply_to(&mut logon, in_reply_to).await
+        self.drop_and_send_in_reply_to(&mut logon, in_reply_to)
+            .await
     }
 
     fn build_logout(&self, reason: &str) -> Message {
@@ -496,7 +497,7 @@ impl Session {
     }
 
     // drop_and_send will validate and persist the message, then drops the send queue and sends the message.
-    #[allow(dead_code)] // exists in Go quickfix session.go, used internally and in tests
+    #[allow(dead_code)] // used internally and in tests
     async fn drop_and_send(&mut self, msg: &mut Message) -> Result<(), FixerError> {
         self.drop_and_send_in_reply_to(msg, None).await
     }
@@ -664,7 +665,11 @@ impl Session {
         Ok(next_state)
     }
 
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_precision_loss)]
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::cast_precision_loss
+    )]
     async fn handle_logon(&mut self, msg: &mut Message) -> Result<(), FixerError> {
         //Grab default app ver id from fixt.1.1 logon
         if self.session_id.begin_string == BEGIN_STRING_FIXT11 {
@@ -688,6 +693,9 @@ impl Session {
             }
         }
 
+        // Make sure this is a valid session before resetting the store.
+        self.verify_msg_against_app_impl(msg).await?;
+
         let mut reset_seq_num_flag = FIXBoolean::default();
         let get_field_result = msg
             .body
@@ -703,6 +711,8 @@ impl Session {
             self.store.reset().await?;
         }
 
+        // Verify seq num too high but don't check against app implementation
+        // since we just did that above. Don't need to double check.
         self.verify_ignore_seq_num_too_high(msg).await?;
 
         if !self.iss.initiate_logon {
@@ -753,18 +763,18 @@ impl Session {
     }
 
     async fn verify(&mut self, msg: &Message) -> MessageRejectErrorResult {
-        self.verify_select(msg, true, true).await
+        self.verify_select(msg, true, true, true).await
     }
 
     async fn verify_ignore_seq_num_too_high(&mut self, msg: &Message) -> MessageRejectErrorResult {
-        self.verify_select(msg, false, true).await
+        self.verify_select(msg, false, true, false).await
     }
 
     async fn verify_ignore_seq_num_too_high_or_low(
         &mut self,
         msg: &Message,
     ) -> MessageRejectErrorResult {
-        self.verify_select(msg, false, false).await
+        self.verify_select(msg, false, false, true).await
     }
 
     async fn verify_select(
@@ -772,6 +782,7 @@ impl Session {
         msg: &Message,
         check_too_high: bool,
         check_too_low: bool,
+        check_app_impl: bool,
     ) -> MessageRejectErrorResult {
         self.check_begin_string(msg)?;
 
@@ -792,6 +803,17 @@ impl Session {
             self.check_target_too_high(msg).await?;
         }
 
+        if check_app_impl {
+            return self.verify_msg_against_app_impl(msg).await;
+        }
+
+        Ok(())
+    }
+
+    /// Validates the message against the application implementation (validator + callbacks).
+    /// Extracted so it can be called independently from `verify_select`, e.g. in `handle_logon`
+    /// before the store is reset.
+    async fn verify_msg_against_app_impl(&mut self, msg: &Message) -> MessageRejectErrorResult {
         if let Some(validator) = &self.validator {
             validator.validate(msg)?;
         }
@@ -921,10 +943,9 @@ impl Session {
 
             let ref_tag_id_result = rej.ref_tag_id();
             if let Some(ref_tag_id) = ref_tag_id_result {
-                reply.body.set_field(
-                    TAG_TEXT,
-                    FIXString::from(format!("{rej} ({ref_tag_id})")),
-                );
+                reply
+                    .body
+                    .set_field(TAG_TEXT, FIXString::from(format!("{rej} ({ref_tag_id})")));
             } else {
                 reply
                     .body
@@ -1160,7 +1181,11 @@ impl Session {
         }
     }
 
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_precision_loss)]
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::cast_precision_loss
+    )]
     async fn sm_incoming(&mut self, fix_in: &FixIn) {
         self.sm_check_session_time(&mut gen_now()).await;
         if !self.sm.is_connected() {
@@ -1231,8 +1256,9 @@ impl Session {
 
         let next_state = match &self.sm.state {
             SessionStateEnum::InSession(_) => self.in_session_timeout(event).await,
-            SessionStateEnum::LatentState(_)
-            | SessionStateEnum::NotSessionTime(_) => self.sm.state.clone(),
+            SessionStateEnum::LatentState(_) | SessionStateEnum::NotSessionTime(_) => {
+                self.sm.state.clone()
+            }
             SessionStateEnum::LogonState(_) => self.logon_timeout(event).await,
             SessionStateEnum::LogoutState(_) => self.logout_timeout(event).await,
             SessionStateEnum::ResendState(rs) => self.resend_state_timeout(event, rs.clone()).await,
@@ -1331,17 +1357,17 @@ impl Session {
         self.on_disconnect().await;
     }
 
-    #[allow(dead_code)] // exported in Go quickfix as IsLoggedOn()
+    #[allow(dead_code)]
     fn sm_is_logged_on(&self) -> bool {
         self.sm.is_logged_on()
     }
 
-    #[allow(dead_code)] // exported in Go quickfix as IsConnected()
+    #[allow(dead_code)]
     fn sm_is_connected(&self) -> bool {
         self.sm.is_connected()
     }
 
-    #[allow(dead_code)] // exported in Go quickfix as IsSessionTime()
+    #[allow(dead_code)]
     fn sm_is_session_time(&self) -> bool {
         self.sm.is_session_time()
     }
@@ -1383,7 +1409,7 @@ impl Session {
     // in session
 
     async fn in_session_handle_logout(&mut self, msg: &mut Message) -> SessionStateEnum {
-        let verify_result = self.verify_select(msg, false, false).await;
+        let verify_result = self.verify_select(msg, false, false, true).await;
         if let Err(err) = verify_result {
             return self.in_session_process_reject(msg, err).await;
         }
@@ -1456,7 +1482,9 @@ impl Session {
             }
         }
 
-        let verify_result = self.verify_select(msg, gap_fill_flag, gap_fill_flag).await;
+        let verify_result = self
+            .verify_select(msg, gap_fill_flag, gap_fill_flag, true)
+            .await;
         if let Err(err) = verify_result {
             return self.in_session_process_reject(msg, err).await;
         }
@@ -1634,7 +1662,7 @@ impl Session {
                 )
                 .await;
 
-            let inner_msg_bytes = msg.build();
+            let inner_msg_bytes = msg.build_with_body_bytes(&msg.body_bytes.clone());
 
             self.enqueue_bytes_and_send(&inner_msg_bytes).await;
 
@@ -1658,22 +1686,21 @@ impl Session {
         rej: MessageRejectErrorEnum,
     ) -> SessionStateEnum {
         if let MessageRejectErrorEnum::TargetTooHigh(tth) = rej {
-            let mut rs =
-                if let SessionStateEnum::ResendState(ref mut rs) = self.sm.state {
-                    ResendState {
-                        message_stash: rs.message_stash.clone(),
-                        current_resend_range_end: rs.current_resend_range_end,
-                        resend_range_end: rs.resend_range_end,
-                        logged_on: LoggedOn::default(),
-                    }
-                } else {
-                    let next_state_result = self.do_target_too_high(&tth).await;
-                    if let Err(err) = next_state_result {
-                        let err_str = &err.to_string();
-                        return self.handle_state_error(err_str).await;
-                    }
-                    next_state_result.unwrap()
-                };
+            let mut rs = if let SessionStateEnum::ResendState(ref mut rs) = self.sm.state {
+                ResendState {
+                    message_stash: rs.message_stash.clone(),
+                    current_resend_range_end: rs.current_resend_range_end,
+                    resend_range_end: rs.resend_range_end,
+                    logged_on: LoggedOn::default(),
+                }
+            } else {
+                let next_state_result = self.do_target_too_high(&tth).await;
+                if let Err(err) = next_state_result {
+                    let err_str = &err.to_string();
+                    return self.handle_state_error(err_str).await;
+                }
+                next_state_result.unwrap()
+            };
 
             rs.message_stash.insert(tth.received_target, msg.clone());
 
@@ -1825,7 +1852,8 @@ impl Session {
                 .set_field(TAG_ORIG_SENDING_TIME, orig_sending_time);
         }
 
-        self.application.to_admin(&mut sequence_reset, &self.session_id);
+        self.application
+            .to_admin(&mut sequence_reset, &self.session_id);
 
         let msg_bytes = sequence_reset.build();
 
@@ -1841,7 +1869,11 @@ impl Session {
         Ok(())
     }
 
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_precision_loss)]
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::cast_precision_loss
+    )]
     async fn in_session_timeout(&mut self, event: Event) -> SessionStateEnum {
         if event == NEED_HEARTBEAT {
             let mut heart_beat = Message::new();
