@@ -8,12 +8,12 @@ use crate::{
         ALLOW_UNKNOWN_MSG_FIELDS, APP_DATA_DICTIONARY, CHECK_LATENCY, DATA_DICTIONARY,
         DEFAULT_APPL_VER_ID, ENABLE_LAST_MSG_SEQ_NUM_PROCESSED,
         ENABLE_NEXT_EXPECTED_MSG_SEQ_NUM, END_DAY, END_TIME, HEART_BT_INT,
-        HEART_BT_INT_OVERRIDE, LOGON_TIMEOUT, LOGOUT_TIMEOUT, MAX_LATENCY, PERSIST_MESSAGES,
-        RECONNECT_INTERVAL, REFRESH_ON_LOGON, REJECT_INVALID_MESSAGE, RESEND_REQUEST_CHUNK_SIZE,
-        RESET_ON_DISCONNECT, RESET_ON_LOGON, RESET_ON_LOGOUT, RESET_SEQ_TIME,
-        SOCKET_CONNECT_HOST, SOCKET_CONNECT_PORT, START_DAY, START_TIME, TIME_STAMP_PRECISION,
-        TIME_ZONE,
-        TRANSPORT_DATA_DICTIONARY, VALIDATE_FIELDS_HAVE_VALUES, VALIDATE_FIELDS_OUT_OF_ORDER,
+        HEART_BT_INT_OVERRIDE, IN_CHAN_CAPACITY, LOGON_TIMEOUT, LOGOUT_TIMEOUT, MAX_LATENCY,
+        PERSIST_MESSAGES, RECONNECT_INTERVAL, REFRESH_ON_LOGON, REJECT_INVALID_MESSAGE,
+        RESEND_REQUEST_CHUNK_SIZE, RESET_ON_DISCONNECT, RESET_ON_LOGON, RESET_ON_LOGOUT,
+        RESET_SEQ_TIME, SOCKET_CONNECT_HOST, SOCKET_CONNECT_PORT, START_DAY, START_TIME,
+        TIME_STAMP_PRECISION, TIME_ZONE, TRANSPORT_DATA_DICTIONARY,
+        VALIDATE_FIELDS_HAVE_VALUES, VALIDATE_FIELDS_OUT_OF_ORDER,
         VALIDATE_USER_DEFINED_FIELDS, WEEKDAYS,
     },
     datadictionary::DataDictionary,
@@ -116,11 +116,14 @@ impl SessionFactory {
         let admin_tx = session.admin.tx.clone();
         let target_default_appl_ver_id = session.target_default_appl_ver_id.clone();
 
+        let in_chan_capacity = session.iss.in_chan_capacity;
+
         register_session(
             session_id.clone(),
             SessionRegistration {
                 admin_tx,
                 target_default_appl_ver_id,
+                in_chan_capacity,
             },
         )?;
 
@@ -462,6 +465,14 @@ impl SessionFactory {
             iss.disable_message_persist = !st;
         }
 
+        if settings.has_setting(IN_CHAN_CAPACITY) {
+            let cap = settings.int_setting(IN_CHAN_CAPACITY)?;
+            if cap < 0 {
+                return Err(simple_error!("InChanCapacity must be zero or a positive integer"));
+            }
+            iss.in_chan_capacity = cap as usize;
+        }
+
         if self.build_initiators {
             self.build_initiator_settings(&mut iss, settings).await?;
         } else {
@@ -479,7 +490,12 @@ impl SessionFactory {
         let (message_event_tx, message_event_rx) = channel::<bool>(1);
         let (admin_tx, admin_rx) = unbounded_channel::<AdminEnum>();
         let (message_out_tx, _) = unbounded_channel::<Vec<u8>>();
-        let (_, message_in_rx) = unbounded_channel::<FixIn>();
+        let in_cap = if iss.in_chan_capacity > 0 {
+            iss.in_chan_capacity
+        } else {
+            1 // tokio::mpsc::channel requires capacity >= 1
+        };
+        let (_, message_in_rx) = channel::<FixIn>(in_cap);
 
         Ok(Session {
             application: application.clone(),
@@ -544,35 +560,29 @@ impl SessionFactory {
 
         iss.reconnect_interval = SignedDuration::from_secs(30);
         if settings.has_setting(RECONNECT_INTERVAL) {
-            let interval = settings.int_setting(RECONNECT_INTERVAL)?;
-
-            if interval <= 0 {
+            iss.reconnect_interval =
+                Self::parse_duration_or_int_setting(settings, RECONNECT_INTERVAL)?;
+            if iss.reconnect_interval <= SignedDuration::ZERO {
                 return Err(simple_error!("ReconnectInterval must be greater than zero"));
             }
-
-            iss.reconnect_interval = SignedDuration::from_secs(interval as i64);
         }
 
         iss.logout_timeout = SignedDuration::from_secs(2);
         if settings.has_setting(LOGOUT_TIMEOUT) {
-            let timeout = settings.int_setting(LOGOUT_TIMEOUT)?;
-
-            if timeout <= 0 {
+            iss.logout_timeout =
+                Self::parse_duration_or_int_setting(settings, LOGOUT_TIMEOUT)?;
+            if iss.logout_timeout <= SignedDuration::ZERO {
                 return Err(simple_error!("LogoutTimeout must be greater than zero"));
             }
-
-            iss.logout_timeout = SignedDuration::from_secs(timeout as i64);
         }
 
         iss.logon_timeout = SignedDuration::from_secs(10);
         if settings.has_setting(LOGON_TIMEOUT) {
-            let timeout = settings.int_setting(LOGON_TIMEOUT)?;
-
-            if timeout <= 0 {
+            iss.logon_timeout =
+                Self::parse_duration_or_int_setting(settings, LOGON_TIMEOUT)?;
+            if iss.logon_timeout <= SignedDuration::ZERO {
                 return Err(simple_error!("LogonTimeout must be greater than zero"));
             }
-
-            iss.logon_timeout = SignedDuration::from_secs(timeout as i64);
         }
 
         self.configure_socket_connect_address(iss, settings).await
@@ -638,6 +648,20 @@ impl SessionFactory {
         Ok(())
     }
 
+    /// Parse a setting as a duration string (e.g., "30s", "10m") first, falling
+    /// back to parsing as integer seconds for backward compatibility.
+    fn parse_duration_or_int_setting(
+        settings: &SessionSettings,
+        setting: &str,
+    ) -> SimpleResult<SignedDuration> {
+        if let Ok(duration) = settings.duration_setting(setting) {
+            return Ok(SignedDuration::try_from(duration)
+                .map_err(|e| simple_error!("{}", e))?);
+        }
+        let val = settings.int_setting(setting)?;
+        Ok(SignedDuration::from_secs(val as i64))
+    }
+
     #[allow(clippy::unused_async)]
     async fn build_heart_bt_int_settings(
         &self,
@@ -669,8 +693,8 @@ mod tests {
         application::Application,
         config::{
             CHECK_LATENCY, DEFAULT_APPL_VER_ID, ENABLE_LAST_MSG_SEQ_NUM_PROCESSED, END_DAY,
-            END_TIME, HEART_BT_INT, HEART_BT_INT_OVERRIDE, LOGON_TIMEOUT, LOGOUT_TIMEOUT,
-            MAX_LATENCY, PERSIST_MESSAGES, RECONNECT_INTERVAL, REFRESH_ON_LOGON,
+            END_TIME, HEART_BT_INT, HEART_BT_INT_OVERRIDE, IN_CHAN_CAPACITY, LOGON_TIMEOUT,
+            LOGOUT_TIMEOUT, MAX_LATENCY, PERSIST_MESSAGES, RECONNECT_INTERVAL, REFRESH_ON_LOGON,
             RESEND_REQUEST_CHUNK_SIZE, RESET_ON_DISCONNECT, RESET_ON_LOGON, RESET_ON_LOGOUT,
             SOCKET_CONNECT_HOST, SOCKET_CONNECT_PORT, START_DAY, START_TIME, TIME_STAMP_PRECISION,
             TIME_ZONE,
@@ -2122,5 +2146,162 @@ mod tests {
             let session = session_result.unwrap();
             assert_eq!(tc.expected, session.iss.disable_message_persist);
         }
+    }
+
+    #[tokio::test]
+    async fn test_in_chan_capacity_default() {
+        let s = SessionFactorySuite::setup_test();
+        let session_result = s
+            .factory
+            .new_session(
+                s.session_id,
+                s.store_factory.clone(),
+                &s.ss.clone(),
+                s.log_factory.clone(),
+                s.app.clone(),
+            )
+            .await;
+        assert!(session_result.is_ok());
+        let session = session_result.unwrap();
+        assert_eq!(1, session.iss.in_chan_capacity, "default should be 1");
+    }
+
+    #[tokio::test]
+    async fn test_in_chan_capacity_custom() {
+        let mut s = SessionFactorySuite::setup_test();
+        s.ss.set(IN_CHAN_CAPACITY.to_string(), "16".to_string());
+        let session_result = s
+            .factory
+            .new_session(
+                s.session_id.clone(),
+                s.store_factory.clone(),
+                &s.ss.clone(),
+                s.log_factory.clone(),
+                s.app.clone(),
+            )
+            .await;
+        assert!(session_result.is_ok());
+        let session = session_result.unwrap();
+        assert_eq!(16, session.iss.in_chan_capacity);
+
+        // Negative value should fail
+        s.ss.set(IN_CHAN_CAPACITY.to_string(), "-1".to_string());
+        let session_result = s
+            .factory
+            .new_session(
+                s.session_id.clone(),
+                s.store_factory.clone(),
+                &s.ss.clone(),
+                s.log_factory.clone(),
+                s.app.clone(),
+            )
+            .await;
+        assert!(session_result.is_err());
+
+        // Zero should succeed (unbuffered)
+        s.ss.set(IN_CHAN_CAPACITY.to_string(), "0".to_string());
+        let session_result = s
+            .factory
+            .new_session(
+                s.session_id.clone(),
+                s.store_factory.clone(),
+                &s.ss.clone(),
+                s.log_factory.clone(),
+                s.app.clone(),
+            )
+            .await;
+        assert!(session_result.is_ok());
+        assert_eq!(0, session_result.unwrap().iss.in_chan_capacity);
+    }
+
+    #[tokio::test]
+    async fn test_duration_string_reconnect_interval() {
+        let mut s = SessionFactorySuite::setup_test();
+        s.factory.build_initiators = true;
+        s.ss.set(HEART_BT_INT.to_string(), "34".to_string());
+        s.ss.set(SOCKET_CONNECT_HOST.to_string(), "127.0.0.1".to_string());
+        s.ss.set(SOCKET_CONNECT_PORT.to_string(), "3000".to_string());
+
+        // Duration string "1m30s" = 90 seconds
+        s.ss.set(RECONNECT_INTERVAL.to_string(), "1m30s".to_string());
+        let session = s
+            .factory
+            .new_session(
+                s.session_id.clone(),
+                s.store_factory.clone(),
+                &s.ss.clone(),
+                s.log_factory.clone(),
+                s.app.clone(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            SignedDuration::from_secs(90),
+            session.iss.reconnect_interval
+        );
+
+        // Plain integer still works (backward compat)
+        s.ss.set(RECONNECT_INTERVAL.to_string(), "45".to_string());
+        let session = s
+            .factory
+            .new_session(
+                s.session_id.clone(),
+                s.store_factory.clone(),
+                &s.ss.clone(),
+                s.log_factory.clone(),
+                s.app.clone(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            SignedDuration::from_secs(45),
+            session.iss.reconnect_interval
+        );
+    }
+
+    #[tokio::test]
+    async fn test_duration_string_logon_timeout() {
+        let mut s = SessionFactorySuite::setup_test();
+        s.factory.build_initiators = true;
+        s.ss.set(HEART_BT_INT.to_string(), "34".to_string());
+        s.ss.set(SOCKET_CONNECT_HOST.to_string(), "127.0.0.1".to_string());
+        s.ss.set(SOCKET_CONNECT_PORT.to_string(), "3000".to_string());
+
+        s.ss.set(LOGON_TIMEOUT.to_string(), "30s".to_string());
+        let session = s
+            .factory
+            .new_session(
+                s.session_id.clone(),
+                s.store_factory.clone(),
+                &s.ss.clone(),
+                s.log_factory.clone(),
+                s.app.clone(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(SignedDuration::from_secs(30), session.iss.logon_timeout);
+    }
+
+    #[tokio::test]
+    async fn test_duration_string_logout_timeout() {
+        let mut s = SessionFactorySuite::setup_test();
+        s.factory.build_initiators = true;
+        s.ss.set(HEART_BT_INT.to_string(), "34".to_string());
+        s.ss.set(SOCKET_CONNECT_HOST.to_string(), "127.0.0.1".to_string());
+        s.ss.set(SOCKET_CONNECT_PORT.to_string(), "3000".to_string());
+
+        s.ss.set(LOGOUT_TIMEOUT.to_string(), "5s".to_string());
+        let session = s
+            .factory
+            .new_session(
+                s.session_id.clone(),
+                s.store_factory.clone(),
+                &s.ss.clone(),
+                s.log_factory.clone(),
+                s.app.clone(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(SignedDuration::from_secs(5), session.iss.logout_timeout);
     }
 }

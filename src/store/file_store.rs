@@ -10,7 +10,6 @@ use crate::{
     },
 };
 use jiff::{Timestamp, tz::TimeZone};
-use rustc_hash::FxHashMap;
 use simple_error::{SimpleError, SimpleResult};
 // TODO: check windows os
 use sscanf::sscanf;
@@ -22,11 +21,6 @@ use tokio::{
 };
 
 const TIMESTAMP_FORMAT: &str = "%Y-%m-%dT%H:%M:%S%.f%:z";
-
-struct MsgDef {
-    offset: u64,
-    size: usize,
-}
 
 struct IndividualFile {
     file_name: String,
@@ -58,7 +52,6 @@ pub struct FileStore {
     // stored for parity; may be used by future extensions
     session_id: Arc<SessionID>,
     cache: MemoryStore,
-    offsets: FxHashMap<isize, MsgDef>,
     body_file: IndividualFile,
     header_file: IndividualFile,
     session_file: IndividualFile,
@@ -167,41 +160,8 @@ impl MessageStoreTrait for FileStore {
             })?;
 
         if self.file_sync {
-            self.body_file
-                .file
-                .as_mut()
-                .unwrap()
-                .flush()
-                .await
-                .map_err(|err| {
-                    simple_error!(
-                        "unable to flush file: {}: {}",
-                        &self.body_file.file_name,
-                        &err
-                    )
-                })?;
-            self.header_file
-                .file
-                .as_mut()
-                .unwrap()
-                .flush()
-                .await
-                .map_err(|err| {
-                    simple_error!(
-                        "unable to flush file: {}: {}",
-                        &self.header_file.file_name,
-                        &err
-                    )
-                })?;
+            self.sync_body_and_header_files().await?;
         }
-
-        self.offsets.insert(
-            seq_num,
-            MsgDef {
-                offset,
-                size: msg.len(),
-            },
-        );
 
         Ok(())
     }
@@ -221,11 +181,69 @@ impl MessageStoreTrait for FileStore {
         end_seq_num: isize,
         cb: &mut (dyn FnMut(&[u8]) -> SimpleResult<()> + Send),
     ) -> SimpleResult<()> {
-        for seq_num in begin_seq_num..=end_seq_num {
-            let (m, found) = self.get_message(seq_num).await?;
-            if found {
-                cb(&m)?;
+        // Flush files to ensure all written data is visible to readers.
+        self.sync_body_and_header_files().await?;
+
+        // Open separate read-only file handles to avoid conflicts with writers,
+        // matching Go's deadlock-avoidance pattern from c93c8d9c.
+        let mut body_file = File::open(&self.body_file.file_name)
+            .await
+            .map_err(|err| {
+                simple_error!(
+                    "unable to open file: {}: {}",
+                    &self.body_file.file_name,
+                    &err
+                )
+            })?;
+        let header_file = File::open(&self.header_file.file_name)
+            .await
+            .map_err(|err| {
+                simple_error!(
+                    "unable to open file: {}: {}",
+                    &self.header_file.file_name,
+                    &err
+                )
+            })?;
+
+        // Collect matching entries from the header file.
+        let buf_reader = BufReader::new(header_file);
+        let mut lines = buf_reader.lines();
+        let mut entries: Vec<(isize, u64, usize)> = Vec::new();
+
+        while let Ok(Some(line)) = lines.next_line().await {
+            let Ok((seq_num, offset, size)) = sscanf!(&line, "{isize},{u64},{usize}") else {
+                continue;
+            };
+            if seq_num < begin_seq_num || seq_num > end_seq_num {
+                continue;
             }
+            entries.push((seq_num, offset, size));
+        }
+
+        // Sort by sequence number to ensure ordered iteration.
+        entries.sort_by_key(|(seq_num, _, _)| *seq_num);
+
+        // Read each message from the body file and invoke the callback.
+        for (_, offset, size) in &entries {
+            let mut msg = vec![0u8; *size];
+            body_file
+                .seek(SeekFrom::Start(*offset))
+                .await
+                .map_err(|err| {
+                    simple_error!(
+                        "unable to read from file: {}: {}",
+                        &self.body_file.file_name,
+                        &err
+                    )
+                })?;
+            body_file.read_exact(&mut msg).await.map_err(|err| {
+                simple_error!(
+                    "unable to read from file: {}: {}",
+                    &self.body_file.file_name,
+                    &err
+                )
+            })?;
+            cb(&msg)?;
         }
         Ok(())
     }
@@ -251,7 +269,7 @@ impl MessageStoreTrait for FileStore {
 
         let creation_time_populated = self.populate_cache().await?;
 
-        // TODO: consider wrapping these in lock / mutexes to avoid writing to non existent file
+        // Reopen all files for read/write access.
         self.body_file.file = Some(open_or_create_file(&self.body_file.file_name, 0o660).await?);
 
         self.header_file.file =
@@ -290,7 +308,7 @@ impl MessageStoreTrait for FileStore {
 
         map_err_with!(self.close().await, "close")?;
 
-        // TODO: consider wrapping these in lock / mutexes to avoid writing to non existent file
+        // Reopen all files for read/write access.
         let _ = self.body_file.file.take();
         remove_file(&self.body_file.file_name).await?;
         let _ = self.header_file.file.take();
@@ -357,7 +375,6 @@ impl FileStore {
         let mut store = FileStore {
             session_id,
             cache: MemoryStore::default(),
-            offsets: hashmap! {},
             body_file: IndividualFile {
                 file_name: body_name.to_string(),
                 file: Some(body_file),
@@ -388,22 +405,6 @@ impl FileStore {
 
     async fn populate_cache(&mut self) -> SimpleResult<bool> {
         let mut creation_time_populated = false;
-        if let Ok(file) = File::open(&self.header_file.file_name).await {
-            let buf_reader = BufReader::new(file);
-            let mut lines = buf_reader.lines();
-
-            while let Ok(Some(line)) = lines.next_line().await {
-                if let Ok(scan_result) = sscanf!(&line, "{isize},{u64},{usize}") {
-                    self.offsets.insert(
-                        scan_result.0,
-                        MsgDef {
-                            offset: scan_result.1,
-                            size: scan_result.2,
-                        },
-                    );
-                }
-            }
-        }
 
         if let Ok(mut file) = File::open(&self.session_file.file_name).await {
             let mut time_bytes: Vec<u8> = Vec::new();
@@ -505,42 +506,35 @@ impl FileStore {
         Ok(())
     }
 
-    async fn get_message(&mut self, seq_num: isize) -> SimpleResult<(Vec<u8>, bool)> {
-        let msg_info_option = self.offsets.get(&seq_num);
-        match msg_info_option {
-            None => Ok((vec![], false)),
-            Some(msg_info) => {
-                self.body_file
-                    .file
-                    .as_mut()
-                    .unwrap()
-                    .seek(SeekFrom::Start(msg_info.offset))
-                    .await
-                    .map_err(|err| {
-                        simple_error!(
-                            "unable to read from file: {}: {}",
-                            &self.body_file.file_name,
-                            &err,
-                        )
-                    })?;
-                let mut result = vec![0u8; msg_info.size];
-                self.body_file
-                    .file
-                    .as_mut()
-                    .unwrap()
-                    .read_exact(&mut result)
-                    .await
-                    .map_err(|err| {
-                        simple_error!(
-                            "unable to read from file: {}: {}",
-                            &self.body_file.file_name,
-                            &err,
-                        )
-                    })?;
-                Ok((result, true))
-            }
-        }
+    async fn sync_body_and_header_files(&mut self) -> SimpleResult<()> {
+        self.body_file
+            .file
+            .as_mut()
+            .unwrap()
+            .flush()
+            .await
+            .map_err(|err| {
+                simple_error!(
+                    "unable to flush file: {}: {}",
+                    &self.body_file.file_name,
+                    &err
+                )
+            })?;
+        self.header_file
+            .file
+            .as_mut()
+            .unwrap()
+            .flush()
+            .await
+            .map_err(|err| {
+                simple_error!(
+                    "unable to flush file: {}: {}",
+                    &self.header_file.file_name,
+                    &err
+                )
+            })
     }
+
 }
 
 #[derive(Clone)]

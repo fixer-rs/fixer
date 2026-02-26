@@ -656,7 +656,7 @@ impl SessionSuiteRig {
 
         let mock_store_shared = MockStoreShared::new_mock_store(mock_store_extended);
 
-        let (_, message_in_rx) = unbounded_channel::<FixIn>();
+        let (_, message_in_rx) = channel::<FixIn>(1);
         let (session_event_tx, session_event_rx) = unbounded_channel::<Event>();
         let (message_event_tx, message_event_rx) = channel::<bool>(1);
         let (admin_tx, admin_rx) = unbounded_channel::<AdminEnum>();
@@ -686,6 +686,7 @@ impl SessionSuiteRig {
             skip_check_latency: false,
             disable_message_persist: false,
             enable_reset_seq_time: false,
+            in_chan_capacity: 1,
             reset_seq_time: None,
             reset_seq_time_zone: jiff::tz::TimeZone::UTC,
         };

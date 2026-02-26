@@ -290,6 +290,7 @@ mod tests {
             let registration = SessionRegistration {
                 admin_tx,
                 target_default_appl_ver_id,
+                in_chan_capacity: 1,
             };
 
             assert!(register_session(session_id.clone(), registration).is_ok());

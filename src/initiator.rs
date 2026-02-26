@@ -100,6 +100,7 @@ impl Initiator {
                 .reconnect_interval
                 .try_into()
                 .unwrap_or(std::time::Duration::from_secs(30));
+            let in_chan_capacity = session.iss.in_chan_capacity;
 
             let admin_tx = handle.admin_tx.clone();
             let mut stop_rx = self.stop_rx.clone();
@@ -126,8 +127,27 @@ impl Initiator {
                     let address = &connect_addresses[address_index % connect_addresses.len()];
                     address_index = address_index.wrapping_add(1);
 
-                    if let Ok(tcp_stream) = TcpStream::connect(address).await {
-                        // Optionally wrap with TLS
+                    // Use tokio::select! to make the dial cancellable via stop signal,
+                    // matching Go's context.WithCancel + DialContext pattern.
+                    let tcp_result = tokio::select! {
+                        result = TcpStream::connect(address) => Some(result),
+                        _ = stop_rx.changed() => None,
+                    };
+
+                    let Some(Ok(tcp_stream)) = tcp_result else {
+                        if tcp_result.is_none() {
+                            // Stop signal received during connect
+                            break;
+                        }
+                        // Connect failed, fall through to reconnect delay
+                        tokio::select! {
+                            () = sleep(reconnect_interval) => {},
+                            _ = stop_rx.changed() => { break; }
+                        }
+                        continue;
+                    };
+
+                    // Optionally wrap with TLS
                         let connected = if let Some(ref connector) = tls_connector {
                             let Ok(server_name) = tls::get_server_name(&session_settings, address)
                             else {
@@ -168,8 +188,14 @@ impl Initiator {
 
                         let (msg_out_tx, msg_out_rx) =
                             tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
-                        let (msg_in_tx, msg_in_rx) =
-                            tokio::sync::mpsc::unbounded_channel::<FixIn>();
+                        let (msg_in_tx, msg_in_rx) = {
+                            let cap = if in_chan_capacity > 0 {
+                                in_chan_capacity
+                            } else {
+                                1
+                            };
+                            tokio::sync::mpsc::channel::<FixIn>(cap)
+                        };
                         let (err_tx, mut err_rx) =
                             tokio::sync::mpsc::unbounded_channel::<SimpleResult<()>>();
 
@@ -206,7 +232,6 @@ impl Initiator {
                             _ = write_task => {},
                             _ = stop_rx.changed() => { break; }
                         }
-                    }
 
                     // Reconnect delay
                     tokio::select! {

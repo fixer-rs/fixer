@@ -21,6 +21,8 @@ pub struct SessionRegistration {
     /// Shared with the Session so the message router can read the value
     /// without locking the entire session. Updated by the session during logon.
     pub target_default_appl_ver_id: Arc<StdMutex<String>>,
+    /// Capacity for the inbound message channel (0 = unbounded, default 1).
+    pub in_chan_capacity: usize,
 }
 
 pub static SESSIONS: LazyLock<DashMap<Arc<SessionID>, SessionRegistration>> =
@@ -110,4 +112,12 @@ pub fn register_session(
 pub fn lookup_admin_tx(session_id: &Arc<SessionID>) -> Option<UnboundedSender<AdminEnum>> {
     let reg = (*SESSIONS).get(session_id)?;
     Some(reg.admin_tx.clone())
+}
+
+// lookup_session_registration returns the registration for the given session, if it exists.
+pub fn lookup_session_registration(
+    session_id: &Arc<SessionID>,
+) -> Option<SessionRegistration> {
+    let reg = (*SESSIONS).get(session_id)?;
+    Some(reg.clone())
 }

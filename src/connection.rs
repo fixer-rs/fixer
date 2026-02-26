@@ -4,7 +4,7 @@ use crate::{
     session::FixIn,
 };
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc::{Sender, UnboundedReceiver};
 
 pub async fn write_loop<W>(
     mut connection: W,
@@ -27,7 +27,7 @@ pub async fn write_loop<W>(
     }
 }
 
-pub async fn read_loop<T>(mut parser: Parser<T>, msg_in: UnboundedSender<FixIn>)
+pub async fn read_loop<T>(mut parser: Parser<T>, msg_in: Sender<FixIn>)
 where
     T: Unpin + AsyncRead,
 {
@@ -35,10 +35,12 @@ where
         tokio::select! {
             Ok(msg) = parser.read_message() => {
 
-                let _ = msg_in.send(FixIn {
+                if msg_in.send(FixIn {
                     bytes: msg,
                     receive_time: parser.last_read.timestamp(),
-                });
+                }).await.is_err() {
+                    return;
+                }
 
             },
             else => {
@@ -55,7 +57,7 @@ mod tests {
     use crate::parser::Parser;
     use crate::session::FixIn;
     use tokio::io::BufReader;
-    use tokio::sync::mpsc::unbounded_channel;
+    use tokio::sync::mpsc::{channel, unbounded_channel};
 
     #[tokio::test]
     async fn test_write_loop() {
@@ -82,7 +84,7 @@ mod tests {
             channel_closed: bool,
         }
 
-        let (msg_in_tx, mut msg_in_rx) = unbounded_channel::<FixIn>();
+        let (msg_in_tx, mut msg_in_rx) = channel::<FixIn>(16);
         let stream = "hello8=FIX.4.09=5blah10=103garbage8=FIX.4.09=4foo10=103";
         let buf_reader = BufReader::new(stream.as_bytes());
         let parser = Parser::new(buf_reader);

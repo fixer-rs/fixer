@@ -26,6 +26,9 @@ pub struct SessionSettings {
     // required on logon for FIX.T.1 messages
     pub default_appl_ver_id: String,
 
+    // channel capacity for inbound FIX messages (0 = unbuffered, default 1)
+    pub in_chan_capacity: usize,
+
     // specific to initiators
     pub reconnect_interval: SignedDuration,
     pub logout_timeout: SignedDuration,
@@ -54,6 +57,7 @@ impl Default for SessionSettings {
             enable_next_expected_msg_seq_num: bool::default(),
             skip_check_latency: bool::default(),
             disable_message_persist: bool::default(),
+            in_chan_capacity: 1,
             enable_reset_seq_time: bool::default(),
             reset_seq_time: None,
             reset_seq_time_zone: TimeZone::UTC,

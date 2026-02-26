@@ -5,7 +5,7 @@ use crate::{
     log::{LogEnum, LogFactoryEnum},
     message::Message,
     parser::Parser,
-    registry::{lookup_admin_tx, unregister_session},
+    registry::{lookup_session_registration, unregister_session},
     session::{
         AdminEnum, Connect, FixIn, Session, StopReq, factory::SessionFactory,
         session_id::SessionID, settings::SessionSettings,
@@ -41,6 +41,12 @@ pub trait ConnectionValidator: Send + Sync + 'static {
     /// Validate the connection. Return `Ok(())` to accept, `Err` to reject.
     fn validate(&self, remote_addr: SocketAddr, session_id: &SessionID) -> SimpleResult<()>;
 }
+
+/// Callback that creates a `TcpListener` for a given address. This allows
+/// callers to customize how the listener is created (e.g., set socket options,
+/// use Unix sockets, etc.).
+pub type NewListenerCallback =
+    Box<dyn Fn(&str) -> std::pin::Pin<Box<dyn std::future::Future<Output = SimpleResult<TcpListener>> + Send>> + Send + Sync>;
 
 // DynSessionCreator type-erases the Application generic so the Acceptor can
 // create dynamic sessions without being generic itself.
@@ -102,6 +108,7 @@ pub struct Acceptor {
     session_creator: Arc<dyn DynSessionCreator>,
     global_settings: SessionSettings,
     tls_acceptor: Option<tokio_rustls::TlsAcceptor>,
+    new_listener_callback: Option<Arc<NewListenerCallback>>,
 }
 
 impl Acceptor {
@@ -202,6 +209,7 @@ impl Acceptor {
             session_creator,
             global_settings,
             tls_acceptor,
+            new_listener_callback: None,
         })
     }
 
@@ -227,10 +235,14 @@ impl Acceptor {
             self.task_handles.push(dynamic_handle);
         }
 
-        // Bind TCP listener
-        let listener = TcpListener::bind(&self.listen_address)
-            .await
-            .map_err(|e| simple_error!("failed to bind {}: {}", self.listen_address, e))?;
+        // Bind TCP listener (use custom callback if set)
+        let listener = if let Some(ref cb) = self.new_listener_callback {
+            cb(&self.listen_address).await?
+        } else {
+            TcpListener::bind(&self.listen_address)
+                .await
+                .map_err(|e| simple_error!("failed to bind {}: {}", self.listen_address, e))?
+        };
 
         self.local_address = listener.local_addr().ok();
 
@@ -313,6 +325,21 @@ impl Acceptor {
     /// To remove a previously set validator, pass `None`.
     pub fn set_connection_validator(&mut self, validator: Option<Arc<dyn ConnectionValidator>>) {
         self.connection_validator = validator;
+    }
+
+    /// Sets a custom TLS configuration for the acceptor. When set, this takes
+    /// precedence over TLS settings from the config file (SocketCertificateFile,
+    /// SocketPrivateKeyFile, etc.). Must be called before `start()`.
+    pub fn set_tls_config(&mut self, tls_acceptor: tokio_rustls::TlsAcceptor) {
+        self.tls_acceptor = Some(tls_acceptor);
+    }
+
+    /// Sets a custom listener callback that controls how the TCP listener is
+    /// created. This allows callers to customize socket options, use Unix
+    /// sockets, or apply other custom configurations. Must be called before
+    /// `start()`.
+    pub fn set_new_listener_callback(&mut self, cb: NewListenerCallback) {
+        self.new_listener_callback = Some(Arc::new(cb));
     }
 
     // local_address returns the actual bound address after start().
@@ -420,31 +447,38 @@ async fn handle_connection<R, W>(
 
     // Look up the session's admin channel in the global registry, or create a dynamic session
     let is_dynamic;
-    let admin_tx = if let Some(tx) = lookup_admin_tx(&session_id) {
-        is_dynamic = false;
-        tx
-    } else {
-        // Session not found — try dynamic session creation
-        let Some(ref ctx) = dynamic_ctx else {
-            return;
+    let (admin_tx, in_chan_capacity) =
+        if let Some(reg) = lookup_session_registration(&session_id) {
+            is_dynamic = false;
+            (reg.admin_tx, reg.in_chan_capacity)
+        } else {
+            // Session not found — try dynamic session creation
+            let Some(ref ctx) = dynamic_ctx else {
+                return;
+            };
+            let Ok(session) = ctx
+                .session_creator
+                .create_session(session_id.clone(), &ctx.global_settings)
+                .await
+            else {
+                return;
+            };
+            // Clone admin_tx and read capacity before moving the owned session
+            let tx = session.admin.tx.clone();
+            let cap = session.iss.in_chan_capacity;
+            let _ = ctx.dynamic_session_tx.send(session);
+            is_dynamic = true;
+            (tx, cap)
         };
-        let Ok(session) = ctx
-            .session_creator
-            .create_session(session_id.clone(), &ctx.global_settings)
-            .await
-        else {
-            return;
-        };
-        // Clone admin_tx before moving the owned session to the lifecycle loop
-        let tx = session.admin.tx.clone();
-        let _ = ctx.dynamic_session_tx.send(session);
-        is_dynamic = true;
-        tx
-    };
 
     // Create channels for this connection
     let (msg_out_tx, msg_out_rx) = tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
-    let (msg_in_tx, msg_in_rx) = tokio::sync::mpsc::unbounded_channel::<FixIn>();
+    let cap = if in_chan_capacity > 0 {
+        in_chan_capacity
+    } else {
+        1 // tokio::mpsc::channel requires capacity >= 1
+    };
+    let (msg_in_tx, msg_in_rx) = tokio::sync::mpsc::channel::<FixIn>(cap);
     let (err_tx, mut err_rx) = tokio::sync::mpsc::unbounded_channel::<SimpleResult<()>>();
 
     // Send Connect to the session
@@ -462,10 +496,12 @@ async fn handle_connection<R, W>(
     }
 
     // Re-inject the first message (the parser consumed it, but the session needs to process it)
-    let _ = msg_in_tx.send(FixIn {
-        bytes: first_msg_bytes,
-        receive_time: jiff::Timestamp::now(),
-    });
+    let _ = msg_in_tx
+        .send(FixIn {
+            bytes: first_msg_bytes,
+            receive_time: jiff::Timestamp::now(),
+        })
+        .await;
 
     // Spawn read_loop and write_loop
     let read_task = tokio::spawn(async move { read_loop(parser, msg_in_tx).await });
@@ -518,7 +554,7 @@ mod tests {
     use super::*;
     use crate::application::NOPApp;
     use crate::log::LogFactoryEnum;
-    use crate::registry::{SESSIONS, unregister_session};
+    use crate::registry::{SESSIONS, lookup_admin_tx, unregister_session};
     use crate::session::session_id::SessionID;
     use crate::store::MessageStoreFactoryEnum;
     use serial_test::serial;

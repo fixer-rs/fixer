@@ -93,7 +93,7 @@ pub struct SessionEvent {
 
 pub struct Connect {
     pub message_out: UnboundedSender<Vec<u8>>,
-    pub message_in: UnboundedReceiver<FixIn>,
+    pub message_in: Receiver<FixIn>,
     pub err: UnboundedSender<SimpleResult<()>>,
 }
 
@@ -127,7 +127,7 @@ pub struct Session {
     pub session_id: Arc<SessionID>,
 
     pub message_out: UnboundedSender<Vec<u8>>,
-    pub message_in: UnboundedReceiver<FixIn>,
+    pub message_in: Receiver<FixIn>,
 
     // application messages are queued up for send here
     pub to_send: Vec<Vec<u8>>,
@@ -156,7 +156,7 @@ impl Default for Session {
         let (message_out_tx, _) = unbounded_channel::<Vec<u8>>();
         let (admin_tx, admin_rx) = unbounded_channel::<AdminEnum>();
         let (message_event_tx, message_event_rx) = channel::<bool>(1);
-        let (_, message_in_rx) = unbounded_channel::<FixIn>();
+        let (_, message_in_rx) = channel::<FixIn>(1);
         let (session_event_tx, session_event_rx) = unbounded_channel::<Event>();
         Session {
             store: MessageStoreEnum::default(),
@@ -233,7 +233,7 @@ impl Session {
     #[allow(dead_code)] // used by acceptor/initiator
     async fn connect(
         &self,
-        message_in: UnboundedReceiver<FixIn>,
+        message_in: Receiver<FixIn>,
         message_out: UnboundedSender<Vec<u8>>,
     ) -> SimpleResult<()> {
         let (tx, mut rx) = unbounded_channel::<SimpleResult<()>>();
@@ -2331,7 +2331,7 @@ mod tests {
     use jiff::{SignedDuration, Timestamp, Zoned};
     use simple_error::SimpleResult;
     use std::sync::Arc;
-    use tokio::sync::{Mutex, mpsc::unbounded_channel};
+    use tokio::sync::{Mutex, mpsc::{channel, unbounded_channel}};
 
     struct SessionSuite {
         ssr: SessionSuiteRig,
@@ -3732,7 +3732,7 @@ mod tests {
     async fn test_on_admin_connect_initiate_logon() {
         let mut s = SessionSuite::setup_test().await;
 
-        let (_, in_rx) = unbounded_channel::<FixIn>();
+        let (_, in_rx) = channel::<FixIn>(1);
         let (err_tx, _) = unbounded_channel::<SimpleResult<()>>();
 
         let admin_message = Connect {
@@ -3802,7 +3802,7 @@ mod tests {
     async fn test_initiate_logon_reset_seq_num_flag() {
         let mut s = SessionSuite::setup_test().await;
 
-        let (_, in_rx) = unbounded_channel::<FixIn>();
+        let (_, in_rx) = channel::<FixIn>(1);
         let (err_tx, _) = unbounded_channel::<SimpleResult<()>>();
 
         let admin_message = Connect {
@@ -3884,7 +3884,7 @@ mod tests {
         s.ssr.session.iss.default_appl_ver_id = String::from("8");
         s.ssr.session.iss.initiate_logon = true;
 
-        let (_, in_rx) = unbounded_channel::<FixIn>();
+        let (_, in_rx) = channel::<FixIn>(1);
         let (err_tx, _) = unbounded_channel::<SimpleResult<()>>();
 
         let admin_message = Connect {
@@ -3936,7 +3936,7 @@ mod tests {
             let mut s = SessionSuite::setup_test().await;
             s.ssr.session.iss.refresh_on_logon = do_refresh;
 
-            let (_, in_rx) = unbounded_channel::<FixIn>();
+            let (_, in_rx) = channel::<FixIn>(1);
             let (err_tx, _) = unbounded_channel::<SimpleResult<()>>();
 
             let admin_message = Connect {
@@ -3966,7 +3966,7 @@ mod tests {
     #[tokio::test]
     async fn test_on_admin_connect_accept() {
         let mut s = SessionSuite::setup_test().await;
-        let (_, in_rx) = unbounded_channel::<FixIn>();
+        let (_, in_rx) = channel::<FixIn>(1);
         let (err_tx, _) = unbounded_channel::<SimpleResult<()>>();
 
         let admin_message = Connect {
@@ -3997,7 +3997,7 @@ mod tests {
             s.ssr.session.iss.initiate_logon = do_initiate_logon;
             s.ssr.incr_next_sender_msg_seq_num().await;
 
-            let (_, in_rx) = unbounded_channel::<FixIn>();
+            let (_, in_rx) = channel::<FixIn>(1);
             let (err_tx, _) = unbounded_channel::<SimpleResult<()>>();
 
             let admin_message = Connect {

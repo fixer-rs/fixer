@@ -1,4 +1,5 @@
 use crate::session::session_id::SessionID;
+use composite_log::{CompositeLog, CompositeLogFactory};
 use enum_dispatch::enum_dispatch;
 use file_log::{FileLog, FileLogFactory};
 use null_log::{NullLog, NullLogFactory};
@@ -6,6 +7,7 @@ use screen_log::{ScreenLog, ScreenLogFactory};
 use rustc_hash::FxHashMap;
 use std::sync::Arc;
 
+pub mod composite_log;
 pub mod file_log;
 pub mod null_log;
 pub mod screen_log;
@@ -43,6 +45,7 @@ pub enum LogEnum {
     NullLog,
     ScreenLog,
     FileLog,
+    CompositeLog,
 }
 
 impl Default for LogEnum {
@@ -57,6 +60,7 @@ pub enum LogFactoryEnum {
     NullLogFactory,
     ScreenLogFactory,
     FileLogFactory,
+    CompositeLogFactory,
 }
 
 impl Default for LogFactoryEnum {
