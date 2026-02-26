@@ -1,0 +1,68 @@
+use crate::errors::MessageRejectErrorResult;
+use crate::message::Message;
+use crate::session::session_id::SessionID;
+use simple_error::SimpleResult;
+use std::sync::Arc;
+
+// Application interface should be implemented by FIX Applications.
+// This is the primary interface for processing messages from a FIX Session.
+#[allow(clippy::wrong_self_convention)]
+pub trait Application: Send + Sync {
+    // on_create notification of a session begin created.
+    fn on_create(&self, session_id: &Arc<SessionID>);
+
+    // on_logon notification of a session successfully logging on.
+    fn on_logon(&self, session_id: &Arc<SessionID>);
+
+    // on_logout notification of a session logging off or disconnecting.
+    fn on_logout(&self, session_id: &Arc<SessionID>);
+
+    // to_admin notification of admin message being sent to target.
+    fn to_admin(&self, msg: &mut Message, session_id: &Arc<SessionID>);
+
+    // to_app notification of app message being sent to target.
+    fn to_app(&self, msg: &mut Message, session_id: &Arc<SessionID>) -> SimpleResult<()>;
+
+    // from_admin notification of admin message being received from target.
+    fn from_admin(&self, msg: &Message, session_id: &Arc<SessionID>) -> MessageRejectErrorResult;
+
+    // from_app notification of app message being received from target.
+    fn from_app(&self, msg: &Message, session_id: &Arc<SessionID>) -> MessageRejectErrorResult;
+}
+
+pub struct NOPApp {}
+
+#[cfg(test)]
+impl Application for NOPApp {
+    fn on_create(&self, _session_id: &Arc<SessionID>) {}
+
+    fn on_logon(&self, _session_id: &Arc<SessionID>) {}
+
+    fn on_logout(&self, _session_id: &Arc<SessionID>) {}
+
+    fn to_admin(&self, _msg: &mut Message, _session_id: &Arc<SessionID>) {}
+
+    fn to_app(&self, _msg: &mut Message, _session_id: &Arc<SessionID>) -> SimpleResult<()> {
+        Ok(())
+    }
+
+    fn from_admin(&self, _msg: &Message, _session_id: &Arc<SessionID>) -> MessageRejectErrorResult {
+        Ok(())
+    }
+
+    fn from_app(&self, _msg: &Message, _session_id: &Arc<SessionID>) -> MessageRejectErrorResult {
+        Ok(())
+    }
+}
+
+impl Default for NOPApp {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl NOPApp {
+    pub fn new() -> Self {
+        NOPApp {}
+    }
+}

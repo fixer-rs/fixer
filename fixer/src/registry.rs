@@ -1,0 +1,123 @@
+use crate::{
+    errors::FixerError,
+    fix_string::FIXString,
+    message::Message,
+    session::{AdminEnum, QueueForSend, session_id::SessionID},
+    tag::{TAG_BEGIN_STRING, TAG_SENDER_COMP_ID, TAG_TARGET_COMP_ID},
+};
+use dashmap::DashMap;
+use simple_error::{SimpleError, SimpleResult};
+use std::sync::Arc;
+use std::sync::LazyLock;
+use std::sync::Mutex as StdMutex;
+use tokio::sync::mpsc::UnboundedSender;
+
+/// `SessionRegistration` holds the channel handles needed to communicate with a
+/// running session. This replaces the previous `Arc<Mutex<Session>>` — callers
+/// send commands through channels instead of locking the session directly.
+#[derive(Clone)]
+pub struct SessionRegistration {
+    pub admin_tx: UnboundedSender<AdminEnum>,
+    /// Shared with the Session so the message router can read the value
+    /// without locking the entire session. Updated by the session during logon.
+    pub target_default_appl_ver_id: Arc<StdMutex<String>>,
+    /// Capacity for the inbound message channel (0 = unbounded, default 1).
+    pub in_chan_capacity: usize,
+}
+
+pub static SESSIONS: LazyLock<DashMap<Arc<SessionID>, SessionRegistration>> =
+    LazyLock::new(DashMap::new);
+pub static ERR_DUPLICATE_SESSION_ID: LazyLock<SimpleError> =
+    LazyLock::new(|| simple_error!("Duplicate SessionID"));
+pub static ERR_UNKNOWN_SESSION: LazyLock<SimpleError> =
+    LazyLock::new(|| simple_error!("Unknown session"));
+
+// Messagable is a Message or something that can be converted to a Message.
+pub trait Messageable {
+    fn to_message(&self) -> &Message;
+}
+
+// send determines the session to send Messagable using header fields begin_string, target_comp_id, sender_comp_id.
+pub async fn send(message: &dyn Messageable) -> Result<(), FixerError> {
+    let msg = message.to_message();
+    let mut begin_string = FIXString::new();
+    msg.header.get_field(TAG_BEGIN_STRING, &mut begin_string)?;
+
+    let mut target_comp_id = FIXString::new();
+    msg.header
+        .get_field(TAG_TARGET_COMP_ID, &mut target_comp_id)?;
+
+    let mut sender_comp_id = FIXString::new();
+    msg.header
+        .get_field(TAG_SENDER_COMP_ID, &mut sender_comp_id)?;
+
+    let session_id = SessionID {
+        begin_string,
+        target_comp_id,
+        sender_comp_id,
+        ..Default::default()
+    };
+
+    send_to_target(message, &Arc::new(session_id)).await
+}
+
+// send_to_target sends a message based on the session_id. Sends through a
+// channel to the session's run loop rather than locking the session directly.
+pub async fn send_to_target(
+    message: &dyn Messageable,
+    session_id: &Arc<SessionID>,
+) -> Result<(), FixerError> {
+    let msg = message.to_message();
+    let registration = (*SESSIONS)
+        .get(session_id)
+        .ok_or(ERR_UNKNOWN_SESSION.clone())?;
+
+    let (result_tx, result_rx) = tokio::sync::oneshot::channel();
+    registration
+        .admin_tx
+        .send(AdminEnum::QueueForSend(QueueForSend {
+            msg: msg.clone(),
+            result: result_tx,
+        }))
+        .map_err(|_| FixerError::from(ERR_UNKNOWN_SESSION.clone()))?;
+
+    result_rx
+        .await
+        .map_err(|_| FixerError::from(ERR_UNKNOWN_SESSION.clone()))?
+}
+
+// unregister_session removes a session from the set of known sessions.
+pub fn unregister_session(session_id: &Arc<SessionID>) -> SimpleResult<()> {
+    if (*SESSIONS).contains_key(session_id) {
+        (*SESSIONS).remove(session_id);
+        return Ok(());
+    }
+
+    Err(ERR_UNKNOWN_SESSION.clone())
+}
+
+pub fn register_session(
+    session_id: Arc<SessionID>,
+    registration: SessionRegistration,
+) -> SimpleResult<()> {
+    if (*SESSIONS).contains_key(&session_id) {
+        return Err(ERR_DUPLICATE_SESSION_ID.clone());
+    }
+
+    (*SESSIONS).insert(session_id, registration);
+    Ok(())
+}
+
+// lookup_admin_tx returns the admin channel sender for the given session, if it exists.
+pub fn lookup_admin_tx(session_id: &Arc<SessionID>) -> Option<UnboundedSender<AdminEnum>> {
+    let reg = (*SESSIONS).get(session_id)?;
+    Some(reg.admin_tx.clone())
+}
+
+// lookup_session_registration returns the registration for the given session, if it exists.
+pub fn lookup_session_registration(
+    session_id: &Arc<SessionID>,
+) -> Option<SessionRegistration> {
+    let reg = (*SESSIONS).get(session_id)?;
+    Some(reg.clone())
+}
