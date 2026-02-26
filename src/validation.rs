@@ -17,10 +17,15 @@ pub trait Validator {
     fn validate(&self, msg: &Message) -> MessageRejectErrorResult;
 }
 
+const USER_DEFINED_TAG_MIN: Tag = 5000;
+
 // ValidatorSettings describe validation behavior
 pub struct ValidatorSettings {
     pub check_fields_out_of_order: bool,
     pub reject_invalid_message: bool,
+    pub allow_unknown_message_fields: bool,
+    pub check_user_defined_fields: bool,
+    pub check_fields_have_values: bool,
 }
 
 // Default configuration for message validation.
@@ -28,7 +33,10 @@ impl Default for ValidatorSettings {
     fn default() -> Self {
         ValidatorSettings {
             check_fields_out_of_order: true,
+            check_fields_have_values: true,
             reject_invalid_message: true,
+            allow_unknown_message_fields: false,
+            check_user_defined_fields: true,
         }
     }
 }
@@ -96,14 +104,12 @@ fn validate_fix(
 
     validate_required(d, d, msg_type, msg)?;
 
-    if settings.check_fields_out_of_order {
-        validate_order(msg)?;
-    }
+    validate_field_content(msg, settings.check_fields_have_values, settings.check_fields_out_of_order)?;
 
     if settings.reject_invalid_message {
-        validate_fields(d, d, msg_type, msg)?;
+        validate_fields(d, d, settings, msg_type, msg)?;
 
-        validate_walk(d, d, msg_type, msg)?;
+        validate_walk(d, d, settings, msg_type, msg)?;
     }
 
     Ok(())
@@ -120,14 +126,12 @@ fn validate_fixt(
 
     validate_required(transport_dd, app_dd, msg_type, msg)?;
 
-    if settings.check_fields_out_of_order {
-        validate_order(msg)?;
-    }
+    validate_field_content(msg, settings.check_fields_have_values, settings.check_fields_out_of_order)?;
 
     if settings.reject_invalid_message {
-        validate_fields(transport_dd, app_dd, msg_type, msg)?;
+        validate_fields(transport_dd, app_dd, settings, msg_type, msg)?;
 
-        validate_walk(transport_dd, app_dd, msg_type, msg)?;
+        validate_walk(transport_dd, app_dd, settings, msg_type, msg)?;
     }
 
     Ok(())
@@ -147,6 +151,7 @@ fn validate_msg_type(
 fn validate_walk(
     transport_dd: &DataDictionary,
     app_dd: &DataDictionary,
+    settings: &ValidatorSettings,
     msg_type: &str,
     msg: &Message,
 ) -> MessageRejectErrorResult {
@@ -165,18 +170,20 @@ fn validate_walk(
             app_dd.messages.get(msg_type).unwrap()
         };
 
-        let field_def = message_def
-            .fields
-            .get(&tag)
-            .ok_or_else(|| tag_not_defined_for_this_message_type(tag))?;
-
         if iterated_tags.0.contains(&tag) {
             return Err(tag_appears_more_than_once(tag));
         }
 
         iterated_tags.add(tag);
 
-        fields = validate_visit_field(field_def, fields)?;
+        if let Some(field_def) = message_def.fields.get(&tag) {
+            fields = validate_visit_field(field_def, fields)?;
+        } else {
+            if !check_field_not_defined(settings, tag) {
+                return Err(tag_not_defined_for_this_message_type(tag));
+            }
+            fields = fields.get(1..).unwrap();
+        }
     }
 
     if !fields.is_empty() {
@@ -243,26 +250,44 @@ fn validate_visit_group_field<'a>(
     Ok(field_stack)
 }
 
-fn validate_order(msg: &Message) -> MessageRejectErrorResult {
+fn validate_field_content(
+    msg: &Message,
+    check_fields_have_values: bool,
+    check_fields_out_of_order: bool,
+) -> MessageRejectErrorResult {
+    if !check_fields_have_values && !check_fields_out_of_order {
+        return Ok(());
+    }
     let mut in_header = true;
     let mut in_trailer = false;
     for field in &msg.fields {
         let t = field.tag;
-        if in_header && !t.is_header() {
+        if check_fields_have_values && field.value().is_empty() {
+            return Err(tag_specified_without_a_value(t));
+        }
+        if in_header && t.is_header() {
+            // still in header, ok
+        } else if in_header && !t.is_header() {
             in_header = false;
-        }
-        if !in_header && t.is_header() {
+        } else if !in_header && t.is_header() && check_fields_out_of_order {
             return Err(tag_specified_out_of_required_order(t));
-        }
-        if t.is_trailer() {
+        } else if t.is_trailer() {
             in_trailer = true;
-        }
-        if in_trailer && !t.is_trailer() {
+        } else if in_trailer && !t.is_trailer() && check_fields_out_of_order {
             return Err(tag_specified_out_of_required_order(t));
         }
     }
 
     Ok(())
+}
+
+fn check_field_not_defined(settings: &ValidatorSettings, field: Tag) -> bool {
+    let fail = if field < USER_DEFINED_TAG_MIN {
+        !settings.allow_unknown_message_fields
+    } else {
+        settings.check_user_defined_fields
+    };
+    !fail
 }
 
 fn validate_required(
@@ -306,17 +331,18 @@ pub fn validate_required_field_map(
 fn validate_fields(
     transport_dd: &DataDictionary,
     app_dd: &DataDictionary,
+    settings: &ValidatorSettings,
     msg_type: &str,
     msg: &Message,
 ) -> MessageRejectErrorResult {
     for field in &msg.fields {
         if field.tag.is_header() {
-            validate_field(transport_dd, &transport_dd.header.tags, field)?;
+            validate_field(transport_dd, settings, &transport_dd.header.tags, field)?;
         } else if field.tag.is_trailer() {
-            validate_field(transport_dd, &transport_dd.trailer.tags, field)?;
+            validate_field(transport_dd, settings, &transport_dd.trailer.tags, field)?;
         } else {
             let tags = &app_dd.messages.get(msg_type).unwrap().tags;
-            validate_field(app_dd, tags, field)?;
+            validate_field(app_dd, settings, tags, field)?;
         }
     }
 
@@ -325,6 +351,7 @@ fn validate_fields(
 
 fn validate_field(
     d: &DataDictionary,
+    settings: &ValidatorSettings,
     _valid_fields: &TagSet,
     field: &TagValue,
 ) -> MessageRejectErrorResult {
@@ -333,8 +360,13 @@ fn validate_field(
         return Err(tag_specified_without_a_value(field.tag));
     }
 
-    if !d.field_type_by_tag.contains_key(&field.tag) {
+    let is_message_field = d.field_type_by_tag.contains_key(&field.tag);
+    if !is_message_field && !check_field_not_defined(settings, field.tag) {
         return Err(invalid_tag_number(field.tag));
+    }
+
+    if !is_message_field {
+        return Ok(());
     }
 
     let field_type = d.field_type_by_tag.get(&field.tag).unwrap();
@@ -481,6 +513,16 @@ mod tests {
             tc_invalid_tag_check_disabled_fix_t().await,
             tc_invalid_tag_check_enabled().await,
             tc_invalid_tag_check_enabled_fix_t().await,
+            tc_allow_unknown_message_fields_enabled().await,
+            tc_allow_unknown_message_fields_enabled_fix_t().await,
+            tc_allow_unknown_message_fields_disabled().await,
+            tc_allow_unknown_message_fields_disabled_fix_t().await,
+            tc_check_user_defined_fields_enabled().await,
+            tc_check_user_defined_fields_enabled_fix_t().await,
+            tc_check_user_defined_fields_disabled().await,
+            tc_check_user_defined_fields_disabled_fix_t().await,
+            tc_tag_specified_without_a_value_validate_has_values().await,
+            tc_tag_specified_without_a_value_fix_t_validate_has_values().await,
         ];
 
         for test in &tests {
@@ -1397,6 +1439,263 @@ mod tests {
             do_not_expect_reject: false,
             expected_ref_tag_id: Some(tag),
             expected_reject_reason: REJECT_REASON_INVALID_TAG_NUMBER, // fake reason
+        }
+    }
+
+    async fn tc_allow_unknown_message_fields_enabled<'a>() -> ValidateTest<'a> {
+        let dict = DataDictionary::parse("./spec/FIX40.xml").await.unwrap();
+        let custom_validator_settings = ValidatorSettings {
+            allow_unknown_message_fields: true,
+            ..ValidatorSettings::default()
+        };
+        let validator = ValidatorEnum::new(custom_validator_settings, Arc::new(dict), None);
+
+        let mut builder = create_fix40_new_order_single();
+        let tag = 41 as Tag;
+        builder.body.set_field(tag, FIXString::from("hello"));
+        let message_bytes = builder.build();
+
+        ValidateTest {
+            name: "Allow Unknown Message Fields - Enabled",
+            validator,
+            message_bytes,
+            do_not_expect_reject: true,
+            expected_reject_reason: REJECT_REASON_OTHER,
+            expected_ref_tag_id: None,
+        }
+    }
+
+    async fn tc_allow_unknown_message_fields_enabled_fix_t<'a>() -> ValidateTest<'a> {
+        let t_dict = DataDictionary::parse("spec/FIXT11.xml").await.unwrap();
+        let app_dict = DataDictionary::parse("spec/FIX50SP2.xml").await.unwrap();
+        let custom_validator_settings = ValidatorSettings {
+            allow_unknown_message_fields: true,
+            ..ValidatorSettings::default()
+        };
+        let validator = ValidatorEnum::new(
+            custom_validator_settings,
+            Arc::new(app_dict),
+            Some(Arc::new(t_dict)),
+        );
+
+        let mut builder = create_fix50sp2_new_order_single();
+        let tag = 41 as Tag;
+        builder.body.set_field(tag, FIXString::from("hello"));
+        let message_bytes = builder.build();
+
+        ValidateTest {
+            name: "Allow Unknown Message Fields - Enabled FIXT",
+            validator,
+            message_bytes,
+            do_not_expect_reject: true,
+            expected_reject_reason: REJECT_REASON_OTHER,
+            expected_ref_tag_id: None,
+        }
+    }
+
+    async fn tc_allow_unknown_message_fields_disabled<'a>() -> ValidateTest<'a> {
+        let dict = DataDictionary::parse("./spec/FIX40.xml").await.unwrap();
+        let custom_validator_settings = ValidatorSettings {
+            allow_unknown_message_fields: false,
+            ..ValidatorSettings::default()
+        };
+        let validator = ValidatorEnum::new(custom_validator_settings, Arc::new(dict), None);
+
+        let mut builder = create_fix40_new_order_single();
+        let tag = 41 as Tag;
+        builder.body.set_field(tag, FIXString::from("hello"));
+        let message_bytes = builder.build();
+
+        ValidateTest {
+            name: "Allow Unknown Message Fields - Disabled",
+            validator,
+            message_bytes,
+            do_not_expect_reject: false,
+            expected_reject_reason: REJECT_REASON_TAG_NOT_DEFINED_FOR_THIS_MESSAGE_TYPE,
+            expected_ref_tag_id: Some(tag),
+        }
+    }
+
+    async fn tc_allow_unknown_message_fields_disabled_fix_t<'a>() -> ValidateTest<'a> {
+        let t_dict = DataDictionary::parse("spec/FIXT11.xml").await.unwrap();
+        let app_dict = DataDictionary::parse("spec/FIX50SP2.xml").await.unwrap();
+        let custom_validator_settings = ValidatorSettings {
+            reject_invalid_message: true,
+            ..ValidatorSettings::default()
+        };
+        let validator = ValidatorEnum::new(
+            custom_validator_settings,
+            Arc::new(app_dict),
+            Some(Arc::new(t_dict)),
+        );
+
+        let mut builder = create_fix50sp2_new_order_single();
+        let tag = 41 as Tag;
+        builder.body.set_field(tag, FIXString::from("hello"));
+        let message_bytes = builder.build();
+
+        ValidateTest {
+            name: "Allow Unknown Message Fields - Disabled FIXT",
+            validator,
+            message_bytes,
+            do_not_expect_reject: false,
+            expected_reject_reason: REJECT_REASON_TAG_NOT_DEFINED_FOR_THIS_MESSAGE_TYPE,
+            expected_ref_tag_id: Some(tag),
+        }
+    }
+
+    async fn tc_check_user_defined_fields_enabled<'a>() -> ValidateTest<'a> {
+        let dict = DataDictionary::parse("./spec/FIX40.xml").await.unwrap();
+        let custom_validator_settings = ValidatorSettings {
+            check_user_defined_fields: true,
+            ..ValidatorSettings::default()
+        };
+        let validator = ValidatorEnum::new(custom_validator_settings, Arc::new(dict), None);
+
+        let mut builder = create_fix40_new_order_single();
+        let tag = 9999 as Tag;
+        builder.body.set_field(tag, FIXString::from("hello"));
+        let message_bytes = builder.build();
+
+        ValidateTest {
+            name: "Check User Defined Fields - Enabled",
+            validator,
+            message_bytes,
+            do_not_expect_reject: false,
+            expected_ref_tag_id: Some(tag),
+            expected_reject_reason: REJECT_REASON_INVALID_TAG_NUMBER,
+        }
+    }
+
+    async fn tc_check_user_defined_fields_enabled_fix_t<'a>() -> ValidateTest<'a> {
+        let t_dict = DataDictionary::parse("spec/FIXT11.xml").await.unwrap();
+        let app_dict = DataDictionary::parse("spec/FIX50SP2.xml").await.unwrap();
+        let custom_validator_settings = ValidatorSettings {
+            reject_invalid_message: true,
+            ..ValidatorSettings::default()
+        };
+        let validator = ValidatorEnum::new(
+            custom_validator_settings,
+            Arc::new(app_dict),
+            Some(Arc::new(t_dict)),
+        );
+
+        let mut builder = create_fix50sp2_new_order_single();
+        let tag = 9999 as Tag;
+        builder.body.set_field(tag, FIXString::from("hello"));
+        let message_bytes = builder.build();
+
+        ValidateTest {
+            name: "Check User Defined Fields - Enabled FIXT",
+            validator,
+            message_bytes,
+            do_not_expect_reject: false,
+            expected_ref_tag_id: Some(tag),
+            expected_reject_reason: REJECT_REASON_INVALID_TAG_NUMBER,
+        }
+    }
+
+    async fn tc_check_user_defined_fields_disabled<'a>() -> ValidateTest<'a> {
+        let dict = DataDictionary::parse("./spec/FIX40.xml").await.unwrap();
+        let custom_validator_settings = ValidatorSettings {
+            check_user_defined_fields: false,
+            ..ValidatorSettings::default()
+        };
+        let validator = ValidatorEnum::new(custom_validator_settings, Arc::new(dict), None);
+
+        let mut builder = create_fix40_new_order_single();
+        let tag = 9999 as Tag;
+        builder.body.set_field(tag, FIXString::from("hello"));
+        let message_bytes = builder.build();
+
+        ValidateTest {
+            name: "Check User Defined Fields - Disabled",
+            validator,
+            message_bytes,
+            do_not_expect_reject: true,
+            expected_reject_reason: REJECT_REASON_OTHER,
+            expected_ref_tag_id: None,
+        }
+    }
+
+    async fn tc_check_user_defined_fields_disabled_fix_t<'a>() -> ValidateTest<'a> {
+        let t_dict = DataDictionary::parse("spec/FIXT11.xml").await.unwrap();
+        let app_dict = DataDictionary::parse("spec/FIX50SP2.xml").await.unwrap();
+        let custom_validator_settings = ValidatorSettings {
+            check_user_defined_fields: false,
+            ..ValidatorSettings::default()
+        };
+        let validator = ValidatorEnum::new(
+            custom_validator_settings,
+            Arc::new(app_dict),
+            Some(Arc::new(t_dict)),
+        );
+
+        let mut builder = create_fix50sp2_new_order_single();
+        let tag = 9999 as Tag;
+        builder.body.set_field(tag, FIXString::from("hello"));
+        let message_bytes = builder.build();
+
+        ValidateTest {
+            name: "Check User Defined Fields - Disabled FIXT",
+            validator,
+            message_bytes,
+            do_not_expect_reject: true,
+            expected_reject_reason: REJECT_REASON_OTHER,
+            expected_ref_tag_id: None,
+        }
+    }
+
+    async fn tc_tag_specified_without_a_value_validate_has_values<'a>() -> ValidateTest<'a> {
+        let dict = DataDictionary::parse("./spec/FIX40.xml").await.unwrap();
+        let custom_validator_settings = ValidatorSettings {
+            reject_invalid_message: false,
+            check_fields_have_values: true,
+            ..ValidatorSettings::default()
+        };
+        let validator = ValidatorEnum::new(custom_validator_settings, Arc::new(dict), None);
+        let mut builder = create_fix40_new_order_single();
+
+        let bogus_tag = 109 as Tag;
+        builder.body.set_field(bogus_tag, FIXString::from(""));
+        let message_bytes = builder.build();
+
+        ValidateTest {
+            name: "Tag SpecifiedWithoutAValue ValidateHasValues",
+            validator,
+            message_bytes,
+            expected_reject_reason: REJECT_REASON_TAG_SPECIFIED_WITHOUT_A_VALUE,
+            expected_ref_tag_id: Some(bogus_tag),
+            do_not_expect_reject: false,
+        }
+    }
+
+    async fn tc_tag_specified_without_a_value_fix_t_validate_has_values<'a>() -> ValidateTest<'a> {
+        let t_dict = DataDictionary::parse("spec/FIXT11.xml").await.unwrap();
+        let app_dict = DataDictionary::parse("spec/FIX50SP2.xml").await.unwrap();
+        let custom_validator_settings = ValidatorSettings {
+            reject_invalid_message: false,
+            check_fields_have_values: true,
+            ..ValidatorSettings::default()
+        };
+        let validator = ValidatorEnum::new(
+            custom_validator_settings,
+            Arc::new(app_dict),
+            Some(Arc::new(t_dict)),
+        );
+        let mut builder = create_fix50sp2_new_order_single();
+
+        let bogus_tag = 109 as Tag;
+        builder.body.set_field(bogus_tag, FIXString::from(""));
+        let message_bytes = builder.build();
+
+        ValidateTest {
+            name: "Tag SpecifiedWithoutAValue FIXT ValidateHasValues",
+            validator,
+            message_bytes,
+            expected_reject_reason: REJECT_REASON_TAG_SPECIFIED_WITHOUT_A_VALUE,
+            expected_ref_tag_id: Some(bogus_tag),
+            do_not_expect_reject: false,
         }
     }
 

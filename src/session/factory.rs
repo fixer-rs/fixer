@@ -5,13 +5,14 @@ use crate::{
     BEGIN_STRING_FIX44,
     application::Application,
     config::{
-        APP_DATA_DICTIONARY, CHECK_LATENCY, DATA_DICTIONARY, DEFAULT_APPL_VER_ID,
-        ENABLE_LAST_MSG_SEQ_NUM_PROCESSED, END_DAY, END_TIME, HEART_BT_INT, HEART_BT_INT_OVERRIDE,
-        LOGON_TIMEOUT, LOGOUT_TIMEOUT, MAX_LATENCY, PERSIST_MESSAGES, RECONNECT_INTERVAL,
-        REFRESH_ON_LOGON, REJECT_INVALID_MESSAGE, RESEND_REQUEST_CHUNK_SIZE, RESET_ON_DISCONNECT,
-        RESET_ON_LOGON, RESET_ON_LOGOUT, SOCKET_CONNECT_HOST, SOCKET_CONNECT_PORT, START_DAY,
-        START_TIME, TIME_STAMP_PRECISION, TIME_ZONE, TRANSPORT_DATA_DICTIONARY,
-        VALIDATE_FIELDS_OUT_OF_ORDER,
+        ALLOW_UNKNOWN_MSG_FIELDS, APP_DATA_DICTIONARY, CHECK_LATENCY, DATA_DICTIONARY,
+        DEFAULT_APPL_VER_ID, ENABLE_LAST_MSG_SEQ_NUM_PROCESSED, END_DAY, END_TIME, HEART_BT_INT,
+        HEART_BT_INT_OVERRIDE, LOGON_TIMEOUT, LOGOUT_TIMEOUT, MAX_LATENCY, PERSIST_MESSAGES,
+        RECONNECT_INTERVAL, REFRESH_ON_LOGON, REJECT_INVALID_MESSAGE, RESEND_REQUEST_CHUNK_SIZE,
+        RESET_ON_DISCONNECT, RESET_ON_LOGON, RESET_ON_LOGOUT, SOCKET_CONNECT_HOST,
+        SOCKET_CONNECT_PORT, START_DAY, START_TIME, TIME_STAMP_PRECISION, TIME_ZONE,
+        TRANSPORT_DATA_DICTIONARY, VALIDATE_FIELDS_HAVE_VALUES, VALIDATE_FIELDS_OUT_OF_ORDER,
+        VALIDATE_USER_DEFINED_FIELDS,
     },
     datadictionary::DataDictionary,
     errors::FixerError,
@@ -147,6 +148,21 @@ impl SessionFactory {
         if settings.has_setting(REJECT_INVALID_MESSAGE) {
             let reject_invalid_message = settings.bool_setting(REJECT_INVALID_MESSAGE)?;
             validator_settings.reject_invalid_message = reject_invalid_message;
+        }
+
+        if settings.has_setting(ALLOW_UNKNOWN_MSG_FIELDS) {
+            validator_settings.allow_unknown_message_fields =
+                settings.bool_setting(ALLOW_UNKNOWN_MSG_FIELDS)?;
+        }
+
+        if settings.has_setting(VALIDATE_USER_DEFINED_FIELDS) {
+            validator_settings.check_user_defined_fields =
+                settings.bool_setting(VALIDATE_USER_DEFINED_FIELDS)?;
+        }
+
+        if settings.has_setting(VALIDATE_FIELDS_HAVE_VALUES) {
+            validator_settings.check_fields_have_values =
+                settings.bool_setting(VALIDATE_FIELDS_HAVE_VALUES)?;
         }
 
         let mut default_appl_ver_id = String::default();
