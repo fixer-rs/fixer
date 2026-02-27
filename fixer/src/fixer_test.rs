@@ -29,7 +29,7 @@ use simple_error::{SimpleError, SimpleResult};
 use std::sync::Arc;
 use tokio::sync::{
     Mutex, OnceCell,
-    mpsc::{UnboundedReceiver, UnboundedSender, channel, unbounded_channel},
+    mpsc::{Receiver, Sender, channel, unbounded_channel},
 };
 use tokio::time::timeout;
 
@@ -594,8 +594,8 @@ impl MessageFactory {
 }
 
 pub struct SendChannel {
-    pub tx: UnboundedSender<Vec<u8>>,
-    pub rx: UnboundedReceiver<Vec<u8>>,
+    pub tx: Sender<Vec<u8>>,
+    pub rx: Receiver<Vec<u8>>,
 }
 
 pub struct MockSessionReceiver {
@@ -610,7 +610,7 @@ impl Default for MockSessionReceiver {
 
 impl MockSessionReceiver {
     pub fn new() -> Self {
-        let (tx, rx) = unbounded_channel::<Vec<u8>>();
+        let (tx, rx) = channel::<Vec<u8>>(crate::session::DEFAULT_MSG_OUT_CAPACITY);
         MockSessionReceiver {
             send_channel: SendChannel { tx, rx },
         }

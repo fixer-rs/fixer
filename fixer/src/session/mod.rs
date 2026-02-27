@@ -90,8 +90,11 @@ impl MessageEvent {
     }
 }
 
+/// Default capacity for the bounded outbound message channel.
+pub(crate) const DEFAULT_MSG_OUT_CAPACITY: usize = 10_000;
+
 pub struct Connect {
-    pub message_out: UnboundedSender<Vec<u8>>,
+    pub message_out: Sender<Vec<u8>>,
     pub message_in: Receiver<FixIn>,
     pub err: UnboundedSender<SimpleResult<()>>,
 }
@@ -125,7 +128,7 @@ pub struct Session {
     pub log: LogEnum,
     pub session_id: Arc<SessionID>,
 
-    pub message_out: UnboundedSender<Vec<u8>>,
+    pub message_out: Sender<Vec<u8>>,
     pub message_in: Receiver<FixIn>,
 
     // application messages are queued up for send here
@@ -153,7 +156,7 @@ pub struct Session {
 #[cfg(test)]
 impl Default for Session {
     fn default() -> Self {
-        let (message_out_tx, _) = unbounded_channel::<Vec<u8>>();
+        let (message_out_tx, _) = channel::<Vec<u8>>(DEFAULT_MSG_OUT_CAPACITY);
         let (admin_tx, admin_rx) = unbounded_channel::<AdminEnum>();
         let (message_event_tx, message_event_rx) = channel::<bool>(1);
         let (_, message_in_rx) = channel::<FixIn>(1);
@@ -226,7 +229,7 @@ impl Session {
     async fn connect(
         &self,
         message_in: Receiver<FixIn>,
-        message_out: UnboundedSender<Vec<u8>>,
+        message_out: Sender<Vec<u8>>,
     ) -> SimpleResult<()> {
         let (tx, mut rx) = unbounded_channel::<SimpleResult<()>>();
         let _ = self.admin.tx.send(AdminEnum::Connect(Connect {
@@ -598,7 +601,7 @@ impl Session {
     }
 
     async fn send_queued(&mut self) {
-        for msg_bytes in &self.to_send {
+        for msg_bytes in self.to_send.drain(..) {
             if self.message_out.is_closed() {
                 self.log
                     .on_eventf("Failed to send: disconnected", hashmap! {})
@@ -606,12 +609,11 @@ impl Session {
                 continue;
             }
 
-            self.log.on_outgoing(msg_bytes).await;
-            let _ = self.message_out.send(msg_bytes.clone());
+            self.log.on_outgoing(&msg_bytes).await;
+            let _ = self.message_out.send(msg_bytes).await;
             self.state_timer
                 .reset(self.session_settings.heart_bt_int.unsigned_abs());
         }
-        self.drop_queued();
     }
 
     fn drop_queued(&mut self) {

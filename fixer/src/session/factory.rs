@@ -485,7 +485,7 @@ impl SessionFactory {
 
         let (message_event_tx, message_event_rx) = channel::<bool>(1);
         let (admin_tx, admin_rx) = unbounded_channel::<AdminEnum>();
-        let (message_out_tx, _) = unbounded_channel::<Vec<u8>>();
+        let (message_out_tx, _) = channel::<Vec<u8>>(super::DEFAULT_MSG_OUT_CAPACITY);
         let in_cap = if session_settings.in_chan_capacity > 0 {
             session_settings.in_chan_capacity
         } else {

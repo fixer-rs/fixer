@@ -5,7 +5,7 @@
 use crate::{config, session::settings::SessionSettings};
 use rustls_pemfile;
 use simple_error::SimpleResult;
-use std::{fs, io::BufReader, sync::Arc};
+use std::{io::BufReader, sync::Arc};
 use tokio_rustls::{
     TlsAcceptor, TlsConnector,
     rustls::{
@@ -23,7 +23,7 @@ fn ensure_crypto_provider() {
 
 /// Load TLS acceptor (server) configuration from settings.
 /// Returns None if TLS is not configured.
-pub fn load_tls_acceptor(settings: &SessionSettings) -> SimpleResult<Option<TlsAcceptor>> {
+pub async fn load_tls_acceptor(settings: &SessionSettings) -> SimpleResult<Option<TlsAcceptor>> {
     ensure_crypto_provider();
     let allow_skip_client_certs = if settings.has_setting(config::SOCKET_USE_SSL) {
         settings
@@ -39,7 +39,7 @@ pub fn load_tls_acceptor(settings: &SessionSettings) -> SimpleResult<Option<TlsA
         return Ok(None);
     }
 
-    let (certs, key) = load_cert_and_key_from_settings(settings)?;
+    let (certs, key) = load_cert_and_key_from_settings(settings).await?;
 
     let mut server_config = if let (Some(certs), Some(key)) = (certs, key) {
         if allow_skip_client_certs {
@@ -49,7 +49,7 @@ pub fn load_tls_acceptor(settings: &SessionSettings) -> SimpleResult<Option<TlsA
                 .map_err(|e| simple_error!("server config error: {}", e))?
         } else {
             // Require client certs — need CA
-            let client_roots = load_ca_roots(settings)?;
+            let client_roots = load_ca_roots(settings).await?;
             let verifier = rustls::server::WebPkiClientVerifier::builder(Arc::new(client_roots))
                 .build()
                 .map_err(|e| simple_error!("failed to build client verifier: {}", e))?;
@@ -72,7 +72,7 @@ pub fn load_tls_acceptor(settings: &SessionSettings) -> SimpleResult<Option<TlsA
 
 /// Load TLS connector (client) configuration from settings.
 /// Returns None if TLS is not configured.
-pub fn load_tls_connector(settings: &SessionSettings) -> SimpleResult<Option<TlsConnector>> {
+pub async fn load_tls_connector(settings: &SessionSettings) -> SimpleResult<Option<TlsConnector>> {
     ensure_crypto_provider();
     let allow_skip_client_certs = if settings.has_setting(config::SOCKET_USE_SSL) {
         settings
@@ -95,14 +95,14 @@ pub fn load_tls_connector(settings: &SessionSettings) -> SimpleResult<Option<Tls
     }
 
     // Load client certificate if provided (for mutual TLS)
-    let (certs, key) = load_cert_and_key_from_settings(settings)?;
+    let (certs, key) = load_cert_and_key_from_settings(settings).await?;
     let client_cert = match (certs, key) {
         (Some(c), Some(k)) => Some((c, k)),
         _ => None,
     };
 
     // Build root certificate store
-    let root_store = load_ca_roots(settings)?;
+    let root_store = load_ca_roots(settings).await?;
 
     let builder = ClientConfig::builder().with_root_certificates(root_store);
 
@@ -152,7 +152,7 @@ fn has_cert_or_key_settings(settings: &SessionSettings) -> bool {
         || settings.has_setting(config::SOCKET_CERTIFICATE_BYTES)
 }
 
-fn load_cert_and_key_from_settings(
+async fn load_cert_and_key_from_settings(
     settings: &SessionSettings,
 ) -> SimpleResult<(
     Option<Vec<CertificateDer<'static>>>,
@@ -167,7 +167,7 @@ fn load_cert_and_key_from_settings(
         let cert_file = settings
             .setting(config::SOCKET_CERTIFICATE_FILE)
             .map_err(|e| simple_error!("{}", e))?;
-        let (c, k) = load_cert_and_key(&cert_file, &key_file)?;
+        let (c, k) = load_cert_and_key(&cert_file, &key_file).await?;
         Ok((Some(c), Some(k)))
     } else if settings.has_setting(config::SOCKET_PRIVATE_KEY_BYTES)
         || settings.has_setting(config::SOCKET_CERTIFICATE_BYTES)
@@ -185,13 +185,15 @@ fn load_cert_and_key_from_settings(
     }
 }
 
-fn load_cert_and_key(
+async fn load_cert_and_key(
     cert_file: &str,
     key_file: &str,
 ) -> SimpleResult<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>)> {
-    let cert_data = fs::read(cert_file)
+    let cert_data = tokio::fs::read(cert_file)
+        .await
         .map_err(|e| simple_error!("failed to read certificate file {}: {}", cert_file, e))?;
-    let key_data = fs::read(key_file)
+    let key_data = tokio::fs::read(key_file)
+        .await
         .map_err(|e| simple_error!("failed to read private key file {}: {}", key_file, e))?;
     parse_cert_and_key_from_pem(&cert_data, &key_data)
 }
@@ -215,7 +217,7 @@ fn parse_cert_and_key_from_pem(
     Ok((certs, key))
 }
 
-fn load_ca_roots(settings: &SessionSettings) -> SimpleResult<RootCertStore> {
+async fn load_ca_roots(settings: &SessionSettings) -> SimpleResult<RootCertStore> {
     let mut root_store = RootCertStore::empty();
 
     let ca_data = if settings.has_setting(config::SOCKET_CA_FILE) {
@@ -223,7 +225,8 @@ fn load_ca_roots(settings: &SessionSettings) -> SimpleResult<RootCertStore> {
             .setting(config::SOCKET_CA_FILE)
             .map_err(|e| simple_error!("{}", e))?;
         Some(
-            fs::read(&ca_file)
+            tokio::fs::read(&ca_file)
+                .await
                 .map_err(|e| simple_error!("failed to read CA file {}: {}", ca_file, e))?,
         )
     } else if settings.has_setting(config::SOCKET_CA_BYTES) {
@@ -344,26 +347,26 @@ mod tests {
         settings.set(key.to_string(), val.to_string());
     }
 
-    #[test]
-    fn test_load_tls_no_settings() {
+    #[tokio::test]
+    async fn test_load_tls_no_settings() {
         let settings = SessionSettings::new();
-        let result = load_tls_acceptor(&settings).unwrap();
+        let result = load_tls_acceptor(&settings).await.unwrap();
         assert!(result.is_none());
-        let result = load_tls_connector(&settings).unwrap();
+        let result = load_tls_connector(&settings).await.unwrap();
         assert!(result.is_none());
     }
 
-    #[test]
-    fn test_load_tls_missing_key_or_cert() {
+    #[tokio::test]
+    async fn test_load_tls_missing_key_or_cert() {
         let mut settings = SessionSettings::new();
         set(&mut settings, config::SOCKET_PRIVATE_KEY_FILE, "blah");
         // Missing cert file — key file doesn't exist
-        let result = load_tls_acceptor(&settings);
+        let result = load_tls_acceptor(&settings).await;
         assert!(result.is_err());
     }
 
-    #[test]
-    fn test_load_tls_invalid_key_or_cert() {
+    #[tokio::test]
+    async fn test_load_tls_invalid_key_or_cert() {
         let mut settings = SessionSettings::new();
         set(
             &mut settings,
@@ -375,12 +378,12 @@ mod tests {
             config::SOCKET_CERTIFICATE_FILE,
             "nonexistent",
         );
-        let result = load_tls_acceptor(&settings);
+        let result = load_tls_acceptor(&settings).await;
         assert!(result.is_err());
     }
 
-    #[test]
-    fn test_load_tls_valid_cert_and_key() {
+    #[tokio::test]
+    async fn test_load_tls_valid_cert_and_key() {
         let (_ca, cert, key) = generate_test_certs();
         let mut settings = SessionSettings::new();
         set(
@@ -394,13 +397,13 @@ mod tests {
             cert.path().to_str().unwrap(),
         );
         set(&mut settings, config::SOCKET_USE_SSL, "Y");
-        let result = load_tls_acceptor(&settings);
+        let result = load_tls_acceptor(&settings).await;
         assert!(result.is_ok());
         assert!(result.unwrap().is_some());
     }
 
-    #[test]
-    fn test_load_tls_with_ca() {
+    #[tokio::test]
+    async fn test_load_tls_with_ca() {
         let (ca, cert, key) = generate_test_certs();
         let mut settings = SessionSettings::new();
         set(
@@ -418,30 +421,30 @@ mod tests {
             config::SOCKET_CA_FILE,
             ca.path().to_str().unwrap(),
         );
-        let result = load_tls_acceptor(&settings);
+        let result = load_tls_acceptor(&settings).await;
         assert!(result.is_ok());
         assert!(result.unwrap().is_some());
     }
 
-    #[test]
-    fn test_load_tls_connector_with_use_ssl() {
+    #[tokio::test]
+    async fn test_load_tls_connector_with_use_ssl() {
         let mut settings = SessionSettings::new();
         set(&mut settings, config::SOCKET_USE_SSL, "Y");
-        let result = load_tls_connector(&settings).unwrap();
+        let result = load_tls_connector(&settings).await.unwrap();
         assert!(result.is_some());
     }
 
-    #[test]
-    fn test_load_tls_connector_insecure_skip_verify() {
+    #[tokio::test]
+    async fn test_load_tls_connector_insecure_skip_verify() {
         let mut settings = SessionSettings::new();
         set(&mut settings, config::SOCKET_USE_SSL, "Y");
         set(&mut settings, config::SOCKET_INSECURE_SKIP_VERIFY, "Y");
-        let result = load_tls_connector(&settings).unwrap();
+        let result = load_tls_connector(&settings).await.unwrap();
         assert!(result.is_some());
     }
 
-    #[test]
-    fn test_load_tls_connector_with_client_cert() {
+    #[tokio::test]
+    async fn test_load_tls_connector_with_client_cert() {
         let (ca, cert, key) = generate_test_certs();
         let mut settings = SessionSettings::new();
         set(
@@ -459,7 +462,7 @@ mod tests {
             config::SOCKET_CA_FILE,
             ca.path().to_str().unwrap(),
         );
-        let result = load_tls_connector(&settings).unwrap();
+        let result = load_tls_connector(&settings).await.unwrap();
         assert!(result.is_some());
     }
 
@@ -478,8 +481,8 @@ mod tests {
         assert_eq!(name.to_str(), "myhost.example.com");
     }
 
-    #[test]
-    fn test_load_tls_bad_ca_file() {
+    #[tokio::test]
+    async fn test_load_tls_bad_ca_file() {
         let (_, cert, key) = generate_test_certs();
         let mut settings = SessionSettings::new();
         set(
@@ -493,7 +496,7 @@ mod tests {
             cert.path().to_str().unwrap(),
         );
         set(&mut settings, config::SOCKET_CA_FILE, "nonexistent_ca_file");
-        let result = load_tls_acceptor(&settings);
+        let result = load_tls_acceptor(&settings).await;
         assert!(result.is_err());
     }
 
@@ -518,43 +521,43 @@ mod tests {
         )
     }
 
-    #[test]
-    fn test_load_tls_acceptor_with_cert_bytes() {
+    #[tokio::test]
+    async fn test_load_tls_acceptor_with_cert_bytes() {
         let (_ca_pem, cert_pem, key_pem) = generate_test_cert_pems();
         let mut settings = SessionSettings::new();
         set(&mut settings, config::SOCKET_PRIVATE_KEY_BYTES, &key_pem);
         set(&mut settings, config::SOCKET_CERTIFICATE_BYTES, &cert_pem);
         set(&mut settings, config::SOCKET_USE_SSL, "Y");
-        let result = load_tls_acceptor(&settings);
+        let result = load_tls_acceptor(&settings).await;
         assert!(result.is_ok());
         assert!(result.unwrap().is_some());
     }
 
-    #[test]
-    fn test_load_tls_connector_with_cert_bytes() {
+    #[tokio::test]
+    async fn test_load_tls_connector_with_cert_bytes() {
         let (ca_pem, cert_pem, key_pem) = generate_test_cert_pems();
         let mut settings = SessionSettings::new();
         set(&mut settings, config::SOCKET_PRIVATE_KEY_BYTES, &key_pem);
         set(&mut settings, config::SOCKET_CERTIFICATE_BYTES, &cert_pem);
         set(&mut settings, config::SOCKET_CA_BYTES, &ca_pem);
-        let result = load_tls_connector(&settings).unwrap();
+        let result = load_tls_connector(&settings).await.unwrap();
         assert!(result.is_some());
     }
 
-    #[test]
-    fn test_load_tls_acceptor_with_ca_bytes() {
+    #[tokio::test]
+    async fn test_load_tls_acceptor_with_ca_bytes() {
         let (ca_pem, cert_pem, key_pem) = generate_test_cert_pems();
         let mut settings = SessionSettings::new();
         set(&mut settings, config::SOCKET_PRIVATE_KEY_BYTES, &key_pem);
         set(&mut settings, config::SOCKET_CERTIFICATE_BYTES, &cert_pem);
         set(&mut settings, config::SOCKET_CA_BYTES, &ca_pem);
-        let result = load_tls_acceptor(&settings);
+        let result = load_tls_acceptor(&settings).await;
         assert!(result.is_ok());
         assert!(result.unwrap().is_some());
     }
 
-    #[test]
-    fn test_load_tls_invalid_cert_bytes() {
+    #[tokio::test]
+    async fn test_load_tls_invalid_cert_bytes() {
         let mut settings = SessionSettings::new();
         set(
             &mut settings,
@@ -566,7 +569,7 @@ mod tests {
             config::SOCKET_CERTIFICATE_BYTES,
             "not valid pem",
         );
-        let result = load_tls_acceptor(&settings);
+        let result = load_tls_acceptor(&settings).await;
         assert!(result.is_err());
     }
 }

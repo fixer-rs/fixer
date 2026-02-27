@@ -158,7 +158,7 @@ impl Initiator {
 
             let admin_tx = session.admin.tx.clone();
 
-            let tls_connector = tls::load_tls_connector(ss)?;
+            let tls_connector = tls::load_tls_connector(ss).await?;
 
             let sid = session.session_id.clone();
             sessions.push(SessionHandle {
@@ -286,7 +286,7 @@ impl Initiator {
                         };
 
                         let (msg_out_tx, msg_out_rx) =
-                            tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
+                            tokio::sync::mpsc::channel::<Vec<u8>>(crate::session::DEFAULT_MSG_OUT_CAPACITY);
                         let (msg_in_tx, msg_in_rx) = {
                             let cap = if in_chan_capacity > 0 {
                                 in_chan_capacity

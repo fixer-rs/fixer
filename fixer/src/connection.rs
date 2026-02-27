@@ -4,11 +4,11 @@ use crate::{
     session::FixIn,
 };
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
-use tokio::sync::mpsc::{Sender, UnboundedReceiver};
+use tokio::sync::mpsc::{Receiver, Sender};
 
 pub async fn write_loop<W>(
     mut connection: W,
-    mut message_out: UnboundedReceiver<Vec<u8>>,
+    mut message_out: Receiver<Vec<u8>>,
     mut log: LogEnum,
 ) where
     W: AsyncWrite + Unpin,
@@ -57,17 +57,17 @@ mod tests {
     use crate::parser::Parser;
     use crate::session::FixIn;
     use tokio::io::BufReader;
-    use tokio::sync::mpsc::{channel, unbounded_channel};
+    use tokio::sync::mpsc::channel;
 
     #[tokio::test]
     async fn test_write_loop() {
         let mut writer: Vec<u8> = vec![];
-        let (msg_out_tx, msg_out_rx) = unbounded_channel::<Vec<u8>>();
+        let (msg_out_tx, msg_out_rx) = channel::<Vec<u8>>(16);
 
         tokio::spawn(async move {
-            let _ = msg_out_tx.send(br"test msg 1 ".to_vec());
-            let _ = msg_out_tx.send(br"test msg 2 ".to_vec());
-            let _ = msg_out_tx.send(br"test msg 3".to_vec());
+            let _ = msg_out_tx.send(br"test msg 1 ".to_vec()).await;
+            let _ = msg_out_tx.send(br"test msg 2 ".to_vec()).await;
+            let _ = msg_out_tx.send(br"test msg 3".to_vec()).await;
         });
         let nl = LogEnum::NullLog(NullLog {});
         write_loop(&mut writer, msg_out_rx, nl).await;

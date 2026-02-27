@@ -234,7 +234,7 @@ impl Acceptor {
         };
 
         // Load TLS config from global settings
-        let tls_acceptor = tls::load_tls_acceptor(&global)?;
+        let tls_acceptor = tls::load_tls_acceptor(&global).await?;
 
         // Read dynamic sessions config
         let dynamic_sessions = if global.has_setting(config::DYNAMIC_SESSIONS) {
@@ -579,7 +579,7 @@ async fn handle_connection<R, W>(
         };
 
     // Create channels for this connection
-    let (msg_out_tx, msg_out_rx) = tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
+    let (msg_out_tx, msg_out_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(crate::session::DEFAULT_MSG_OUT_CAPACITY);
     let cap = if in_chan_capacity > 0 {
         in_chan_capacity
     } else {

@@ -23,24 +23,18 @@ pub struct FileLog {
 
 impl LogTrait for FileLog {
     async fn on_incoming(&mut self, data: &[u8]) {
-        let mut mut_data = data.to_owned();
-        mut_data.push(b'\n');
-        let _ = self.message_file.write_all(&mut_data).await;
-        let _ = self.message_file.flush().await;
+        let _ = self.message_file.write_all(data).await;
+        let _ = self.message_file.write_all(b"\n").await;
     }
 
     async fn on_outgoing(&mut self, data: &[u8]) {
-        let mut mut_data = data.to_owned();
-        mut_data.push(b'\n');
-        let _ = self.message_file.write_all(&mut_data).await;
-        let _ = self.message_file.flush().await;
+        let _ = self.message_file.write_all(data).await;
+        let _ = self.message_file.write_all(b"\n").await;
     }
 
     async fn on_event(&mut self, data: &str) {
-        let mut mut_data = data.as_bytes().to_owned();
-        mut_data.push(b'\n');
-        let _ = self.event_file.write_all(&mut_data).await;
-        let _ = self.event_file.flush().await;
+        let _ = self.event_file.write_all(data.as_bytes()).await;
+        let _ = self.event_file.write_all(b"\n").await;
     }
 
     async fn on_eventf(&mut self, fmt: &str, params: FxHashMap<String, String>) {
