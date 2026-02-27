@@ -19,6 +19,11 @@ fixer = { path = "../fixer", version = "0.9.0" }
 jiff = "0.2"
 rust_decimal = "1"
 simple-error = "0.3"
+tokio = { version = "1.49", features = ["io-util", "fs", "rt", "rt-multi-thread", "signal", "sync", "macros"] }
+
+[[example]]
+name = "trade_client"
+path = "../examples/trade_client/main.rs"
 
 [lints.rust]
 unsafe_code = "forbid"
