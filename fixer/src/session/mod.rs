@@ -585,19 +585,23 @@ impl Session {
         }
 
         let msg_bytes = msg.build();
-        self.persist(seq_num, &msg_bytes).await?;
-        Ok(msg_bytes)
+        self.persist(seq_num, msg_bytes).await
     }
 
-    async fn persist(&mut self, seq_num: isize, msg_bytes: &[u8]) -> Result<(), FixerError> {
+    async fn persist(
+        &mut self,
+        seq_num: isize,
+        msg_bytes: Vec<u8>,
+    ) -> Result<Vec<u8>, FixerError> {
         if !self.session_settings.disable_message_persist {
             self.store
-                .save_message_and_incr_next_sender_msg_seq_num(seq_num, msg_bytes.to_vec())
+                .save_message_and_incr_next_sender_msg_seq_num(seq_num, msg_bytes.clone())
                 .await?;
-            return Ok(());
+            return Ok(msg_bytes);
         }
 
-        Ok(self.store.incr_next_sender_msg_seq_num().await?)
+        self.store.incr_next_sender_msg_seq_num().await?;
+        Ok(msg_bytes)
     }
 
     async fn send_queued(&mut self) {
@@ -620,8 +624,8 @@ impl Session {
         self.to_send.clear();
     }
 
-    pub async fn enqueue_bytes_and_send(&mut self, msg: &[u8]) {
-        self.to_send.push(msg.to_vec());
+    pub async fn enqueue_bytes_and_send(&mut self, msg: Vec<u8>) {
+        self.to_send.push(msg);
         self.send_queued().await;
     }
 
@@ -1745,7 +1749,7 @@ impl Session {
 
             let inner_msg_bytes = msg.build_with_body_bytes(&msg.body_bytes.clone());
 
-            self.enqueue_bytes_and_send(&inner_msg_bytes).await;
+            self.enqueue_bytes_and_send(inner_msg_bytes).await;
 
             seq_num = sent_message_seq_num + 1;
             next_seq_num = seq_num;
@@ -1769,7 +1773,7 @@ impl Session {
         if let MessageRejectErrorEnum::TargetTooHigh(tth) = rej {
             let mut rs = if let SessionStateEnum::ResendState(ref mut rs) = self.sm.state {
                 ResendState {
-                    message_stash: rs.message_stash.clone(),
+                    message_stash: std::mem::take(&mut rs.message_stash),
                     current_resend_range_end: rs.current_resend_range_end,
                     resend_range_end: rs.resend_range_end,
                     logged_on: LoggedOn::default(),
@@ -1938,7 +1942,7 @@ impl Session {
 
         let msg_bytes = sequence_reset.build();
 
-        self.enqueue_bytes_and_send(&msg_bytes).await;
+        self.enqueue_bytes_and_send(msg_bytes).await;
         self.log
             .on_eventf(
                 "Sent SequenceReset TO: {{to}}",
@@ -2220,8 +2224,8 @@ impl Session {
             return next_state;
         }
 
-        if let SessionStateEnum::ResendState(ns) = &next_state {
-            rs.message_stash = ns.message_stash.clone();
+        if let SessionStateEnum::ResendState(ref mut ns) = next_state {
+            rs.message_stash = std::mem::take(&mut ns.message_stash);
         }
 
         if rs.current_resend_range_end != 0

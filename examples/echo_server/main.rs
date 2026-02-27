@@ -19,7 +19,7 @@ use fixer::{
     errors::MessageRejectErrorResult,
     log::screen_log::ScreenLogFactory,
     message::Message,
-    registry::send_to_target,
+    registry::send_to_target_owned,
     session::session_id::SessionID,
     settings::Settings,
     store::MemoryStoreFactory,
@@ -162,7 +162,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // messages back through the appropriate sessions.
     let send_task = tokio::spawn(async move {
         while let Some(pending) = reply_rx.recv().await {
-            if let Err(e) = send_to_target(&pending.message, &pending.session_id).await {
+            if let Err(e) = send_to_target_owned(pending.message, &pending.session_id).await {
                 eprintln!("Failed to send reply: {e}");
             }
         }

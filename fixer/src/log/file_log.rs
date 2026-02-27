@@ -45,9 +45,9 @@ impl LogTrait for FileLog {
 
 impl FileLog {
     async fn new(prefix: &str, log_path: &str) -> Result<Self, String> {
-        let event_log_name = Path::new(log_path).join(prefix.to_string() + ".event.current.log");
+        let event_log_name = Path::new(log_path).join(format!("{prefix}.event.current.log"));
         let message_log_name =
-            Path::new(log_path).join(prefix.to_string() + ".messages.current.log");
+            Path::new(log_path).join(format!("{prefix}.messages.current.log"));
 
         DirBuilder::new()
             .mode(0o777)

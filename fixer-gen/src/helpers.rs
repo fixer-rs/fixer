@@ -408,7 +408,7 @@ mod tests {
     #[test]
     fn test_needs_decimal() {
         let fix44 = parse_spec("../spec/FIX44.xml");
-        let globals = build_global_field_types(&[fix44.clone()]);
+        let globals = build_global_field_types(std::slice::from_ref(&fix44));
 
         // NewOrderSingle has Price (decimal) field
         let nos = fix44.messages.get("D").unwrap();
@@ -427,7 +427,7 @@ mod tests {
     #[test]
     fn test_needs_timestamp() {
         let fix44 = parse_spec("../spec/FIX44.xml");
-        let globals = build_global_field_types(&[fix44.clone()]);
+        let globals = build_global_field_types(std::slice::from_ref(&fix44));
 
         // NewOrderSingle has TransactTime (UTCTIMESTAMP) field
         let nos = fix44.messages.get("D").unwrap();
@@ -440,7 +440,7 @@ mod tests {
     #[test]
     fn test_needs_enums() {
         let fix44 = parse_spec("../spec/FIX44.xml");
-        let globals = build_global_field_types(&[fix44.clone()]);
+        let globals = build_global_field_types(std::slice::from_ref(&fix44));
 
         // NewOrderSingle has OrdType, Side etc. which have enums
         let nos = fix44.messages.get("D").unwrap();

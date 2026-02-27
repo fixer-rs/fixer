@@ -15,7 +15,7 @@ use crate::{
 };
 use jiff::Timestamp;
 use rustc_hash::FxHashMap;
-use std::{cmp::Ordering, fmt, sync::Arc, vec};
+use std::{cmp::Ordering, fmt, sync::Arc};
 
 #[derive(Debug, Default, Clone)]
 pub struct LocalField {
@@ -97,7 +97,8 @@ pub struct FieldMapContent {
     pub tag_sort: TagSort,
     // All parsed tag-values in order, including duplicates from repeating groups.
     // Populated during message parsing; used by get_group to read group members.
-    pub parsed_fields: Option<Vec<TagValue>>,
+    // Shared via Arc to avoid cloning during parsing.
+    pub parsed_fields: Option<Arc<[TagValue]>>,
 }
 
 /// An ordered collection of FIX tag-value fields.
@@ -172,11 +173,6 @@ impl FieldMap {
 
     pub fn init_with_ordering(&mut self, ordering: TagOrderType) {
         self.content.tag_sort.compare_type = ordering;
-    }
-
-    /// Returns all field tags in insertion order (unsorted).
-    pub fn tags(&self) -> Vec<Tag> {
-        self.content.tag_sort.tags.clone()
     }
 
     /// Reads a field using its [`Field`] implementation (the tag is derived

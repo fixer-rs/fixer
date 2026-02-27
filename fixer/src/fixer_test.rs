@@ -113,6 +113,7 @@ pub struct MockRefreshBuilder<'a> {
 }
 
 impl<'a> MockRefreshBuilder<'a> {
+    #[must_use]
     pub fn once(self) -> Self {
         self
     }
@@ -129,7 +130,7 @@ pub struct MockRefreshReady<'a> {
     _mock: &'a MockStore,
 }
 
-impl<'a> MockRefreshReady<'a> {
+impl MockRefreshReady<'_> {
     pub fn call(&self) -> SimpleResult<()> {
         Ok(())
     }

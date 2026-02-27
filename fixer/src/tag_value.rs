@@ -101,7 +101,10 @@ impl TagValue {
 
 impl std::fmt::Display for TagValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&String::from_utf8_lossy(&self.bytes))
+        match std::str::from_utf8(&self.bytes) {
+            Ok(s) => f.write_str(s),
+            Err(_) => write!(f, "{}", String::from_utf8_lossy(&self.bytes)),
+        }
     }
 }
 

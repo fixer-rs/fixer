@@ -61,6 +61,33 @@ pub async fn send(message: &dyn Messageable) -> Result<(), FixerError> {
     send_to_target(message, &Arc::new(session_id)).await
 }
 
+// send_owned is like send but takes an owned Message, avoiding a clone.
+pub async fn send_owned(message: Message) -> Result<(), FixerError> {
+    let mut begin_string = FIXString::new();
+    message
+        .header
+        .get_field(TAG_BEGIN_STRING, &mut begin_string)?;
+
+    let mut target_comp_id = FIXString::new();
+    message
+        .header
+        .get_field(TAG_TARGET_COMP_ID, &mut target_comp_id)?;
+
+    let mut sender_comp_id = FIXString::new();
+    message
+        .header
+        .get_field(TAG_SENDER_COMP_ID, &mut sender_comp_id)?;
+
+    let session_id = SessionID {
+        begin_string,
+        target_comp_id,
+        sender_comp_id,
+        ..Default::default()
+    };
+
+    send_to_target_owned(message, &Arc::new(session_id)).await
+}
+
 // send_to_target sends a message based on the session_id. Sends through a
 // channel to the session's run loop rather than locking the session directly.
 pub async fn send_to_target(
@@ -68,6 +95,15 @@ pub async fn send_to_target(
     session_id: &Arc<SessionID>,
 ) -> Result<(), FixerError> {
     let msg = message.to_message();
+    send_to_target_owned(msg.clone(), session_id).await
+}
+
+// send_to_target_owned is like send_to_target but takes an owned Message,
+// avoiding a clone when the caller already has ownership.
+pub async fn send_to_target_owned(
+    message: Message,
+    session_id: &Arc<SessionID>,
+) -> Result<(), FixerError> {
     let registration = (*SESSIONS)
         .get(session_id)
         .ok_or(ERR_UNKNOWN_SESSION.clone())?;
@@ -76,7 +112,7 @@ pub async fn send_to_target(
     registration
         .admin_tx
         .send(AdminEnum::QueueForSend(QueueForSend {
-            msg: msg.clone(),
+            msg: message,
             result: result_tx,
         }))
         .map_err(|_| FixerError::from(ERR_UNKNOWN_SESSION.clone()))?;

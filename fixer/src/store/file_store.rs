@@ -30,10 +30,16 @@ impl IndividualFile {
     async fn set_seq_num(&mut self, seq_num: isize) -> SimpleResult<()> {
         let _ = self.file.as_mut().unwrap().rewind().await;
 
+        // Right-align the number in a 19-byte buffer, padded with spaces.
+        let mut buf = [b' '; 19];
+        let mut num = itoa::Buffer::new();
+        let digits = num.format(seq_num).as_bytes();
+        buf[19 - digits.len()..].copy_from_slice(digits);
+
         self.file
             .as_mut()
             .unwrap()
-            .write(format!("{seq_num:19}").as_bytes())
+            .write(&buf)
             .await
             .map_err(|err| simple_error!("unable to write to file: {}: {}", self.file_name, err))?;
 
@@ -130,11 +136,20 @@ impl MessageStoreTrait for FileStore {
                 )
             })?;
 
+        // Build header line without format! allocation.
+        let mut hdr_buf = Vec::with_capacity(48);
+        hdr_buf.extend_from_slice(itoa::Buffer::new().format(seq_num).as_bytes());
+        hdr_buf.push(b',');
+        hdr_buf.extend_from_slice(itoa::Buffer::new().format(offset).as_bytes());
+        hdr_buf.push(b',');
+        hdr_buf.extend_from_slice(itoa::Buffer::new().format(msg.len()).as_bytes());
+        hdr_buf.push(b'\n');
+
         self.header_file
             .file
             .as_mut()
             .unwrap()
-            .write(format!("{},{},{}\n", seq_num, offset, msg.len()).as_bytes())
+            .write(&hdr_buf)
             .await
             .map_err(|err| {
                 simple_error!(

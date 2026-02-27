@@ -638,7 +638,7 @@ mod tests {
     #[test]
     fn test_generate_header() {
         let fix44 = parse_spec("../spec/FIX44.xml");
-        let globals = build_global_field_types(&[fix44.clone()]);
+        let globals = build_global_field_types(std::slice::from_ref(&fix44));
         let tera = test_tera();
 
         let tmp = tempfile::tempdir().unwrap();
@@ -662,7 +662,7 @@ mod tests {
     #[test]
     fn test_generate_trailer() {
         let fix44 = parse_spec("../spec/FIX44.xml");
-        let globals = build_global_field_types(&[fix44.clone()]);
+        let globals = build_global_field_types(std::slice::from_ref(&fix44));
         let tera = test_tera();
 
         let tmp = tempfile::tempdir().unwrap();
@@ -679,7 +679,7 @@ mod tests {
     #[test]
     fn test_generate_message() {
         let fix44 = parse_spec("../spec/FIX44.xml");
-        let globals = build_global_field_types(&[fix44.clone()]);
+        let globals = build_global_field_types(std::slice::from_ref(&fix44));
         let tera = test_tera();
 
         let tmp = tempfile::tempdir().unwrap();
@@ -705,7 +705,7 @@ mod tests {
     #[test]
     fn test_generate_message_new_order_single() {
         let fix44 = parse_spec("../spec/FIX44.xml");
-        let globals = build_global_field_types(&[fix44.clone()]);
+        let globals = build_global_field_types(std::slice::from_ref(&fix44));
         let tera = test_tera();
 
         let tmp = tempfile::tempdir().unwrap();
@@ -728,7 +728,7 @@ mod tests {
     #[test]
     fn test_generate_package() {
         let fix44 = parse_spec("../spec/FIX44.xml");
-        let globals = build_global_field_types(&[fix44.clone()]);
+        let globals = build_global_field_types(std::slice::from_ref(&fix44));
         let tera = test_tera();
 
         let tmp = tempfile::tempdir().unwrap();
@@ -756,10 +756,10 @@ mod tests {
         // Count generated message files (excluding mod.rs, header.rs, trailer.rs).
         let msg_count = fs::read_dir(&pkg_dir)
             .unwrap()
-            .filter_map(|e| e.ok())
+            .filter_map(Result::ok)
             .filter(|e| {
                 let name = e.file_name().to_string_lossy().to_string();
-                name.ends_with(".rs") && name != "mod.rs" && name != "header.rs" && name != "trailer.rs"
+                std::path::Path::new(&name).extension().is_some_and(|ext| ext.eq_ignore_ascii_case("rs")) && name != "mod.rs" && name != "header.rs" && name != "trailer.rs"
             })
             .count();
         assert!(
@@ -771,7 +771,7 @@ mod tests {
     #[test]
     fn test_generate_package_fix50_no_header() {
         let fix50 = parse_spec("../spec/FIX50.xml");
-        let globals = build_global_field_types(&[fix50.clone()]);
+        let globals = build_global_field_types(std::slice::from_ref(&fix50));
         let tera = test_tera();
 
         let tmp = tempfile::tempdir().unwrap();

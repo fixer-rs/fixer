@@ -38,7 +38,6 @@ impl Header {
 
     delegate! {
         to self.field_map {
-            pub fn tags(&self) -> Vec<Tag>;
             pub fn get<P: Field + FieldValueReader>(&self, parser: &mut P) -> MessageRejectErrorResult;
             pub fn has(&self, tag: Tag) -> bool;
             pub fn get_field<P: FieldValueReader>(
@@ -87,7 +86,6 @@ impl Body {
 
     delegate! {
         to self.field_map {
-            pub fn tags(&self) -> Vec<Tag>;
             pub fn get<P: Field + FieldValueReader>(&self, parser: &mut P) -> MessageRejectErrorResult;
             pub fn has(&self, tag: Tag) -> bool;
             pub fn get_field<P: FieldValueReader>(
@@ -138,7 +136,6 @@ impl Trailer {
 
     delegate! {
         to self.field_map {
-            pub fn tags(&self) -> Vec<Tag>;
             pub fn get<P: Field + FieldValueReader>(&self, parser: &mut P) -> MessageRejectErrorResult;
             pub fn has(&self, tag: Tag) -> bool;
             pub fn get_field<P: FieldValueReader>(
@@ -218,8 +215,10 @@ pub struct Message {
     raw_message: Vec<u8>,
     // slice of Bytes corresponding to the message body
     pub(crate) body_bytes: Vec<u8>,
-    // all parsed fields in order, used by validation
-    pub fields: Vec<TagValue>,
+    // All parsed fields in order, used by validation.
+    // Shared via Arc with body.field_map.content.parsed_fields to avoid
+    // cloning body fields during parsing.
+    pub fields: Arc<[TagValue]>,
 }
 
 impl fmt::Display for Message {
@@ -256,7 +255,7 @@ impl Message {
         self.trailer.copy_into(&mut to.trailer.field_map);
         to.receive_time = self.receive_time;
         to.body_bytes.clone_from(&self.body_bytes);
-        to.fields.clone_from(&self.fields);
+        to.fields = Arc::clone(&self.fields);
     }
 
     /// Parses a FIX message from raw bytes, populating header, body, and
@@ -322,7 +321,6 @@ impl Message {
 
         let mut trailer_bytes: &[u8] = &[];
         let mut found_body = false;
-        let mut body_tvs: Vec<TagValue> = Vec::new();
 
         loop {
             let pf = &mut parsed_fields[field_index];
@@ -345,7 +343,6 @@ impl Message {
             } else {
                 found_body = true;
                 trailer_bytes = raw_bytes;
-                body_tvs.push(pf.clone());
                 self.body.add(field_lf);
             }
 
@@ -374,11 +371,12 @@ impl Message {
         }
 
         parsed_fields.truncate(field_index + 1);
-        self.fields = parsed_fields;
-        self.body.field_map.content.parsed_fields = Some(body_tvs);
+        let fields: Arc<[TagValue]> = parsed_fields.into();
+        self.fields = Arc::clone(&fields);
+        self.body.field_map.content.parsed_fields = Some(fields);
 
         let mut length = 0;
-        for field in &self.fields {
+        for field in self.fields.iter() {
             match field.tag {
                 TAG_BEGIN_STRING | TAG_BODY_LENGTH | TAG_CHECK_SUM => {} // tags do not contribute to length
                 _ => length += field.length(),
@@ -554,12 +552,12 @@ impl Message {
 
     /// Returns the raw message bytes if available (from parsing), otherwise
     /// rebuilds the message from the field maps.
-    pub fn as_bytes(&self) -> Vec<u8> {
+    pub fn as_bytes(&mut self) -> Vec<u8> {
         if !self.raw_message.is_empty() {
             return self.raw_message.clone();
         }
 
-        self.clone().build()
+        self.build()
     }
 }
 
@@ -1007,7 +1005,7 @@ mod tests {
 
         assert!(&dest.is_msg_type_of("D"));
         assert_eq!(&dest.to_string(), rendered_string);
-        assert_eq!(&dest.as_bytes(), rendered_string.as_bytes());
+        assert_eq!(dest.as_bytes(), rendered_string.as_bytes());
     }
 
     fn check_field_int(_s: &MessageSuite, fields: &FieldMap, tag: isize, expected: isize) {

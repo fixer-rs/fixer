@@ -66,7 +66,7 @@ mod tests {
 
         tokio::select! {
             () = &mut timer => panic!("disarmed timer should never fire"),
-            _ = tokio::time::sleep(Duration::from_millis(50)) => {}
+            () = tokio::time::sleep(Duration::from_millis(50)) => {}
         }
     }
 
@@ -77,7 +77,7 @@ mod tests {
 
         tokio::select! {
             () = &mut timer => {}
-            _ = tokio::time::sleep(Duration::from_secs(1)) => panic!("timer should have fired"),
+            () = tokio::time::sleep(Duration::from_secs(1)) => panic!("timer should have fired"),
         }
     }
 
@@ -90,13 +90,13 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(30)).await;
         tokio::select! {
             () = &mut timer => {}
-            _ = tokio::time::sleep(Duration::from_millis(10)) => panic!("timer should have fired"),
+            () = tokio::time::sleep(Duration::from_millis(10)) => panic!("timer should have fired"),
         }
 
         // After firing, it should be disarmed and never fire again.
         tokio::select! {
             () = &mut timer => panic!("timer should be disarmed after firing"),
-            _ = tokio::time::sleep(Duration::from_millis(50)) => {}
+            () = tokio::time::sleep(Duration::from_millis(50)) => {}
         }
     }
 
@@ -112,13 +112,13 @@ mod tests {
         // At 70ms total, the original deadline would have passed, but the reset one hasn't.
         tokio::select! {
             () = &mut timer => panic!("timer fired too early after reset"),
-            _ = tokio::time::sleep(Duration::from_millis(50)) => {}
+            () = tokio::time::sleep(Duration::from_millis(50)) => {}
         }
 
         // The reset deadline (80ms from the reset point) should fire.
         tokio::select! {
             () = &mut timer => {}
-            _ = tokio::time::sleep(Duration::from_secs(1)) => panic!("timer should have fired"),
+            () = tokio::time::sleep(Duration::from_secs(1)) => panic!("timer should have fired"),
         }
     }
 
@@ -130,7 +130,7 @@ mod tests {
 
         tokio::select! {
             () = &mut timer => panic!("stopped timer should not fire"),
-            _ = tokio::time::sleep(Duration::from_millis(100)) => {}
+            () = tokio::time::sleep(Duration::from_millis(100)) => {}
         }
     }
 
@@ -143,7 +143,7 @@ mod tests {
 
         tokio::select! {
             () = &mut timer => {}
-            _ = tokio::time::sleep(Duration::from_secs(1)) => panic!("re-armed timer should fire"),
+            () = tokio::time::sleep(Duration::from_secs(1)) => panic!("re-armed timer should fire"),
         }
     }
 }

@@ -17,7 +17,7 @@ impl FIXStringTrait for FIXString {
 impl FieldValueReader for FIXString {
     fn read(&mut self, input: &[u8]) -> SimpleResult<()> {
         self.clear();
-        *self = String::from_utf8_lossy(input).to_string();
+        *self = String::from_utf8_lossy(input).into_owned();
         Ok(())
     }
 }
