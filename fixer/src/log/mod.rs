@@ -20,34 +20,49 @@ pub mod screen_log;
 #[cfg(feature = "sql_log")]
 pub mod sql_log;
 
-// Log is a generic trait for logging FIX messages and events.
+/// Logging backend for FIX messages and session events.
+///
+/// Built-in implementations: [`NullLog`](null_log::NullLog),
+/// [`ScreenLog`](screen_log::ScreenLog),
+/// [`FileLog`](file_log::FileLog),
+/// [`CompositeLog`](composite_log::CompositeLog),
+/// [`SqlLog`](sql_log::SqlLog) (feature `sql_log`),
+/// [`MongoLog`](mongo_log::MongoLog) (feature `mongo_log`).
 #[allow(async_fn_in_trait)] // dispatched via enum_dispatch, not used as trait object
 #[enum_dispatch]
 pub trait LogTrait {
-    // on_incoming log incoming fix message
+    /// Called when a FIX message is received from the wire.
     async fn on_incoming(&mut self, data: &[u8]);
 
-    // on_outgoing log outgoing fix message
+    /// Called when a FIX message is sent to the wire.
     async fn on_outgoing(&mut self, data: &[u8]);
 
-    // on_event log fix event
+    /// Called when a session event occurs (logon, logout, error, etc.).
     async fn on_event(&mut self, data: &str);
 
-    // on_eventf log fix event according to format specifier
+    /// Like [`on_event`](LogTrait::on_event) but with key-value parameters for
+    /// structured formatting.
     async fn on_eventf(&mut self, format: &str, params: FxHashMap<String, String>);
 }
 
-// The LogFactory trait creates global and session specific Log instances
+/// Creates [`LogTrait`] instances for the engine.
+///
+/// Pass a factory to [`Acceptor::new`](crate::acceptor::Acceptor::new) or
+/// [`Initiator::new`](crate::initiator::Initiator::new). The engine calls
+/// [`create`](LogFactoryTrait::create) once for a global logger and
+/// [`create_session_log`](LogFactoryTrait::create_session_log) once per
+/// session.
 #[allow(async_fn_in_trait)] // dispatched via enum_dispatch, not used as trait object
 #[enum_dispatch]
 pub trait LogFactoryTrait {
-    // create global log
+    /// Creates a global (non-session-specific) logger.
     async fn create(&mut self) -> Result<LogEnum, String>;
 
-    // create_session_log session specific log
+    /// Creates a logger scoped to the given session.
     async fn create_session_log(&mut self, session_id: Arc<SessionID>) -> Result<LogEnum, String>;
 }
 
+/// Enum-dispatched wrapper over all [`LogTrait`] implementations.
 #[enum_dispatch(LogTrait)]
 pub enum LogEnum {
     NullLog,
@@ -66,6 +81,7 @@ impl Default for LogEnum {
     }
 }
 
+/// Enum-dispatched wrapper over all [`LogFactoryTrait`] implementations.
 #[enum_dispatch(LogFactoryTrait)]
 #[derive(Clone)]
 pub enum LogFactoryEnum {

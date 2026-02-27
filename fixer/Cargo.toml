@@ -68,6 +68,7 @@ pprof = { version = "0.14", features = ["flamegraph", "criterion"] }
 rcgen = "0.14"
 serial_test = "3.0"
 tempfile = "3"
+tokio-test = "0.4"
 
 [[example]]
 name = "echo_server"

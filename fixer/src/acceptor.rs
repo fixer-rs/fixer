@@ -92,6 +92,93 @@ struct SessionHandle {
     session_id: Arc<SessionID>,
 }
 
+/// A FIX server that listens for inbound connections.
+///
+/// The `Acceptor` binds a TCP (or TLS) listener and waits for remote FIX
+/// clients to connect. Each incoming connection is matched to a pre-configured
+/// session by swapping the `SenderCompID` / `TargetCompID` from the first
+/// message received on the wire.
+///
+/// # Lifecycle
+///
+/// ```text
+/// Acceptor::new(app, store, settings, log)   // parse config, create sessions
+///     .start()                                // bind listener, begin accepting
+///     ...                                     // sessions exchange messages
+///     .stop()                                 // graceful shutdown
+/// ```
+///
+/// # Dynamic Sessions
+///
+/// When `DynamicSessions=Y` is set in the global config, connections from
+/// unknown counterparties automatically create sessions on-the-fly using the
+/// global settings. Set `DynamicQualifier=Y` to assign unique qualifiers so
+/// multiple connections from the same `SenderCompID`/`TargetCompID` pair get
+/// separate sessions.
+///
+/// # TLS
+///
+/// TLS is enabled by setting `SocketUseSSL=Y` along with
+/// `SocketCertificateFile` and `SocketPrivateKeyFile` in the config, or by
+/// calling [`set_tls_config`](Acceptor::set_tls_config) with a pre-built
+/// [`TlsAcceptor`](tokio_rustls::TlsAcceptor) before `start()`.
+///
+/// # Example
+///
+/// ```rust,no_run
+/// # use fixer::{
+/// #     acceptor::Acceptor,
+/// #     application::Application,
+/// #     errors::MessageRejectErrorResult,
+/// #     log::screen_log::ScreenLogFactory,
+/// #     message::Message,
+/// #     session::session_id::SessionID,
+/// #     settings::Settings,
+/// #     store::MemoryStoreFactory,
+/// # };
+/// # use simple_error::SimpleResult;
+/// # use std::sync::Arc;
+/// # use tokio::io::BufReader;
+/// # struct MyApp;
+/// # impl Application for MyApp {
+/// #     fn on_create(&self, _: &Arc<SessionID>) {}
+/// #     fn on_logon(&self, _: &Arc<SessionID>) {}
+/// #     fn on_logout(&self, _: &Arc<SessionID>) {}
+/// #     fn to_admin(&self, _: &mut Message, _: &Arc<SessionID>) {}
+/// #     fn to_app(&self, _: &mut Message, _: &Arc<SessionID>) -> SimpleResult<()> { Ok(()) }
+/// #     fn from_admin(&self, _: &Message, _: &Arc<SessionID>) -> MessageRejectErrorResult { Ok(()) }
+/// #     fn from_app(&self, _: &Message, _: &Arc<SessionID>) -> MessageRejectErrorResult { Ok(()) }
+/// # }
+/// # #[tokio::main]
+/// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let cfg = "\
+/// [DEFAULT]
+/// SocketAcceptPort=5001
+/// SenderCompID=SERVER
+/// TargetCompID=CLIENT
+/// ResetOnLogon=Y
+///
+/// [SESSION]
+/// BeginString=FIX.4.2
+/// ";
+/// let settings = Settings::parse(BufReader::new(cfg.as_bytes())).await?;
+/// let app: Arc<dyn Application> = Arc::new(MyApp);
+///
+/// let mut acceptor = Acceptor::new(
+///     app,
+///     MemoryStoreFactory::new(),
+///     settings,
+///     ScreenLogFactory::new(),
+/// ).await?;
+///
+/// acceptor.start().await?;
+/// println!("Listening on {:?}", acceptor.local_address());
+///
+/// tokio::signal::ctrl_c().await?;
+/// acceptor.stop().await;
+/// # Ok(())
+/// # }
+/// ```
 #[allow(clippy::struct_field_names)]
 pub struct Acceptor {
     sessions: Vec<SessionHandle>,
@@ -112,6 +199,13 @@ pub struct Acceptor {
 }
 
 impl Acceptor {
+    /// Creates a new `Acceptor` from the given components.
+    ///
+    /// Parses `SocketAcceptPort` (required) and `SocketAcceptHost` (optional,
+    /// defaults to `0.0.0.0`) from the global settings. Creates one session per
+    /// `[SESSION]` block and registers them in the global session registry.
+    ///
+    /// Does **not** start listening — call [`start`](Acceptor::start) for that.
     pub async fn new(
         app: Arc<dyn Application>,
         store_factory: MessageStoreFactoryEnum,
@@ -213,6 +307,11 @@ impl Acceptor {
         })
     }
 
+    /// Binds the TCP listener and begins accepting connections.
+    ///
+    /// Each pre-configured session's `run()` loop is spawned as a background
+    /// task. Incoming connections are matched to sessions by parsing the first
+    /// FIX message. Must only be called once.
     pub async fn start(&mut self) -> SimpleResult<()> {
         // Start session.run() for all sessions — each task owns its Session
         for handle in &mut self.sessions {
@@ -295,6 +394,12 @@ impl Acceptor {
         Ok(())
     }
 
+    /// Gracefully shuts down the acceptor.
+    ///
+    /// Stops the accept loop, sends a stop signal to every session, waits for
+    /// all background tasks to complete, and unregisters sessions from the
+    /// global registry so the acceptor can be recreated without duplicate
+    /// session errors.
     pub async fn stop(&mut self) {
         // Signal accept loop to stop
         let _ = self.stop_tx.send(true);
@@ -342,8 +447,10 @@ impl Acceptor {
         self.new_listener_callback = Some(Arc::new(cb));
     }
 
-    // local_address returns the actual bound address after start().
-    // Useful when binding to port 0 to get the OS-assigned port.
+    /// Returns the actual bound address after [`start`](Acceptor::start).
+    ///
+    /// Useful when binding to port 0 to discover the OS-assigned port.
+    /// Returns `None` before `start()` is called.
     pub fn local_address(&self) -> Option<SocketAddr> {
         self.local_address
     }

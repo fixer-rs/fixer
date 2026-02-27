@@ -1,6 +1,14 @@
 use std::hash::Hash;
 
-// SessionID is a unique identifier of a Session
+/// Uniquely identifies a FIX session.
+///
+/// A session is identified by its FIX version (`begin_string`), the local
+/// party (`sender_comp_id`), and the remote party (`target_comp_id`). Optional
+/// sub/location IDs and a qualifier further disambiguate when multiple
+/// sessions share the same comp IDs.
+///
+/// `Display` formats as `FIX.4.2:SENDER->TARGET` (with optional sub/location
+/// IDs and qualifier appended).
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub struct SessionID {
     pub begin_string: String,
@@ -23,7 +31,7 @@ fn append_optional(buffer: &mut String, delim: &str, v: &str) {
 }
 
 impl SessionID {
-    // is_fixt returns true if the SessionID has a FIXT begin_string
+    /// Returns `true` if this session uses `FIXT.1.1` as its `BeginString`.
     pub fn is_fixt(&self) -> bool {
         self.begin_string == crate::BEGIN_STRING_FIXT11
     }

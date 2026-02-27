@@ -100,8 +100,50 @@ pub struct FieldMapContent {
     pub parsed_fields: Option<Vec<TagValue>>,
 }
 
+/// An ordered collection of FIX tag-value fields.
+///
+/// Every FIX [`Message`](crate::message::Message) contains three `FieldMap`s
+/// exposed as [`Header`](crate::message::Header),
+/// [`Body`](crate::message::Body), and
+/// [`Trailer`](crate::message::Trailer). Each section uses a different
+/// [`TagOrderType`] to control serialization order (header puts 8/9/35 first,
+/// trailer puts `CheckSum` last, body sorts ascending).
+///
+/// # Reading Fields
+///
+/// Use the typed getters for the common FIX types:
+///
+/// ```
+/// use fixer::field_map::FieldMap;
+///
+/// let mut fm = FieldMap::default().init();
+/// fm.set_string(11, "order-1");
+/// fm.set_int(38, 100);
+/// fm.set_bool(110, true);
+///
+/// assert_eq!(fm.get_string(11).unwrap(), "order-1");
+/// assert_eq!(fm.get_int(38).unwrap(), 100);
+/// assert!(fm.get_bool(110).unwrap());
+/// ```
+///
+/// For zero-copy access use [`get_bytes`](FieldMap::get_bytes) or
+/// [`with_bytes`](FieldMap::with_bytes).
+///
+/// # Writing Fields
+///
+/// Setters return `&FieldMap` so calls can be chained when used through the
+/// underlying `field_map` field:
+///
+/// ```
+/// use fixer::field_map::FieldMap;
+///
+/// let mut fm = FieldMap::default().init();
+/// fm.set_string(11, "order-1");
+/// fm.set_int(38, 100);
+/// assert!(fm.has(11));
+/// assert!(fm.has(38));
+/// ```
 #[derive(Debug, Clone)]
-// FieldMap is a collection of fix fields that make up a fix message.
 pub struct FieldMap {
     pub content: FieldMapContent,
 }
@@ -132,22 +174,25 @@ impl FieldMap {
         self.content.tag_sort.compare_type = ordering;
     }
 
-    // tags returns all of the Field Tags in this FieldMap
+    /// Returns all field tags in insertion order (unsorted).
     pub fn tags(&self) -> Vec<Tag> {
         self.content.tag_sort.tags.clone()
     }
 
-    // get parses out a field in this FieldMap. Returned reject may indicate the field is not present, or the field value is invalid.
+    /// Reads a field using its [`Field`] implementation (the tag is derived
+    /// from `parser.tag()`). Returns an error if the field is absent or the
+    /// value cannot be parsed.
     pub fn get<P: Field + FieldValueReader>(&self, parser: &mut P) -> MessageRejectErrorResult {
         self.get_field(parser.tag(), parser)
     }
 
-    // has returns true if the Tag is present in this FieldMap
+    /// Returns `true` if a field with the given tag exists.
     pub fn has(&self, tag: Tag) -> bool {
         self.content.tag_lookup.contains_key(&tag)
     }
 
-    // get_field parses of a field with Tag tag. Returned reject may indicate the field is not present, or the field value is invalid.
+    /// Reads the value of the field identified by `tag` into `parser`.
+    /// Returns an error if the field is absent or the value cannot be parsed.
     pub fn get_field<P: FieldValueReader>(
         &self,
         tag: Tag,
@@ -166,7 +211,8 @@ impl FieldMap {
         Ok(())
     }
 
-    // get_bytes is a zero-copy get_field wrapper for []bytes fields
+    /// Returns the raw bytes of a field without copying. Returns an error if
+    /// the tag is absent.
     pub fn get_bytes(&self, tag: Tag) -> Result<&[u8], MessageRejectErrorEnum> {
         let f = self
             .content
@@ -176,8 +222,8 @@ impl FieldMap {
         Ok(f.data[0].value())
     }
 
-    // with_bytes borrows the raw bytes for the given tag and passes them to a
-    // closure, avoiding the Vec allocation that get_bytes would require.
+    /// Borrows the raw bytes for `tag` and passes them to a closure, avoiding
+    /// allocation.
     pub fn with_bytes<T, F>(&self, tag: Tag, f: F) -> Result<T, MessageRejectErrorEnum>
     where
         F: FnOnce(&[u8]) -> Result<T, MessageRejectErrorEnum>,
@@ -190,14 +236,14 @@ impl FieldMap {
         f(field.data[0].value())
     }
 
-    // get_bool is a get_field wrapper for bool fields
+    /// Returns the field value as a `bool` (`Y` = true, `N` = false).
     pub fn get_bool(&self, tag: Tag) -> Result<bool, MessageRejectErrorEnum> {
         let mut val = FIXBoolean::default();
         self.get_field(tag, &mut val)?;
         Ok(val)
     }
 
-    // get_int is a get_field wrapper for int fields
+    /// Returns the field value parsed as an integer.
     pub fn get_int(&self, tag: Tag) -> Result<isize, MessageRejectErrorEnum> {
         self.with_bytes(tag, |bytes| {
             let mut val = FIXInt::default();
@@ -207,7 +253,7 @@ impl FieldMap {
         })
     }
 
-    // get_time is a get_field wrapper for utc timestamp fields
+    /// Returns the field value parsed as a UTC timestamp.
     pub fn get_time(&self, tag: Tag) -> Result<Timestamp, MessageRejectErrorEnum> {
         self.with_bytes(tag, |bytes| {
             let mut val = FIXUTCTimestamp::default();
@@ -217,14 +263,15 @@ impl FieldMap {
         })
     }
 
-    // get_string is a get_field wrapper for string fields
+    /// Returns the field value as a `String`.
     pub fn get_string(&self, tag: Tag) -> Result<String, MessageRejectErrorEnum> {
         let mut val = FIXString::default();
         self.get_field(tag, &mut val)?;
         Ok(val)
     }
 
-    // get_group is a Get fntion specific to Group Fields.
+    /// Reads a repeating group. The `parser` determines the group's count tag
+    /// and member field layout.
     pub fn get_group<P: FieldGroupReader>(&self, parser: P) -> Result<P, MessageRejectErrorEnum> {
         let mut parser = parser;
 
@@ -261,7 +308,7 @@ impl FieldMap {
         Ok(parser)
     }
 
-    // set_field sets the field with Tag tag
+    /// Sets a field by tag and a [`FieldValueWriter`].
     #[allow(clippy::needless_pass_by_value)]
     pub fn set_field<F: FieldValueWriter>(&mut self, tag: Tag, field: F) -> &FieldMap {
         let f = self.get_or_create(tag);
@@ -269,42 +316,42 @@ impl FieldMap {
         self
     }
 
-    // set_bytes sets bytes
+    /// Sets a field's raw bytes directly.
     pub fn set_bytes(&mut self, tag: Tag, value: &[u8]) -> &FieldMap {
         let f = self.get_or_create(tag);
         f.init_field(tag, value);
         self
     }
 
-    // set_bool is a set_field wrapper for bool fields
+    /// Sets a boolean field (`true` = `Y`, `false` = `N`).
     pub fn set_bool(&mut self, tag: Tag, value: bool) -> &FieldMap {
         self.set_field(tag, value)
     }
 
-    // set_int is a set_field wrapper for int fields
+    /// Sets an integer field.
     pub fn set_int(&mut self, tag: Tag, value: isize) -> &FieldMap {
         let f = self.get_or_create(tag);
         f.data[0].init_with_writer(tag, &(value as FIXInt));
         self
     }
 
-    // set_string is a set_field wrapper for string fields
+    /// Sets a string field.
     pub fn set_string(&mut self, tag: Tag, value: &str) -> &FieldMap {
         self.set_bytes(tag, value.as_bytes())
     }
 
-    // remove removes a tag from field map.
+    /// Removes a field by tag. Does nothing if the tag is not present.
     pub fn remove(&mut self, tag: Tag) {
         self.content.tag_lookup.remove(&tag);
     }
 
-    // clear purges all fields from field map
+    /// Removes all fields.
     pub fn clear(&mut self) {
         self.content.tag_sort.tags.clear();
         self.content.tag_lookup.clear();
     }
 
-    // copy_into overwrites the given FieldMap with this one
+    /// Deep-copies this `FieldMap` into `to`, replacing its contents.
     pub fn copy_into(&self, to: &mut FieldMap) {
         to.content.tag_lookup.clone_from(&self.content.tag_lookup);
         to.content.tag_sort.tags.clone_from(&self.content.tag_sort.tags);
@@ -330,7 +377,7 @@ impl FieldMap {
         self.content.tag_lookup.get_mut(&tag).unwrap()
     }
 
-    // set is a setter for fields
+    /// Sets a field using a [`FieldWriter`] (the tag is derived from the field).
     #[allow(clippy::needless_pass_by_value)]
     pub fn set<F: FieldWriter>(&mut self, field: F) -> &FieldMap {
         let tag = field.tag();
@@ -339,7 +386,7 @@ impl FieldMap {
         self
     }
 
-    // set_group is a setter specific to group fields
+    /// Sets a repeating group field.
     #[allow(clippy::needless_pass_by_value)]
     pub fn set_group<F: FieldGroupWriter>(&mut self, field: F) -> &FieldMap {
         if !self.content.tag_lookup.contains_key(&field.tag()) {
