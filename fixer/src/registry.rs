@@ -33,7 +33,7 @@ pub static ERR_UNKNOWN_SESSION: LazyLock<SimpleError> =
     LazyLock::new(|| simple_error!("Unknown session"));
 
 // Messagable is a Message or something that can be converted to a Message.
-pub trait Messageable {
+pub trait Messageable: Send + Sync {
     fn to_message(&self) -> &Message;
 }
 
