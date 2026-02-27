@@ -1,0 +1,36 @@
+[package]
+authors = ["Karuna Murti <karuna.murti@gmail.com>"]
+description = "Acceptance test runner for fixer FIX protocol engine"
+edition = "2024"
+license = "Apache-2.0"
+name = "fixer-test"
+rust-version = "1.85"
+version = "0.9.0"
+publish = false
+
+[[bin]]
+name = "fixer-test"
+path = "src/main.rs"
+
+[dependencies]
+fixer = { path = "../fixer" }
+regex = "1.12"
+simple-error = "0.3"
+tokio = { version = "1.49", features = ["io-util", "rt", "rt-multi-thread", "sync", "macros", "net", "signal", "time"] }
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+correctness = { level = "deny", priority = -1 }
+suspicious = { level = "warn", priority = -1 }
+complexity = { level = "warn", priority = -1 }
+perf = { level = "warn", priority = -1 }
+style = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+wildcard_imports = "allow"
+too_many_lines = "allow"
