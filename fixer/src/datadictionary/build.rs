@@ -196,25 +196,24 @@ impl Builder {
 
         let required = xml_field.is_required();
 
-        match xml_field {
-            XMLComponentEnum::Component(c) => {
-                if let Some(fields) = &c.fields {
-                    for member in fields {
-                        let comp_type = self.find_or_build_component_type(member.clone())?;
-                        let comp = Component::new(comp_type, member.is_required());
-                        parts.push(MessagePart::Component(comp));
-                    }
+        let inner = match xml_field {
+            XMLComponentEnum::Component(c)
+            | XMLComponentEnum::Field(c)
+            | XMLComponentEnum::Group(c) => &c.fields,
+            _ => &None,
+        };
+
+        if let Some(members) = inner {
+            for member in members {
+                if member.is_component() {
+                    let comp_type = self.find_or_build_component_type(member.clone())?;
+                    let comp = Component::new(comp_type, member.is_required());
+                    parts.push(MessagePart::Component(comp));
+                } else {
+                    let f = self.build_field_def(member)?;
+                    parts.push(MessagePart::FieldDef(f));
                 }
             }
-            XMLComponentEnum::Field(f) => {
-                if let Some(fields) = &f.fields {
-                    for member in fields {
-                        let f = self.build_field_def(member)?;
-                        parts.push(MessagePart::FieldDef(f));
-                    }
-                }
-            }
-            _ => {}
         }
 
         Ok(FieldDef::new_group(group_field_type, required, parts))

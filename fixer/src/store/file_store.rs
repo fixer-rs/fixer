@@ -30,10 +30,16 @@ impl IndividualFile {
     async fn set_seq_num(&mut self, seq_num: isize) -> SimpleResult<()> {
         let _ = self.file.as_mut().unwrap().rewind().await;
 
+        // Right-align the number in a 19-byte buffer, padded with spaces.
+        let mut buf = [b' '; 19];
+        let mut num = itoa::Buffer::new();
+        let digits = num.format(seq_num).as_bytes();
+        buf[19 - digits.len()..].copy_from_slice(digits);
+
         self.file
             .as_mut()
             .unwrap()
-            .write(format!("{seq_num:19}").as_bytes())
+            .write(&buf)
             .await
             .map_err(|err| simple_error!("unable to write to file: {}: {}", self.file_name, err))?;
 
@@ -130,11 +136,20 @@ impl MessageStoreTrait for FileStore {
                 )
             })?;
 
+        // Build header line without format! allocation.
+        let mut hdr_buf = Vec::with_capacity(48);
+        hdr_buf.extend_from_slice(itoa::Buffer::new().format(seq_num).as_bytes());
+        hdr_buf.push(b',');
+        hdr_buf.extend_from_slice(itoa::Buffer::new().format(offset).as_bytes());
+        hdr_buf.push(b',');
+        hdr_buf.extend_from_slice(itoa::Buffer::new().format(msg.len()).as_bytes());
+        hdr_buf.push(b'\n');
+
         self.header_file
             .file
             .as_mut()
             .unwrap()
-            .write(format!("{},{},{}\n", seq_num, offset, msg.len()).as_bytes())
+            .write(&hdr_buf)
             .await
             .map_err(|err| {
                 simple_error!(
@@ -222,27 +237,43 @@ impl MessageStoreTrait for FileStore {
         // Sort by sequence number to ensure ordered iteration.
         entries.sort_by_key(|(seq_num, _, _)| *seq_num);
 
-        // Read each message from the body file and invoke the callback.
-        for (_, offset, size) in &entries {
-            let mut msg = vec![0u8; *size];
-            body_file
-                .seek(SeekFrom::Start(*offset))
-                .await
-                .map_err(|err| {
-                    simple_error!(
-                        "unable to read from file: {}: {}",
-                        &self.body_file.file_name,
-                        &err
-                    )
-                })?;
-            body_file.read_exact(&mut msg).await.map_err(|err| {
+        if entries.is_empty() {
+            return Ok(());
+        }
+
+        // Bulk read: compute the contiguous range covering all entries,
+        // read it in one I/O operation, then slice out individual messages.
+        let first_offset = entries.iter().map(|(_, o, _)| *o).min().unwrap();
+        let last_end = entries.iter().map(|(_, o, s)| *o + *s as u64).max().unwrap();
+        #[allow(clippy::cast_possible_truncation)]
+        let bulk_size = (last_end - first_offset) as usize;
+
+        body_file
+            .seek(SeekFrom::Start(first_offset))
+            .await
+            .map_err(|err| {
+                simple_error!(
+                    "unable to seek in file: {}: {}",
+                    &self.body_file.file_name,
+                    &err
+                )
+            })?;
+        let mut bulk_buf = vec![0u8; bulk_size];
+        body_file
+            .read_exact(&mut bulk_buf)
+            .await
+            .map_err(|err| {
                 simple_error!(
                     "unable to read from file: {}: {}",
                     &self.body_file.file_name,
                     &err
                 )
             })?;
-            cb(&msg)?;
+
+        for (_, offset, size) in &entries {
+            #[allow(clippy::cast_possible_truncation)]
+            let start = (*offset - first_offset) as usize;
+            cb(&bulk_buf[start..start + size])?;
         }
         Ok(())
     }
@@ -268,20 +299,19 @@ impl MessageStoreTrait for FileStore {
 
         let creation_time_populated = self.populate_cache().await?;
 
-        // Reopen all files for read/write access.
-        self.body_file.file = Some(open_or_create_file(&self.body_file.file_name, 0o660).await?);
-
-        self.header_file.file =
-            Some(open_or_create_file(&self.header_file.file_name, 0o660).await?);
-
-        self.session_file.file =
-            Some(open_or_create_file(&self.session_file.file_name, 0o660).await?);
-
-        self.sender_seq_nums_file.file =
-            Some(open_or_create_file(&self.sender_seq_nums_file.file_name, 0o660).await?);
-
-        self.target_seq_nums_file.file =
-            Some(open_or_create_file(&self.target_seq_nums_file.file_name, 0o660).await?);
+        // Reopen all files for read/write access in parallel.
+        let (body, header, session, sender, target) = tokio::try_join!(
+            open_or_create_file(&self.body_file.file_name, 0o660),
+            open_or_create_file(&self.header_file.file_name, 0o660),
+            open_or_create_file(&self.session_file.file_name, 0o660),
+            open_or_create_file(&self.sender_seq_nums_file.file_name, 0o660),
+            open_or_create_file(&self.target_seq_nums_file.file_name, 0o660),
+        )?;
+        self.body_file.file = Some(body);
+        self.header_file.file = Some(header);
+        self.session_file.file = Some(session);
+        self.sender_seq_nums_file.file = Some(sender);
+        self.target_seq_nums_file.file = Some(target);
 
         if !creation_time_populated {
             self.set_session().await?;
@@ -307,32 +337,36 @@ impl MessageStoreTrait for FileStore {
 
         map_err_with!(self.close().await, "close")?;
 
-        // Reopen all files for read/write access.
+        // Remove all files in parallel.
         let _ = self.body_file.file.take();
-        remove_file(&self.body_file.file_name).await?;
         let _ = self.header_file.file.take();
-        remove_file(&self.header_file.file_name).await?;
         let _ = self.session_file.file.take();
-        remove_file(&self.session_file.file_name).await?;
         let _ = self.sender_seq_nums_file.file.take();
-        remove_file(&self.sender_seq_nums_file.file_name).await?;
         let _ = self.target_seq_nums_file.file.take();
-        remove_file(&self.target_seq_nums_file.file_name).await?;
+        tokio::try_join!(
+            remove_file(&self.body_file.file_name),
+            remove_file(&self.header_file.file_name),
+            remove_file(&self.session_file.file_name),
+            remove_file(&self.sender_seq_nums_file.file_name),
+            remove_file(&self.target_seq_nums_file.file_name),
+        )?;
 
         self.refresh().await
     }
 
     async fn close(&mut self) -> SimpleResult<()> {
-        let file_option = self.body_file.file.take();
-        close_file(file_option).await?;
-        let file_option = self.header_file.file.take();
-        close_file(file_option).await?;
-        let file_option = self.session_file.file.take();
-        close_file(file_option).await?;
-        let file_option = self.sender_seq_nums_file.file.take();
-        close_file(file_option).await?;
-        let file_option = self.target_seq_nums_file.file.take();
-        close_file(file_option).await?;
+        let body = self.body_file.file.take();
+        let header = self.header_file.file.take();
+        let session = self.session_file.file.take();
+        let sender = self.sender_seq_nums_file.file.take();
+        let target = self.target_seq_nums_file.file.take();
+        tokio::try_join!(
+            close_file(body),
+            close_file(header),
+            close_file(session),
+            close_file(sender),
+            close_file(target),
+        )?;
         Ok(())
     }
 }
@@ -543,22 +577,23 @@ pub struct FileStoreFactory {
 
 impl MessageStoreFactoryTrait for FileStoreFactory {
     async fn create(&self, session_id: Arc<SessionID>) -> SimpleResult<MessageStoreEnum> {
-        let mut lock = self.settings.lock().await;
-        let global_settings_wrapper = lock.global_settings().await;
-        let global_settings = global_settings_wrapper.as_ref().unwrap();
+        let (global_settings, session_settings_map) = {
+            let mut lock = self.settings.lock().await;
+            let gs = lock.global_settings().await.unwrap();
+            let ss = lock.session_settings().await;
+            (gs, ss)
+        };
 
         let dynamic_sessions = global_settings
             .bool_setting(DYNAMIC_SESSIONS)
             .unwrap_or(false);
 
-        let session_settings_wrapper = lock.session_settings().await;
-        let session_settings_option = session_settings_wrapper.get(&session_id);
-        if let Some(session_settings_pair) = session_settings_option {
+        if let Some(session_settings_pair) = session_settings_map.get(&session_id) {
             let session_settings = session_settings_pair.value();
             return create_file_store(session_id, session_settings).await;
         }
         if dynamic_sessions {
-            return create_file_store(session_id, global_settings).await;
+            return create_file_store(session_id, &global_settings).await;
         }
         Err(simple_error!(
             "unknown session: {}",

@@ -16,7 +16,15 @@ pub mod mongo_store;
 #[cfg(feature = "sql_store")]
 pub mod sql_store;
 
-// The MessageStoreTrait interface provides methods to record and retrieve messages for resend purposes
+/// Persistence backend for FIX message sequence numbers and resendable
+/// messages.
+///
+/// Implementations track sender/target sequence numbers, store outgoing
+/// messages for potential resend, and support reset/refresh operations.
+///
+/// Built-in implementations: [`MemoryStore`], [`FileStore`](file_store::FileStore),
+/// [`SqlStore`](sql_store::SqlStore) (feature `sql_store`),
+/// [`MongoStore`](mongo_store::MongoStore) (feature `mongo_store`).
 #[allow(async_fn_in_trait)] // dispatched via enum_dispatch, not used as trait object
 #[enum_dispatch]
 pub trait MessageStoreTrait {
@@ -55,13 +63,18 @@ pub trait MessageStoreTrait {
     async fn close(&mut self) -> SimpleResult<()>;
 }
 
-// The MessageStoreFactoryTrait interface is used by session to create a session specific message store
+/// Creates session-specific [`MessageStoreTrait`] instances.
+///
+/// Pass a factory to [`Acceptor::new`](crate::acceptor::Acceptor::new) or
+/// [`Initiator::new`](crate::initiator::Initiator::new) and the engine will
+/// call [`create`](MessageStoreFactoryTrait::create) once per session.
 #[allow(async_fn_in_trait)] // dispatched via enum_dispatch, not used as trait object
 #[enum_dispatch]
 pub trait MessageStoreFactoryTrait {
     async fn create(&self, session_id: Arc<SessionID>) -> SimpleResult<MessageStoreEnum>;
 }
 
+/// Enum-dispatched wrapper over all [`MessageStoreTrait`] implementations.
 #[allow(clippy::large_enum_variant)]
 #[enum_dispatch(MessageStoreTrait)]
 pub enum MessageStoreEnum {
@@ -81,6 +94,8 @@ impl Default for MessageStoreEnum {
     }
 }
 
+/// Enum-dispatched wrapper over all [`MessageStoreFactoryTrait`]
+/// implementations.
 #[enum_dispatch(MessageStoreFactoryTrait)]
 #[derive(Clone)]
 pub enum MessageStoreFactoryEnum {
@@ -98,6 +113,7 @@ impl Default for MessageStoreFactoryEnum {
     }
 }
 
+/// In-memory message store. Fast but does not survive restarts.
 #[derive(Default)]
 pub struct MemoryStore {
     pub sender_msg_seq_num: isize,
@@ -214,7 +230,7 @@ impl MessageStoreFactoryTrait for MemoryStoreFactory {
 }
 
 impl MemoryStoreFactory {
-    // new returns a MessageStoreFactory instance that created in-memory MessageStores
+    /// Creates a factory that produces in-memory message stores.
     #[allow(clippy::new_ret_no_self)]
     pub fn new() -> MessageStoreFactoryEnum {
         MessageStoreFactoryEnum::MemoryStoreFactory(MemoryStoreFactory)

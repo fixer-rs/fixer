@@ -1,3 +1,3 @@
 [workspace]
-members = ["fixer", "fixer-gen", "fixer-fix"]
+members = ["fixer", "fixer-gen", "fixer-fix", "fixer-test"]
 resolver = "3"

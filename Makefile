@@ -20,4 +20,34 @@ clippy:
 test:
 	cargo test --workspace
 
-.PHONY: all clean generate generate-float fmt clippy test
+build-test:
+	cargo build -p fixer-test
+
+fix40: build-test
+	cargo run -p fixer-test -- _test/cfg/server/fix40.cfg 5001 _test/definitions/server/fix40/*.def
+
+fix41: build-test
+	cargo run -p fixer-test -- _test/cfg/server/fix41.cfg 5002 _test/definitions/server/fix41/*.def
+
+fix42: build-test
+	cargo run -p fixer-test -- _test/cfg/server/fix42.cfg 5003 _test/definitions/server/fix42/*.def
+
+fix43: build-test
+	cargo run -p fixer-test -- _test/cfg/server/fix43.cfg 5004 _test/definitions/server/fix43/*.def
+
+fix44: build-test
+	cargo run -p fixer-test -- _test/cfg/server/fix44.cfg 5005 _test/definitions/server/fix44/*.def
+
+fix50: build-test
+	cargo run -p fixer-test -- _test/cfg/server/fix50.cfg 5006 _test/definitions/server/fix50/*.def
+
+fix50sp1: build-test
+	cargo run -p fixer-test -- _test/cfg/server/fix50sp1.cfg 5007 _test/definitions/server/fix50sp1/*.def
+
+fix50sp2: build-test
+	cargo run -p fixer-test -- _test/cfg/server/fix50sp2.cfg 5008 _test/definitions/server/fix50sp2/*.def
+
+ACCEPT_SUITE = fix40 fix41 fix42 fix43 fix44 fix50 fix50sp1 fix50sp2
+accept: $(ACCEPT_SUITE)
+
+.PHONY: all clean generate generate-float fmt clippy test build-test $(ACCEPT_SUITE) accept

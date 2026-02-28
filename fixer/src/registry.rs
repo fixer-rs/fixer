@@ -33,7 +33,7 @@ pub static ERR_UNKNOWN_SESSION: LazyLock<SimpleError> =
     LazyLock::new(|| simple_error!("Unknown session"));
 
 // Messagable is a Message or something that can be converted to a Message.
-pub trait Messageable {
+pub trait Messageable: Send + Sync {
     fn to_message(&self) -> &Message;
 }
 
@@ -61,6 +61,33 @@ pub async fn send(message: &dyn Messageable) -> Result<(), FixerError> {
     send_to_target(message, &Arc::new(session_id)).await
 }
 
+// send_owned is like send but takes an owned Message, avoiding a clone.
+pub async fn send_owned(message: Message) -> Result<(), FixerError> {
+    let mut begin_string = FIXString::new();
+    message
+        .header
+        .get_field(TAG_BEGIN_STRING, &mut begin_string)?;
+
+    let mut target_comp_id = FIXString::new();
+    message
+        .header
+        .get_field(TAG_TARGET_COMP_ID, &mut target_comp_id)?;
+
+    let mut sender_comp_id = FIXString::new();
+    message
+        .header
+        .get_field(TAG_SENDER_COMP_ID, &mut sender_comp_id)?;
+
+    let session_id = SessionID {
+        begin_string,
+        target_comp_id,
+        sender_comp_id,
+        ..Default::default()
+    };
+
+    send_to_target_owned(message, &Arc::new(session_id)).await
+}
+
 // send_to_target sends a message based on the session_id. Sends through a
 // channel to the session's run loop rather than locking the session directly.
 pub async fn send_to_target(
@@ -68,6 +95,15 @@ pub async fn send_to_target(
     session_id: &Arc<SessionID>,
 ) -> Result<(), FixerError> {
     let msg = message.to_message();
+    send_to_target_owned(msg.clone(), session_id).await
+}
+
+// send_to_target_owned is like send_to_target but takes an owned Message,
+// avoiding a clone when the caller already has ownership.
+pub async fn send_to_target_owned(
+    message: Message,
+    session_id: &Arc<SessionID>,
+) -> Result<(), FixerError> {
     let registration = (*SESSIONS)
         .get(session_id)
         .ok_or(ERR_UNKNOWN_SESSION.clone())?;
@@ -76,7 +112,7 @@ pub async fn send_to_target(
     registration
         .admin_tx
         .send(AdminEnum::QueueForSend(QueueForSend {
-            msg: msg.clone(),
+            msg: message,
             result: result_tx,
         }))
         .map_err(|_| FixerError::from(ERR_UNKNOWN_SESSION.clone()))?;
@@ -120,4 +156,38 @@ pub fn lookup_session_registration(
 ) -> Option<SessionRegistration> {
     let reg = (*SESSIONS).get(session_id)?;
     Some(reg.clone())
+}
+
+// lookup_session_registration_flexible first tries an exact match, then falls back to
+// matching on all fields except qualifier. This is needed because incoming connections
+// don't carry a qualifier — it's a server-side config concept (e.g. SessionQualifier=FIX50
+// to disambiguate multiple FIXT.1.1 sessions with the same comp IDs).
+pub fn lookup_session_registration_flexible(
+    session_id: &Arc<SessionID>,
+) -> Option<(Arc<SessionID>, SessionRegistration)> {
+    // Exact match first
+    if let Some(reg) = (*SESSIONS).get(session_id) {
+        return Some((session_id.clone(), reg.clone()));
+    }
+
+    // Fall back: match on all fields except qualifier, but only when the
+    // incoming session has an empty qualifier. A non-empty qualifier (e.g.
+    // from DynamicQualifier assignment) should require an exact match.
+    if session_id.qualifier.is_empty() {
+        for entry in (*SESSIONS).iter() {
+            let candidate = entry.key();
+            if candidate.begin_string == session_id.begin_string
+                && candidate.sender_comp_id == session_id.sender_comp_id
+                && candidate.target_comp_id == session_id.target_comp_id
+                && candidate.sender_sub_id == session_id.sender_sub_id
+                && candidate.sender_location_id == session_id.sender_location_id
+                && candidate.target_sub_id == session_id.target_sub_id
+                && candidate.target_location_id == session_id.target_location_id
+            {
+                return Some((candidate.clone(), entry.value().clone()));
+            }
+        }
+    }
+
+    None
 }

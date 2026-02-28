@@ -338,24 +338,25 @@ pub struct MongoStoreFactory {
 
 impl MessageStoreFactoryTrait for MongoStoreFactory {
     async fn create(&self, session_id: Arc<SessionID>) -> SimpleResult<MessageStoreEnum> {
-        let mut lock = self.settings.lock().await;
-        let global_settings_wrapper = lock.global_settings().await;
-        let global_settings = global_settings_wrapper.as_ref().unwrap();
+        let (global_settings, session_settings_map) = {
+            let mut lock = self.settings.lock().await;
+            let gs = lock.global_settings().await.unwrap();
+            let ss = lock.session_settings().await;
+            (gs, ss)
+        };
 
         let dynamic_sessions = global_settings
             .bool_setting(DYNAMIC_SESSIONS)
             .unwrap_or(false);
 
-        let session_settings_wrapper = lock.session_settings().await;
-        let session_settings_option = session_settings_wrapper.get(&session_id);
-        if let Some(session_settings_pair) = session_settings_option {
+        if let Some(session_settings_pair) = session_settings_map.get(&session_id) {
             let session_settings = session_settings_pair.value();
             return self
                 .create_mongo_store(session_id, session_settings)
                 .await;
         }
         if dynamic_sessions {
-            return self.create_mongo_store(session_id, global_settings).await;
+            return self.create_mongo_store(session_id, &global_settings).await;
         }
         Err(simple_error!(
             "unknown session: {}",

@@ -6,7 +6,7 @@ use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::sync::Arc;
 use tokio::time::Duration;
 
-// ConditionallyRequiredSetting indicates a missing setting
+/// Error indicating a required configuration setting is missing.
 #[derive(Debug)]
 pub struct ConditionallyRequiredSetting {
     pub setting: String,
@@ -20,7 +20,7 @@ impl Display for ConditionallyRequiredSetting {
 
 impl Error for ConditionallyRequiredSetting {}
 
-// IncorrectFormatForSetting indicates a setting that is incorrectly formatted
+/// Error indicating a configuration setting has an unparseable value.
 #[derive(Debug)]
 pub struct IncorrectFormatForSetting {
     pub setting: String,
@@ -36,36 +36,43 @@ impl Display for IncorrectFormatForSetting {
 
 impl Error for IncorrectFormatForSetting {}
 
-// SessionSettings maps session settings to values with typed accessors.
+/// A string-keyed map of configuration values with typed accessors.
+///
+/// Used internally by [`Settings`](crate::settings::Settings) to represent
+/// both the `[DEFAULT]` section and individual `[SESSION]` sections.
+/// Values are stored as strings and parsed on demand via
+/// [`int_setting`](SessionSettings::int_setting),
+/// [`bool_setting`](SessionSettings::bool_setting), and
+/// [`duration_setting`](SessionSettings::duration_setting).
 #[derive(Default, Debug, Clone)]
 pub struct SessionSettings {
     pub settings: Arc<DashMap<String, String>>,
 }
 
 impl SessionSettings {
-    // new returns a newly initialized SessionSettings instance
+    /// Creates an empty `SessionSettings`.
     pub fn new() -> Self {
         Self {
             settings: Arc::new(DashMap::new()),
         }
     }
 
-    // init resets SessionSettings
+    /// Clears all settings.
     pub fn init(&mut self) {
         self.settings = Arc::new(DashMap::new());
     }
 
-    // set assigns a value to a setting on SessionSettings.
+    /// Assigns a value to a setting key.
     pub fn set(&mut self, setting: String, val: String) {
         let _ = self.settings.insert(setting, val);
     }
 
-    // has_setting returns true if a setting is set, false if not
+    /// Returns `true` if the given key has been set.
     pub fn has_setting(&self, setting: &str) -> bool {
         self.settings.contains_key(setting)
     }
 
-    // setting is a settings string accessor. Returns an error if the setting is missing.
+    /// Returns the raw string value of a setting, or an error if missing.
     pub fn setting(&self, setting: &str) -> Result<String, FixerError> {
         if !self.settings.contains_key(setting) {
             return Err(FixerError::new_conditionally_required(setting));
@@ -73,7 +80,8 @@ impl SessionSettings {
         Ok(self.settings.get(setting).unwrap().to_string())
     }
 
-    // int_setting returns the requested setting parsed as an int.  Returns an errror if the setting is not set or cannot be parsed as an int.
+    /// Returns the setting parsed as an integer, or an error if missing or
+    /// unparseable.
     pub fn int_setting(&self, setting: &str) -> Result<isize, FixerError> {
         let string_val = self.setting(setting)?;
 
@@ -81,8 +89,8 @@ impl SessionSettings {
             .map_err(|_| FixerError::new_incorrect_format_for_setting(setting, &string_val))
     }
 
-    // duration_setting returns the requested setting parsed as a Duration.
-    // Returns an error if the setting is not set or cannot be parsed as a time.Duration.
+    /// Returns the setting parsed as a `Duration`, or an error if missing or
+    /// unparseable.
     pub fn duration_setting(&self, setting: &str) -> Result<Duration, FixerError> {
         let string_val = self.setting(setting)?;
 
@@ -95,7 +103,8 @@ impl SessionSettings {
         })
     }
 
-    // bool_setting returns the requested setting parsed as a boolean.  Returns an error if the setting is not set or cannot be parsed as a bool.
+    /// Returns the setting parsed as a boolean (`Y`/`y` = true, `N`/`n` =
+    /// false), or an error if missing or unparseable.
     pub fn bool_setting(&self, setting: &str) -> Result<bool, FixerError> {
         let string_val = self.setting(setting)?;
 
@@ -117,6 +126,8 @@ impl SessionSettings {
         self.settings.clear();
     }
 
+    /// Copies all entries from `overlay` into this instance, overwriting
+    /// existing keys.
     pub fn overlay(&mut self, overlay: &Self) {
         for entry in overlay.settings.iter() {
             let (k, v) = entry.pair();

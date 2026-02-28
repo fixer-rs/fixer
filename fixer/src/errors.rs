@@ -9,7 +9,8 @@ use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::sync::LazyLock;
 use thiserror::Error as ThisError;
 
-// ERR_DO_NOT_SEND is a convenience error to indicate a DoNotSend in ToApp
+/// Sentinel error returned from [`Application::to_app`](crate::application::Application::to_app)
+/// to prevent a message from being sent.
 pub static ERR_DO_NOT_SEND: LazyLock<SimpleError> = LazyLock::new(|| simple_error!("Do Not Send"));
 
 pub const REJECT_REASON_INVALID_TAG_NUMBER: isize = 0;
@@ -29,18 +30,30 @@ pub const REJECT_REASON_REPEATING_GROUP_FIELDS_OUT_OF_ORDER: isize = 15;
 pub const REJECT_REASON_INCORRECT_NUM_IN_GROUP_COUNT_FOR_REPEATING_GROUP: isize = 16;
 pub const REJECT_REASON_OTHER: isize = 99;
 
-// MessageRejectError is a type of error that can correlate to a message reject.
+/// Trait for errors that map to a FIX Reject or `BusinessMessageReject`.
+///
+/// Returned from [`Application::from_app`](crate::application::Application::from_app)
+/// and [`Application::from_admin`](crate::application::Application::from_admin)
+/// to tell the engine to send a reject to the counterparty.
 #[enum_dispatch(MessageRejectErrorEnum)]
 pub trait MessageRejectErrorTrait: Error {
-    // reject_reason, tag 373 for session rejects, tag 380 for business rejects.
+    /// Session-level reject reason (tag 373) or business reject reason
+    /// (tag 380).
     fn reject_reason(&self) -> isize;
+    /// Business-level `RefMsgType` for `BusinessMessageReject`.
     fn business_reject_ref_id(&self) -> &str;
+    /// The tag that caused the rejection, if applicable.
     fn ref_tag_id(&self) -> Option<Tag>;
+    /// Returns `true` if this is a business-level reject (35=j) rather than
+    /// a session-level reject (35=3).
     fn is_business_reject(&self) -> bool;
 }
 
+/// Convenience alias for `Result<(), MessageRejectErrorEnum>`, used as the
+/// return type of [`Application`](crate::application::Application) callbacks.
 pub type MessageRejectErrorResult = Result<(), MessageRejectErrorEnum>;
 
+/// Enum of all message rejection error types.
 #[enum_dispatch]
 #[derive(Debug, ThisError, Clone, PartialEq, Eq)]
 pub enum MessageRejectErrorEnum {
@@ -71,7 +84,8 @@ impl From<MessageRejectErrorEnum> for SimpleError {
     }
 }
 
-// RejectLogon indicates the application is rejecting permission to logon. Implements MessageRejectError
+/// Returned from [`Application::from_admin`](crate::application::Application::from_admin)
+/// to reject an incoming Logon.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RejectLogon {
     pub text: String,
@@ -351,7 +365,9 @@ pub fn other_error() -> MessageRejectErrorEnum {
     MessageRejectError::new(String::from("Other error"), REJECT_REASON_OTHER, None)
 }
 
-// IncorrectBeginString is a message reject specific to incorrect begin strings.
+/// A session-level reject indicating the counterparty sent a message whose
+/// `BeginString` (tag 8) does not match the expected FIX version for this
+/// session.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct IncorrectBeginString {
     pub message_reject_error: MessageRejectError,
@@ -376,7 +392,8 @@ impl Display for IncorrectBeginString {
 
 impl Error for IncorrectBeginString {}
 
-// TargetTooHigh is a MessageReject where the sequence number is larger than expected.
+/// A session-level reject indicating the incoming `MsgSeqNum` is higher than
+/// expected, which typically triggers a resend request.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct TargetTooHigh {
     pub message_reject_error: MessageRejectError,
@@ -407,7 +424,8 @@ impl Display for TargetTooHigh {
 
 impl Error for TargetTooHigh {}
 
-// TargetTooLow is a MessageReject where the sequence number is less than expected.
+/// A session-level reject indicating the incoming `MsgSeqNum` is lower than
+/// expected, suggesting a possible duplicate or sequencing error.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct TargetTooLow {
     pub message_reject_error: MessageRejectError,
@@ -438,6 +456,10 @@ impl Display for TargetTooLow {
 
 impl Error for TargetTooLow {}
 
+/// Top-level error type for the fixer engine.
+///
+/// Wraps all error kinds that can occur during session operation:
+/// message-level rejects, configuration errors, and parse failures.
 #[derive(Debug, ThisError)]
 pub enum FixerError {
     Reject(#[from] MessageRejectErrorEnum),
@@ -468,12 +490,14 @@ impl From<FixerError> for SimpleError {
 }
 
 impl FixerError {
+    /// Creates a [`ConditionallyRequiredSetting`] error for the given key.
     pub fn new_conditionally_required(setting: &str) -> Self {
         Self::ConditionallyRequiredSetting(ConditionallyRequiredSetting {
             setting: setting.to_string(),
         })
     }
 
+    /// Creates an [`IncorrectFormatForSetting`] error with a generic message.
     pub fn new_incorrect_format_for_setting(setting: &str, string_val: &str) -> Self {
         Self::IncorrectFormatForSetting(IncorrectFormatForSetting {
             setting: setting.to_string(),
@@ -482,6 +506,8 @@ impl FixerError {
         })
     }
 
+    /// Creates an [`IncorrectFormatForSetting`] error wrapping a specific
+    /// cause.
     pub fn new_incorrect_format_for_setting_with_error(
         setting: &str,
         string_val: &str,

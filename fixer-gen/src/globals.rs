@@ -137,8 +137,8 @@ mod tests {
         let fix42 = parse_spec("../spec/FIX42.xml");
         let fix44 = parse_spec("../spec/FIX44.xml");
 
-        let fix42_globals = build_global_field_types(&[fix42.clone()]);
-        let fix44_globals = build_global_field_types(&[fix44.clone()]);
+        let fix42_globals = build_global_field_types(std::slice::from_ref(&fix42));
+        let fix44_globals = build_global_field_types(std::slice::from_ref(&fix44));
         let merged = build_global_field_types(&[fix42, fix44]);
 
         // For fields with enums that exist in both specs, the merged set should be

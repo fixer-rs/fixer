@@ -37,7 +37,8 @@ use crate::{
         TAG_DEFAULT_APPL_VER_ID, TAG_ENCRYPT_METHOD, TAG_END_SEQ_NO, TAG_GAP_FILL_FLAG,
         TAG_HEART_BT_INT, TAG_LAST_MSG_SEQ_NUM_PROCESSED, TAG_MSG_SEQ_NUM, TAG_MSG_TYPE,
         TAG_NEW_SEQ_NO, TAG_NEXT_EXPECTED_MSG_SEQ_NUM, TAG_ORIG_SENDING_TIME, TAG_POSS_DUP_FLAG,
-        TAG_REF_MSG_TYPE, TAG_REF_TAG_ID, TAG_RESET_SEQ_NUM_FLAG, TAG_SENDER_COMP_ID,
+        TAG_REF_MSG_TYPE, TAG_REF_SEQ_NUM, TAG_REF_TAG_ID, TAG_RESET_SEQ_NUM_FLAG,
+        TAG_SENDER_COMP_ID,
         TAG_SENDER_LOCATION_ID, TAG_SENDER_SUB_ID, TAG_SENDING_TIME, TAG_SESSION_REJECT_REASON,
         TAG_TARGET_COMP_ID, TAG_TARGET_LOCATION_ID, TAG_TARGET_SUB_ID, TAG_TEST_REQ_ID, TAG_TEXT,
         Tag,
@@ -90,8 +91,11 @@ impl MessageEvent {
     }
 }
 
+/// Default capacity for the bounded outbound message channel.
+pub(crate) const DEFAULT_MSG_OUT_CAPACITY: usize = 10_000;
+
 pub struct Connect {
-    pub message_out: UnboundedSender<Vec<u8>>,
+    pub message_out: Sender<Vec<u8>>,
     pub message_in: Receiver<FixIn>,
     pub err: UnboundedSender<SimpleResult<()>>,
 }
@@ -125,7 +129,7 @@ pub struct Session {
     pub log: LogEnum,
     pub session_id: Arc<SessionID>,
 
-    pub message_out: UnboundedSender<Vec<u8>>,
+    pub message_out: Sender<Vec<u8>>,
     pub message_in: Receiver<FixIn>,
 
     // application messages are queued up for send here
@@ -153,7 +157,7 @@ pub struct Session {
 #[cfg(test)]
 impl Default for Session {
     fn default() -> Self {
-        let (message_out_tx, _) = unbounded_channel::<Vec<u8>>();
+        let (message_out_tx, _) = channel::<Vec<u8>>(DEFAULT_MSG_OUT_CAPACITY);
         let (admin_tx, admin_rx) = unbounded_channel::<AdminEnum>();
         let (message_event_tx, message_event_rx) = channel::<bool>(1);
         let (_, message_in_rx) = channel::<FixIn>(1);
@@ -226,7 +230,7 @@ impl Session {
     async fn connect(
         &self,
         message_in: Receiver<FixIn>,
-        message_out: UnboundedSender<Vec<u8>>,
+        message_out: Sender<Vec<u8>>,
     ) -> SimpleResult<()> {
         let (tx, mut rx) = unbounded_channel::<SimpleResult<()>>();
         let _ = self.admin.tx.send(AdminEnum::Connect(Connect {
@@ -473,7 +477,7 @@ impl Session {
         let get_field_result = msg
             .header
             .get_field(TAG_SENDING_TIME, &mut orig_sending_time);
-        if get_field_result.is_err() {
+        if get_field_result.is_ok() {
             msg.header
                 .set_field(TAG_ORIG_SENDING_TIME, orig_sending_time);
         }
@@ -582,23 +586,27 @@ impl Session {
         }
 
         let msg_bytes = msg.build();
-        self.persist(seq_num, &msg_bytes).await?;
+        self.persist(seq_num, msg_bytes).await
+    }
+
+    async fn persist(
+        &mut self,
+        seq_num: isize,
+        msg_bytes: Vec<u8>,
+    ) -> Result<Vec<u8>, FixerError> {
+        if !self.session_settings.disable_message_persist {
+            self.store
+                .save_message_and_incr_next_sender_msg_seq_num(seq_num, msg_bytes.clone())
+                .await?;
+            return Ok(msg_bytes);
+        }
+
+        self.store.incr_next_sender_msg_seq_num().await?;
         Ok(msg_bytes)
     }
 
-    async fn persist(&mut self, seq_num: isize, msg_bytes: &[u8]) -> Result<(), FixerError> {
-        if !self.session_settings.disable_message_persist {
-            self.store
-                .save_message_and_incr_next_sender_msg_seq_num(seq_num, msg_bytes.to_vec())
-                .await?;
-            return Ok(());
-        }
-
-        Ok(self.store.incr_next_sender_msg_seq_num().await?)
-    }
-
     async fn send_queued(&mut self) {
-        for msg_bytes in &self.to_send {
+        for msg_bytes in self.to_send.drain(..) {
             if self.message_out.is_closed() {
                 self.log
                     .on_eventf("Failed to send: disconnected", hashmap! {})
@@ -606,20 +614,19 @@ impl Session {
                 continue;
             }
 
-            self.log.on_outgoing(msg_bytes).await;
-            let _ = self.message_out.send(msg_bytes.clone());
+            self.log.on_outgoing(&msg_bytes).await;
+            let _ = self.message_out.send(msg_bytes).await;
             self.state_timer
                 .reset(self.session_settings.heart_bt_int.unsigned_abs());
         }
-        self.drop_queued();
     }
 
     fn drop_queued(&mut self) {
         self.to_send.clear();
     }
 
-    pub async fn enqueue_bytes_and_send(&mut self, msg: &[u8]) {
-        self.to_send.push(msg.to_vec());
+    pub async fn enqueue_bytes_and_send(&mut self, msg: Vec<u8>) {
+        self.to_send.push(msg);
         self.send_queued().await;
     }
 
@@ -965,6 +972,27 @@ impl Session {
         Ok(())
     }
 
+    /// Verify the FIX checksum in the raw bytes. Returns false if the checksum
+    /// is present but doesn't match the computed value.
+    fn verify_checksum(raw: &[u8]) -> bool {
+        // Find the last \x0110= which marks the checksum field.
+        let cs_start = raw
+            .windows(4)
+            .rposition(|w| w[0] == 0x01 && w[1] == b'1' && w[2] == b'0' && w[3] == b'=');
+        let Some(cs_start) = cs_start else {
+            return true; // no checksum field found, skip validation
+        };
+        let computed: u32 = raw[..cs_start + 1].iter().map(|&b| u32::from(b)).sum::<u32>() % 256;
+        // Extract the checksum value after "10=".
+        let after = &raw[cs_start + 4..];
+        let end = after.iter().position(|&b| b == 0x01).unwrap_or(after.len());
+        let cs_str = std::str::from_utf8(&after[..end]).unwrap_or("");
+        let Ok(expected) = cs_str.parse::<u32>() else {
+            return true; // can't parse, skip validation
+        };
+        computed == expected
+    }
+
     fn check_begin_string(&self, msg: &Message) -> MessageRejectErrorResult {
         let begin_string = msg
             .header
@@ -1033,9 +1061,14 @@ impl Session {
                 .set_field(TAG_TEXT, FIXString::from(rej.to_string()));
 
             let mut msg_type = FIXString::new();
-            if msg.header.get_field(TAG_MSG_TYPE, &mut msg_type).is_err() {
+            if msg.header.get_field(TAG_MSG_TYPE, &mut msg_type).is_ok() {
                 reply.body.set_field(TAG_REF_MSG_TYPE, msg_type);
             }
+        }
+
+        let mut seq_num = FIXInt::default();
+        if msg.header.get_field(TAG_MSG_SEQ_NUM, &mut seq_num).is_ok() {
+            reply.body.set_field(TAG_REF_SEQ_NUM, seq_num);
         }
 
         self.log
@@ -1056,6 +1089,14 @@ impl Session {
             if let Err(err) = drop_result {
                 self.log_error(&err.to_string()).await;
             }
+        }
+
+        // Close message_out by replacing it with a dead sender (receiver dropped).
+        // This causes write_loop to exit, which closes the TCP connection.
+        // Equivalent to Go's close(s.messageOut); s.messageOut = nil.
+        if !self.message_out.is_closed() {
+            let (dead_tx, _) = tokio::sync::mpsc::channel::<Vec<u8>>(1);
+            self.message_out = dead_tx;
         }
 
         self.message_in.close();
@@ -1123,7 +1164,7 @@ impl Session {
                 Some(_) = self.message_event.rx.recv() => {
                     self.sm_send_app_messages().await;
                 }
-                fix_in_option = self.message_in.recv() => {
+                fix_in_option = self.message_in.recv(), if self.sm.is_connected() => {
                     match fix_in_option {
                         Some(fix_in) => {
                             self.sm_incoming(&fix_in).await;
@@ -1245,6 +1286,15 @@ impl Session {
                     "Msg Parse Error: {{error}}, {{bytes}}",
                     hashmap! {
                         String::from("error") => err.to_string(),
+                        String::from("bytes") => String::from_utf8_lossy(&fix_in.bytes).to_string(),
+                    },
+                )
+                .await;
+        } else if !Self::verify_checksum(&fix_in.bytes) {
+            self.log
+                .on_eventf(
+                    "Msg Checksum Error: {{bytes}}",
+                    hashmap! {
                         String::from("bytes") => String::from_utf8_lossy(&fix_in.bytes).to_string(),
                     },
                 )
@@ -1743,7 +1793,7 @@ impl Session {
 
             let inner_msg_bytes = msg.build_with_body_bytes(&msg.body_bytes.clone());
 
-            self.enqueue_bytes_and_send(&inner_msg_bytes).await;
+            self.enqueue_bytes_and_send(inner_msg_bytes).await;
 
             seq_num = sent_message_seq_num + 1;
             next_seq_num = seq_num;
@@ -1767,7 +1817,7 @@ impl Session {
         if let MessageRejectErrorEnum::TargetTooHigh(tth) = rej {
             let mut rs = if let SessionStateEnum::ResendState(ref mut rs) = self.sm.state {
                 ResendState {
-                    message_stash: rs.message_stash.clone(),
+                    message_stash: std::mem::take(&mut rs.message_stash),
                     current_resend_range_end: rs.current_resend_range_end,
                     resend_range_end: rs.resend_range_end,
                     logged_on: LoggedOn::default(),
@@ -1792,6 +1842,7 @@ impl Session {
                 let err_str = &err.to_string();
                 return self.handle_state_error(err_str).await;
             }
+            return SessionStateEnum::new_logout_state();
         }
 
         match rej.reject_reason() {
@@ -1817,7 +1868,7 @@ impl Session {
                     let err_str = &err.to_string();
                     return self.handle_state_error(err_str).await;
                 }
-                SessionStateEnum::new_logout_state()
+                SessionStateEnum::new_in_session().await
             }
         }
     }
@@ -1924,7 +1975,7 @@ impl Session {
         if sequence_reset
             .header
             .get_field(TAG_SENDING_TIME, &mut orig_sending_time)
-            .is_err()
+            .is_ok()
         {
             sequence_reset
                 .header
@@ -1936,7 +1987,7 @@ impl Session {
 
         let msg_bytes = sequence_reset.build();
 
-        self.enqueue_bytes_and_send(&msg_bytes).await;
+        self.enqueue_bytes_and_send(msg_bytes).await;
         self.log
             .on_eventf(
                 "Sent SequenceReset TO: {{to}}",
@@ -2218,8 +2269,8 @@ impl Session {
             return next_state;
         }
 
-        if let SessionStateEnum::ResendState(ns) = &next_state {
-            rs.message_stash = ns.message_stash.clone();
+        if let SessionStateEnum::ResendState(ref mut ns) = next_state {
+            rs.message_stash = std::mem::take(&mut ns.message_stash);
         }
 
         if rs.current_resend_range_end != 0

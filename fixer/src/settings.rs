@@ -23,7 +23,183 @@ pub static SESSION_REGEX: LazyLock<Regex> =
 pub static SETTING_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^([^=]*)=(.*)$").unwrap());
 
-// The Settings type represents a collection of global and session settings.
+/// INI-style configuration that drives an [`Acceptor`](crate::acceptor::Acceptor)
+/// or [`Initiator`](crate::initiator::Initiator).
+///
+/// A config file has one `[DEFAULT]` section (inherited by every session) and
+/// one or more `[SESSION]` sections. Lines starting with `#` are comments.
+///
+/// ```text
+/// [DEFAULT]
+/// ConnectionType=initiator
+/// HeartBtInt=30
+/// SenderCompID=TW
+///
+/// [SESSION]
+/// BeginString=FIX.4.2
+/// TargetCompID=ISLD
+/// SocketConnectHost=localhost
+/// SocketConnectPort=5001
+/// ```
+///
+/// # Configuration Keys
+///
+/// ## Session Identity
+///
+/// | Key | Description |
+/// |-----|-------------|
+/// | `BeginString` | FIX version (`FIX.4.0` -- `FIX.4.4` or `FIXT.1.1`) |
+/// | `SenderCompID` | Your `CompID` |
+/// | `SenderSubID` | Your `SubID` (optional) |
+/// | `SenderLocationID` | Your `LocationID` (optional) |
+/// | `TargetCompID` | Counterparty `CompID` |
+/// | `TargetSubID` | Counterparty `SubID` (optional) |
+/// | `TargetLocationID` | Counterparty `LocationID` (optional) |
+/// | `SessionQualifier` | Extra qualifier when multiple sessions share the same comp IDs |
+/// | `DefaultApplVerID` | Application-level version for `FIXT.1.1` sessions |
+///
+/// ## Connection -- Acceptor
+///
+/// | Key | Description |
+/// |-----|-------------|
+/// | `SocketAcceptHost` | Bind address (default all interfaces) |
+/// | `SocketAcceptPort` | Listen port |
+/// | `DynamicSessions` | `Y` to allow unknown counterparties to connect |
+/// | `DynamicQualifier` | `Y` to auto-qualify dynamic sessions |
+///
+/// ## Connection -- Initiator
+///
+/// | Key | Description |
+/// |-----|-------------|
+/// | `SocketConnectHost` | Remote host |
+/// | `SocketConnectPort` | Remote port |
+/// | `SocketConnectHost1`..`N` | Failover hosts |
+/// | `SocketConnectPort1`..`N` | Failover ports |
+/// | `ReconnectInterval` | Seconds between reconnection attempts |
+///
+/// ## Session Behavior
+///
+/// | Key | Description |
+/// |-----|-------------|
+/// | `HeartBtInt` | Heartbeat interval in seconds |
+/// | `HeartBtIntOverride` | `Y` to accept counterparty's heartbeat interval |
+/// | `LogonTimeout` | Seconds to wait for a Logon response |
+/// | `LogoutTimeout` | Seconds to wait for a Logout response |
+/// | `ResetOnLogon` | `Y` to reset sequence numbers on logon |
+/// | `ResetOnLogout` | `Y` to reset on logout |
+/// | `ResetOnDisconnect` | `Y` to reset on disconnect |
+/// | `RefreshOnLogon` | `Y` to refresh state from store on logon |
+/// | `PersistMessages` | `Y` to persist messages for resend (default `Y`) |
+/// | `ResendRequestChunkSize` | Max messages per resend chunk (0 = unlimited) |
+/// | `EnableLastMsgSeqNumProcessed` | `Y` to include tag 369 |
+/// | `EnableNextExpectedMsgSeqNum` | `Y` to include tag 789 on Logon |
+/// | `RejectInvalidMessage` | `Y` to reject messages that fail validation |
+/// | `InChanCapacity` | Internal channel capacity for incoming messages |
+///
+/// ## Scheduling
+///
+/// | Key | Description |
+/// |-----|-------------|
+/// | `StartTime` | Daily session start (`HH:MM:SS`) |
+/// | `EndTime` | Daily session end (`HH:MM:SS`) |
+/// | `StartDay` | Weekly start day (e.g. `Monday`) |
+/// | `EndDay` | Weekly end day |
+/// | `Weekdays` | Active weekdays (e.g. `Mon,Tue,Wed,Thu,Fri`) |
+/// | `TimeZone` | IANA timezone (default UTC) |
+/// | `ResetSeqTime` | Time of day to reset sequence numbers |
+///
+/// ## Validation
+///
+/// | Key | Description |
+/// |-----|-------------|
+/// | `DataDictionary` | Path to FIX XML spec for validation |
+/// | `TransportDataDictionary` | Transport-layer spec for `FIXT.1.1` |
+/// | `AppDataDictionary` | Application-layer spec for `FIXT.1.1` |
+/// | `ValidateFieldsOutOfOrder` | `Y` to validate field ordering |
+/// | `ValidateFieldsHaveValues` | `Y` to require non-empty field values |
+/// | `ValidateUserDefinedFields` | `Y` to validate user-defined fields (5000+) |
+/// | `AllowUnknownMsgFields` | `Y` to pass through unrecognized fields |
+/// | `CheckLatency` | `Y` to check `SendingTime` accuracy |
+/// | `MaxLatency` | Max allowed latency in seconds (default 120) |
+/// | `TimeStampPrecision` | Timestamp precision: `SECONDS`, `MILLIS`, `MICROS`, `NANOS` |
+///
+/// ## TLS
+///
+/// | Key | Description |
+/// |-----|-------------|
+/// | `SocketUseSSL` | `Y` to enable TLS |
+/// | `SocketPrivateKeyFile` | Path to PEM private key |
+/// | `SocketCertificateFile` | Path to PEM certificate |
+/// | `SocketCAFile` | Path to CA certificate bundle |
+/// | `SocketPrivateKeyBytes` | Inline PEM private key |
+/// | `SocketCertificateBytes` | Inline PEM certificate |
+/// | `SocketCABytes` | Inline CA certificate bundle |
+/// | `SocketInsecureSkipVerify` | `Y` to skip certificate verification |
+/// | `SocketServerName` | Override SNI server name |
+/// | `SocketMinimumTLSVersion` | Minimum TLS version (e.g. `TLS12`) |
+///
+/// ## Storage
+///
+/// | Key | Description |
+/// |-----|-------------|
+/// | `FileStorePath` | Directory for file-based message store |
+/// | `FileStoreSync` | `Y` to fsync after every write |
+/// | `SQLStoreDriver` | SQL driver (`sqlite`, `postgres`, `mysql`) |
+/// | `SQLStoreDataSourceName` | SQL connection string |
+/// | `SQLStoreConnMaxLifetime` | Max SQL connection lifetime |
+/// | `MongoStoreConnection` | `MongoDB` connection URI |
+/// | `MongoStoreDatabase` | `MongoDB` database name |
+/// | `MongoStoreReplicaSet` | `MongoDB` replica set name |
+///
+/// ## Logging
+///
+/// | Key | Description |
+/// |-----|-------------|
+/// | `FileLogPath` | Directory for file-based logs |
+/// | `SQLLogDriver` | SQL driver for logging |
+/// | `SQLLogDataSourceName` | SQL connection string for logging |
+/// | `SQLLogConnMaxLifetime` | Max SQL connection lifetime for logging |
+/// | `MongoLogConnection` | `MongoDB` connection URI for logging |
+/// | `MongoLogDatabase` | `MongoDB` database name for logging |
+/// | `MongoLogReplicaSet` | `MongoDB` replica set name for logging |
+///
+/// ## Proxy
+///
+/// | Key | Description |
+/// |-----|-------------|
+/// | `ProxyType` | Proxy protocol type |
+/// | `ProxyHost` | Proxy host |
+/// | `ProxyPort` | Proxy port |
+/// | `ProxyUser` | Proxy username |
+/// | `ProxyPassword` | Proxy password |
+/// | `UseTCPProxy` | `Y` to enable TCP proxy |
+/// | `SocketTimeout` | Connection timeout in seconds |
+///
+/// # Example
+///
+/// ```
+/// use fixer::settings::Settings;
+/// use tokio::io::BufReader;
+///
+/// # tokio_test::block_on(async {
+/// let cfg = "\
+/// [DEFAULT]
+/// ConnectionType=initiator
+/// HeartBtInt=30
+/// SenderCompID=TW
+///
+/// [SESSION]
+/// BeginString=FIX.4.2
+/// TargetCompID=ISLD
+/// SocketConnectHost=localhost
+/// SocketConnectPort=5001
+/// ";
+///
+/// let settings = Settings::parse(BufReader::new(cfg.as_bytes())).await.unwrap();
+/// let sessions = settings.session_settings().await;
+/// assert_eq!(sessions.len(), 1);
+/// # });
+/// ```
 #[derive(Default, Debug)]
 pub struct Settings {
     global_settings: Option<SessionSettings>,
@@ -31,7 +207,7 @@ pub struct Settings {
 }
 
 impl Settings {
-    // new creates a Settings instance.
+    /// Creates an empty `Settings` with default global settings and no sessions.
     pub fn new() -> Self {
         let mut s = Self::default();
         s.init();
@@ -50,8 +226,9 @@ impl Settings {
         }
     }
 
-    // parse creates and initializes a Settings instance with config parsed from a Reader.
-    // Returns error if the config is has parse errors.
+    /// Parses an INI-style config from an async reader and returns a populated
+    /// `Settings`. Returns an error if the config has syntax errors or declares
+    /// no sessions.
     pub async fn parse<F>(reader: F) -> SimpleResult<Self>
     where
         F: AsyncBufRead,
@@ -117,13 +294,16 @@ impl Settings {
         Ok(s)
     }
 
-    // global_settings are default setting inherited by all session settings.
+    /// Returns a clone of the global (default) settings. These values are
+    /// inherited by every session unless overridden in a `[SESSION]` block.
     pub async fn global_settings(&mut self) -> Option<SessionSettings> {
         self.lazy_init().await;
         Some(self.global_settings.as_ref().unwrap().clone())
     }
 
-    // session_settings return all session settings overlaying globalsettings.
+    /// Returns all session settings with global defaults overlaid. Each
+    /// returned [`SessionSettings`] contains the merged result of the
+    /// `[DEFAULT]` values plus the session-specific overrides.
     #[allow(clippy::unused_async)]
     pub async fn session_settings(&self) -> DashMap<Arc<SessionID>, SessionSettings> {
         let all_session_settings = DashMap::new();
@@ -140,7 +320,10 @@ impl Settings {
         all_session_settings
     }
 
-    // add_session adds Session Settings to Settings instance. Returns an error if session settings with duplicate sessionID has already been added.
+    /// Adds a session to this `Settings`. The [`SessionID`] is derived from the
+    /// identity keys (`BeginString`, `SenderCompID`, `TargetCompID`, etc.) in
+    /// the given settings overlaid on the global defaults. Returns the new
+    /// session ID, or an error if a session with the same ID already exists.
     pub async fn add_session(
         &mut self,
         session_settings: SessionSettings,

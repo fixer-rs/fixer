@@ -59,7 +59,10 @@ impl FieldValueReader for FIXUTCTimestamp {
                 self.time = parse_to_ts(UTC_TIMESTAMP_NANOS_FORMAT, &input_str)?;
                 Ok(())
             }
-            _ => Ok(()),
+            _ => Err(simple_error::simple_error!(
+                "Invalid Value for Timestamp: {}",
+                input_str
+            )),
         }
     }
 }

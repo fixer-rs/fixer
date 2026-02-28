@@ -19,6 +19,11 @@ use std::{
     sync::Arc,
 };
 
+/// The header section of a FIX [`Message`].
+///
+/// Delegates all field access to the inner [`FieldMap`], which uses
+/// [`TagOrderType::Header`] ordering so that `BeginString` (8),
+/// `BodyLength` (9), and `MsgType` (35) always serialize first.
 #[derive(Debug, Default, Clone)]
 pub struct Header {
     pub field_map: FieldMap,
@@ -33,7 +38,6 @@ impl Header {
 
     delegate! {
         to self.field_map {
-            pub fn tags(&self) -> Vec<Tag>;
             pub fn get<P: Field + FieldValueReader>(&self, parser: &mut P) -> MessageRejectErrorResult;
             pub fn has(&self, tag: Tag) -> bool;
             pub fn get_field<P: FieldValueReader>(
@@ -65,6 +69,10 @@ impl Header {
     }
 }
 
+/// The body section of a FIX [`Message`].
+///
+/// Delegates all field access to the inner [`FieldMap`], which uses ascending
+/// tag order.
 #[derive(Debug, Default, Clone)]
 pub struct Body {
     pub field_map: FieldMap,
@@ -78,7 +86,6 @@ impl Body {
 
     delegate! {
         to self.field_map {
-            pub fn tags(&self) -> Vec<Tag>;
             pub fn get<P: Field + FieldValueReader>(&self, parser: &mut P) -> MessageRejectErrorResult;
             pub fn has(&self, tag: Tag) -> bool;
             pub fn get_field<P: FieldValueReader>(
@@ -110,6 +117,11 @@ impl Body {
     }
 }
 
+/// The trailer section of a FIX [`Message`].
+///
+/// Delegates all field access to the inner [`FieldMap`], which uses
+/// [`TagOrderType::Trailer`] ordering so that `CheckSum` (10) always
+/// serializes last.
 #[derive(Debug, Default, Clone)]
 pub struct Trailer {
     pub field_map: FieldMap,
@@ -124,7 +136,6 @@ impl Trailer {
 
     delegate! {
         to self.field_map {
-            pub fn tags(&self) -> Vec<Tag>;
             pub fn get<P: Field + FieldValueReader>(&self, parser: &mut P) -> MessageRejectErrorResult;
             pub fn has(&self, tag: Tag) -> bool;
             pub fn get_field<P: FieldValueReader>(
@@ -156,7 +167,43 @@ impl Trailer {
     }
 }
 
-// Message is a FIX Message abstraction.
+/// A parsed or constructed FIX message.
+///
+/// A `Message` is split into three [`FieldMap`] sections --
+/// [`header`](Message::header), [`body`](Message::body), and
+/// [`trailer`](Message::trailer) -- mirroring the wire format of a FIX
+/// message. Each section has its own tag ordering rules.
+///
+/// # Building a Message
+///
+/// ```
+/// use fixer::message::Message;
+/// use fixer::tag::*;
+/// use fixer::fix_string::FIXString;
+///
+/// let mut msg = Message::new();
+/// msg.header.set_field(TAG_BEGIN_STRING, FIXString::from("FIX.4.2"));
+/// msg.header.set_field(TAG_MSG_TYPE, FIXString::from("D"));
+/// msg.header.set_field(TAG_SENDING_TIME, FIXString::from("20140615-19:49:56"));
+/// msg.body.set_string(11, "order-1");
+/// msg.body.set_int(21, 1);
+///
+/// let bytes = msg.build();
+/// assert!(!bytes.is_empty());
+/// ```
+///
+/// # Parsing a Message
+///
+/// ```
+/// use fixer::message::Message;
+///
+/// let raw = b"8=FIX.4.2\x019=30\x0135=D\x0149=TW\x0156=ISLD\x0111=id\x0121=3\x0110=079\x01";
+/// let mut msg = Message::new();
+/// msg.parse_message(raw).unwrap();
+///
+/// assert!(msg.is_msg_type_of("D"));
+/// assert_eq!(msg.body.get_string(11).unwrap(), "id");
+/// ```
 #[derive(Debug, Default, Clone)]
 #[allow(clippy::struct_field_names)]
 pub struct Message {
@@ -168,8 +215,10 @@ pub struct Message {
     raw_message: Vec<u8>,
     // slice of Bytes corresponding to the message body
     pub(crate) body_bytes: Vec<u8>,
-    // all parsed fields in order, used by validation
-    pub fields: Vec<TagValue>,
+    // All parsed fields in order, used by validation.
+    // Shared via Arc with body.field_map.content.parsed_fields to avoid
+    // cloning body fields during parsing.
+    pub fields: Arc<[TagValue]>,
 }
 
 impl fmt::Display for Message {
@@ -189,6 +238,7 @@ impl Messageable for Message {
 }
 
 impl Message {
+    /// Creates a new empty message with initialized header, body, and trailer.
     pub fn new() -> Self {
         Message {
             header: Header::init(),
@@ -198,20 +248,25 @@ impl Message {
         }
     }
 
+    /// Deep-copies this message into `to`.
     pub fn copy_into(&self, to: &mut Message) {
         self.header.copy_into(&mut to.header.field_map);
         self.body.copy_into(&mut to.body.field_map);
         self.trailer.copy_into(&mut to.trailer.field_map);
         to.receive_time = self.receive_time;
         to.body_bytes.clone_from(&self.body_bytes);
-        to.fields.clone_from(&self.fields);
+        to.fields = Arc::clone(&self.fields);
     }
 
+    /// Parses a FIX message from raw bytes, populating header, body, and
+    /// trailer fields. Returns an error if the message is malformed.
     pub fn parse_message(&mut self, raw_message: &[u8]) -> Result<(), ParseError> {
         self.parse_message_with_data_dictionary(raw_message, &None, &None)
     }
 
-    // parse_message_with_data_dictionary constructs a Message from a byte slice wrapping a FIX message using an optional session and application DataDictionary for reference.
+    /// Parses a FIX message using optional transport and application
+    /// [`DataDictionary`] instances to correctly classify header and trailer
+    /// fields.
     #[allow(clippy::ref_option)]
     pub fn parse_message_with_data_dictionary(
         &mut self,
@@ -266,7 +321,6 @@ impl Message {
 
         let mut trailer_bytes: &[u8] = &[];
         let mut found_body = false;
-        let mut body_tvs: Vec<TagValue> = Vec::new();
 
         loop {
             let pf = &mut parsed_fields[field_index];
@@ -289,7 +343,6 @@ impl Message {
             } else {
                 found_body = true;
                 trailer_bytes = raw_bytes;
-                body_tvs.push(pf.clone());
                 self.body.add(field_lf);
             }
 
@@ -318,11 +371,12 @@ impl Message {
         }
 
         parsed_fields.truncate(field_index + 1);
-        self.fields = parsed_fields;
-        self.body.field_map.content.parsed_fields = Some(body_tvs);
+        let fields: Arc<[TagValue]> = parsed_fields.into();
+        self.fields = Arc::clone(&fields);
+        self.body.field_map.content.parsed_fields = Some(fields);
 
         let mut length = 0;
-        for field in &self.fields {
+        for field in self.fields.iter() {
             match field.tag {
                 TAG_BEGIN_STRING | TAG_BODY_LENGTH | TAG_CHECK_SUM => {} // tags do not contribute to length
                 _ => length += field.length(),
@@ -347,12 +401,12 @@ impl Message {
         Ok(())
     }
 
-    // MsgType returns MsgType (tag 35) field's value
+    /// Returns the `MsgType` (tag 35) value from the header.
     pub fn msg_type(&self) -> Result<String, MessageRejectErrorEnum> {
         self.header.get_string(TAG_MSG_TYPE)
     }
 
-    // is_msg_type_of returns true if the Header contains MsgType (tag 35) field and its value is the specified one.
+    /// Returns `true` if the header's `MsgType` (tag 35) equals `msg_type`.
     pub fn is_msg_type_of(&self, msg_type: &str) -> bool {
         let v = self.msg_type();
         if let Ok(w_unwrap) = v {
@@ -361,10 +415,11 @@ impl Message {
         false
     }
 
-    // reverseRoute returns a message builder with routing header fields initialized as the reverse of this message.
+    /// Creates a new message with routing header fields (sender/target comp
+    /// IDs, sub IDs, location IDs, etc.) swapped from this message.
     #[must_use]
     pub fn reverse_route(&self) -> Message {
-        let mut reverse_msg = Message::default();
+        let mut reverse_msg = Message::new();
 
         let copy = |reverse_header: &mut Header, src: Tag, dest: Tag, self_header: &Header| {
             let mut field = FIXString::new();
@@ -458,7 +513,8 @@ impl Message {
         reverse_msg
     }
 
-    // build constructs a []byte from a Message instance
+    /// Serializes this message to FIX wire format, computing `BodyLength`
+    /// and `CheckSum` automatically.
     pub fn build(&mut self) -> Vec<u8> {
         self.cook(self.body.length(), self.body.total());
 
@@ -494,15 +550,19 @@ impl Message {
             .set_string(TAG_CHECK_SUM, &format_check_sum(check_sum));
     }
 
-    pub fn as_bytes(&self) -> Vec<u8> {
+    /// Returns the raw message bytes if available (from parsing), otherwise
+    /// rebuilds the message from the field maps.
+    pub fn as_bytes(&mut self) -> Vec<u8> {
         if !self.raw_message.is_empty() {
             return self.raw_message.clone();
         }
 
-        self.clone().build()
+        self.build()
     }
 }
 
+/// Error returned when a raw byte slice cannot be parsed as a valid FIX
+/// message.
 #[derive(Debug)]
 pub struct ParseError {
     pub orig_error: String,
@@ -945,7 +1005,7 @@ mod tests {
 
         assert!(&dest.is_msg_type_of("D"));
         assert_eq!(&dest.to_string(), rendered_string);
-        assert_eq!(&dest.as_bytes(), rendered_string.as_bytes());
+        assert_eq!(dest.as_bytes(), rendered_string.as_bytes());
     }
 
     fn check_field_int(_s: &MessageSuite, fields: &FieldMap, tag: isize, expected: isize) {

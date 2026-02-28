@@ -157,7 +157,7 @@ fn validate_walk(
     msg: &Message,
 ) -> MessageRejectErrorResult {
     let mut iterated_tags = TagSet::new();
-    let mut fields = msg.fields.as_slice();
+    let mut fields: &[TagValue] = &msg.fields;
 
     while !fields.is_empty() {
         let field = fields.first().unwrap();
@@ -261,7 +261,7 @@ fn validate_field_content(
     }
     let mut in_header = true;
     let mut in_trailer = false;
-    for field in &msg.fields {
+    for field in msg.fields.iter() {
         let t = field.tag;
         if check_fields_have_values && field.value().is_empty() {
             return Err(tag_specified_without_a_value(t));
@@ -336,7 +336,7 @@ fn validate_fields(
     msg_type: &str,
     msg: &Message,
 ) -> MessageRejectErrorResult {
-    for field in &msg.fields {
+    for field in msg.fields.iter() {
         if field.tag.is_header() {
             validate_field(transport_dd, settings, &transport_dd.header.tags, field)?;
         } else if field.tag.is_trailer() {

@@ -59,6 +59,25 @@ To generate with `f64` instead of `Decimal` for numeric fields:
 make generate-float
 ```
 
+## Examples
+
+The `examples/` directory contains working applications that demonstrate how to use fixer:
+
+- **Echo Server** — A FIX Acceptor that echoes incoming messages back to the sender
+- **Trade Client** — A FIX Initiator that sends a `NewOrderSingle` after logon and prints execution reports
+
+Run both together to see a complete FIX session:
+
+```sh
+# Terminal 1: start the echo server
+cargo run --example echo_server -- examples/echo_server/echo_server.cfg
+
+# Terminal 2: start the trade client
+cargo run -p fixer-fix --example trade_client -- examples/trade_client/trade_client.cfg
+```
+
+See [`examples/README.md`](examples/README.md) for more details.
+
 ## Build and Test
 
 ```sh

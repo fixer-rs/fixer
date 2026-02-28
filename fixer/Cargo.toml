@@ -8,7 +8,7 @@ name = "fixer"
 readme = "../README.md"
 repository = "https://github.com/fixer-rs/fixer.git"
 rust-version = "1.85"
-version = "0.9.0"
+version = "0.10.0"
 
 [lib]
 name = "fixer"
@@ -47,6 +47,7 @@ tokio = { version = "1.49", features = [
   "fs",
   "rt",
   "rt-multi-thread",
+  "signal",
   "sync",
   "macros",
   "time",
@@ -67,6 +68,11 @@ pprof = { version = "0.14", features = ["flamegraph", "criterion"] }
 rcgen = "0.14"
 serial_test = "3.0"
 tempfile = "3"
+tokio-test = "0.4"
+
+[[example]]
+name = "echo_server"
+path = "../examples/echo_server/main.rs"
 
 [[bench]]
 harness = false

@@ -14,7 +14,7 @@ use crate::{
 use jiff::Timestamp;
 use simple_error::{SimpleError, SimpleResult};
 use sqlx::{any::AnyPoolOptions, AnyPool, Row};
-use std::{str::FromStr, sync::Arc, time::Duration};
+use std::{str::FromStr, sync::{Arc, LazyLock}, time::Duration};
 use tokio::sync::Mutex;
 
 const CREATE_SESSIONS_TABLE: &str = "CREATE TABLE IF NOT EXISTS sessions (
@@ -54,6 +54,10 @@ const SESSION_WHERE: &str = "beginstring=? AND session_qualifier=?
 AND sendercompid=? AND sendersubid=? AND senderlocid=?
 AND targetcompid=? AND targetsubid=? AND targetlocid=?";
 
+static SQLX_DRIVERS: LazyLock<()> = LazyLock::new(|| {
+    sqlx::any::install_default_drivers();
+});
+
 pub struct SqlStore {
     session_id: Arc<SessionID>,
     cache: MemoryStore,
@@ -81,7 +85,7 @@ impl SqlStore {
         data_source_name: &str,
         conn_max_lifetime: Duration,
     ) -> SimpleResult<Self> {
-        sqlx::any::install_default_drivers();
+        LazyLock::force(&SQLX_DRIVERS);
 
         let url = build_connection_url(driver, data_source_name);
 
@@ -389,22 +393,23 @@ pub struct SqlStoreFactory {
 
 impl MessageStoreFactoryTrait for SqlStoreFactory {
     async fn create(&self, session_id: Arc<SessionID>) -> SimpleResult<MessageStoreEnum> {
-        let mut lock = self.settings.lock().await;
-        let global_settings_wrapper = lock.global_settings().await;
-        let global_settings = global_settings_wrapper.as_ref().unwrap();
+        let (global_settings, session_settings_map) = {
+            let mut lock = self.settings.lock().await;
+            let gs = lock.global_settings().await.unwrap();
+            let ss = lock.session_settings().await;
+            (gs, ss)
+        };
 
         let dynamic_sessions = global_settings
             .bool_setting(DYNAMIC_SESSIONS)
             .unwrap_or(false);
 
-        let session_settings_wrapper = lock.session_settings().await;
-        let session_settings_option = session_settings_wrapper.get(&session_id);
-        if let Some(session_settings_pair) = session_settings_option {
+        if let Some(session_settings_pair) = session_settings_map.get(&session_id) {
             let session_settings = session_settings_pair.value();
             return create_sql_store(session_id, session_settings).await;
         }
         if dynamic_sessions {
-            return create_sql_store(session_id, global_settings).await;
+            return create_sql_store(session_id, &global_settings).await;
         }
         Err(simple_error!(
             "unknown session: {}",

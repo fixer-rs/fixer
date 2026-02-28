@@ -5,7 +5,7 @@ use crate::{
     log::{LogEnum, LogFactoryEnum},
     message::Message,
     parser::Parser,
-    registry::{lookup_session_registration, unregister_session},
+    registry::{lookup_session_registration_flexible, unregister_session},
     session::{
         AdminEnum, Connect, FixIn, Session, StopReq, factory::SessionFactory,
         session_id::SessionID, settings::SessionSettings,
@@ -92,6 +92,93 @@ struct SessionHandle {
     session_id: Arc<SessionID>,
 }
 
+/// A FIX server that listens for inbound connections.
+///
+/// The `Acceptor` binds a TCP (or TLS) listener and waits for remote FIX
+/// clients to connect. Each incoming connection is matched to a pre-configured
+/// session by swapping the `SenderCompID` / `TargetCompID` from the first
+/// message received on the wire.
+///
+/// # Lifecycle
+///
+/// ```text
+/// Acceptor::new(app, store, settings, log)   // parse config, create sessions
+///     .start()                                // bind listener, begin accepting
+///     ...                                     // sessions exchange messages
+///     .stop()                                 // graceful shutdown
+/// ```
+///
+/// # Dynamic Sessions
+///
+/// When `DynamicSessions=Y` is set in the global config, connections from
+/// unknown counterparties automatically create sessions on-the-fly using the
+/// global settings. Set `DynamicQualifier=Y` to assign unique qualifiers so
+/// multiple connections from the same `SenderCompID`/`TargetCompID` pair get
+/// separate sessions.
+///
+/// # TLS
+///
+/// TLS is enabled by setting `SocketUseSSL=Y` along with
+/// `SocketCertificateFile` and `SocketPrivateKeyFile` in the config, or by
+/// calling [`set_tls_config`](Acceptor::set_tls_config) with a pre-built
+/// [`TlsAcceptor`](tokio_rustls::TlsAcceptor) before `start()`.
+///
+/// # Example
+///
+/// ```rust,no_run
+/// # use fixer::{
+/// #     acceptor::Acceptor,
+/// #     application::Application,
+/// #     errors::MessageRejectErrorResult,
+/// #     log::screen_log::ScreenLogFactory,
+/// #     message::Message,
+/// #     session::session_id::SessionID,
+/// #     settings::Settings,
+/// #     store::MemoryStoreFactory,
+/// # };
+/// # use simple_error::SimpleResult;
+/// # use std::sync::Arc;
+/// # use tokio::io::BufReader;
+/// # struct MyApp;
+/// # impl Application for MyApp {
+/// #     fn on_create(&self, _: &Arc<SessionID>) {}
+/// #     fn on_logon(&self, _: &Arc<SessionID>) {}
+/// #     fn on_logout(&self, _: &Arc<SessionID>) {}
+/// #     fn to_admin(&self, _: &mut Message, _: &Arc<SessionID>) {}
+/// #     fn to_app(&self, _: &mut Message, _: &Arc<SessionID>) -> SimpleResult<()> { Ok(()) }
+/// #     fn from_admin(&self, _: &Message, _: &Arc<SessionID>) -> MessageRejectErrorResult { Ok(()) }
+/// #     fn from_app(&self, _: &Message, _: &Arc<SessionID>) -> MessageRejectErrorResult { Ok(()) }
+/// # }
+/// # #[tokio::main]
+/// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let cfg = "\
+/// [DEFAULT]
+/// SocketAcceptPort=5001
+/// SenderCompID=SERVER
+/// TargetCompID=CLIENT
+/// ResetOnLogon=Y
+///
+/// [SESSION]
+/// BeginString=FIX.4.2
+/// ";
+/// let settings = Settings::parse(BufReader::new(cfg.as_bytes())).await?;
+/// let app: Arc<dyn Application> = Arc::new(MyApp);
+///
+/// let mut acceptor = Acceptor::new(
+///     app,
+///     MemoryStoreFactory::new(),
+///     settings,
+///     ScreenLogFactory::new(),
+/// ).await?;
+///
+/// acceptor.start().await?;
+/// println!("Listening on {:?}", acceptor.local_address());
+///
+/// tokio::signal::ctrl_c().await?;
+/// acceptor.stop().await;
+/// # Ok(())
+/// # }
+/// ```
 #[allow(clippy::struct_field_names)]
 pub struct Acceptor {
     sessions: Vec<SessionHandle>,
@@ -112,6 +199,13 @@ pub struct Acceptor {
 }
 
 impl Acceptor {
+    /// Creates a new `Acceptor` from the given components.
+    ///
+    /// Parses `SocketAcceptPort` (required) and `SocketAcceptHost` (optional,
+    /// defaults to `0.0.0.0`) from the global settings. Creates one session per
+    /// `[SESSION]` block and registers them in the global session registry.
+    ///
+    /// Does **not** start listening — call [`start`](Acceptor::start) for that.
     pub async fn new(
         app: Arc<dyn Application>,
         store_factory: MessageStoreFactoryEnum,
@@ -140,7 +234,7 @@ impl Acceptor {
         };
 
         // Load TLS config from global settings
-        let tls_acceptor = tls::load_tls_acceptor(&global)?;
+        let tls_acceptor = tls::load_tls_acceptor(&global).await?;
 
         // Read dynamic sessions config
         let dynamic_sessions = if global.has_setting(config::DYNAMIC_SESSIONS) {
@@ -213,6 +307,11 @@ impl Acceptor {
         })
     }
 
+    /// Binds the TCP listener and begins accepting connections.
+    ///
+    /// Each pre-configured session's `run()` loop is spawned as a background
+    /// task. Incoming connections are matched to sessions by parsing the first
+    /// FIX message. Must only be called once.
     pub async fn start(&mut self) -> SimpleResult<()> {
         // Start session.run() for all sessions — each task owns its Session
         for handle in &mut self.sessions {
@@ -295,6 +394,12 @@ impl Acceptor {
         Ok(())
     }
 
+    /// Gracefully shuts down the acceptor.
+    ///
+    /// Stops the accept loop, sends a stop signal to every session, waits for
+    /// all background tasks to complete, and unregisters sessions from the
+    /// global registry so the acceptor can be recreated without duplicate
+    /// session errors.
     pub async fn stop(&mut self) {
         // Signal accept loop to stop
         let _ = self.stop_tx.send(true);
@@ -342,8 +447,10 @@ impl Acceptor {
         self.new_listener_callback = Some(Arc::new(cb));
     }
 
-    // local_address returns the actual bound address after start().
-    // Useful when binding to port 0 to get the OS-assigned port.
+    /// Returns the actual bound address after [`start`](Acceptor::start).
+    ///
+    /// Useful when binding to port 0 to discover the OS-assigned port.
+    /// Returns `None` before `start()` is called.
     pub fn local_address(&self) -> Option<SocketAddr> {
         self.local_address
     }
@@ -445,10 +552,12 @@ async fn handle_connection<R, W>(
         }
     }
 
-    // Look up the session's admin channel in the global registry, or create a dynamic session
+    // Look up the session's admin channel in the global registry, or create a dynamic session.
+    // Use flexible lookup so that sessions with a SessionQualifier (e.g. FIXT.1.1 sessions)
+    // can be found even though the incoming connection doesn't carry a qualifier.
     let is_dynamic;
     let (admin_tx, in_chan_capacity) =
-        if let Some(reg) = lookup_session_registration(&session_id) {
+        if let Some((_matched_id, reg)) = lookup_session_registration_flexible(&session_id) {
             is_dynamic = false;
             (reg.admin_tx, reg.in_chan_capacity)
         } else {
@@ -472,7 +581,7 @@ async fn handle_connection<R, W>(
         };
 
     // Create channels for this connection
-    let (msg_out_tx, msg_out_rx) = tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
+    let (msg_out_tx, msg_out_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(crate::session::DEFAULT_MSG_OUT_CAPACITY);
     let cap = if in_chan_capacity > 0 {
         in_chan_capacity
     } else {
@@ -508,10 +617,19 @@ async fn handle_connection<R, W>(
     let write_task =
         tokio::spawn(async move { write_loop(write_half, msg_out_rx, LogEnum::default()).await });
 
-    // Wait for either loop to finish (connection closed)
+    // Get abort handles before moving into select!
+    let read_abort = read_task.abort_handle();
+    let write_abort = write_task.abort_handle();
+
+    // Wait for either loop to finish, then abort the other to close the TCP connection.
+    // Both halves of the split TcpStream must be dropped to fully close the connection.
     tokio::select! {
-        _ = read_task => {},
-        _ = write_task => {},
+        _ = read_task => {
+            write_abort.abort();
+        },
+        _ = write_task => {
+            read_abort.abort();
+        },
     }
 
     // Stop dynamic sessions when the connection handler returns,
@@ -567,6 +685,22 @@ mod tests {
         for key in keys {
             let _ = unregister_session(&key);
         }
+    }
+
+    /// Build a valid FIX logon message with current UTC timestamp and correct checksum.
+    fn make_logon_msg(sender: &str, target: &str) -> Vec<u8> {
+        let now = jiff::Timestamp::now();
+        let ts = now.strftime("%Y%m%d-%H:%M:%S");
+        // Build body (everything between BeginString and CheckSum)
+        let body = format!(
+            "35=A\x0149={sender}\x0156={target}\x0134=1\x0152={ts}\x0198=0\x01108=30\x01"
+        );
+        let body_len = body.len();
+        // Partial message (before checksum)
+        let partial = format!("8=FIX.4.2\x019={body_len}\x01{body}");
+        // Compute checksum (sum of all bytes mod 256)
+        let checksum: u32 = partial.bytes().map(u32::from).sum::<u32>() % 256;
+        format!("{partial}10={checksum:03}\x01").into_bytes()
     }
 
     async fn make_acceptor_settings(port: &str) -> Settings {
@@ -668,10 +802,10 @@ TargetCompID=INITIATOR
         // and TargetCompID=ACCEPTOR (us).
         // The acceptor should swap these to look up session with
         // SenderCompID=ACCEPTOR, TargetCompID=INITIATOR.
-        let logon_msg = "8=FIX.4.2\x019=68\x0135=A\x0149=INITIATOR\x0156=ACCEPTOR\x0134=1\x0152=20240101-00:00:00\x0198=0\x01108=30\x0110=034\x01";
+        let logon_msg = make_logon_msg("INITIATOR", "ACCEPTOR");
 
         let mut stream = TcpStream::connect(addr).await.expect("should connect");
-        tokio::io::AsyncWriteExt::write_all(&mut stream, logon_msg.as_bytes())
+        tokio::io::AsyncWriteExt::write_all(&mut stream, &logon_msg)
             .await
             .expect("should write logon");
 
@@ -734,9 +868,9 @@ TargetCompID=INITIATOR
         let addr = acceptor.local_address().unwrap();
 
         // Send a valid FIX logon — the validator should reject it.
-        let logon_msg = "8=FIX.4.2\x019=68\x0135=A\x0149=INITIATOR\x0156=ACCEPTOR\x0134=1\x0152=20240101-00:00:00\x0198=0\x01108=30\x0110=034\x01";
+        let logon_msg = make_logon_msg("INITIATOR", "ACCEPTOR");
         let mut stream = TcpStream::connect(addr).await.unwrap();
-        tokio::io::AsyncWriteExt::write_all(&mut stream, logon_msg.as_bytes())
+        tokio::io::AsyncWriteExt::write_all(&mut stream, &logon_msg)
             .await
             .unwrap();
 
@@ -775,9 +909,9 @@ TargetCompID=INITIATOR
         acceptor.start().await.unwrap();
         let addr = acceptor.local_address().unwrap();
 
-        let logon_msg = "8=FIX.4.2\x019=68\x0135=A\x0149=INITIATOR\x0156=ACCEPTOR\x0134=1\x0152=20240101-00:00:00\x0198=0\x01108=30\x0110=034\x01";
+        let logon_msg = make_logon_msg("INITIATOR", "ACCEPTOR");
         let mut stream = TcpStream::connect(addr).await.unwrap();
-        tokio::io::AsyncWriteExt::write_all(&mut stream, logon_msg.as_bytes())
+        tokio::io::AsyncWriteExt::write_all(&mut stream, &logon_msg)
             .await
             .unwrap();
 
@@ -891,9 +1025,9 @@ TargetCompID=INITIATOR
 
         // Send a logon from an UNKNOWN session (SENDER2/TARGET2).
         // This session is not pre-configured, so it should be created dynamically.
-        let logon_msg = "8=FIX.4.2\x019=65\x0135=A\x0149=SENDER2\x0156=TARGET2\x0134=1\x0152=20240101-00:00:00\x0198=0\x01108=30\x0110=007\x01";
+        let logon_msg = make_logon_msg("SENDER2", "TARGET2");
         let mut stream = TcpStream::connect(addr).await.unwrap();
-        tokio::io::AsyncWriteExt::write_all(&mut stream, logon_msg.as_bytes())
+        tokio::io::AsyncWriteExt::write_all(&mut stream, &logon_msg)
             .await
             .unwrap();
 
@@ -942,16 +1076,16 @@ TargetCompID=INITIATOR
         let addr = acceptor.local_address().unwrap();
 
         // Two connections from the same unknown session — each should get a unique qualifier.
-        let logon_msg = "8=FIX.4.2\x019=65\x0135=A\x0149=SENDER2\x0156=TARGET2\x0134=1\x0152=20240101-00:00:00\x0198=0\x01108=30\x0110=007\x01";
+        let logon_msg = make_logon_msg("SENDER2", "TARGET2");
 
         let mut stream1 = TcpStream::connect(addr).await.unwrap();
-        tokio::io::AsyncWriteExt::write_all(&mut stream1, logon_msg.as_bytes())
+        tokio::io::AsyncWriteExt::write_all(&mut stream1, &logon_msg)
             .await
             .unwrap();
         tokio::time::sleep(std::time::Duration::from_millis(300)).await;
 
         let mut stream2 = TcpStream::connect(addr).await.unwrap();
-        tokio::io::AsyncWriteExt::write_all(&mut stream2, logon_msg.as_bytes())
+        tokio::io::AsyncWriteExt::write_all(&mut stream2, &logon_msg)
             .await
             .unwrap();
         tokio::time::sleep(std::time::Duration::from_millis(300)).await;
@@ -1017,9 +1151,9 @@ TargetCompID=INITIATOR
         let addr = acceptor.local_address().unwrap();
 
         // Send a logon from an unknown session — should be silently rejected.
-        let logon_msg = "8=FIX.4.2\x019=65\x0135=A\x0149=SENDER2\x0156=TARGET2\x0134=1\x0152=20240101-00:00:00\x0198=0\x01108=30\x0110=007\x01";
+        let logon_msg = make_logon_msg("SENDER2", "TARGET2");
         let mut stream = TcpStream::connect(addr).await.unwrap();
-        tokio::io::AsyncWriteExt::write_all(&mut stream, logon_msg.as_bytes())
+        tokio::io::AsyncWriteExt::write_all(&mut stream, &logon_msg)
             .await
             .unwrap();
 
@@ -1186,8 +1320,8 @@ TargetCompID=INITIATOR
             .expect("TLS handshake should succeed");
 
         // Send a FIX logon over the TLS connection
-        let logon_msg = "8=FIX.4.2\x019=68\x0135=A\x0149=INITIATOR\x0156=ACCEPTOR\x0134=1\x0152=20240101-00:00:00\x0198=0\x01108=30\x0110=034\x01";
-        tokio::io::AsyncWriteExt::write_all(&mut tls_stream, logon_msg.as_bytes())
+        let logon_msg = make_logon_msg("INITIATOR", "ACCEPTOR");
+        tokio::io::AsyncWriteExt::write_all(&mut tls_stream, &logon_msg)
             .await
             .expect("should write logon over TLS");
 
@@ -1227,9 +1361,9 @@ TargetCompID=INITIATOR
 
         // Connect with plain TCP (no TLS) and send a FIX message.
         // The TLS handshake should fail, and the acceptor should handle it gracefully.
-        let logon_msg = "8=FIX.4.2\x019=68\x0135=A\x0149=INITIATOR\x0156=ACCEPTOR\x0134=1\x0152=20240101-00:00:00\x0198=0\x01108=30\x0110=034\x01";
+        let logon_msg = make_logon_msg("INITIATOR", "ACCEPTOR");
         let mut stream = TcpStream::connect(addr).await.unwrap();
-        tokio::io::AsyncWriteExt::write_all(&mut stream, logon_msg.as_bytes())
+        tokio::io::AsyncWriteExt::write_all(&mut stream, &logon_msg)
             .await
             .unwrap();
 

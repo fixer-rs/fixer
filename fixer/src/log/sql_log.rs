@@ -10,7 +10,7 @@ use ramhorns::Template;
 use rustc_hash::FxHashMap;
 use simple_error::SimpleError;
 use sqlx::{any::AnyPoolOptions, AnyPool};
-use std::{sync::Arc, time::Duration};
+use std::{sync::{Arc, LazyLock}, time::Duration};
 use tokio::sync::Mutex;
 
 const CREATE_MESSAGES_LOG_TABLE: &str = "CREATE TABLE IF NOT EXISTS messages_log (
@@ -41,6 +41,10 @@ const CREATE_EVENT_LOG_TABLE: &str = "CREATE TABLE IF NOT EXISTS event_log (
   text TEXT NOT NULL
 )";
 
+static SQLX_DRIVERS: LazyLock<()> = LazyLock::new(|| {
+    sqlx::any::install_default_drivers();
+});
+
 pub struct SqlLog {
     session_id: Arc<SessionID>,
     pool: AnyPool,
@@ -53,7 +57,7 @@ impl SqlLog {
         data_source_name: &str,
         conn_max_lifetime: Duration,
     ) -> Result<Self, String> {
-        sqlx::any::install_default_drivers();
+        LazyLock::force(&SQLX_DRIVERS);
 
         let url = build_connection_url(driver, data_source_name);
 
@@ -162,32 +166,35 @@ impl SqlLogFactory {
 
 impl LogFactoryTrait for SqlLogFactory {
     async fn create(&mut self) -> Result<LogEnum, String> {
-        let mut lock = self.settings.lock().await;
-        let global_settings_wrapper = lock.global_settings().await;
-        let global_settings = global_settings_wrapper.as_ref().unwrap();
+        let global_settings = {
+            let mut lock = self.settings.lock().await;
+            lock.global_settings().await.unwrap()
+        };
 
-        create_sql_log(Arc::new(SessionID::default()), global_settings).await
+        create_sql_log(Arc::new(SessionID::default()), &global_settings).await
     }
 
     async fn create_session_log(
         &mut self,
         session_id: Arc<SessionID>,
     ) -> Result<LogEnum, String> {
-        let mut lock = self.settings.lock().await;
-        let global_settings_wrapper = lock.global_settings().await;
-        let global_settings = global_settings_wrapper.as_ref().unwrap();
+        let (global_settings, session_settings_map) = {
+            let mut lock = self.settings.lock().await;
+            let gs = lock.global_settings().await.unwrap();
+            let ss = lock.session_settings().await;
+            (gs, ss)
+        };
 
         let dynamic_sessions = global_settings
             .bool_setting(DYNAMIC_SESSIONS)
             .unwrap_or(false);
 
-        let session_settings_wrapper = lock.session_settings().await;
-        if let Some(session_settings_pair) = session_settings_wrapper.get(&session_id) {
+        if let Some(session_settings_pair) = session_settings_map.get(&session_id) {
             let session_settings = session_settings_pair.value();
             return create_sql_log(session_id, session_settings).await;
         }
         if dynamic_sessions {
-            return create_sql_log(session_id, global_settings).await;
+            return create_sql_log(session_id, &global_settings).await;
         }
         Err(format!("unknown session: {}", &session_id))
     }

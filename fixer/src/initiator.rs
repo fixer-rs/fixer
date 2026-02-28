@@ -29,6 +29,93 @@ pub(crate) struct SessionHandle {
     session_id: Arc<SessionID>,
 }
 
+/// A FIX client that connects outbound to remote servers.
+///
+/// The `Initiator` manages one or more outbound FIX sessions. For each
+/// `[SESSION]` in the configuration it connects to the address given by
+/// `SocketConnectHost` / `SocketConnectPort`, performs a FIX logon, and then
+/// exchanges messages through the [`Application`](crate::application::Application)
+/// callbacks.
+///
+/// # Reconnection
+///
+/// If a connection is lost or fails, the `Initiator` automatically retries
+/// after `ReconnectInterval` seconds (default 30). Multiple
+/// `SocketConnectHost`/`SocketConnectPort` pairs can be configured for
+/// round-robin failover.
+///
+/// # TLS
+///
+/// Set `SocketUseSSL=Y` in the session config along with optional
+/// `SocketCAFile`, `SocketServerName`, and `InsecureSkipVerify` settings.
+///
+/// # Lifecycle
+///
+/// ```text
+/// Initiator::new(app, store, settings, log)   // parse config, create sessions
+///     .start()                                 // begin connecting
+///     ...                                      // sessions exchange messages
+///     .stop()                                  // graceful shutdown
+/// ```
+///
+/// # Example
+///
+/// ```rust,no_run
+/// # use fixer::{
+/// #     initiator::Initiator,
+/// #     application::Application,
+/// #     errors::MessageRejectErrorResult,
+/// #     log::screen_log::ScreenLogFactory,
+/// #     message::Message,
+/// #     session::session_id::SessionID,
+/// #     settings::Settings,
+/// #     store::MemoryStoreFactory,
+/// # };
+/// # use simple_error::SimpleResult;
+/// # use std::sync::Arc;
+/// # use tokio::io::BufReader;
+/// # struct MyApp;
+/// # impl Application for MyApp {
+/// #     fn on_create(&self, _: &Arc<SessionID>) {}
+/// #     fn on_logon(&self, _: &Arc<SessionID>) {}
+/// #     fn on_logout(&self, _: &Arc<SessionID>) {}
+/// #     fn to_admin(&self, _: &mut Message, _: &Arc<SessionID>) {}
+/// #     fn to_app(&self, _: &mut Message, _: &Arc<SessionID>) -> SimpleResult<()> { Ok(()) }
+/// #     fn from_admin(&self, _: &Message, _: &Arc<SessionID>) -> MessageRejectErrorResult { Ok(()) }
+/// #     fn from_app(&self, _: &Message, _: &Arc<SessionID>) -> MessageRejectErrorResult { Ok(()) }
+/// # }
+/// # #[tokio::main]
+/// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let cfg = "\
+/// [DEFAULT]
+/// SocketConnectHost=localhost
+/// SocketConnectPort=5001
+/// SenderCompID=CLIENT
+/// TargetCompID=SERVER
+/// HeartBtInt=30
+/// ResetOnLogon=Y
+///
+/// [SESSION]
+/// BeginString=FIX.4.2
+/// ";
+/// let settings = Settings::parse(BufReader::new(cfg.as_bytes())).await?;
+/// let app: Arc<dyn Application> = Arc::new(MyApp);
+///
+/// let mut initiator = Initiator::new(
+///     app,
+///     MemoryStoreFactory::new(),
+///     settings,
+///     ScreenLogFactory::new(),
+/// ).await?;
+///
+/// initiator.start().await?;
+/// println!("Connecting to server...");
+///
+/// tokio::signal::ctrl_c().await?;
+/// initiator.stop().await;
+/// # Ok(())
+/// # }
+/// ```
 pub struct Initiator {
     pub(crate) sessions: Vec<SessionHandle>,
     stop_tx: watch::Sender<bool>,
@@ -37,6 +124,13 @@ pub struct Initiator {
 }
 
 impl Initiator {
+    /// Creates a new `Initiator` from the given components.
+    ///
+    /// Creates one session per `[SESSION]` block and registers them in the
+    /// global session registry. Each session reads `SocketConnectHost` and
+    /// `SocketConnectPort` from its settings.
+    ///
+    /// Does **not** start connecting — call [`start`](Initiator::start) for that.
     pub async fn new(
         app: Arc<dyn Application>,
         store_factory: MessageStoreFactoryEnum,
@@ -64,7 +158,7 @@ impl Initiator {
 
             let admin_tx = session.admin.tx.clone();
 
-            let tls_connector = tls::load_tls_connector(ss)?;
+            let tls_connector = tls::load_tls_connector(ss).await?;
 
             let sid = session.session_id.clone();
             sessions.push(SessionHandle {
@@ -86,6 +180,11 @@ impl Initiator {
         })
     }
 
+    /// Starts connecting to all configured remote servers.
+    ///
+    /// For each session, spawns a background task that runs the session and
+    /// manages the TCP connection lifecycle (connect, reconnect on failure,
+    /// optional TLS handshake). Must only be called once.
     #[allow(clippy::unused_async)]
     pub async fn start(&mut self) -> SimpleResult<()> {
         for handle in &mut self.sessions {
@@ -187,7 +286,7 @@ impl Initiator {
                         };
 
                         let (msg_out_tx, msg_out_rx) =
-                            tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
+                            tokio::sync::mpsc::channel::<Vec<u8>>(crate::session::DEFAULT_MSG_OUT_CAPACITY);
                         let (msg_in_tx, msg_in_rx) = {
                             let cap = if in_chan_capacity > 0 {
                                 in_chan_capacity
@@ -251,6 +350,11 @@ impl Initiator {
         Ok(())
     }
 
+    /// Gracefully shuts down the initiator.
+    ///
+    /// Signals all connection tasks to stop, sends a stop request to every
+    /// session, waits for all background tasks to complete, and unregisters
+    /// sessions from the global registry.
     pub async fn stop(&mut self) {
         // Signal all tasks to stop
         let _ = self.stop_tx.send(true);
