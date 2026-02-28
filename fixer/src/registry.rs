@@ -157,3 +157,37 @@ pub fn lookup_session_registration(
     let reg = (*SESSIONS).get(session_id)?;
     Some(reg.clone())
 }
+
+// lookup_session_registration_flexible first tries an exact match, then falls back to
+// matching on all fields except qualifier. This is needed because incoming connections
+// don't carry a qualifier — it's a server-side config concept (e.g. SessionQualifier=FIX50
+// to disambiguate multiple FIXT.1.1 sessions with the same comp IDs).
+pub fn lookup_session_registration_flexible(
+    session_id: &Arc<SessionID>,
+) -> Option<(Arc<SessionID>, SessionRegistration)> {
+    // Exact match first
+    if let Some(reg) = (*SESSIONS).get(session_id) {
+        return Some((session_id.clone(), reg.clone()));
+    }
+
+    // Fall back: match on all fields except qualifier, but only when the
+    // incoming session has an empty qualifier. A non-empty qualifier (e.g.
+    // from DynamicQualifier assignment) should require an exact match.
+    if session_id.qualifier.is_empty() {
+        for entry in (*SESSIONS).iter() {
+            let candidate = entry.key();
+            if candidate.begin_string == session_id.begin_string
+                && candidate.sender_comp_id == session_id.sender_comp_id
+                && candidate.target_comp_id == session_id.target_comp_id
+                && candidate.sender_sub_id == session_id.sender_sub_id
+                && candidate.sender_location_id == session_id.sender_location_id
+                && candidate.target_sub_id == session_id.target_sub_id
+                && candidate.target_location_id == session_id.target_location_id
+            {
+                return Some((candidate.clone(), entry.value().clone()));
+            }
+        }
+    }
+
+    None
+}

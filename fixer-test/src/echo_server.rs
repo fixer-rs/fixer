@@ -1,7 +1,7 @@
 use fixer::{
     acceptor::Acceptor,
     application::Application,
-    errors::MessageRejectErrorResult,
+    errors::{MessageRejectErrorResult, unsupported_message_type},
     log::{file_log::FileLogFactory, screen_log::ScreenLogFactory},
     message::Message,
     registry::send_to_target_owned,
@@ -129,7 +129,7 @@ impl Application for EchoApp {
         let msg_type = msg.header.get_bytes(TAG_MSG_TYPE).unwrap_or(b"");
         match msg_type {
             b"D" | b"d" => self.process_msg(msg, session_id),
-            _ => Ok(()),
+            _ => Err(unsupported_message_type()),
         }
     }
 }

@@ -419,7 +419,7 @@ impl Message {
     /// IDs, sub IDs, location IDs, etc.) swapped from this message.
     #[must_use]
     pub fn reverse_route(&self) -> Message {
-        let mut reverse_msg = Message::default();
+        let mut reverse_msg = Message::new();
 
         let copy = |reverse_header: &mut Header, src: Tag, dest: Tag, self_header: &Header| {
             let mut field = FIXString::new();

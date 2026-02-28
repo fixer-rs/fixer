@@ -69,7 +69,7 @@ where
 
         let n = self
             .reader
-            .read(&mut self.big_buffer[self.len..self.cap])
+            .read(&mut self.big_buffer[self.end..self.start + self.cap])
             .await
             .map_err(|_| simple_error!("failed to parse big_buffer"))?;
 
@@ -95,13 +95,13 @@ where
         delim: &[u8],
     ) -> SimpleResult<isize> {
         loop {
-            if offset > self.big_buffer.len() as isize {
+            if offset as usize > self.len {
                 self.read_more().await?;
                 continue;
             }
 
             let search = TwoWaySearcher::new(delim);
-            let index_result = search.search_in(&self.big_buffer[self.start + offset as usize..]);
+            let index_result = search.search_in(&self.big_buffer[self.start + offset as usize..self.end]);
             if let Some(index) = index_result {
                 return Ok(index as isize + offset);
             }

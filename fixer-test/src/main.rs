@@ -26,6 +26,11 @@ fn usage() -> ! {
 #[tokio::main]
 async fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
+
+    // Check for --no-server flag (for testing against an external server).
+    let no_server = args.first().is_some_and(|a| a == "--no-server");
+    let args = if no_server { &args[1..] } else { &args[..] };
+
     if args.len() < 3 {
         usage();
     }
@@ -49,16 +54,25 @@ async fn main() -> ExitCode {
         Comparator::default()
     };
 
-    // Start the echo server.
-    eprintln!("Starting echo server with {cfg_file} on port {port}...");
-    let (mut acceptor, send_task) =
-        echo_server::start_echo_server(cfg_file).await.unwrap_or_else(|e| {
-            eprintln!("failed to start echo server: {e}");
-            std::process::exit(1);
-        });
+    let mut acceptor_opt = None;
+    let mut send_task_opt = None;
 
-    // Give the server a moment to bind the port.
-    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    if no_server {
+        eprintln!("Using external server on port {port}...");
+    } else {
+        // Start the echo server.
+        eprintln!("Starting echo server with {cfg_file} on port {port}...");
+        let (acceptor, send_task) =
+            echo_server::start_echo_server(cfg_file).await.unwrap_or_else(|e| {
+                eprintln!("failed to start echo server: {e}");
+                std::process::exit(1);
+            });
+
+        // Give the server a moment to bind the port.
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        acceptor_opt = Some(acceptor);
+        send_task_opt = Some(send_task);
+    }
 
     // Run the test suite.
     let runner = TestRunner::new("127.0.0.1".to_string(), port, comparator);
@@ -86,8 +100,12 @@ async fn main() -> ExitCode {
     print!("{}", runner::format_results_xml(&results));
 
     // Stop echo server.
-    acceptor.stop().await;
-    send_task.abort();
+    if let Some(mut acceptor) = acceptor_opt {
+        acceptor.stop().await;
+    }
+    if let Some(send_task) = send_task_opt {
+        send_task.abort();
+    }
 
     if results.failures > 0 {
         ExitCode::FAILURE

@@ -37,7 +37,8 @@ use crate::{
         TAG_DEFAULT_APPL_VER_ID, TAG_ENCRYPT_METHOD, TAG_END_SEQ_NO, TAG_GAP_FILL_FLAG,
         TAG_HEART_BT_INT, TAG_LAST_MSG_SEQ_NUM_PROCESSED, TAG_MSG_SEQ_NUM, TAG_MSG_TYPE,
         TAG_NEW_SEQ_NO, TAG_NEXT_EXPECTED_MSG_SEQ_NUM, TAG_ORIG_SENDING_TIME, TAG_POSS_DUP_FLAG,
-        TAG_REF_MSG_TYPE, TAG_REF_TAG_ID, TAG_RESET_SEQ_NUM_FLAG, TAG_SENDER_COMP_ID,
+        TAG_REF_MSG_TYPE, TAG_REF_SEQ_NUM, TAG_REF_TAG_ID, TAG_RESET_SEQ_NUM_FLAG,
+        TAG_SENDER_COMP_ID,
         TAG_SENDER_LOCATION_ID, TAG_SENDER_SUB_ID, TAG_SENDING_TIME, TAG_SESSION_REJECT_REASON,
         TAG_TARGET_COMP_ID, TAG_TARGET_LOCATION_ID, TAG_TARGET_SUB_ID, TAG_TEST_REQ_ID, TAG_TEXT,
         Tag,
@@ -476,7 +477,7 @@ impl Session {
         let get_field_result = msg
             .header
             .get_field(TAG_SENDING_TIME, &mut orig_sending_time);
-        if get_field_result.is_err() {
+        if get_field_result.is_ok() {
             msg.header
                 .set_field(TAG_ORIG_SENDING_TIME, orig_sending_time);
         }
@@ -971,6 +972,27 @@ impl Session {
         Ok(())
     }
 
+    /// Verify the FIX checksum in the raw bytes. Returns false if the checksum
+    /// is present but doesn't match the computed value.
+    fn verify_checksum(raw: &[u8]) -> bool {
+        // Find the last \x0110= which marks the checksum field.
+        let cs_start = raw
+            .windows(4)
+            .rposition(|w| w[0] == 0x01 && w[1] == b'1' && w[2] == b'0' && w[3] == b'=');
+        let Some(cs_start) = cs_start else {
+            return true; // no checksum field found, skip validation
+        };
+        let computed: u32 = raw[..cs_start + 1].iter().map(|&b| u32::from(b)).sum::<u32>() % 256;
+        // Extract the checksum value after "10=".
+        let after = &raw[cs_start + 4..];
+        let end = after.iter().position(|&b| b == 0x01).unwrap_or(after.len());
+        let cs_str = std::str::from_utf8(&after[..end]).unwrap_or("");
+        let Ok(expected) = cs_str.parse::<u32>() else {
+            return true; // can't parse, skip validation
+        };
+        computed == expected
+    }
+
     fn check_begin_string(&self, msg: &Message) -> MessageRejectErrorResult {
         let begin_string = msg
             .header
@@ -1039,9 +1061,14 @@ impl Session {
                 .set_field(TAG_TEXT, FIXString::from(rej.to_string()));
 
             let mut msg_type = FIXString::new();
-            if msg.header.get_field(TAG_MSG_TYPE, &mut msg_type).is_err() {
+            if msg.header.get_field(TAG_MSG_TYPE, &mut msg_type).is_ok() {
                 reply.body.set_field(TAG_REF_MSG_TYPE, msg_type);
             }
+        }
+
+        let mut seq_num = FIXInt::default();
+        if msg.header.get_field(TAG_MSG_SEQ_NUM, &mut seq_num).is_ok() {
+            reply.body.set_field(TAG_REF_SEQ_NUM, seq_num);
         }
 
         self.log
@@ -1062,6 +1089,14 @@ impl Session {
             if let Err(err) = drop_result {
                 self.log_error(&err.to_string()).await;
             }
+        }
+
+        // Close message_out by replacing it with a dead sender (receiver dropped).
+        // This causes write_loop to exit, which closes the TCP connection.
+        // Equivalent to Go's close(s.messageOut); s.messageOut = nil.
+        if !self.message_out.is_closed() {
+            let (dead_tx, _) = tokio::sync::mpsc::channel::<Vec<u8>>(1);
+            self.message_out = dead_tx;
         }
 
         self.message_in.close();
@@ -1129,7 +1164,7 @@ impl Session {
                 Some(_) = self.message_event.rx.recv() => {
                     self.sm_send_app_messages().await;
                 }
-                fix_in_option = self.message_in.recv() => {
+                fix_in_option = self.message_in.recv(), if self.sm.is_connected() => {
                     match fix_in_option {
                         Some(fix_in) => {
                             self.sm_incoming(&fix_in).await;
@@ -1251,6 +1286,15 @@ impl Session {
                     "Msg Parse Error: {{error}}, {{bytes}}",
                     hashmap! {
                         String::from("error") => err.to_string(),
+                        String::from("bytes") => String::from_utf8_lossy(&fix_in.bytes).to_string(),
+                    },
+                )
+                .await;
+        } else if !Self::verify_checksum(&fix_in.bytes) {
+            self.log
+                .on_eventf(
+                    "Msg Checksum Error: {{bytes}}",
+                    hashmap! {
                         String::from("bytes") => String::from_utf8_lossy(&fix_in.bytes).to_string(),
                     },
                 )
@@ -1798,6 +1842,7 @@ impl Session {
                 let err_str = &err.to_string();
                 return self.handle_state_error(err_str).await;
             }
+            return SessionStateEnum::new_logout_state();
         }
 
         match rej.reject_reason() {
@@ -1823,7 +1868,7 @@ impl Session {
                     let err_str = &err.to_string();
                     return self.handle_state_error(err_str).await;
                 }
-                SessionStateEnum::new_logout_state()
+                SessionStateEnum::new_in_session().await
             }
         }
     }
@@ -1930,7 +1975,7 @@ impl Session {
         if sequence_reset
             .header
             .get_field(TAG_SENDING_TIME, &mut orig_sending_time)
-            .is_err()
+            .is_ok()
         {
             sequence_reset
                 .header

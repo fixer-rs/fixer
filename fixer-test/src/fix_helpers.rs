@@ -2,22 +2,47 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 const SOH: u8 = 0x01;
 
-/// Replace `<TIME>` placeholders with the current UTC timestamp.
+/// Replace `<TIME>` and `<TIME+N>` / `<TIME-N>` placeholders with UTC timestamps.
 ///
 /// Format: `YYYYMMDD-HH:MM:SS` (FIX standard `SendingTime` format).
 pub fn timify(msg: &[u8]) -> Vec<u8> {
-    let placeholder = b"<TIME>";
-    if !contains_bytes(msg, placeholder) {
-        return msg.to_vec();
-    }
-
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("system clock before epoch");
     let secs = now.as_secs();
-    let timestamp = format_utc_timestamp(secs);
 
-    replace_bytes(msg, placeholder, timestamp.as_bytes())
+    // First replace <TIME+N> and <TIME-N> patterns (must be done before <TIME>).
+    let mut result = msg.to_vec();
+    loop {
+        let Some(start) = result
+            .windows(6)
+            .position(|w| w == b"<TIME+" || w == b"<TIME-")
+        else {
+            break;
+        };
+        let sign: i64 = if result[start + 5] == b'+' { 1 } else { -1 };
+        let Some(end) = result[start + 6..].iter().position(|&b| b == b'>') else {
+            break;
+        };
+        let offset_str =
+            std::str::from_utf8(&result[start + 6..start + 6 + end]).unwrap_or("0");
+        let offset: i64 = offset_str.parse().unwrap_or(0);
+        let adjusted = (secs as i64 + sign * offset) as u64;
+        let ts = format_utc_timestamp(adjusted);
+        let mut new_result = Vec::with_capacity(result.len());
+        new_result.extend_from_slice(&result[..start]);
+        new_result.extend_from_slice(ts.as_bytes());
+        new_result.extend_from_slice(&result[start + 6 + end + 1..]);
+        result = new_result;
+    }
+
+    // Then replace plain <TIME>.
+    if contains_bytes(&result, b"<TIME>") {
+        let timestamp = format_utc_timestamp(secs);
+        result = replace_bytes(&result, b"<TIME>", timestamp.as_bytes());
+    }
+
+    result
 }
 
 /// Replace all occurrences of `pattern` with `replacement` in `data`.
