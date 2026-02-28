@@ -15,7 +15,7 @@ name = "fixer_fix"
 path = "src/lib.rs"
 
 [dependencies]
-fixer = { path = "../fixer", version = "0.9.0" }
+fixer = { path = "../fixer", version = "0.10.0" }
 jiff = "0.2"
 rust_decimal = "1"
 simple-error = "0.3"
