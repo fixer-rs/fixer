@@ -15,7 +15,7 @@ name = "fixer-gen"
 path = "src/main.rs"
 
 [dependencies]
-fixer = { path = "../fixer", version = "0.9.0" }
+fixer = { path = "../fixer", version = "0.10.0" }
 clap = { version = "4", features = ["derive"] }
 rustc-hash = "2"
 tera = "1"
