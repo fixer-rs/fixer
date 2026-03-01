@@ -64,7 +64,7 @@ sql_log = ["sqlx"]
 [dev-dependencies]
 criterion = "0.5"
 mockall = "0.14"
-pprof = { version = "0.14", features = ["flamegraph", "criterion"] }
+pprof = { version = "0.15", features = ["flamegraph", "criterion"] }
 rcgen = "0.14"
 serial_test = "3.0"
 tempfile = "3"
