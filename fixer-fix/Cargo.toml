@@ -8,14 +8,14 @@ name = "fixer-fix"
 readme = "../README.md"
 repository = "https://github.com/fixer-rs/fixer"
 rust-version = "1.85"
-version = "0.10.0"
+version = "0.10.1"
 
 [lib]
 name = "fixer_fix"
 path = "src/lib.rs"
 
 [dependencies]
-fixer = { path = "../fixer", version = "0.10.0" }
+fixer = { path = "../fixer", version = "0.10.1" }
 jiff = "0.2"
 rust_decimal = "1"
 simple-error = "0.3"

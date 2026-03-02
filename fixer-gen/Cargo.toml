@@ -8,14 +8,14 @@ name = "fixer-gen"
 readme = "../README.md"
 repository = "https://github.com/fixer-rs/fixer"
 rust-version = "1.85"
-version = "0.10.0"
+version = "0.10.1"
 
 [[bin]]
 name = "fixer-gen"
 path = "src/main.rs"
 
 [dependencies]
-fixer = { path = "../fixer", version = "0.10.0" }
+fixer = { path = "../fixer", version = "0.10.1" }
 clap = { version = "4", features = ["derive"] }
 rustc-hash = "2"
 tera = "1"

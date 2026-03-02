@@ -5,7 +5,7 @@ edition = "2024"
 license = "Apache-2.0"
 name = "fixer-test"
 rust-version = "1.85"
-version = "0.10.0"
+version = "0.10.1"
 publish = false
 
 [[bin]]
