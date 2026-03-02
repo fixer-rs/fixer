@@ -22,9 +22,9 @@ pub mod sql_store;
 /// Implementations track sender/target sequence numbers, store outgoing
 /// messages for potential resend, and support reset/refresh operations.
 ///
-/// Built-in implementations: [`MemoryStore`], [`FileStore`](file_store::FileStore),
-/// [`SqlStore`](sql_store::SqlStore) (feature `sql_store`),
-/// [`MongoStore`](mongo_store::MongoStore) (feature `mongo_store`).
+/// Built-in implementations: [`MemoryStore`], [`FileStore`],
+/// `SqlStore` (feature `sql_store`),
+/// `MongoStore` (feature `mongo_store`).
 #[allow(async_fn_in_trait)] // dispatched via enum_dispatch, not used as trait object
 #[enum_dispatch]
 pub trait MessageStoreTrait {
