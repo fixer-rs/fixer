@@ -34,7 +34,7 @@ pub(crate) struct SessionHandle {
 /// The `Initiator` manages one or more outbound FIX sessions. For each
 /// `[SESSION]` in the configuration it connects to the address given by
 /// `SocketConnectHost` / `SocketConnectPort`, performs a FIX logon, and then
-/// exchanges messages through the [`Application`](crate::application::Application)
+/// exchanges messages through the [`Application`]
 /// callbacks.
 ///
 /// # Reconnection

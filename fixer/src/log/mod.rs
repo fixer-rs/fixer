@@ -22,12 +22,12 @@ pub mod sql_log;
 
 /// Logging backend for FIX messages and session events.
 ///
-/// Built-in implementations: [`NullLog`](null_log::NullLog),
-/// [`ScreenLog`](screen_log::ScreenLog),
-/// [`FileLog`](file_log::FileLog),
-/// [`CompositeLog`](composite_log::CompositeLog),
-/// [`SqlLog`](sql_log::SqlLog) (feature `sql_log`),
-/// [`MongoLog`](mongo_log::MongoLog) (feature `mongo_log`).
+/// Built-in implementations: [`NullLog`],
+/// [`ScreenLog`],
+/// [`FileLog`],
+/// [`CompositeLog`],
+/// `SqlLog` (feature `sql_log`),
+/// `MongoLog` (feature `mongo_log`).
 #[allow(async_fn_in_trait)] // dispatched via enum_dispatch, not used as trait object
 #[enum_dispatch]
 pub trait LogTrait {
