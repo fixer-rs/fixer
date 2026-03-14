@@ -316,7 +316,7 @@ impl Message {
         let mut field_index = 0;
 
         // message must start with begin string, body length, msg type
-        let raw_bytes = extract_specific_field_shared(
+        let raw_bytes = extract_specific_field(
             &mut parsed_fields[field_index],
             TAG_BEGIN_STRING,
             raw_message,
@@ -327,7 +327,7 @@ impl Message {
             .add(LocalField::new(vec![parsed_fields[field_index].clone()]));
         field_index += 1;
 
-        let raw_bytes = extract_specific_field_shared(
+        let raw_bytes = extract_specific_field(
             &mut parsed_fields[field_index],
             TAG_BODY_LENGTH,
             raw_bytes,
@@ -338,7 +338,7 @@ impl Message {
             .add(LocalField::new(vec![parsed_fields[field_index].clone()]));
         field_index += 1;
 
-        let mut raw_bytes = extract_specific_field_shared(
+        let mut raw_bytes = extract_specific_field(
             &mut parsed_fields[field_index],
             TAG_MSG_TYPE,
             raw_bytes,
@@ -364,7 +364,7 @@ impl Message {
                 xml_data_msg = true;
                 raw_bytes
             } else {
-                extract_field_shared(pf, raw_bytes, &shared, msg_len)?
+                extract_field(pf, raw_bytes, &shared, msg_len)?
             };
 
             let tag = pf.tag;
@@ -645,8 +645,10 @@ fn extract_specific_field<'a>(
     field: &mut TagValue,
     expected_tag: Tag,
     buffer: &'a [u8],
+    shared: &bytes::Bytes,
+    msg_len: usize,
 ) -> Result<&'a [u8], ParseError> {
-    let rem_buffer = extract_field(field, buffer)?;
+    let rem_buffer = extract_field(field, buffer, shared, msg_len)?;
     if field.tag != expected_tag {
         return Err(ParseError {
             orig_error: format!(
@@ -658,25 +660,7 @@ fn extract_specific_field<'a>(
     Ok(rem_buffer)
 }
 
-/// Shared-buffer variant: parses the field using a zero-copy Bytes slice.
-fn extract_specific_field_shared<'a>(
-    field: &mut TagValue,
-    expected_tag: Tag,
-    buffer: &'a [u8],
-    shared: &bytes::Bytes,
-    msg_len: usize,
-) -> Result<&'a [u8], ParseError> {
-    let rem_buffer = extract_field_shared(field, buffer, shared, msg_len)?;
-    if field.tag != expected_tag {
-        return Err(ParseError {
-            orig_error: format!(
-                "extract_specific_field: Fields out of order, expected {}, got {}",
-                expected_tag, field.tag
-            ),
-        });
-    }
-    Ok(rem_buffer)
-}
+
 
 #[allow(clippy::cast_sign_loss)]
 fn extract_xml_data_field<'a>(
@@ -700,24 +684,6 @@ fn extract_xml_data_field<'a>(
 }
 
 fn extract_field<'a>(
-    parsed_field_bytes: &mut TagValue,
-    buffer: &'a [u8],
-) -> Result<&'a [u8], ParseError> {
-    let end_index = buffer.iter().position(|x| *x == 1).ok_or(ParseError {
-        orig_error: format!(
-            "extract_field: No Trailing Delim in {}",
-            std::str::from_utf8(buffer).unwrap_or("<invalid utf8>")
-        ),
-    })?;
-    let buffer_slice = buffer.get(..(end_index + 1)).unwrap();
-    parsed_field_bytes
-        .parse(buffer_slice)
-        .map_err(|err| ParseError { orig_error: err })?;
-    Ok(buffer.get((end_index + 1)..).unwrap())
-}
-
-/// Shared-buffer variant: uses `parse_shared` for zero-copy field bytes.
-fn extract_field_shared<'a>(
     parsed_field_bytes: &mut TagValue,
     buffer: &'a [u8],
     shared: &bytes::Bytes,
