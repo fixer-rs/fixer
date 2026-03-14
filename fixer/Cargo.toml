@@ -29,7 +29,7 @@ enum_dispatch = "0.3"
 fast-float2 = "0.2"
 futures = "0.3"
 itoap = "1"
-memmem = "0.1.1"
+memchr = "2"
 mongodb = { version = "3", optional = true }
 opentelemetry = { version = "0.30", optional = true }
 opentelemetry_sdk = { version = "0.30", features = ["rt-tokio", "logs"], optional = true }

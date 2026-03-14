@@ -37,7 +37,7 @@ where
 
                 if msg_in.send(FixIn {
                     bytes: msg,
-                    receive_time: parser.last_read.timestamp(),
+                    receive_time: parser.last_read,
                 }).await.is_err() {
                     return;
                 }

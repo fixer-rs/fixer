@@ -275,28 +275,41 @@ impl Message {
         &mut self,
         raw_message: &[u8],
         transport_data_dictionary: &Option<Arc<DataDictionary>>,
+        application_data_dictionary: &Option<Arc<DataDictionary>>,
+    ) -> Result<(), ParseError> {
+        let shared = bytes::Bytes::copy_from_slice(raw_message);
+        self.parse_message_with_dd_shared(shared, transport_data_dictionary, application_data_dictionary)
+    }
+
+    /// Parses a FIX message from a shared `Bytes` buffer, avoiding an extra
+    /// allocation when the caller already holds `Bytes` (e.g. from the parser).
+    #[allow(clippy::ref_option)]
+    pub fn parse_message_with_dd_shared(
+        &mut self,
+        shared: bytes::Bytes,
+        transport_data_dictionary: &Option<Arc<DataDictionary>>,
         _application_data_dictionary: &Option<Arc<DataDictionary>>,
     ) -> Result<(), ParseError> {
         self.header.clear();
         self.body.clear();
         self.trailer.clear();
-        self.raw_message = raw_message.to_vec();
+        self.raw_message = shared.to_vec();
+
+        let raw_message = &self.raw_message[..];
 
         // Count SOH delimiters to pre-allocate fields.
         #[allow(clippy::naive_bytecount)]
-        let field_count = self.raw_message.iter().filter(|&&b| b == 0x01).count();
+        let field_count = raw_message.iter().filter(|&&b| b == 0x01).count();
 
         if field_count == 0 {
             return Err(ParseError {
                 orig_error: format!(
                     "No Fields detected in {}",
-                    std::str::from_utf8(&self.raw_message).unwrap_or("<invalid utf8>")
+                    std::str::from_utf8(raw_message).unwrap_or("<invalid utf8>")
                 ),
             });
         }
 
-        // Shared buffer: all TagValues hold Bytes slices of this single allocation.
-        let shared = bytes::Bytes::copy_from_slice(raw_message);
         let msg_len = raw_message.len();
 
         let mut parsed_fields: Vec<TagValue> = vec![TagValue::default(); field_count];

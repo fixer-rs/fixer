@@ -1,19 +1,18 @@
 use crate::fix_int::atoi;
-use jiff::Zoned;
-use memmem::{Searcher, TwoWaySearcher};
+use jiff::Timestamp;
+use memchr::memmem::Finder;
 use simple_error::SimpleResult;
 use tokio::io::{AsyncRead, AsyncReadExt, BufReader};
 
 const BEGIN_STRING: &str = "8=";
 const BODY_LENGTH: &str = "\u{1}9=";
-const DELIMITER: &str = "\u{1}";
 const CHECKSUM: &str = "\u{1}10=";
 const DEFAULT_BUF_SIZE: usize = 4096;
 
 pub struct Parser<T: Unpin + AsyncRead> {
     big_buffer: Vec<u8>,
     reader: BufReader<T>,
-    pub last_read: Zoned,
+    pub last_read: Timestamp,
     start: usize,
     end: usize,
     len: usize,
@@ -31,7 +30,7 @@ where
         Self {
             big_buffer: vec![],
             reader,
-            last_read: Zoned::now(),
+            last_read: Timestamp::now(),
             start: 0,
             end: 0,
             len: 0,
@@ -76,7 +75,7 @@ where
         if n == 0 {
             return Err(simple_error!("eof"));
         }
-        self.last_read = Zoned::now();
+        self.last_read = Timestamp::now();
 
         self.end += n;
         self.len = self.end - self.start;
@@ -84,15 +83,15 @@ where
         Ok(n.try_into().unwrap())
     }
 
-    async fn find_index(&mut self, delim: &[u8]) -> SimpleResult<isize> {
-        self.find_index_after_offset(0, delim).await
+    async fn find_index(&mut self, finder: &Finder<'_>) -> SimpleResult<isize> {
+        self.find_index_after_offset(0, finder).await
     }
 
     #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
     async fn find_index_after_offset(
         &mut self,
         offset: isize,
-        delim: &[u8],
+        finder: &Finder<'_>,
     ) -> SimpleResult<isize> {
         loop {
             if offset as usize > self.len {
@@ -100,9 +99,30 @@ where
                 continue;
             }
 
-            let search = TwoWaySearcher::new(delim);
-            let index_result = search.search_in(&self.big_buffer[self.start + offset as usize..self.end]);
-            if let Some(index) = index_result {
+            let haystack = &self.big_buffer[self.start + offset as usize..self.end];
+            if let Some(index) = finder.find(haystack) {
+                return Ok(index as isize + offset);
+            }
+
+            self.read_more().await?;
+        }
+    }
+
+    // Fast path for single-byte delimiter (SOH).
+    #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
+    async fn find_byte_after_offset(
+        &mut self,
+        offset: isize,
+        byte: u8,
+    ) -> SimpleResult<isize> {
+        loop {
+            if offset as usize > self.len {
+                self.read_more().await?;
+                continue;
+            }
+
+            let haystack = &self.big_buffer[self.start + offset as usize..self.end];
+            if let Some(index) = memchr::memchr(byte, haystack) {
                 return Ok(index as isize + offset);
             }
 
@@ -111,16 +131,18 @@ where
     }
 
     async fn find_start(&mut self) -> SimpleResult<isize> {
-        self.find_index(BEGIN_STRING.as_bytes()).await
+        let finder = Finder::new(BEGIN_STRING.as_bytes());
+        self.find_index(&finder).await
     }
 
     async fn find_end_after_offset(&mut self, offset: isize) -> SimpleResult<isize> {
+        let checksum_finder = Finder::new(CHECKSUM.as_bytes());
         let index = self
-            .find_index_after_offset(offset, CHECKSUM.as_bytes())
+            .find_index_after_offset(offset, &checksum_finder)
             .await?;
 
         let index = self
-            .find_index_after_offset(index + 1, DELIMITER.as_bytes())
+            .find_byte_after_offset(index + 1, b'\x01')
             .await?;
 
         Ok(index + 1)
@@ -128,12 +150,13 @@ where
 
     #[allow(clippy::cast_sign_loss)]
     async fn jump_length(&mut self) -> SimpleResult<isize> {
-        let mut length_index = self.find_index(BODY_LENGTH.as_bytes()).await?;
+        let body_length_finder = Finder::new(BODY_LENGTH.as_bytes());
+        let mut length_index = self.find_index(&body_length_finder).await?;
 
         length_index += 3;
 
         let offset = self
-            .find_index_after_offset(length_index, DELIMITER.as_bytes())
+            .find_byte_after_offset(length_index, b'\x01')
             .await?;
 
         if offset == length_index {
@@ -149,7 +172,7 @@ where
     }
 
     #[allow(clippy::cast_sign_loss)]
-    pub async fn read_message(&mut self) -> SimpleResult<Vec<u8>> {
+    pub async fn read_message(&mut self) -> SimpleResult<bytes::Bytes> {
         let start = self.find_start().await?;
 
         self.start += start as usize;
@@ -160,7 +183,8 @@ where
 
         let index = self.find_end_after_offset(index).await?;
 
-        let msg_bytes = self.big_buffer[self.start..self.start + index as usize].to_vec();
+        let msg_bytes =
+            bytes::Bytes::copy_from_slice(&self.big_buffer[self.start..self.start + index as usize]);
 
         self.start += index as usize;
         self.len = self.end - self.start;

@@ -202,7 +202,7 @@ impl Default for Session {
 
 #[derive(Default)]
 pub struct FixIn {
-    pub bytes: Vec<u8>,
+    pub bytes: bytes::Bytes,
     pub receive_time: Timestamp,
 }
 
@@ -1275,8 +1275,8 @@ impl Session {
         self.log.on_incoming(&fix_in.bytes).await;
 
         let mut msg = Message::new();
-        let parse_result = msg.parse_message_with_data_dictionary(
-            &fix_in.bytes,
+        let parse_result = msg.parse_message_with_dd_shared(
+            fix_in.bytes.clone(),
             &self.transport_data_dictionary,
             &self.app_data_dictionary,
         );
@@ -3557,7 +3557,7 @@ mod tests {
             s.ssr
                 .session
                 .sm_incoming(&FixIn {
-                    bytes: msg_bytes,
+                    bytes: bytes::Bytes::from(msg_bytes),
                     receive_time: Timestamp::now(),
                 })
                 .await;
