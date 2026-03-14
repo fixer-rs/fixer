@@ -16,7 +16,7 @@ path = "src/main.rs"
 fixer = { path = "../fixer" }
 regex = "1.12"
 simple-error = "0.3"
-tokio = { version = "1.49", features = ["io-util", "rt", "rt-multi-thread", "sync", "macros", "net", "signal", "time"] }
+tokio = { version = "1.50", features = ["io-util", "rt", "rt-multi-thread", "sync", "macros", "net", "signal", "time"] }
 
 [lints.rust]
 unsafe_code = "forbid"
