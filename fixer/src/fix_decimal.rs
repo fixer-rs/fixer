@@ -10,8 +10,8 @@ pub struct FIXDecimal {
 
 impl FieldValueReader for FIXDecimal {
     fn read(&mut self, input: &[u8]) -> SimpleResult<()> {
-        let fix_decimal =
-            Decimal::from_str_exact(&String::from_utf8_lossy(input)).map_err(SimpleError::from)?;
+        let input_str = std::str::from_utf8(input).map_err(SimpleError::from)?;
+        let fix_decimal = Decimal::from_str_exact(input_str).map_err(SimpleError::from)?;
         self.decimal = fix_decimal;
         Ok(())
     }

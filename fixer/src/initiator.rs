@@ -305,8 +305,8 @@ impl Initiator {
                         }));
 
                         // Wait for connect acknowledgement
-                        if let Some(result) = err_rx.recv().await {
-                            if result.is_err() {
+                        if let Some(result) = err_rx.recv().await
+                            && result.is_err() {
                                 // Connect rejected, retry after interval
                                 tokio::select! {
                                     () = sleep(reconnect_interval) => {},
@@ -314,7 +314,6 @@ impl Initiator {
                                 }
                                 continue;
                             }
-                        }
 
                         let buf_reader = BufReader::new(read_half);
                         let parser = Parser::new(buf_reader);

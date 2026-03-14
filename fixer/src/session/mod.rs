@@ -202,7 +202,7 @@ impl Default for Session {
 
 #[derive(Default)]
 pub struct FixIn {
-    pub bytes: Vec<u8>,
+    pub bytes: bytes::Bytes,
     pub receive_time: Timestamp,
 }
 
@@ -770,9 +770,9 @@ impl Session {
         self.application.on_logon(&self.session_id);
 
         // Evaluate tag 789 to see if we end up with an implied gapfill/resend.
-        if self.session_settings.enable_next_expected_msg_seq_num && !msg.body.has(TAG_RESET_SEQ_NUM_FLAG) {
-            if let Ok(target_wants_next) = msg.body.get_int(TAG_NEXT_EXPECTED_MSG_SEQ_NUM) {
-                if target_wants_next != next_sender_msg_num_at_logon_received {
+        if self.session_settings.enable_next_expected_msg_seq_num && !msg.body.has(TAG_RESET_SEQ_NUM_FLAG)
+            && let Ok(target_wants_next) = msg.body.get_int(TAG_NEXT_EXPECTED_MSG_SEQ_NUM)
+                && target_wants_next != next_sender_msg_num_at_logon_received {
                     if self.session_settings.disable_message_persist {
                         return Err(FixerError::Reject(
                             MessageRejectErrorEnum::TargetTooHigh(TargetTooHigh {
@@ -789,8 +789,6 @@ impl Session {
                     )
                     .await?;
                 }
-            }
-        }
 
         self.check_target_too_high(msg).await?;
 
@@ -982,7 +980,7 @@ impl Session {
         let Some(cs_start) = cs_start else {
             return true; // no checksum field found, skip validation
         };
-        let computed: u32 = raw[..cs_start + 1].iter().map(|&b| u32::from(b)).sum::<u32>() % 256;
+        let computed: u32 = raw[..=cs_start].iter().map(|&b| u32::from(b)).sum::<u32>() % 256;
         // Extract the checksum value after "10=".
         let after = &raw[cs_start + 4..];
         let end = after.iter().position(|&b| b == 0x01).unwrap_or(after.len());
@@ -1275,7 +1273,7 @@ impl Session {
         self.log.on_incoming(&fix_in.bytes).await;
 
         let mut msg = Message::new();
-        let parse_result = msg.parse_message_with_data_dictionary(
+        let parse_result = msg.parse_message_with_dd_shared(
             &fix_in.bytes,
             &self.transport_data_dictionary,
             &self.app_data_dictionary,
@@ -1286,7 +1284,7 @@ impl Session {
                     "Msg Parse Error: {{error}}, {{bytes}}",
                     hashmap! {
                         String::from("error") => err.to_string(),
-                        String::from("bytes") => String::from_utf8_lossy(&fix_in.bytes).to_string(),
+                        String::from("bytes") => std::str::from_utf8(&fix_in.bytes).unwrap_or("<invalid utf8>").to_string(),
                     },
                 )
                 .await;
@@ -1295,7 +1293,7 @@ impl Session {
                 .on_eventf(
                     "Msg Checksum Error: {{bytes}}",
                     hashmap! {
-                        String::from("bytes") => String::from_utf8_lossy(&fix_in.bytes).to_string(),
+                        String::from("bytes") => std::str::from_utf8(&fix_in.bytes).unwrap_or("<invalid utf8>").to_string(),
                     },
                 )
                 .await;
@@ -1360,11 +1358,10 @@ impl Session {
 
     async fn sm_check_session_time(&mut self, now: &mut Zoned) {
         let mut check_first = false;
-        if let Some(session_time) = self.session_settings.session_time.as_ref() {
-            if !session_time.is_in_range(now) {
+        if let Some(session_time) = self.session_settings.session_time.as_ref()
+            && !session_time.is_in_range(now) {
                 check_first = true;
             }
-        }
 
         if check_first {
             if self.sm.is_session_time() {
@@ -1474,11 +1471,10 @@ impl Session {
         let mut do_on_logout = self.sm.is_logged_on();
         if let SessionStateEnum::LogoutState(_) = self.sm.state {
             do_on_logout = true;
-        } else if let SessionStateEnum::LogonState(_) = self.sm.state {
-            if self.session_settings.initiate_logon {
+        } else if let SessionStateEnum::LogonState(_) = self.sm.state
+            && self.session_settings.initiate_logon {
                 do_on_logout = true;
             }
-        }
 
         if do_on_logout {
             self.application.on_logout(&self.session_id);
@@ -1920,12 +1916,10 @@ impl Session {
         if let Err(err) = msg
             .header
             .get_field(TAG_ORIG_SENDING_TIME, &mut orig_sending_time)
-        {
-            if let Err(rej_err) = self.do_reject(msg, err).await {
+            && let Err(rej_err) = self.do_reject(msg, err).await {
                 let err_str = &rej_err.to_string();
                 return self.handle_state_error(err_str).await;
             }
-        }
 
         let mut sending_time = FIXUTCTimestamp::default();
         if let Err(err) = msg.header.get_field(TAG_SENDING_TIME, &mut sending_time) {
@@ -3311,7 +3305,7 @@ mod tests {
             if test.expect_send_logout {
                 s.ssr.last_to_admin_message_sent().await;
                 s.message_type(
-                    String::from_utf8_lossy(MSG_TYPE_LOGOUT).to_string(),
+                    std::str::from_utf8(MSG_TYPE_LOGOUT).unwrap().to_string(),
                     s.ssr
                         .mock_app
                         .last_to_admin
@@ -3438,7 +3432,7 @@ mod tests {
             if test.expect_send_logout {
                 s.ssr.last_to_admin_message_sent().await;
                 s.message_type(
-                    String::from_utf8_lossy(MSG_TYPE_LOGOUT).to_string(),
+                    std::str::from_utf8(MSG_TYPE_LOGOUT).unwrap().to_string(),
                     s.ssr
                         .mock_app
                         .last_to_admin
@@ -3557,7 +3551,7 @@ mod tests {
             s.ssr
                 .session
                 .sm_incoming(&FixIn {
-                    bytes: msg_bytes,
+                    bytes: bytes::Bytes::from(msg_bytes),
                     receive_time: Timestamp::now(),
                 })
                 .await;
@@ -3793,7 +3787,7 @@ mod tests {
         s.ssr.last_to_admin_message_sent().await;
 
         s.message_type(
-            String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
+            std::str::from_utf8(MSG_TYPE_LOGON).unwrap().to_string(),
             s.ssr
                 .mock_app
                 .last_to_admin
@@ -3867,7 +3861,7 @@ mod tests {
         s.ssr.last_to_admin_message_sent().await;
 
         s.message_type(
-            String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
+            std::str::from_utf8(MSG_TYPE_LOGON).unwrap().to_string(),
             s.ssr
                 .mock_app
                 .last_to_admin
@@ -3938,7 +3932,7 @@ mod tests {
         s.ssr.state(&SessionStateEnum::new_logon_state());
         s.ssr.last_to_admin_message_sent().await;
         s.message_type(
-            String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
+            std::str::from_utf8(MSG_TYPE_LOGON).unwrap().to_string(),
             s.ssr
                 .mock_app
                 .last_to_admin
@@ -4489,7 +4483,7 @@ mod tests {
         );
 
         s.message_type(
-            String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
+            std::str::from_utf8(MSG_TYPE_LOGON).unwrap().to_string(),
             s.ssr
                 .mock_app
                 .last_to_admin
@@ -4547,7 +4541,7 @@ mod tests {
         s.ssr.mock_app.mock_app.lock().unwrap().checkpoint();
 
         s.message_type(
-            String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
+            std::str::from_utf8(MSG_TYPE_LOGON).unwrap().to_string(),
             s.ssr
                 .mock_app
                 .last_to_admin

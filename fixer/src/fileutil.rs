@@ -37,14 +37,13 @@ pub fn session_id_filename_prefix(s: &Arc<SessionID>) -> String {
 
 // close_file behaves like Close, except that no error is returned if the file does not exist.
 pub async fn close_file(file_option: Option<File>) -> SimpleResult<()> {
-    if let Some(mut file) = file_option {
-        if let Err(err) = file.flush().await {
+    if let Some(mut file) = file_option
+        && let Err(err) = file.flush().await {
             if err.kind() == ErrorKind::NotFound {
                 return Ok(());
             }
             return Err(simple_error!("close {}", err));
         }
-    }
 
     Ok(())
 }

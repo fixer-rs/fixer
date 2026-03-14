@@ -143,7 +143,7 @@ mod tests {
 
         s.ssr.last_to_admin_message_sent().await;
         s.message_type(
-            String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
+            std::str::from_utf8(MSG_TYPE_LOGON).unwrap().to_string(),
             s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap(),
         );
         s.field_equals(
@@ -184,7 +184,7 @@ mod tests {
 
         s.ssr.last_to_admin_message_sent().await;
         s.message_type(
-            String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
+            std::str::from_utf8(MSG_TYPE_LOGON).unwrap().to_string(),
             s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap(),
         );
         s.field_equals(
@@ -221,7 +221,7 @@ mod tests {
 
         s.ssr.last_to_admin_message_sent().await;
         s.message_type(
-            String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
+            std::str::from_utf8(MSG_TYPE_LOGON).unwrap().to_string(),
             s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap(),
         );
         s.field_equals(
@@ -257,7 +257,7 @@ mod tests {
 
         s.ssr.last_to_admin_message_sent().await;
         s.message_type(
-            String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
+            std::str::from_utf8(MSG_TYPE_LOGON).unwrap().to_string(),
             s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap(),
         );
         s.field_equals(
@@ -418,7 +418,7 @@ mod tests {
 
         s.ssr.last_to_admin_message_sent().await;
         s.message_type(
-            String::from_utf8_lossy(MSG_TYPE_LOGOUT).to_string(),
+            std::str::from_utf8(MSG_TYPE_LOGOUT).unwrap().to_string(),
             s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap(),
         );
         s.field_equals(
@@ -468,12 +468,12 @@ mod tests {
         let res = sent_message.parse_message(&msg_bytes_sent);
         assert!(res.is_ok());
         s.message_type(
-            String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
+            std::str::from_utf8(MSG_TYPE_LOGON).unwrap().to_string(),
             &sent_message,
         );
         s.ssr.session.send_queued().await;
         s.message_type(
-            String::from_utf8_lossy(MSG_TYPE_RESEND_REQUEST).to_string(),
+            std::str::from_utf8(MSG_TYPE_RESEND_REQUEST).unwrap().to_string(),
             s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap(),
         );
         s.field_equals(
@@ -544,13 +544,13 @@ mod tests {
         let res = sent_message.parse_message(&msg_bytes_sent);
         assert!(res.is_ok());
         s.message_type(
-            String::from_utf8_lossy(MSG_TYPE_LOGOUT).to_string(),
+            std::str::from_utf8(MSG_TYPE_LOGOUT).unwrap().to_string(),
             &sent_message,
         );
 
         s.ssr.session.send_queued().await;
         s.message_type(
-            String::from_utf8_lossy(MSG_TYPE_LOGOUT).to_string(),
+            std::str::from_utf8(MSG_TYPE_LOGOUT).unwrap().to_string(),
             s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap(),
         );
 

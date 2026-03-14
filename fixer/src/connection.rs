@@ -37,7 +37,7 @@ where
 
                 if msg_in.send(FixIn {
                     bytes: msg,
-                    receive_time: parser.last_read.timestamp(),
+                    receive_time: parser.last_read,
                 }).await.is_err() {
                     return;
                 }
@@ -73,7 +73,7 @@ mod tests {
         write_loop(&mut writer, msg_out_rx, nl).await;
 
         let expected = "test msg 1 test msg 2 test msg 3";
-        let res = &String::from_utf8_lossy(&writer).to_string();
+        let res = &std::str::from_utf8(&writer).unwrap().to_string();
         assert_eq!(res, expected, "expected {expected} got {res}");
     }
 
@@ -111,7 +111,7 @@ mod tests {
                 continue;
             }
             let msg = msg_result.unwrap();
-            let got = String::from_utf8_lossy(&msg.bytes).to_string();
+            let got = std::str::from_utf8(&msg.bytes).unwrap().to_string();
             assert_eq!(
                 &got, &test.expected_msg,
                 "Expected {} got {}",

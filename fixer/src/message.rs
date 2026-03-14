@@ -224,10 +224,13 @@ pub struct Message {
 impl fmt::Display for Message {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         if !self.raw_message.is_empty() {
-            return write!(f, "{}", String::from_utf8_lossy(&self.raw_message));
+            let s = std::str::from_utf8(&self.raw_message).unwrap_or("<invalid utf8>");
+            return f.write_str(s);
         }
 
-        write!(f, "{}", String::from_utf8_lossy(&self.clone().build()))
+        let built = self.clone().build();
+        let s = std::str::from_utf8(&built).unwrap_or("<invalid utf8>");
+        f.write_str(s)
     }
 }
 
@@ -272,25 +275,42 @@ impl Message {
         &mut self,
         raw_message: &[u8],
         transport_data_dictionary: &Option<Arc<DataDictionary>>,
+        application_data_dictionary: &Option<Arc<DataDictionary>>,
+    ) -> Result<(), ParseError> {
+        let shared = bytes::Bytes::copy_from_slice(raw_message);
+        self.parse_message_with_dd_shared(&shared, transport_data_dictionary, application_data_dictionary)
+    }
+
+    /// Parses a FIX message from a shared `Bytes` buffer, avoiding an extra
+    /// allocation when the caller already holds `Bytes` (e.g. from the parser).
+    #[allow(clippy::ref_option)]
+    pub fn parse_message_with_dd_shared(
+        &mut self,
+        shared: &bytes::Bytes,
+        transport_data_dictionary: &Option<Arc<DataDictionary>>,
         _application_data_dictionary: &Option<Arc<DataDictionary>>,
     ) -> Result<(), ParseError> {
         self.header.clear();
         self.body.clear();
         self.trailer.clear();
-        self.raw_message = raw_message.to_vec();
+        self.raw_message = shared.to_vec();
 
-        // allocate fields in one chunk
+        let raw_message = &self.raw_message[..];
+
+        // Count SOH delimiters to pre-allocate fields.
         #[allow(clippy::naive_bytecount)]
-        let field_count = self.raw_message.iter().filter(|&&b| b == 0o001).count();
+        let field_count = raw_message.iter().filter(|&&b| b == 0x01).count();
 
         if field_count == 0 {
             return Err(ParseError {
                 orig_error: format!(
                     "No Fields detected in {}",
-                    String::from_utf8_lossy(&self.raw_message)
+                    std::str::from_utf8(raw_message).unwrap_or("<invalid utf8>")
                 ),
             });
         }
+
+        let msg_len = raw_message.len();
 
         let mut parsed_fields: Vec<TagValue> = vec![TagValue::default(); field_count];
         let mut field_index = 0;
@@ -300,19 +320,31 @@ impl Message {
             &mut parsed_fields[field_index],
             TAG_BEGIN_STRING,
             raw_message,
+            shared,
+            msg_len,
         )?;
         self.header
             .add(LocalField::new(vec![parsed_fields[field_index].clone()]));
         field_index += 1;
 
-        let raw_bytes =
-            extract_specific_field(&mut parsed_fields[field_index], TAG_BODY_LENGTH, raw_bytes)?;
+        let raw_bytes = extract_specific_field(
+            &mut parsed_fields[field_index],
+            TAG_BODY_LENGTH,
+            raw_bytes,
+            shared,
+            msg_len,
+        )?;
         self.header
             .add(LocalField::new(vec![parsed_fields[field_index].clone()]));
         field_index += 1;
 
-        let mut raw_bytes =
-            extract_specific_field(&mut parsed_fields[field_index], TAG_MSG_TYPE, raw_bytes)?;
+        let mut raw_bytes = extract_specific_field(
+            &mut parsed_fields[field_index],
+            TAG_MSG_TYPE,
+            raw_bytes,
+            shared,
+            msg_len,
+        )?;
         let mut xml_data_len = 0_isize;
         let mut xml_data_msg = false;
         self.header
@@ -321,16 +353,18 @@ impl Message {
 
         let mut trailer_bytes: &[u8] = &[];
         let mut found_body = false;
+        let mut body_start: &[u8] = &[];
 
         loop {
             let pf = &mut parsed_fields[field_index];
             raw_bytes = if xml_data_len.is_positive() {
+                // XML data fields may span across SOH boundaries; use allocating parse.
                 let raw_bytes = extract_xml_data_field(pf, raw_bytes, xml_data_len)?;
                 xml_data_len = 0;
                 xml_data_msg = true;
                 raw_bytes
             } else {
-                extract_field(pf, raw_bytes)?
+                extract_field(pf, raw_bytes, shared, msg_len)?
             };
 
             let tag = pf.tag;
@@ -351,7 +385,7 @@ impl Message {
             }
 
             if !found_body {
-                self.body_bytes = raw_bytes.to_vec();
+                body_start = raw_bytes;
             }
 
             if tag == TAG_XML_DATA_LEN {
@@ -361,13 +395,14 @@ impl Message {
             field_index += 1;
         }
 
-        // If there are no body fields (only header + trailer), body_bytes should
-        // be empty.
+        // Compute body_bytes once from the tracked slice boundaries.
         if !found_body {
             self.body_bytes.clear();
-        } else if self.body_bytes.len() > trailer_bytes.len() {
-            self.body_bytes
-                .truncate(self.body_bytes.len() - trailer_bytes.len());
+        } else if body_start.len() > trailer_bytes.len() {
+            let body_len = body_start.len() - trailer_bytes.len();
+            self.body_bytes = body_start[..body_len].to_vec();
+        } else {
+            self.body_bytes.clear();
         }
 
         parsed_fields.truncate(field_index + 1);
@@ -390,13 +425,12 @@ impl Message {
                 orig_error: e.to_string(),
             });
 
-        if let Ok(bl) = body_length {
-            if bl != length && !xml_data_msg {
+        if let Ok(bl) = body_length
+            && bl != length && !xml_data_msg {
                 return Err(ParseError {
                     orig_error: format!("Incorrect Message Length, expected {bl} , got {length}"),
                 });
             }
-        }
 
         Ok(())
     }
@@ -610,8 +644,10 @@ fn extract_specific_field<'a>(
     field: &mut TagValue,
     expected_tag: Tag,
     buffer: &'a [u8],
+    shared: &bytes::Bytes,
+    msg_len: usize,
 ) -> Result<&'a [u8], ParseError> {
-    let rem_buffer = extract_field(field, buffer)?;
+    let rem_buffer = extract_field(field, buffer, shared, msg_len)?;
     if field.tag != expected_tag {
         return Err(ParseError {
             orig_error: format!(
@@ -623,6 +659,8 @@ fn extract_specific_field<'a>(
     Ok(rem_buffer)
 }
 
+
+
 #[allow(clippy::cast_sign_loss)]
 fn extract_xml_data_field<'a>(
     parsed_field_bytes: &mut TagValue,
@@ -632,7 +670,7 @@ fn extract_xml_data_field<'a>(
     let mut end_index = buffer.iter().position(|x| *x == b'=').ok_or(ParseError {
         orig_error: format!(
             "extract_field: No Trailing Delim in {}",
-            String::from_utf8_lossy(buffer).as_ref()
+            std::str::from_utf8(buffer).unwrap_or("<invalid utf8>")
         ),
     })?;
     end_index += data_len as usize + 1;
@@ -647,18 +685,22 @@ fn extract_xml_data_field<'a>(
 fn extract_field<'a>(
     parsed_field_bytes: &mut TagValue,
     buffer: &'a [u8],
+    shared: &bytes::Bytes,
+    msg_len: usize,
 ) -> Result<&'a [u8], ParseError> {
     let end_index = buffer.iter().position(|x| *x == 1).ok_or(ParseError {
         orig_error: format!(
             "extract_field: No Trailing Delim in {}",
-            String::from_utf8_lossy(buffer).as_ref()
+            std::str::from_utf8(buffer).unwrap_or("<invalid utf8>")
         ),
     })?;
-    let buffer_slice = buffer.get(..(end_index + 1)).unwrap();
+    let field_len = end_index + 1;
+    let field_start = msg_len - buffer.len();
+    let buffer_slice = &buffer[..field_len];
     parsed_field_bytes
-        .parse(buffer_slice)
+        .parse_shared(buffer_slice, shared.slice(field_start..field_start + field_len))
         .map_err(|err| ParseError { orig_error: err })?;
-    Ok(buffer.get((end_index + 1)..).unwrap())
+    Ok(&buffer[field_len..])
 }
 
 /// Compute the total (sum of all byte values) for a raw byte slice.
@@ -742,7 +784,7 @@ mod tests {
             &s.msg.body_bytes,
             expected_body_bytes,
             "Incorrect body bytes, got {}",
-            String::from_utf8_lossy(&s.msg.body_bytes)
+            std::str::from_utf8(&s.msg.body_bytes).unwrap()
         );
         assert_eq!(14, s.msg.fields.len());
         let msg_type_result = s.msg.msg_type();
@@ -820,7 +862,7 @@ mod tests {
             expected_bytes,
             result,
             "Unexpected bytes, got {}",
-            String::from_utf8_lossy(&result)
+            std::str::from_utf8(&result).unwrap()
         );
     }
 
@@ -847,8 +889,8 @@ mod tests {
             expected_bytes,
             &rebuild_bytes,
             "Unexpected bytes,\n +{}\n-{}",
-            String::from_utf8_lossy(&rebuild_bytes),
-            String::from_utf8_lossy(expected_bytes),
+            std::str::from_utf8(&rebuild_bytes).unwrap(),
+            std::str::from_utf8(expected_bytes).unwrap(),
         );
 
         let expected_body_bytes =
@@ -858,7 +900,7 @@ mod tests {
             &s.msg.body_bytes,
             expected_body_bytes,
             "Incorrect body bytes, got {}",
-            String::from_utf8_lossy(&s.msg.body_bytes)
+            std::str::from_utf8(&s.msg.body_bytes).unwrap()
         );
     }
 

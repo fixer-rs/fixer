@@ -74,6 +74,7 @@ pub const WEEKDAYS: &str = "Weekdays";
 pub const MONGO_LOG_CONNECTION: &str = "MongoLogConnection";
 pub const MONGO_LOG_DATABASE: &str = "MongoLogDatabase";
 pub const MONGO_LOG_REPLICA_SET: &str = "MongoLogReplicaSet";
+pub const OTEL_LOG_ENDPOINT: &str = "OtelLogEndpoint";
 pub const SQL_LOG_DRIVER: &str = "SQLLogDriver";
 pub const SQL_LOG_DATA_SOURCE_NAME: &str = "SQLLogDataSourceName";
 pub const SQL_LOG_CONN_MAX_LIFETIME: &str = "SQLLogConnMaxLifetime";

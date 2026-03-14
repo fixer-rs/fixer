@@ -7,8 +7,10 @@ license = "Apache-2.0"
 name = "fixer"
 readme = "../README.md"
 repository = "https://github.com/fixer-rs/fixer.git"
-rust-version = "1.85"
-version = "0.10.1"
+rust-version = "1.88"
+version = "0.10.2"
+categories = ["finance"]
+keywords = ["finance", "fix-protocol", "fix", "protocol"]
 
 [lib]
 name = "fixer"
@@ -16,6 +18,7 @@ path = "src/lib.rs"
 
 [dependencies]
 addr = "0.15"
+bytes = "1"
 async-recursion = "1.0"
 atoi_simd = "0.18"
 jiff = "0.2"
@@ -25,9 +28,12 @@ dyn-clone = "1.0"
 enum_dispatch = "0.3"
 fast-float2 = "0.2"
 futures = "0.3"
-itoa = "1.0"
-memmem = "0.1.1"
+itoap = "1"
+memchr = "2"
 mongodb = { version = "3", optional = true }
+opentelemetry = { version = "0.30", optional = true }
+opentelemetry_sdk = { version = "0.30", features = ["rt-tokio", "logs"], optional = true }
+opentelemetry-otlp = { version = "0.30", features = ["logs", "grpc-tonic"], optional = true }
 parse_duration = "2.1"
 quick-xml = { version = "0.39", features = ["serialize"] }
 ramhorns = "1.0"
@@ -38,7 +44,7 @@ serde = { version = "1.0", features = ["derive"] }
 rustls-pemfile = "2"
 simple-error = "0.3"
 sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "postgres", "mysql"], optional = true }
-sscanf = "0.4"
+sscanf = "0.5"
 thiserror = "2.0"
 tokio-rustls = "0.26"
 tokio = { version = "1.49", features = [
@@ -60,11 +66,12 @@ mongo_store = ["mongodb"]
 mongo_log = ["mongodb"]
 sql_store = ["sqlx"]
 sql_log = ["sqlx"]
+otel_log = ["opentelemetry", "opentelemetry_sdk", "opentelemetry-otlp"]
 
 [dev-dependencies]
 criterion = "0.5"
 mockall = "0.14"
-pprof = { version = "0.14", features = ["flamegraph", "criterion"] }
+pprof = { version = "0.15", features = ["flamegraph", "criterion"] }
 rcgen = "0.14"
 serial_test = "3.0"
 tempfile = "3"

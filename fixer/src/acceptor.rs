@@ -546,11 +546,10 @@ async fn handle_connection<R, W>(
     // Validate the connection if a validator is configured.
     // This runs after session ID is determined but before session lookup,
     // matching the expected placement in the connection lifecycle.
-    if let Some(ref validator) = validator {
-        if validator.validate(remote_addr, &session_id).is_err() {
+    if let Some(ref validator) = validator
+        && validator.validate(remote_addr, &session_id).is_err() {
             return;
         }
-    }
 
     // Look up the session's admin channel in the global registry, or create a dynamic session.
     // Use flexible lookup so that sessions with a SessionQualifier (e.g. FIXT.1.1 sessions)
@@ -598,11 +597,10 @@ async fn handle_connection<R, W>(
     }));
 
     // Wait for connect acknowledgement
-    if let Some(result) = err_rx.recv().await {
-        if result.is_err() {
+    if let Some(result) = err_rx.recv().await
+        && result.is_err() {
             return;
         }
-    }
 
     // Re-inject the first message (the parser consumed it, but the session needs to process it)
     let _ = msg_in_tx
