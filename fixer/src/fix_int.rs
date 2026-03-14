@@ -6,6 +6,7 @@ const ASCII_MINUS: u8 = 45;
 // atoi is tuned for ints appearing in FIX field types.
 // Uses scalar loop for short inputs (<10 digits) where SIMD setup overhead dominates,
 // and falls back to atoi_simd for longer inputs where SIMD pays off.
+#[allow(clippy::inline_always)]
 #[inline(always)]
 pub fn atoi(d: &[u8]) -> SimpleResult<isize> {
     let (neg, digits) = if d[0] == ASCII_MINUS {

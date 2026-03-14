@@ -770,9 +770,9 @@ impl Session {
         self.application.on_logon(&self.session_id);
 
         // Evaluate tag 789 to see if we end up with an implied gapfill/resend.
-        if self.session_settings.enable_next_expected_msg_seq_num && !msg.body.has(TAG_RESET_SEQ_NUM_FLAG) {
-            if let Ok(target_wants_next) = msg.body.get_int(TAG_NEXT_EXPECTED_MSG_SEQ_NUM) {
-                if target_wants_next != next_sender_msg_num_at_logon_received {
+        if self.session_settings.enable_next_expected_msg_seq_num && !msg.body.has(TAG_RESET_SEQ_NUM_FLAG)
+            && let Ok(target_wants_next) = msg.body.get_int(TAG_NEXT_EXPECTED_MSG_SEQ_NUM)
+                && target_wants_next != next_sender_msg_num_at_logon_received {
                     if self.session_settings.disable_message_persist {
                         return Err(FixerError::Reject(
                             MessageRejectErrorEnum::TargetTooHigh(TargetTooHigh {
@@ -789,8 +789,6 @@ impl Session {
                     )
                     .await?;
                 }
-            }
-        }
 
         self.check_target_too_high(msg).await?;
 
@@ -982,7 +980,7 @@ impl Session {
         let Some(cs_start) = cs_start else {
             return true; // no checksum field found, skip validation
         };
-        let computed: u32 = raw[..cs_start + 1].iter().map(|&b| u32::from(b)).sum::<u32>() % 256;
+        let computed: u32 = raw[..=cs_start].iter().map(|&b| u32::from(b)).sum::<u32>() % 256;
         // Extract the checksum value after "10=".
         let after = &raw[cs_start + 4..];
         let end = after.iter().position(|&b| b == 0x01).unwrap_or(after.len());
@@ -1276,7 +1274,7 @@ impl Session {
 
         let mut msg = Message::new();
         let parse_result = msg.parse_message_with_dd_shared(
-            fix_in.bytes.clone(),
+            &fix_in.bytes,
             &self.transport_data_dictionary,
             &self.app_data_dictionary,
         );
@@ -1360,11 +1358,10 @@ impl Session {
 
     async fn sm_check_session_time(&mut self, now: &mut Zoned) {
         let mut check_first = false;
-        if let Some(session_time) = self.session_settings.session_time.as_ref() {
-            if !session_time.is_in_range(now) {
+        if let Some(session_time) = self.session_settings.session_time.as_ref()
+            && !session_time.is_in_range(now) {
                 check_first = true;
             }
-        }
 
         if check_first {
             if self.sm.is_session_time() {
@@ -1474,11 +1471,10 @@ impl Session {
         let mut do_on_logout = self.sm.is_logged_on();
         if let SessionStateEnum::LogoutState(_) = self.sm.state {
             do_on_logout = true;
-        } else if let SessionStateEnum::LogonState(_) = self.sm.state {
-            if self.session_settings.initiate_logon {
+        } else if let SessionStateEnum::LogonState(_) = self.sm.state
+            && self.session_settings.initiate_logon {
                 do_on_logout = true;
             }
-        }
 
         if do_on_logout {
             self.application.on_logout(&self.session_id);
@@ -1920,12 +1916,10 @@ impl Session {
         if let Err(err) = msg
             .header
             .get_field(TAG_ORIG_SENDING_TIME, &mut orig_sending_time)
-        {
-            if let Err(rej_err) = self.do_reject(msg, err).await {
+            && let Err(rej_err) = self.do_reject(msg, err).await {
                 let err_str = &rej_err.to_string();
                 return self.handle_state_error(err_str).await;
             }
-        }
 
         let mut sending_time = FIXUTCTimestamp::default();
         if let Err(err) = msg.header.get_field(TAG_SENDING_TIME, &mut sending_time) {

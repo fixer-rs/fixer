@@ -441,21 +441,19 @@ impl FileStore {
 
         if let Ok(mut file) = File::open(&self.session_file.file_name).await {
             let mut time_bytes: Vec<u8> = Vec::new();
-            if file.read_to_end(&mut time_bytes).await.is_ok() {
-                if let Ok(input_str) = std::str::from_utf8(&time_bytes) {
-                    if let Ok(time) = jiff::Zoned::strptime(TIMESTAMP_FORMAT, input_str.trim()) {
+            if file.read_to_end(&mut time_bytes).await.is_ok()
+                && let Ok(input_str) = std::str::from_utf8(&time_bytes)
+                    && let Ok(time) = jiff::Zoned::strptime(TIMESTAMP_FORMAT, input_str.trim()) {
                         self.cache.creation_time = time.timestamp();
                         creation_time_populated = true;
                     }
-                }
-            }
         }
 
         if let Ok(mut file) = File::open(&self.sender_seq_nums_file.file_name).await {
             let mut sender_seq_num_bytes: Vec<u8> = Vec::with_capacity(19);
-            if file.read_to_end(&mut sender_seq_num_bytes).await.is_ok() {
-                if let Ok(sender_seq_num_str) = std::str::from_utf8(&sender_seq_num_bytes) {
-                    if let Ok(sender_seq_num) =
+            if file.read_to_end(&mut sender_seq_num_bytes).await.is_ok()
+                && let Ok(sender_seq_num_str) = std::str::from_utf8(&sender_seq_num_bytes)
+                    && let Ok(sender_seq_num) =
                         atoi_simd::parse::<isize, false, false>(sender_seq_num_str.trim().as_bytes())
                     {
                         map_err_with!(
@@ -463,15 +461,13 @@ impl FileStore {
                             "cache set next target"
                         )?;
                     }
-                }
-            }
         }
 
         if let Ok(mut file) = File::open(&self.target_seq_nums_file.file_name).await {
             let mut target_seq_num_bytes: Vec<u8> = Vec::with_capacity(19);
-            if file.read_to_end(&mut target_seq_num_bytes).await.is_ok() {
-                if let Ok(target_seq_num_str) = std::str::from_utf8(&target_seq_num_bytes) {
-                    if let Ok(target_seq_num) =
+            if file.read_to_end(&mut target_seq_num_bytes).await.is_ok()
+                && let Ok(target_seq_num_str) = std::str::from_utf8(&target_seq_num_bytes)
+                    && let Ok(target_seq_num) =
                         atoi_simd::parse::<isize, false, false>(target_seq_num_str.trim().as_bytes())
                     {
                         map_err_with!(
@@ -479,8 +475,6 @@ impl FileStore {
                             "cache set next target"
                         )?;
                     }
-                }
-            }
         }
 
         Ok(creation_time_populated)

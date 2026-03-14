@@ -278,7 +278,7 @@ impl Message {
         application_data_dictionary: &Option<Arc<DataDictionary>>,
     ) -> Result<(), ParseError> {
         let shared = bytes::Bytes::copy_from_slice(raw_message);
-        self.parse_message_with_dd_shared(shared, transport_data_dictionary, application_data_dictionary)
+        self.parse_message_with_dd_shared(&shared, transport_data_dictionary, application_data_dictionary)
     }
 
     /// Parses a FIX message from a shared `Bytes` buffer, avoiding an extra
@@ -286,7 +286,7 @@ impl Message {
     #[allow(clippy::ref_option)]
     pub fn parse_message_with_dd_shared(
         &mut self,
-        shared: bytes::Bytes,
+        shared: &bytes::Bytes,
         transport_data_dictionary: &Option<Arc<DataDictionary>>,
         _application_data_dictionary: &Option<Arc<DataDictionary>>,
     ) -> Result<(), ParseError> {
@@ -320,7 +320,7 @@ impl Message {
             &mut parsed_fields[field_index],
             TAG_BEGIN_STRING,
             raw_message,
-            &shared,
+            shared,
             msg_len,
         )?;
         self.header
@@ -331,7 +331,7 @@ impl Message {
             &mut parsed_fields[field_index],
             TAG_BODY_LENGTH,
             raw_bytes,
-            &shared,
+            shared,
             msg_len,
         )?;
         self.header
@@ -342,7 +342,7 @@ impl Message {
             &mut parsed_fields[field_index],
             TAG_MSG_TYPE,
             raw_bytes,
-            &shared,
+            shared,
             msg_len,
         )?;
         let mut xml_data_len = 0_isize;
@@ -364,7 +364,7 @@ impl Message {
                 xml_data_msg = true;
                 raw_bytes
             } else {
-                extract_field(pf, raw_bytes, &shared, msg_len)?
+                extract_field(pf, raw_bytes, shared, msg_len)?
             };
 
             let tag = pf.tag;
@@ -425,13 +425,12 @@ impl Message {
                 orig_error: e.to_string(),
             });
 
-        if let Ok(bl) = body_length {
-            if bl != length && !xml_data_msg {
+        if let Ok(bl) = body_length
+            && bl != length && !xml_data_msg {
                 return Err(ParseError {
                     orig_error: format!("Incorrect Message Length, expected {bl} , got {length}"),
                 });
             }
-        }
 
         Ok(())
     }

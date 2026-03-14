@@ -19,6 +19,7 @@ pub struct FIXUTCTimestamp {
 }
 
 /// Parse exactly `len` ASCII digit bytes from `input[offset..]` as a u32.
+#[allow(clippy::inline_always)]
 #[inline(always)]
 fn parse_digits(input: &[u8], offset: usize, len: usize) -> Option<u32> {
     let mut val = 0u32;
@@ -26,7 +27,7 @@ fn parse_digits(input: &[u8], offset: usize, len: usize) -> Option<u32> {
         if !b.is_ascii_digit() {
             return None;
         }
-        val = val * 10 + (b - b'0') as u32;
+        val = val * 10 + u32::from(b - b'0');
     }
     Some(val)
 }
@@ -51,13 +52,20 @@ impl FieldValueReader for FIXUTCTimestamp {
             return Err(err());
         }
 
+        #[allow(clippy::cast_possible_truncation)]
         let year = parse_digits(input, 0, 4).ok_or_else(err)? as i16;
+        #[allow(clippy::cast_possible_truncation)]
         let month = parse_digits(input, 4, 2).ok_or_else(err)? as i8;
+        #[allow(clippy::cast_possible_truncation)]
         let day = parse_digits(input, 6, 2).ok_or_else(err)? as i8;
+        #[allow(clippy::cast_possible_truncation)]
         let hour = parse_digits(input, 9, 2).ok_or_else(err)? as i8;
+        #[allow(clippy::cast_possible_truncation)]
         let minute = parse_digits(input, 12, 2).ok_or_else(err)? as i8;
+        #[allow(clippy::cast_possible_truncation)]
         let second = parse_digits(input, 15, 2).ok_or_else(err)? as i8;
 
+        #[allow(clippy::cast_possible_wrap)]
         let (precision, nanos) = match input.len() {
             17 => (TimestampPrecision::Seconds, 0i32),
             21 => {

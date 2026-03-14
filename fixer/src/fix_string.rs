@@ -17,9 +17,7 @@ impl FIXStringTrait for FIXString {
 impl FieldValueReader for FIXString {
     fn read(&mut self, input: &[u8]) -> SimpleResult<()> {
         self.clear();
-        *self = std::str::from_utf8(input)
-            .map_err(SimpleError::from)?
-            .to_owned();
+        self.push_str(std::str::from_utf8(input).map_err(SimpleError::from)?);
         Ok(())
     }
 }

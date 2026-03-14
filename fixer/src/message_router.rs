@@ -171,11 +171,9 @@ impl MessageRouter {
                 .header
                 .get_field(TAG_APPL_VER_ID, &mut appl_ver_id)
                 .is_err()
-            {
-                if let Some(reg) = (*SESSIONS).get(&session_id) {
+                && let Some(reg) = (*SESSIONS).get(&session_id) {
                     appl_ver_id.clone_from(&reg.target_default_appl_ver_id.lock().unwrap());
                 }
-            }
 
             fix_version = match appl_ver_id.as_str() {
                 APPL_VER_ID_FIX40 => BEGIN_STRING_FIX40.to_string(),
