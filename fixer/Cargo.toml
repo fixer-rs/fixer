@@ -7,7 +7,7 @@ license = "Apache-2.0"
 name = "fixer"
 readme = "../README.md"
 repository = "https://github.com/fixer-rs/fixer.git"
-rust-version = "1.85"
+rust-version = "1.88"
 version = "0.10.1"
 categories = ["finance"]
 keywords = ["finance", "fix-protocol", "fix", "protocol"]
@@ -40,7 +40,7 @@ serde = { version = "1.0", features = ["derive"] }
 rustls-pemfile = "2"
 simple-error = "0.3"
 sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "postgres", "mysql"], optional = true }
-sscanf = "0.4"
+sscanf = "0.5"
 thiserror = "2.0"
 tokio-rustls = "0.26"
 tokio = { version = "1.49", features = [
@@ -64,9 +64,9 @@ sql_store = ["sqlx"]
 sql_log = ["sqlx"]
 
 [dev-dependencies]
-criterion = "0.5"
+criterion = "0.8"
 mockall = "0.14"
-pprof = { version = "0.14", features = ["flamegraph", "criterion"] }
+pprof = { version = "0.15", features = ["flamegraph", "criterion"] }
 rcgen = "0.14"
 serial_test = "3.0"
 tempfile = "3"

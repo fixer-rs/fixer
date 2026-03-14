@@ -225,7 +225,7 @@ impl MessageStoreTrait for FileStore {
         let mut entries: Vec<(isize, u64, usize)> = Vec::new();
 
         while let Ok(Some(line)) = lines.next_line().await {
-            let Ok((seq_num, offset, size)) = sscanf!(&line, "{isize},{u64},{usize}") else {
+            let Some((seq_num, offset, size)) = sscanf!(&line, "{isize},{u64},{usize}") else {
                 continue;
             };
             if seq_num < begin_seq_num || seq_num > end_seq_num {
