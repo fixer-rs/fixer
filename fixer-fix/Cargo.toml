@@ -8,7 +8,7 @@ name = "fixer-fix"
 readme = "../README.md"
 repository = "https://github.com/fixer-rs/fixer"
 rust-version = "1.85"
-version = "0.10.1"
+version = "0.10.2"
 categories = ["finance"]
 keywords = ["finance", "fix-protocol", "fix", "protocol"]
 
@@ -17,7 +17,7 @@ name = "fixer_fix"
 path = "src/lib.rs"
 
 [dependencies]
-fixer = { path = "../fixer", version = "0.10.1" }
+fixer = { path = "../fixer", version = "0.10.2" }
 jiff = "0.2"
 rust_decimal = "1"
 simple-error = "0.3"
