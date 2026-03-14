@@ -11,11 +11,6 @@ pub enum TimestampPrecision {
     Nanos,
 }
 
-pub const UTC_TIMESTAMP_SECONDS_FORMAT: &str = "%Y%m%d-%H:%M:%S";
-pub const UTC_TIMESTAMP_MILLIS_FORMAT: &str = "%Y%m%d-%H:%M:%S%.3f";
-pub const UTC_TIMESTAMP_MICROS_FORMAT: &str = "%Y%m%d-%H:%M:%S%.6f";
-pub const UTC_TIMESTAMP_NANOS_FORMAT: &str = "%Y%m%d-%H:%M:%S%.9f";
-
 // FIXUTCTimestamp is a FIX UTC Timestamp value, implements FieldValue
 #[derive(Default, Debug)]
 pub struct FIXUTCTimestamp {
@@ -23,58 +18,106 @@ pub struct FIXUTCTimestamp {
     pub precision: TimestampPrecision,
 }
 
+/// Parse exactly `len` ASCII digit bytes from `input[offset..]` as a u32.
+#[inline(always)]
+fn parse_digits(input: &[u8], offset: usize, len: usize) -> Option<u32> {
+    let mut val = 0u32;
+    for &b in &input[offset..offset + len] {
+        if !b.is_ascii_digit() {
+            return None;
+        }
+        val = val * 10 + (b - b'0') as u32;
+    }
+    Some(val)
+}
+
 impl FieldValueReader for FIXUTCTimestamp {
+    // Format: YYYYMMDD-HH:MM:SS[.fff[fff[fff]]]
+    // Lengths: 17 (seconds), 21 (millis), 24 (micros), 27 (nanos)
     fn read(&mut self, input: &[u8]) -> SimpleResult<()> {
-        let input_str = std::str::from_utf8(input)
-            .map_err(|e| simple_error!("Invalid Value for Timestamp: {}", e))?;
-        let res = |_| {
-            simple_error!("Invalid Value for Timestamp: {}", input_str)
+        let err = || {
+            simple_error!(
+                "Invalid Value for Timestamp: {}",
+                std::str::from_utf8(input).unwrap_or("<invalid utf8>")
+            )
         };
-        let parse_to_ts = |fmt: &str, s: &str| -> SimpleResult<Timestamp> {
-            let dt = civil::DateTime::strptime(fmt, s).map_err(res)?;
-            dt.to_zoned(TimeZone::UTC)
-                .map(|z| z.timestamp())
-                .map_err(res)
-        };
-        match input_str.len() {
-            17 => {
-                self.precision = TimestampPrecision::Seconds;
-                self.time = parse_to_ts(UTC_TIMESTAMP_SECONDS_FORMAT, &input_str)?;
-                Ok(())
-            }
+
+        if input.len() < 17 {
+            return Err(err());
+        }
+
+        // Validate separators: '-' at 8, ':' at 11, ':' at 14
+        if input[8] != b'-' || input[11] != b':' || input[14] != b':' {
+            return Err(err());
+        }
+
+        let year = parse_digits(input, 0, 4).ok_or_else(err)? as i16;
+        let month = parse_digits(input, 4, 2).ok_or_else(err)? as i8;
+        let day = parse_digits(input, 6, 2).ok_or_else(err)? as i8;
+        let hour = parse_digits(input, 9, 2).ok_or_else(err)? as i8;
+        let minute = parse_digits(input, 12, 2).ok_or_else(err)? as i8;
+        let second = parse_digits(input, 15, 2).ok_or_else(err)? as i8;
+
+        let (precision, nanos) = match input.len() {
+            17 => (TimestampPrecision::Seconds, 0i32),
             21 => {
-                self.precision = TimestampPrecision::Millis;
-                self.time = parse_to_ts(UTC_TIMESTAMP_MILLIS_FORMAT, &input_str)?;
-                Ok(())
+                if input[17] != b'.' {
+                    return Err(err());
+                }
+                let ms = parse_digits(input, 18, 3).ok_or_else(err)?;
+                (TimestampPrecision::Millis, ms as i32 * 1_000_000)
             }
             24 => {
-                self.precision = TimestampPrecision::Micros;
-                self.time = parse_to_ts(UTC_TIMESTAMP_MICROS_FORMAT, &input_str)?;
-                Ok(())
+                if input[17] != b'.' {
+                    return Err(err());
+                }
+                let us = parse_digits(input, 18, 6).ok_or_else(err)?;
+                (TimestampPrecision::Micros, us as i32 * 1_000)
             }
             27 => {
-                self.precision = TimestampPrecision::Nanos;
-                self.time = parse_to_ts(UTC_TIMESTAMP_NANOS_FORMAT, &input_str)?;
-                Ok(())
+                if input[17] != b'.' {
+                    return Err(err());
+                }
+                let ns = parse_digits(input, 18, 9).ok_or_else(err)?;
+                (TimestampPrecision::Nanos, ns as i32)
             }
-            _ => Err(simple_error::simple_error!(
-                "Invalid Value for Timestamp: {}",
-                input_str
-            )),
-        }
+            _ => return Err(err()),
+        };
+
+        self.time = civil::date(year, month, day)
+            .at(hour, minute, second, nanos)
+            .to_zoned(TimeZone::UTC)
+            .map_err(|_| err())?
+            .timestamp();
+        self.precision = precision;
+        Ok(())
     }
 }
 
 impl FieldValueWriter for FIXUTCTimestamp {
     fn write_to(&self, buf: &mut Vec<u8>) {
         use std::io::Write;
-        let fmt = match self.precision {
-            TimestampPrecision::Seconds => UTC_TIMESTAMP_SECONDS_FORMAT,
-            TimestampPrecision::Millis => UTC_TIMESTAMP_MILLIS_FORMAT,
-            TimestampPrecision::Micros => UTC_TIMESTAMP_MICROS_FORMAT,
-            TimestampPrecision::Nanos => UTC_TIMESTAMP_NANOS_FORMAT,
-        };
-        write!(buf, "{}", self.time.strftime(fmt)).unwrap();
+        let zdt = self.time.to_zoned(TimeZone::UTC);
+        let dt = zdt.datetime();
+        let (y, mo, d) = (dt.year(), dt.month(), dt.day());
+        let (h, mi, s) = (dt.hour(), dt.minute(), dt.second());
+        match self.precision {
+            TimestampPrecision::Seconds => {
+                write!(buf, "{y:04}{mo:02}{d:02}-{h:02}:{mi:02}:{s:02}").unwrap();
+            }
+            TimestampPrecision::Millis => {
+                let ms = dt.subsec_nanosecond() / 1_000_000;
+                write!(buf, "{y:04}{mo:02}{d:02}-{h:02}:{mi:02}:{s:02}.{ms:03}").unwrap();
+            }
+            TimestampPrecision::Micros => {
+                let us = dt.subsec_nanosecond() / 1_000;
+                write!(buf, "{y:04}{mo:02}{d:02}-{h:02}:{mi:02}:{s:02}.{us:06}").unwrap();
+            }
+            TimestampPrecision::Nanos => {
+                let ns = dt.subsec_nanosecond();
+                write!(buf, "{y:04}{mo:02}{d:02}-{h:02}:{mi:02}:{s:02}.{ns:09}").unwrap();
+            }
+        }
     }
 }
 
