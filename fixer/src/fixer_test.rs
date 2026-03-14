@@ -84,8 +84,8 @@ impl FixerSuite {
     pub fn message_equals_bytes(&self, expected_bytes: &[u8], msg: &Message) {
         let actual_bytes = msg.clone().build();
         assert_eq!(
-            String::from_utf8_lossy(&actual_bytes),
-            String::from_utf8_lossy(expected_bytes)
+            std::str::from_utf8(&actual_bytes).unwrap(),
+            std::str::from_utf8(expected_bytes).unwrap()
         );
     }
 }
@@ -563,7 +563,7 @@ impl MessageFactory {
     }
 
     pub fn logout(&mut self) -> Message {
-        self.build_message(&String::from_utf8_lossy(MSG_TYPE_LOGOUT))
+        self.build_message(&std::str::from_utf8(MSG_TYPE_LOGOUT).unwrap())
     }
 
     pub fn new_order_single(&mut self) -> Message {
@@ -571,15 +571,15 @@ impl MessageFactory {
     }
 
     pub fn heartbeat(&mut self) -> Message {
-        self.build_message(&String::from_utf8_lossy(MSG_TYPE_HEARTBEAT))
+        self.build_message(&std::str::from_utf8(MSG_TYPE_HEARTBEAT).unwrap())
     }
 
     pub fn logon(&mut self) -> Message {
-        self.build_message(&String::from_utf8_lossy(MSG_TYPE_LOGON))
+        self.build_message(&std::str::from_utf8(MSG_TYPE_LOGON).unwrap())
     }
 
     pub fn resend_request(&mut self, begin_seq_no: isize) -> Message {
-        let mut msg = self.build_message(&String::from_utf8_lossy(MSG_TYPE_RESEND_REQUEST));
+        let mut msg = self.build_message(&std::str::from_utf8(MSG_TYPE_RESEND_REQUEST).unwrap());
         msg.body.set_field(TAG_BEGIN_SEQ_NO, begin_seq_no);
         msg.body.set_field(TAG_END_SEQ_NO, 0);
 
@@ -587,7 +587,7 @@ impl MessageFactory {
     }
 
     pub fn sequence_reset(&mut self, seq_no: isize) -> Message {
-        let mut msg = self.build_message(&String::from_utf8_lossy(MSG_TYPE_SEQUENCE_RESET));
+        let mut msg = self.build_message(&std::str::from_utf8(MSG_TYPE_SEQUENCE_RESET).unwrap());
         msg.body.set_field(TAG_NEW_SEQ_NO, seq_no);
 
         msg
@@ -792,7 +792,7 @@ impl SessionSuiteRig {
         assert!(
             msg_bytes_option.is_none(),
             "no message should be sent but got {}",
-            String::from_utf8_lossy(msg_bytes_option.as_ref().unwrap())
+            std::str::from_utf8(msg_bytes_option.as_ref().unwrap()).unwrap()
         );
     }
 

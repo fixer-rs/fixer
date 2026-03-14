@@ -1286,7 +1286,7 @@ impl Session {
                     "Msg Parse Error: {{error}}, {{bytes}}",
                     hashmap! {
                         String::from("error") => err.to_string(),
-                        String::from("bytes") => String::from_utf8_lossy(&fix_in.bytes).to_string(),
+                        String::from("bytes") => std::str::from_utf8(&fix_in.bytes).unwrap_or("<invalid utf8>").to_string(),
                     },
                 )
                 .await;
@@ -1295,7 +1295,7 @@ impl Session {
                 .on_eventf(
                     "Msg Checksum Error: {{bytes}}",
                     hashmap! {
-                        String::from("bytes") => String::from_utf8_lossy(&fix_in.bytes).to_string(),
+                        String::from("bytes") => std::str::from_utf8(&fix_in.bytes).unwrap_or("<invalid utf8>").to_string(),
                     },
                 )
                 .await;
@@ -3311,7 +3311,7 @@ mod tests {
             if test.expect_send_logout {
                 s.ssr.last_to_admin_message_sent().await;
                 s.message_type(
-                    String::from_utf8_lossy(MSG_TYPE_LOGOUT).to_string(),
+                    std::str::from_utf8(MSG_TYPE_LOGOUT).unwrap().to_string(),
                     s.ssr
                         .mock_app
                         .last_to_admin
@@ -3438,7 +3438,7 @@ mod tests {
             if test.expect_send_logout {
                 s.ssr.last_to_admin_message_sent().await;
                 s.message_type(
-                    String::from_utf8_lossy(MSG_TYPE_LOGOUT).to_string(),
+                    std::str::from_utf8(MSG_TYPE_LOGOUT).unwrap().to_string(),
                     s.ssr
                         .mock_app
                         .last_to_admin
@@ -3793,7 +3793,7 @@ mod tests {
         s.ssr.last_to_admin_message_sent().await;
 
         s.message_type(
-            String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
+            std::str::from_utf8(MSG_TYPE_LOGON).unwrap().to_string(),
             s.ssr
                 .mock_app
                 .last_to_admin
@@ -3867,7 +3867,7 @@ mod tests {
         s.ssr.last_to_admin_message_sent().await;
 
         s.message_type(
-            String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
+            std::str::from_utf8(MSG_TYPE_LOGON).unwrap().to_string(),
             s.ssr
                 .mock_app
                 .last_to_admin
@@ -3938,7 +3938,7 @@ mod tests {
         s.ssr.state(&SessionStateEnum::new_logon_state());
         s.ssr.last_to_admin_message_sent().await;
         s.message_type(
-            String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
+            std::str::from_utf8(MSG_TYPE_LOGON).unwrap().to_string(),
             s.ssr
                 .mock_app
                 .last_to_admin
@@ -4489,7 +4489,7 @@ mod tests {
         );
 
         s.message_type(
-            String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
+            std::str::from_utf8(MSG_TYPE_LOGON).unwrap().to_string(),
             s.ssr
                 .mock_app
                 .last_to_admin
@@ -4547,7 +4547,7 @@ mod tests {
         s.ssr.mock_app.mock_app.lock().unwrap().checkpoint();
 
         s.message_type(
-            String::from_utf8_lossy(MSG_TYPE_LOGON).to_string(),
+            std::str::from_utf8(MSG_TYPE_LOGON).unwrap().to_string(),
             s.ssr
                 .mock_app
                 .last_to_admin

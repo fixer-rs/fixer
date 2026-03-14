@@ -21,7 +21,8 @@ pub struct OtelLog {
 impl LogTrait for OtelLog {
     async fn on_incoming(&mut self, data: &[u8]) {
         let mut record = self.logger.create_log_record();
-        record.set_body(String::from_utf8_lossy(data).into_owned().into());
+        let body = std::str::from_utf8(data).unwrap_or("<invalid utf8>");
+        record.set_body(body.to_owned().into());
         record.add_attribute("fix.direction", "incoming");
         self.set_session_attributes(&mut record);
         self.logger.emit(record);
@@ -29,7 +30,8 @@ impl LogTrait for OtelLog {
 
     async fn on_outgoing(&mut self, data: &[u8]) {
         let mut record = self.logger.create_log_record();
-        record.set_body(String::from_utf8_lossy(data).into_owned().into());
+        let body = std::str::from_utf8(data).unwrap_or("<invalid utf8>");
+        record.set_body(body.to_owned().into());
         record.add_attribute("fix.direction", "outgoing");
         self.set_session_attributes(&mut record);
         self.logger.emit(record);

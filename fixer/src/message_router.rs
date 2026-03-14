@@ -78,8 +78,8 @@ impl MessageRouter {
     ) -> MessageRejectErrorResult {
         let begin_bytes = msg.header.get_bytes(TAG_BEGIN_STRING)?;
         let msg_type_bytes = msg.header.get_bytes(TAG_MSG_TYPE)?;
-        let begin_string = String::from_utf8_lossy(begin_bytes).to_string();
-        let msg_type_string = String::from_utf8_lossy(msg_type_bytes).to_string();
+        let begin_string = std::str::from_utf8(begin_bytes).unwrap_or_default().to_string();
+        let msg_type_string = std::str::from_utf8(msg_type_bytes).unwrap_or_default().to_string();
         Self::try_route(g, begin_string, msg_type_string, msg, session_id).await
     }
 
@@ -91,8 +91,8 @@ impl MessageRouter {
     ) -> MessageRejectErrorResult {
         let begin_bytes = msg.header.get_bytes(TAG_BEGIN_STRING)?;
         let msg_type_bytes = msg.header.get_bytes(TAG_MSG_TYPE)?;
-        let begin_string = String::from_utf8_lossy(begin_bytes).to_string();
-        let msg_type_string = String::from_utf8_lossy(msg_type_bytes).to_string();
+        let begin_string = std::str::from_utf8(begin_bytes).unwrap_or_default().to_string();
+        let msg_type_string = std::str::from_utf8(msg_type_bytes).unwrap_or_default().to_string();
         Self::try_route(g, begin_string, msg_type_string, msg, session_id).await
     }
 

@@ -214,7 +214,7 @@ mod tests {
         let bytes_result = s.read_message().await;
         assert!(bytes_result.is_ok());
         let bytes = bytes_result.unwrap();
-        assert_eq!(stream, &String::from_utf8_lossy(&bytes));
+        assert_eq!(stream, std::str::from_utf8(&bytes).unwrap());
     }
 
     #[tokio::test]
@@ -396,7 +396,7 @@ mod tests {
             let msg_result = s.read_message().await;
             assert!(msg_result.is_ok());
             let msg = msg_result.unwrap();
-            assert_eq!("8=FIX.4.09=5blah10=103", String::from_utf8_lossy(&msg));
+            assert_eq!("8=FIX.4.09=5blah10=103", std::str::from_utf8(&msg).unwrap());
             assert_eq!(test.expected_buffer_len, s.len);
             assert_eq!(test.expected_buffer_cap, s.cap);
             assert_eq!(test.expected_big_buffer_len, s.big_buffer.len());

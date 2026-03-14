@@ -133,13 +133,13 @@ fn build_connection_url(driver: &str, data_source_name: &str) -> String {
 
 impl LogTrait for SqlLog {
     async fn on_incoming(&mut self, data: &[u8]) {
-        self.insert("messages_log", &String::from_utf8_lossy(data))
-            .await;
+        let s = std::str::from_utf8(data).unwrap_or("<invalid utf8>");
+        self.insert("messages_log", s).await;
     }
 
     async fn on_outgoing(&mut self, data: &[u8]) {
-        self.insert("messages_log", &String::from_utf8_lossy(data))
-            .await;
+        let s = std::str::from_utf8(data).unwrap_or("<invalid utf8>");
+        self.insert("messages_log", s).await;
     }
 
     async fn on_event(&mut self, data: &str) {

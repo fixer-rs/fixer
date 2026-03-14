@@ -343,8 +343,8 @@ mod tests {
                 tc.expected,
                 &tvbytes,
                 "expected {} got {}",
-                String::from_utf8_lossy(tc.expected),
-                String::from_utf8_lossy(&tvbytes)
+                std::str::from_utf8(tc.expected).unwrap(),
+                std::str::from_utf8(&tvbytes).unwrap()
             );
         }
     }
@@ -499,12 +499,12 @@ mod tests {
                     assert!(!group.field_map.content.tag_sort.tags.is_empty());
                     assert_eq!(group.field_map.content.tag_sort.tags.len(), group.field_map.content.tag_lookup.len());
                     assert_eq!(
-                        String::from_utf8_lossy(expected.value()),
+                        std::str::from_utf8(expected.value()).unwrap(),
                         actual,
                         "{}, {}: expected {}, got {}",
                         g,
                         expected.tag,
-                        String::from_utf8_lossy(expected.value()),
+                        std::str::from_utf8(expected.value()).unwrap(),
                         actual
                     );
                 }

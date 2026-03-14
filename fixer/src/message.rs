@@ -224,10 +224,13 @@ pub struct Message {
 impl fmt::Display for Message {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         if !self.raw_message.is_empty() {
-            return write!(f, "{}", String::from_utf8_lossy(&self.raw_message));
+            let s = std::str::from_utf8(&self.raw_message).unwrap_or("<invalid utf8>");
+            return f.write_str(s);
         }
 
-        write!(f, "{}", String::from_utf8_lossy(&self.clone().build()))
+        let built = self.clone().build();
+        let s = std::str::from_utf8(&built).unwrap_or("<invalid utf8>");
+        f.write_str(s)
     }
 }
 
@@ -287,7 +290,7 @@ impl Message {
             return Err(ParseError {
                 orig_error: format!(
                     "No Fields detected in {}",
-                    String::from_utf8_lossy(&self.raw_message)
+                    std::str::from_utf8(&self.raw_message).unwrap_or("<invalid utf8>")
                 ),
             });
         }
@@ -632,7 +635,7 @@ fn extract_xml_data_field<'a>(
     let mut end_index = buffer.iter().position(|x| *x == b'=').ok_or(ParseError {
         orig_error: format!(
             "extract_field: No Trailing Delim in {}",
-            String::from_utf8_lossy(buffer).as_ref()
+            std::str::from_utf8(buffer).unwrap_or("<invalid utf8>")
         ),
     })?;
     end_index += data_len as usize + 1;
@@ -651,7 +654,7 @@ fn extract_field<'a>(
     let end_index = buffer.iter().position(|x| *x == 1).ok_or(ParseError {
         orig_error: format!(
             "extract_field: No Trailing Delim in {}",
-            String::from_utf8_lossy(buffer).as_ref()
+            std::str::from_utf8(buffer).unwrap_or("<invalid utf8>")
         ),
     })?;
     let buffer_slice = buffer.get(..(end_index + 1)).unwrap();
@@ -742,7 +745,7 @@ mod tests {
             &s.msg.body_bytes,
             expected_body_bytes,
             "Incorrect body bytes, got {}",
-            String::from_utf8_lossy(&s.msg.body_bytes)
+            std::str::from_utf8(&s.msg.body_bytes).unwrap()
         );
         assert_eq!(14, s.msg.fields.len());
         let msg_type_result = s.msg.msg_type();
@@ -820,7 +823,7 @@ mod tests {
             expected_bytes,
             result,
             "Unexpected bytes, got {}",
-            String::from_utf8_lossy(&result)
+            std::str::from_utf8(&result).unwrap()
         );
     }
 
@@ -847,8 +850,8 @@ mod tests {
             expected_bytes,
             &rebuild_bytes,
             "Unexpected bytes,\n +{}\n-{}",
-            String::from_utf8_lossy(&rebuild_bytes),
-            String::from_utf8_lossy(expected_bytes),
+            std::str::from_utf8(&rebuild_bytes).unwrap(),
+            std::str::from_utf8(expected_bytes).unwrap(),
         );
 
         let expected_body_bytes =
@@ -858,7 +861,7 @@ mod tests {
             &s.msg.body_bytes,
             expected_body_bytes,
             "Incorrect body bytes, got {}",
-            String::from_utf8_lossy(&s.msg.body_bytes)
+            std::str::from_utf8(&s.msg.body_bytes).unwrap()
         );
     }
 

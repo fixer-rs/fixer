@@ -25,13 +25,11 @@ pub struct FIXUTCTimestamp {
 
 impl FieldValueReader for FIXUTCTimestamp {
     fn read(&mut self, input: &[u8]) -> SimpleResult<()> {
+        let input_str = std::str::from_utf8(input)
+            .map_err(|e| simple_error!("Invalid Value for Timestamp: {}", e))?;
         let res = |_| {
-            simple_error!(
-                "Invalid Value for Timestamp: {}",
-                String::from_utf8_lossy(input)
-            )
+            simple_error!("Invalid Value for Timestamp: {}", input_str)
         };
-        let input_str = String::from_utf8_lossy(input).to_string();
         let parse_to_ts = |fmt: &str, s: &str| -> SimpleResult<Timestamp> {
             let dt = civil::DateTime::strptime(fmt, s).map_err(res)?;
             dt.to_zoned(TimeZone::UTC)

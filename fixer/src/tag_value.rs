@@ -48,29 +48,22 @@ impl TagValue {
     }
 
     pub fn parse(&mut self, raw_field_bytes: &[u8]) -> Result<(), String> {
+        let raw_str = std::str::from_utf8(raw_field_bytes).unwrap_or("<invalid utf8>");
         let sep_index = raw_field_bytes
             .iter()
             .position(|x| *x == b'=')
             .ok_or_else(|| {
-                format!(
-                    "TagValue::parse: No '=' in '{}'",
-                    String::from_utf8_lossy(raw_field_bytes)
-                )
+                format!("TagValue::parse: No '=' in '{raw_str}'")
             })?;
 
         if sep_index == 0 {
-            return Err(format!(
-                "TagValue::parse: No tag in '{}'",
-                String::from_utf8_lossy(raw_field_bytes)
-            ));
+            return Err(format!("TagValue::parse: No tag in '{raw_str}'"));
         }
 
         let parsed_tag_bytes = raw_field_bytes.get(0..sep_index).unwrap();
+        let parsed_tag_str = std::str::from_utf8(parsed_tag_bytes).unwrap_or("<invalid utf8>");
         let parsed_tag = atoi_simd::parse::<isize, false, false>(parsed_tag_bytes).map_err(|_| {
-            format!(
-                "tagValue.Parse: '{}'",
-                String::from_utf8_lossy(parsed_tag_bytes)
-            )
+            format!("tagValue.Parse: '{parsed_tag_str}'")
         })?;
 
         self.tag = parsed_tag;
@@ -98,7 +91,7 @@ impl std::fmt::Display for TagValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match std::str::from_utf8(&self.bytes) {
             Ok(s) => f.write_str(s),
-            Err(_) => write!(f, "{}", String::from_utf8_lossy(&self.bytes)),
+            Err(_) => f.write_str("<invalid utf8>"),
         }
     }
 }
