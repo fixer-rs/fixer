@@ -30,6 +30,9 @@ futures = "0.3"
 itoa = "1.0"
 memmem = "0.1.1"
 mongodb = { version = "3", optional = true }
+opentelemetry = { version = "0.30", optional = true }
+opentelemetry_sdk = { version = "0.30", features = ["rt-tokio", "logs"], optional = true }
+opentelemetry-otlp = { version = "0.30", features = ["logs", "grpc-tonic"], optional = true }
 parse_duration = "2.1"
 quick-xml = { version = "0.39", features = ["serialize"] }
 ramhorns = "1.0"
@@ -62,9 +65,10 @@ mongo_store = ["mongodb"]
 mongo_log = ["mongodb"]
 sql_store = ["sqlx"]
 sql_log = ["sqlx"]
+otel_log = ["opentelemetry", "opentelemetry_sdk", "opentelemetry-otlp"]
 
 [dev-dependencies]
-criterion = "0.8"
+criterion = "0.5"
 mockall = "0.14"
 pprof = { version = "0.15", features = ["flamegraph", "criterion"] }
 rcgen = "0.14"

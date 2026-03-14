@@ -5,6 +5,8 @@ use file_log::{FileLog, FileLogFactory};
 #[cfg(feature = "mongo_log")]
 use mongo_log::{MongoLog, MongoLogFactory};
 use null_log::{NullLog, NullLogFactory};
+#[cfg(feature = "otel_log")]
+use otel_log::{OtelLog, OtelLogFactory};
 use screen_log::{ScreenLog, ScreenLogFactory};
 #[cfg(feature = "sql_log")]
 use sql_log::{SqlLog, SqlLogFactory};
@@ -16,6 +18,8 @@ pub mod file_log;
 #[cfg(feature = "mongo_log")]
 pub mod mongo_log;
 pub mod null_log;
+#[cfg(feature = "otel_log")]
+pub mod otel_log;
 pub mod screen_log;
 #[cfg(feature = "sql_log")]
 pub mod sql_log;
@@ -71,6 +75,8 @@ pub enum LogEnum {
     CompositeLog,
     #[cfg(feature = "mongo_log")]
     MongoLog,
+    #[cfg(feature = "otel_log")]
+    OtelLog,
     #[cfg(feature = "sql_log")]
     SqlLog,
 }
@@ -91,6 +97,8 @@ pub enum LogFactoryEnum {
     CompositeLogFactory,
     #[cfg(feature = "mongo_log")]
     MongoLogFactory,
+    #[cfg(feature = "otel_log")]
+    OtelLogFactory,
     #[cfg(feature = "sql_log")]
     SqlLogFactory,
 }
