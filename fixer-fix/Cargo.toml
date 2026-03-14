@@ -21,7 +21,6 @@ fixer = { path = "../fixer", version = "0.10.2" }
 jiff = "0.2"
 rust_decimal = "1"
 simple-error = "0.3"
-tokio = { version = "1.50", features = ["io-util", "fs", "rt", "rt-multi-thread", "signal", "sync", "macros"] }
 
 [[example]]
 name = "trade_client"
