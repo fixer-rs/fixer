@@ -27,7 +27,7 @@ dyn-clone = "1.0"
 enum_dispatch = "0.3"
 fast-float2 = "0.2"
 futures = "0.3"
-itoa = "1.0"
+itoap = "1"
 memmem = "0.1.1"
 mongodb = { version = "3", optional = true }
 opentelemetry = { version = "0.30", optional = true }

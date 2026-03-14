@@ -341,7 +341,8 @@ mod tests {
         let tests = vec![4, 5];
 
         for test in tests {
-            suite.doc.major = itoa::Buffer::new().format(test).to_string();
+            suite.doc.major.clear();
+            itoap::write_to_string(&mut suite.doc.major, test);
             let result = suite.builder.build(&suite.doc);
             assert!(result.is_ok());
             assert_eq!(test, result.unwrap().major);
@@ -366,7 +367,8 @@ mod tests {
         let tests = vec![4, 5];
 
         for test in tests {
-            suite.doc.minor = itoa::Buffer::new().format(test).to_string();
+            suite.doc.minor.clear();
+            itoap::write_to_string(&mut suite.doc.minor, test);
             let result = suite.builder.build(&suite.doc);
             assert!(result.is_ok());
             assert_eq!(test, result.unwrap().minor);

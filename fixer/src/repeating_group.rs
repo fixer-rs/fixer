@@ -204,11 +204,11 @@ impl FieldGroupWriter for RepeatingGroup {
     // write returns tagValues for all Items in the repeating group ordered by
     // Group sequence and Group template order.
     fn write(&self) -> LocalField {
-        let mut new_buffer = itoa::Buffer::new();
-        let bytes_str = new_buffer.format(self.groups.len());
+        let mut len_buf = Vec::new();
+        let _ = itoap::write(&mut len_buf, self.groups.len());
 
         let mut tv = TagValue::default();
-        tv.init(self.tag, bytes_str.as_bytes());
+        tv.init(self.tag, &len_buf);
         let mut tvs = vec![tv];
 
         for group in &self.groups {

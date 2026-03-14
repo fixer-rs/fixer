@@ -28,9 +28,7 @@ impl TagValue {
 
     pub fn init_with_writer<W: crate::field::FieldValueWriter>(&mut self, tag: Tag, writer: &W) {
         self.bytes.clear();
-        let mut tag_str = itoa::Buffer::new();
-        let tag_bytes = tag_str.format(tag).as_bytes();
-        self.bytes.extend_from_slice(tag_bytes);
+        let _ = itoap::write(&mut self.bytes, tag);
         self.bytes.push(b'=');
         self.sep_index = self.bytes.len() - 1;
         writer.write_to(&mut self.bytes);
@@ -40,10 +38,7 @@ impl TagValue {
 
     pub fn init(&mut self, tag: Tag, value: &[u8]) {
         self.bytes.clear();
-        let mut tag_str = itoa::Buffer::new();
-        let tag_bytes = tag_str.format(tag).as_bytes();
-        self.bytes.reserve(tag_bytes.len() + 1 + value.len() + 1);
-        self.bytes.extend_from_slice(tag_bytes);
+        let _ = itoap::write(&mut self.bytes, tag);
         self.bytes.push(b'=');
         self.sep_index = self.bytes.len() - 1;
         self.bytes.extend_from_slice(value);
