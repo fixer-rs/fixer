@@ -152,6 +152,9 @@ pub struct Session {
     pub app_data_dictionary: Option<Arc<DataDictionary>>,
     pub timestamp_precision: TimestampPrecision,
     pub last_checked_reset_seq_time: Option<Timestamp>,
+
+    /// Reusable message buffer to avoid per-parse allocations.
+    pub incoming_msg: Message,
 }
 
 #[cfg(test)]
@@ -196,6 +199,7 @@ impl Default for Session {
             app_data_dictionary: Option::default(),
             timestamp_precision: TimestampPrecision::default(),
             last_checked_reset_seq_time: None,
+            incoming_msg: Message::new(),
         }
     }
 }
@@ -1272,8 +1276,8 @@ impl Session {
 
         self.log.on_incoming(&fix_in.bytes).await;
 
-        let mut msg = Message::new();
-        let parse_result = msg.parse_message_with_dd_shared(
+        self.incoming_msg.reset();
+        let parse_result = self.incoming_msg.parse_message_with_dd_shared(
             &fix_in.bytes,
             &self.transport_data_dictionary,
             &self.app_data_dictionary,
@@ -1298,8 +1302,12 @@ impl Session {
                 )
                 .await;
         } else {
+            // Take the message out to avoid double mutable borrow of self.
+            let mut msg = std::mem::replace(&mut self.incoming_msg, Message::default());
             msg.receive_time = fix_in.receive_time;
             self.sm_fix_msg_in(&mut msg).await;
+            // Put it back for reuse (allocations are retained).
+            self.incoming_msg = msg;
         }
 
         let duration = (1.2_f64 * (self.session_settings.heart_bt_int.as_nanos() as f64)).round() as u64;

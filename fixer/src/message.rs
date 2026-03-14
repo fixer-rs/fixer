@@ -31,7 +31,7 @@ pub struct Header {
 
 impl Header {
     pub fn init() -> Self {
-        let mut field_map = FieldMap::default();
+        let mut field_map = FieldMap::with_capacity(8);
         field_map.init_with_ordering(TagOrderType::Header);
         Header { field_map }
     }
@@ -80,7 +80,7 @@ pub struct Body {
 
 impl Body {
     pub fn init() -> Self {
-        let field_map = FieldMap::default().init();
+        let field_map = FieldMap::with_capacity(8).init();
         Body { field_map }
     }
 
@@ -129,7 +129,7 @@ pub struct Trailer {
 
 impl Trailer {
     pub fn init() -> Self {
-        let mut field_map = FieldMap::default();
+        let mut field_map = FieldMap::with_capacity(4);
         field_map.init_with_ordering(TagOrderType::Trailer);
         Trailer { field_map }
     }
@@ -212,9 +212,9 @@ pub struct Message {
     pub body: Body,
     // receive_time is the time that this message was read from the socket connection
     pub receive_time: Timestamp,
-    raw_message: Vec<u8>,
+    raw_message: bytes::Bytes,
     // slice of Bytes corresponding to the message body
-    pub(crate) body_bytes: Vec<u8>,
+    pub(crate) body_bytes: bytes::Bytes,
     // All parsed fields in order, used by validation.
     // Shared via Arc with body.field_map.content.parsed_fields to avoid
     // cloning body fields during parsing.
@@ -251,13 +251,26 @@ impl Message {
         }
     }
 
+    /// Resets all fields but keeps underlying allocations for reuse.
+    /// Call this instead of creating a new `Message` when parsing
+    /// multiple messages in a loop.
+    pub fn reset(&mut self) {
+        self.header.clear();
+        self.body.clear();
+        self.trailer.clear();
+        self.raw_message = bytes::Bytes::new();
+        self.body_bytes = bytes::Bytes::new();
+        self.fields = Arc::from([]);
+        self.receive_time = Timestamp::default();
+    }
+
     /// Deep-copies this message into `to`.
     pub fn copy_into(&self, to: &mut Message) {
         self.header.copy_into(&mut to.header.field_map);
         self.body.copy_into(&mut to.body.field_map);
         self.trailer.copy_into(&mut to.trailer.field_map);
         to.receive_time = self.receive_time;
-        to.body_bytes.clone_from(&self.body_bytes);
+        to.body_bytes = self.body_bytes.clone();
         to.fields = Arc::clone(&self.fields);
     }
 
@@ -293,15 +306,11 @@ impl Message {
         self.header.clear();
         self.body.clear();
         self.trailer.clear();
-        self.raw_message = shared.to_vec();
+        self.raw_message = shared.clone();
 
         let raw_message = &self.raw_message[..];
 
-        // Count SOH delimiters to pre-allocate fields.
-        #[allow(clippy::naive_bytecount)]
-        let field_count = raw_message.iter().filter(|&&b| b == 0x01).count();
-
-        if field_count == 0 {
+        if memchr::memchr(0x01, raw_message).is_none() {
             return Err(ParseError {
                 orig_error: format!(
                     "No Fields detected in {}",
@@ -312,34 +321,45 @@ impl Message {
 
         let msg_len = raw_message.len();
 
-        let mut parsed_fields: Vec<TagValue> = vec![TagValue::default(); field_count];
-        let mut field_index = 0;
+        let mut parsed_fields: Vec<TagValue> = Vec::with_capacity(16);
+        // Inline body-length accumulation (step 19.3).
+        let mut computed_length: isize = 0;
+
+        // Per-section indices into parsed_fields.
+        let mut header_indices: Vec<u32> = Vec::with_capacity(8);
+        let mut body_indices: Vec<u32> = Vec::with_capacity(8);
+        let mut trailer_indices: Vec<u32> = Vec::with_capacity(4);
+
+        // Helper: push a default TagValue, parse into it, return ref.
+        macro_rules! push_field {
+            () => {{
+                parsed_fields.push(TagValue::default());
+                parsed_fields.last_mut().unwrap()
+            }};
+        }
 
         // message must start with begin string, body length, msg type
         let raw_bytes = extract_specific_field(
-            &mut parsed_fields[field_index],
+            push_field!(),
             TAG_BEGIN_STRING,
             raw_message,
             shared,
             msg_len,
         )?;
-        self.header
-            .add(LocalField::new(vec![parsed_fields[field_index].clone()]));
-        field_index += 1;
+        header_indices.push((parsed_fields.len() - 1) as u32);
 
         let raw_bytes = extract_specific_field(
-            &mut parsed_fields[field_index],
+            push_field!(),
             TAG_BODY_LENGTH,
             raw_bytes,
             shared,
             msg_len,
         )?;
-        self.header
-            .add(LocalField::new(vec![parsed_fields[field_index].clone()]));
-        field_index += 1;
+        let body_length_idx = (parsed_fields.len() - 1) as u32;
+        header_indices.push(body_length_idx);
 
         let mut raw_bytes = extract_specific_field(
-            &mut parsed_fields[field_index],
+            push_field!(),
             TAG_MSG_TYPE,
             raw_bytes,
             shared,
@@ -347,16 +367,17 @@ impl Message {
         )?;
         let mut xml_data_len = 0_isize;
         let mut xml_data_msg = false;
-        self.header
-            .add(LocalField::new(vec![parsed_fields[field_index].clone()]));
-        field_index += 1;
+        let last = parsed_fields.last().unwrap();
+        computed_length += last.length(); // TAG_MSG_TYPE contributes
+        header_indices.push((parsed_fields.len() - 1) as u32);
 
         let mut trailer_bytes: &[u8] = &[];
         let mut found_body = false;
         let mut body_start: &[u8] = &[];
 
         loop {
-            let pf = &mut parsed_fields[field_index];
+            let idx = parsed_fields.len() as u32;
+            let pf = push_field!();
             raw_bytes = if xml_data_len.is_positive() {
                 // XML data fields may span across SOH boundaries; use allocating parse.
                 let raw_bytes = extract_xml_data_field(pf, raw_bytes, xml_data_len)?;
@@ -368,16 +389,30 @@ impl Message {
             };
 
             let tag = pf.tag;
-            let field_lf = LocalField::new(vec![pf.clone()]);
 
+            // Accumulate body length inline (excludes BeginString, BodyLength, CheckSum).
+            if tag != TAG_CHECK_SUM {
+                computed_length += pf.length();
+            }
+
+            // Extract XML data length directly from TagValue before dropping pf.
+            if tag == TAG_XML_DATA_LEN {
+                let mut len: isize = 0;
+                for &b in pf.value() {
+                    len = len * 10 + (b - b'0') as isize;
+                }
+                xml_data_len = len;
+            }
+
+            // Drop pf (mutable borrow) before classifying.
             if is_header_field(&tag, transport_data_dictionary) {
-                self.header.add(field_lf);
+                header_indices.push(idx);
             } else if is_trailer_field(&tag, transport_data_dictionary) {
-                self.trailer.add(field_lf);
+                trailer_indices.push(idx);
             } else {
                 found_body = true;
                 trailer_bytes = raw_bytes;
-                self.body.add(field_lf);
+                body_indices.push(idx);
             }
 
             if tag == TAG_CHECK_SUM {
@@ -387,50 +422,41 @@ impl Message {
             if !found_body {
                 body_start = raw_bytes;
             }
-
-            if tag == TAG_XML_DATA_LEN {
-                xml_data_len = self.header.get_int(TAG_XML_DATA_LEN).unwrap();
-            }
-
-            field_index += 1;
         }
 
         // Compute body_bytes once from the tracked slice boundaries.
-        if !found_body {
-            self.body_bytes.clear();
-        } else if body_start.len() > trailer_bytes.len() {
-            let body_len = body_start.len() - trailer_bytes.len();
-            self.body_bytes = body_start[..body_len].to_vec();
+        if !found_body || body_start.len() <= trailer_bytes.len() {
+            self.body_bytes = bytes::Bytes::new();
         } else {
-            self.body_bytes.clear();
+            let body_len = body_start.len() - trailer_bytes.len();
+            let body_offset = msg_len - body_start.len();
+            self.body_bytes = shared.slice(body_offset..body_offset + body_len);
         }
 
-        parsed_fields.truncate(field_index + 1);
         let fields: Arc<[TagValue]> = parsed_fields.into();
         self.fields = Arc::clone(&fields);
-        self.body.field_map.content.parsed_fields = Some(fields);
 
-        let mut length = 0;
-        for field in self.fields.iter() {
-            match field.tag {
-                TAG_BEGIN_STRING | TAG_BODY_LENGTH | TAG_CHECK_SUM => {} // tags do not contribute to length
-                _ => length += field.length(),
-            }
+        // Store per-section indices for lazy field access (no TagValue clones, no HashMap).
+        self.header.field_map.content.parsed_fields = Some(Arc::clone(&fields));
+        self.header.field_map.content.field_indices = Some(header_indices);
+
+        self.body.field_map.content.parsed_fields = Some(Arc::clone(&fields));
+        self.body.field_map.content.field_indices = Some(body_indices);
+
+        self.trailer.field_map.content.parsed_fields = Some(Arc::clone(&fields));
+        self.trailer.field_map.content.field_indices = Some(trailer_indices);
+
+        // Validate body length from header.
+        let body_length_tv = &self.fields[body_length_idx as usize];
+        let mut bl: isize = 0;
+        for &b in body_length_tv.value() {
+            bl = bl * 10 + (b - b'0') as isize;
         }
-
-        let body_length = self
-            .header
-            .get_int(TAG_BODY_LENGTH)
-            .map_err(|e| ParseError {
-                orig_error: e.to_string(),
+        if bl != computed_length && !xml_data_msg {
+            return Err(ParseError {
+                orig_error: format!("Incorrect Message Length, expected {bl} , got {computed_length}"),
             });
-
-        if let Ok(bl) = body_length
-            && bl != length && !xml_data_msg {
-                return Err(ParseError {
-                    orig_error: format!("Incorrect Message Length, expected {bl} , got {length}"),
-                });
-            }
+        }
 
         Ok(())
     }
@@ -588,7 +614,7 @@ impl Message {
     /// rebuilds the message from the field maps.
     pub fn as_bytes(&mut self) -> Vec<u8> {
         if !self.raw_message.is_empty() {
-            return self.raw_message.clone();
+            return self.raw_message.to_vec();
         }
 
         self.build()
@@ -667,7 +693,7 @@ fn extract_xml_data_field<'a>(
     buffer: &'a [u8],
     data_len: isize,
 ) -> Result<&'a [u8], ParseError> {
-    let mut end_index = buffer.iter().position(|x| *x == b'=').ok_or(ParseError {
+    let mut end_index = memchr::memchr(b'=', buffer).ok_or(ParseError {
         orig_error: format!(
             "extract_field: No Trailing Delim in {}",
             std::str::from_utf8(buffer).unwrap_or("<invalid utf8>")
@@ -688,7 +714,7 @@ fn extract_field<'a>(
     shared: &bytes::Bytes,
     msg_len: usize,
 ) -> Result<&'a [u8], ParseError> {
-    let end_index = buffer.iter().position(|x| *x == 1).ok_or(ParseError {
+    let end_index = memchr::memchr(0x01, buffer).ok_or(ParseError {
         orig_error: format!(
             "extract_field: No Trailing Delim in {}",
             std::str::from_utf8(buffer).unwrap_or("<invalid utf8>")

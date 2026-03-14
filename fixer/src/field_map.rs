@@ -15,15 +15,16 @@ use crate::{
 };
 use jiff::Timestamp;
 use rustc_hash::FxHashMap;
+use smallvec::{SmallVec, smallvec};
 use std::{cmp::Ordering, fmt, sync::Arc};
 
 #[derive(Debug, Default, Clone)]
 pub struct LocalField {
-    pub data: Vec<TagValue>,
+    pub data: SmallVec<[TagValue; 1]>,
 }
 
 impl LocalField {
-    pub fn new(data: Vec<TagValue>) -> Self {
+    pub fn new(data: SmallVec<[TagValue; 1]>) -> Self {
         LocalField { data }
     }
 
@@ -99,6 +100,11 @@ pub struct FieldMapContent {
     // Populated during message parsing; used by get_group to read group members.
     // Shared via Arc to avoid cloning during parsing.
     pub parsed_fields: Option<Arc<[TagValue]>>,
+    // Per-section indices into parsed_fields, populated during parsing.
+    // When present, read methods do a linear scan over these indices instead
+    // of using tag_lookup, deferring HashMap<Tag, LocalField> construction
+    // until the first mutation or write.
+    pub field_indices: Option<Vec<u32>>,
 }
 
 /// An ordered collection of FIX tag-value fields.
@@ -151,20 +157,27 @@ pub struct FieldMap {
 
 impl Default for FieldMap {
     fn default() -> Self {
-        FieldMap {
-            content: FieldMapContent {
-                tag_lookup: FxHashMap::default(),
-                tag_sort: TagSort {
-                    tags: vec![],
-                    compare_type: TagOrderType::Normal,
-                },
-                parsed_fields: None,
-            },
-        }
+        Self::with_capacity(0)
     }
 }
 
 impl FieldMap {
+    /// Creates a `FieldMap` with pre-allocated capacity for the given number of
+    /// fields, avoiding reallocations during parsing.
+    pub fn with_capacity(cap: usize) -> Self {
+        FieldMap {
+            content: FieldMapContent {
+                tag_lookup: FxHashMap::with_capacity_and_hasher(cap, Default::default()),
+                tag_sort: TagSort {
+                    tags: Vec::with_capacity(cap),
+                    compare_type: TagOrderType::Normal,
+                },
+                parsed_fields: None,
+                field_indices: None,
+            },
+        }
+    }
+
     #[must_use]
     pub fn init(mut self) -> Self {
         self.init_with_ordering(TagOrderType::Normal);
@@ -173,6 +186,43 @@ impl FieldMap {
 
     pub fn init_with_ordering(&mut self, ordering: TagOrderType) {
         self.content.tag_sort.compare_type = ordering;
+    }
+
+    /// Drains `field_indices` into `tag_lookup` + `tag_sort`, transitioning from
+    /// the index-based representation (set during parsing) to the owned
+    /// representation needed for mutation.
+    fn ensure_mutable(&mut self) {
+        if let Some(indices) = self.content.field_indices.take() {
+            let pf = self.content.parsed_fields.as_ref().unwrap();
+            for i in indices {
+                let tv = &pf[i as usize];
+                let tag = tv.tag;
+                self.content.tag_sort.tags.push(tag);
+                self.content
+                    .tag_lookup
+                    .insert(tag, LocalField::new(smallvec![tv.clone()]));
+            }
+        }
+    }
+
+    /// Returns the value bytes for `tag`, checking the index-based path first.
+    #[inline]
+    fn lookup_value(&self, tag: Tag) -> Result<&[u8], MessageRejectErrorEnum> {
+        if let Some(ref indices) = self.content.field_indices {
+            let pf = self.content.parsed_fields.as_ref().unwrap();
+            for &i in indices {
+                if pf[i as usize].tag == tag {
+                    return Ok(pf[i as usize].value());
+                }
+            }
+            return Err(conditionally_required_field_missing(tag));
+        }
+        let f = self
+            .content
+            .tag_lookup
+            .get(&tag)
+            .ok_or_else(|| conditionally_required_field_missing(tag))?;
+        Ok(f.data[0].value())
     }
 
     /// Reads a field using its [`Field`] implementation (the tag is derived
@@ -184,6 +234,10 @@ impl FieldMap {
 
     /// Returns `true` if a field with the given tag exists.
     pub fn has(&self, tag: Tag) -> bool {
+        if let Some(ref indices) = self.content.field_indices {
+            let pf = self.content.parsed_fields.as_ref().unwrap();
+            return indices.iter().any(|&i| pf[i as usize].tag == tag);
+        }
         self.content.tag_lookup.contains_key(&tag)
     }
 
@@ -194,28 +248,17 @@ impl FieldMap {
         tag: Tag,
         parser: &mut P,
     ) -> MessageRejectErrorResult {
-        let f = self
-            .content
-            .tag_lookup
-            .get(&tag)
-            .ok_or_else(|| conditionally_required_field_missing(tag))?;
-
+        let value = self.lookup_value(tag)?;
         parser
-            .read(f.data[0].value())
+            .read(value)
             .map_err(|_| incorrect_data_format_for_value(tag))?;
-
         Ok(())
     }
 
     /// Returns the raw bytes of a field without copying. Returns an error if
     /// the tag is absent.
     pub fn get_bytes(&self, tag: Tag) -> Result<&[u8], MessageRejectErrorEnum> {
-        let f = self
-            .content
-            .tag_lookup
-            .get(&tag)
-            .ok_or_else(|| conditionally_required_field_missing(tag))?;
-        Ok(f.data[0].value())
+        self.lookup_value(tag)
     }
 
     /// Borrows the raw bytes for `tag` and passes them to a closure, avoiding
@@ -224,12 +267,8 @@ impl FieldMap {
     where
         F: FnOnce(&[u8]) -> Result<T, MessageRejectErrorEnum>,
     {
-        let field = self
-            .content
-            .tag_lookup
-            .get(&tag)
-            .ok_or_else(|| conditionally_required_field_missing(tag))?;
-        f(field.data[0].value())
+        let value = self.lookup_value(tag)?;
+        f(value)
     }
 
     /// Returns the field value as a `bool` (`Y` = true, `N` = false).
@@ -280,7 +319,7 @@ impl FieldMap {
         let tv = if let Some(ref pf) = self.content.parsed_fields {
             let start = pf.iter().position(|tv| tv.tag == *tag);
             match start {
-                Some(idx) => LocalField::new(pf[idx..].to_vec()),
+                Some(idx) => LocalField::new(pf[idx..].iter().cloned().collect()),
                 None => return Err(conditionally_required_field_missing(*tag)),
             }
         } else {
@@ -338,35 +377,52 @@ impl FieldMap {
 
     /// Removes a field by tag. Does nothing if the tag is not present.
     pub fn remove(&mut self, tag: Tag) {
+        self.ensure_mutable();
         self.content.tag_lookup.remove(&tag);
     }
 
-    /// Removes all fields.
+    /// Removes all fields, retaining allocated capacity for reuse.
     pub fn clear(&mut self) {
         self.content.tag_sort.tags.clear();
         self.content.tag_lookup.clear();
+        self.content.parsed_fields = None;
+        self.content.field_indices = None;
     }
 
     /// Deep-copies this `FieldMap` into `to`, replacing its contents.
     pub fn copy_into(&self, to: &mut FieldMap) {
-        to.content.tag_lookup.clone_from(&self.content.tag_lookup);
-        to.content.tag_sort.tags.clone_from(&self.content.tag_sort.tags);
+        if let Some(ref indices) = self.content.field_indices {
+            to.content.field_indices = Some(indices.clone());
+            to.content.parsed_fields.clone_from(&self.content.parsed_fields);
+            to.content.tag_lookup.clear();
+            to.content.tag_sort.tags.clear();
+        } else {
+            to.content.field_indices = None;
+            to.content.tag_lookup.clone_from(&self.content.tag_lookup);
+            to.content.tag_sort.tags.clone_from(&self.content.tag_sort.tags);
+        }
         to.content.tag_sort.compare_type = self.content.tag_sort.compare_type.clone();
     }
 
     pub fn add(&mut self, f: LocalField) {
+        self.ensure_mutable();
         let t = f.field_tag();
 
-        if !self.content.tag_lookup.contains_key(&t) {
-            self.content.tag_sort.tags.push(t);
+        match self.content.tag_lookup.entry(t) {
+            std::collections::hash_map::Entry::Vacant(e) => {
+                self.content.tag_sort.tags.push(t);
+                e.insert(f);
+            }
+            std::collections::hash_map::Entry::Occupied(mut e) => {
+                e.insert(f);
+            }
         }
-
-        self.content.tag_lookup.insert(t, f);
     }
 
     fn get_or_create(&mut self, tag: Tag) -> &mut LocalField {
+        self.ensure_mutable();
         if let std::collections::hash_map::Entry::Vacant(e) = self.content.tag_lookup.entry(tag) {
-            let f = LocalField::new(vec![TagValue::default()]);
+            let f = LocalField::new(smallvec![TagValue::default()]);
             e.insert(f);
             self.content.tag_sort.tags.push(tag);
         }
@@ -385,10 +441,18 @@ impl FieldMap {
     /// Sets a repeating group field.
     #[allow(clippy::needless_pass_by_value)]
     pub fn set_group<F: FieldGroupWriter>(&mut self, field: F) -> &FieldMap {
-        if !self.content.tag_lookup.contains_key(&field.tag()) {
-            self.content.tag_sort.tags.push(field.tag());
+        self.ensure_mutable();
+        let tag = field.tag();
+        let value = field.write();
+        match self.content.tag_lookup.entry(tag) {
+            std::collections::hash_map::Entry::Vacant(e) => {
+                self.content.tag_sort.tags.push(tag);
+                e.insert(value);
+            }
+            std::collections::hash_map::Entry::Occupied(mut e) => {
+                e.insert(value);
+            }
         }
-        self.content.tag_lookup.insert(field.tag(), field.write());
         self
     }
 
@@ -462,11 +526,13 @@ impl FieldMap {
     }
 
     pub fn sorted_tags(&mut self) -> Vec<Tag> {
+        self.ensure_mutable();
         Self::sort_tags_in_place(&mut self.content);
         self.content.tag_sort.tags.clone()
     }
 
     pub fn write(&mut self, buffer: &mut Vec<u8>) {
+        self.ensure_mutable();
         Self::sort_tags_in_place(&mut self.content);
         for i in 0..self.content.tag_sort.tags.len() {
             let tag = self.content.tag_sort.tags[i];
@@ -477,6 +543,17 @@ impl FieldMap {
     }
 
     pub fn total(&self) -> isize {
+        if let Some(ref indices) = self.content.field_indices {
+            let pf = self.content.parsed_fields.as_ref().unwrap();
+            let mut total = 0;
+            for &i in indices {
+                let tv = &pf[i as usize];
+                if tv.tag != TAG_CHECK_SUM {
+                    total += tv.total();
+                }
+            }
+            return total;
+        }
         let mut total = 0;
         for fields in self.content.tag_lookup.values() {
             for tv in &fields.data {
@@ -489,6 +566,20 @@ impl FieldMap {
     }
 
     pub fn length(&self) -> isize {
+        if let Some(ref indices) = self.content.field_indices {
+            let pf = self.content.parsed_fields.as_ref().unwrap();
+            let mut length = 0;
+            for &i in indices {
+                let tv = &pf[i as usize];
+                if tv.tag != TAG_BEGIN_STRING
+                    && tv.tag != TAG_BODY_LENGTH
+                    && tv.tag != TAG_CHECK_SUM
+                {
+                    length += tv.length();
+                }
+            }
+            return length;
+        }
         let mut length = 0;
         for fields in self.content.tag_lookup.values() {
             for tv in &fields.data {

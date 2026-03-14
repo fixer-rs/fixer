@@ -62,9 +62,7 @@ impl TagValue {
     }
 
     fn parse_into(&mut self, raw_field_bytes: &[u8], bytes: Bytes) -> Result<(), String> {
-        let sep_index = raw_field_bytes
-            .iter()
-            .position(|x| *x == b'=')
+        let sep_index = memchr::memchr(b'=', raw_field_bytes)
             .ok_or_else(|| {
                 let raw_str = std::str::from_utf8(raw_field_bytes).unwrap_or("<invalid utf8>");
                 format!("TagValue::parse: No '=' in '{raw_str}'")
@@ -76,14 +74,27 @@ impl TagValue {
         }
 
         let parsed_tag_bytes = &raw_field_bytes[..sep_index];
-        // Scalar parse for tag numbers (always 1-5 digits, no sign).
+        // Parse tag number: usually 1-5 digits, but must handle negative tags
+        // (e.g. "-1=HI") so validation can generate proper Reject messages.
         let mut parsed_tag: isize = 0;
-        for &b in parsed_tag_bytes {
+        let (negative, digit_start) = if parsed_tag_bytes.first() == Some(&b'-') {
+            (true, 1)
+        } else {
+            (false, 0)
+        };
+        if digit_start >= parsed_tag_bytes.len() {
+            let s = std::str::from_utf8(parsed_tag_bytes).unwrap_or("<invalid utf8>");
+            return Err(format!("tagValue.Parse: '{s}'"));
+        }
+        for &b in &parsed_tag_bytes[digit_start..] {
             if !b.is_ascii_digit() {
                 let s = std::str::from_utf8(parsed_tag_bytes).unwrap_or("<invalid utf8>");
                 return Err(format!("tagValue.Parse: '{s}'"));
             }
             parsed_tag = parsed_tag * 10 + (b - b'0') as isize;
+        }
+        if negative {
+            parsed_tag = -parsed_tag;
         }
 
         self.tag = parsed_tag;

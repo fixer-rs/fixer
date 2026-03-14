@@ -18,6 +18,7 @@ use crate::{
     },
     datadictionary::DataDictionary,
     errors::FixerError,
+    message::Message,
     fix_utc_timestamp::TimestampPrecision,
     log::{LogFactoryTrait, LogTrait},
     registry::{SessionRegistration, register_session},
@@ -531,6 +532,7 @@ impl SessionFactory {
             app_data_dictionary,
             timestamp_precision: precision,
             last_checked_reset_seq_time: None,
+            incoming_msg: Message::new(),
         })
     }
 
