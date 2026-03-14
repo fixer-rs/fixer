@@ -3,21 +3,34 @@ use simple_error::{SimpleError, SimpleResult};
 
 const ASCII_MINUS: u8 = 45;
 
-// atoi is similar to the function in strconv, but is tuned for ints appearing in FIX field types.
+// atoi is tuned for ints appearing in FIX field types.
+// Uses scalar loop for short inputs (<10 digits) where SIMD setup overhead dominates,
+// and falls back to atoi_simd for longer inputs where SIMD pays off.
+#[inline(always)]
 pub fn atoi(d: &[u8]) -> SimpleResult<isize> {
-    if d[0] == ASCII_MINUS {
-        return parse_int(&d[1..]).map(|res| -res);
-    }
-    parse_int(d)
-}
+    let (neg, digits) = if d[0] == ASCII_MINUS {
+        (true, &d[1..])
+    } else {
+        (false, d)
+    };
 
-// parse_int is similar to the function in strconv, but is tuned for ints appearing in FIX field types.
-fn parse_int(d: &[u8]) -> SimpleResult<isize> {
-    if d.is_empty() {
+    if digits.is_empty() {
         return Err(simple_error!("empty bytes"));
     }
 
-    atoi_simd::parse::<isize, false, false>(d).map_err(SimpleError::from)
+    if digits.len() < 10 {
+        let mut val: isize = 0;
+        for &b in digits {
+            if !b.is_ascii_digit() {
+                return Err(simple_error!("invalid integer"));
+            }
+            val = val * 10 + (b - b'0') as isize;
+        }
+        return Ok(if neg { -val } else { val });
+    }
+
+    let val = atoi_simd::parse::<isize, false, false>(digits).map_err(SimpleError::from)?;
+    Ok(if neg { -val } else { val })
 }
 
 // FIXInt is a FIX Int Value, implements FieldValue
@@ -35,10 +48,7 @@ impl FIXIntTrait for FIXInt {
 
 impl FieldValueReader for FIXInt {
     fn read(&mut self, input: &[u8]) -> SimpleResult<()> {
-        let f = atoi_simd::parse::<isize, false, false>(input).map_err(SimpleError::from)?;
-
-        *self = f;
-
+        *self = atoi(input)?;
         Ok(())
     }
 }
