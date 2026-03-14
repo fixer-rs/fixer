@@ -48,23 +48,29 @@ impl TagValue {
     }
 
     pub fn parse(&mut self, raw_field_bytes: &[u8]) -> Result<(), String> {
-        let raw_str = std::str::from_utf8(raw_field_bytes).unwrap_or("<invalid utf8>");
         let sep_index = raw_field_bytes
             .iter()
             .position(|x| *x == b'=')
             .ok_or_else(|| {
+                let raw_str = std::str::from_utf8(raw_field_bytes).unwrap_or("<invalid utf8>");
                 format!("TagValue::parse: No '=' in '{raw_str}'")
             })?;
 
         if sep_index == 0 {
+            let raw_str = std::str::from_utf8(raw_field_bytes).unwrap_or("<invalid utf8>");
             return Err(format!("TagValue::parse: No tag in '{raw_str}'"));
         }
 
-        let parsed_tag_bytes = raw_field_bytes.get(0..sep_index).unwrap();
-        let parsed_tag_str = std::str::from_utf8(parsed_tag_bytes).unwrap_or("<invalid utf8>");
-        let parsed_tag = atoi_simd::parse::<isize, false, false>(parsed_tag_bytes).map_err(|_| {
-            format!("tagValue.Parse: '{parsed_tag_str}'")
-        })?;
+        let parsed_tag_bytes = &raw_field_bytes[..sep_index];
+        // Scalar parse for tag numbers (always 1-5 digits, no sign).
+        let mut parsed_tag: isize = 0;
+        for &b in parsed_tag_bytes {
+            if !b.is_ascii_digit() {
+                let s = std::str::from_utf8(parsed_tag_bytes).unwrap_or("<invalid utf8>");
+                return Err(format!("tagValue.Parse: '{s}'"));
+            }
+            parsed_tag = parsed_tag * 10 + (b - b'0') as isize;
+        }
 
         self.tag = parsed_tag;
         self.sep_index = sep_index;

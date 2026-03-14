@@ -324,6 +324,7 @@ impl Message {
 
         let mut trailer_bytes: &[u8] = &[];
         let mut found_body = false;
+        let mut body_start: &[u8] = &[];
 
         loop {
             let pf = &mut parsed_fields[field_index];
@@ -354,7 +355,7 @@ impl Message {
             }
 
             if !found_body {
-                self.body_bytes = raw_bytes.to_vec();
+                body_start = raw_bytes;
             }
 
             if tag == TAG_XML_DATA_LEN {
@@ -364,13 +365,14 @@ impl Message {
             field_index += 1;
         }
 
-        // If there are no body fields (only header + trailer), body_bytes should
-        // be empty.
+        // Compute body_bytes once from the tracked slice boundaries.
         if !found_body {
             self.body_bytes.clear();
-        } else if self.body_bytes.len() > trailer_bytes.len() {
-            self.body_bytes
-                .truncate(self.body_bytes.len() - trailer_bytes.len());
+        } else if body_start.len() > trailer_bytes.len() {
+            let body_len = body_start.len() - trailer_bytes.len();
+            self.body_bytes = body_start[..body_len].to_vec();
+        } else {
+            self.body_bytes.clear();
         }
 
         parsed_fields.truncate(field_index + 1);
