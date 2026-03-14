@@ -253,13 +253,12 @@ impl Settings {
                 settings = s.global_settings().await;
                 is_global_settings = true;
             } else if SESSION_REGEX.is_match(&line) {
-                if let Some(s_inner) = settings {
-                    if !is_global_settings {
+                if let Some(s_inner) = settings
+                    && !is_global_settings {
                         s.add_session(s_inner)
                             .await
                             .map_err(SimpleError::from)?;
                     }
-                }
                 settings = Some(SessionSettings::new());
                 is_global_settings = false;
             } else if SETTING_REGEX.is_match(&line) {

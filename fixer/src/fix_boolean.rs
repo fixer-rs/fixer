@@ -26,7 +26,7 @@ impl FieldValueReader for FIXBoolean {
         }
         Err(simple_error!(
             "Invalid Value for bool: {}",
-            String::from_utf8_lossy(input)
+            std::str::from_utf8(input).unwrap_or("<invalid utf8>")
         ))
     }
 }

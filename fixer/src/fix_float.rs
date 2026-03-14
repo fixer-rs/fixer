@@ -16,14 +16,15 @@ impl FIXFloatTrait for FIXFloat {
 
 impl FieldValueReader for FIXFloat {
     fn read(&mut self, input: &[u8]) -> SimpleResult<()> {
-        let f = fast_float2::parse(input)
-            .map_err(|_| simple_error!("invalid value {}", String::from_utf8_lossy(input)))?;
+        let f = fast_float2::parse(input).map_err(|_| {
+            simple_error!("invalid value {}", std::str::from_utf8(input).unwrap_or("<invalid utf8>"))
+        })?;
 
         for chr in input {
             if *chr != b'.' && *chr != b'-' && !chr.is_ascii_digit() {
                 return Err(simple_error!(
                     "invalid value {}",
-                    String::from_utf8_lossy(input)
+                    std::str::from_utf8(input).unwrap_or("<invalid utf8>")
                 ));
             }
         }

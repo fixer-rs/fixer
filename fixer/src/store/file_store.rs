@@ -32,9 +32,9 @@ impl IndividualFile {
 
         // Right-align the number in a 19-byte buffer, padded with spaces.
         let mut buf = [b' '; 19];
-        let mut num = itoa::Buffer::new();
-        let digits = num.format(seq_num).as_bytes();
-        buf[19 - digits.len()..].copy_from_slice(digits);
+        let mut tmp = Vec::new();
+        let _ = itoap::write(&mut tmp, seq_num);
+        buf[19 - tmp.len()..].copy_from_slice(&tmp);
 
         self.file
             .as_mut()
@@ -138,11 +138,11 @@ impl MessageStoreTrait for FileStore {
 
         // Build header line without format! allocation.
         let mut hdr_buf = Vec::with_capacity(48);
-        hdr_buf.extend_from_slice(itoa::Buffer::new().format(seq_num).as_bytes());
+        let _ = itoap::write(&mut hdr_buf, seq_num);
         hdr_buf.push(b',');
-        hdr_buf.extend_from_slice(itoa::Buffer::new().format(offset).as_bytes());
+        let _ = itoap::write(&mut hdr_buf, offset);
         hdr_buf.push(b',');
-        hdr_buf.extend_from_slice(itoa::Buffer::new().format(msg.len()).as_bytes());
+        let _ = itoap::write(&mut hdr_buf, msg.len());
         hdr_buf.push(b'\n');
 
         self.header_file
@@ -225,7 +225,7 @@ impl MessageStoreTrait for FileStore {
         let mut entries: Vec<(isize, u64, usize)> = Vec::new();
 
         while let Ok(Some(line)) = lines.next_line().await {
-            let Ok((seq_num, offset, size)) = sscanf!(&line, "{isize},{u64},{usize}") else {
+            let Some((seq_num, offset, size)) = sscanf!(&line, "{isize},{u64},{usize}") else {
                 continue;
             };
             if seq_num < begin_seq_num || seq_num > end_seq_num {
@@ -441,45 +441,40 @@ impl FileStore {
 
         if let Ok(mut file) = File::open(&self.session_file.file_name).await {
             let mut time_bytes: Vec<u8> = Vec::new();
-            if file.read_to_end(&mut time_bytes).await.is_ok() {
-                let input_str = String::from_utf8_lossy(&time_bytes).to_string();
-                if let Ok(time) = jiff::Zoned::strptime(TIMESTAMP_FORMAT, input_str.trim()) {
-                    self.cache.creation_time = time.timestamp();
-                    creation_time_populated = true;
-                }
-            }
+            if file.read_to_end(&mut time_bytes).await.is_ok()
+                && let Ok(input_str) = std::str::from_utf8(&time_bytes)
+                    && let Ok(time) = jiff::Zoned::strptime(TIMESTAMP_FORMAT, input_str.trim()) {
+                        self.cache.creation_time = time.timestamp();
+                        creation_time_populated = true;
+                    }
         }
 
         if let Ok(mut file) = File::open(&self.sender_seq_nums_file.file_name).await {
             let mut sender_seq_num_bytes: Vec<u8> = Vec::with_capacity(19);
-            if file.read_to_end(&mut sender_seq_num_bytes).await.is_ok() {
-                let sender_seq_num_string = String::from_utf8_lossy(&sender_seq_num_bytes);
-                let sender_seq_num_str = sender_seq_num_string.trim();
-                if let Ok(sender_seq_num) =
-                    atoi_simd::parse::<isize, false, false>(sender_seq_num_str.as_bytes())
-                {
-                    map_err_with!(
-                        self.cache.set_next_sender_msg_seq_num(sender_seq_num).await,
-                        "cache set next target"
-                    )?;
-                }
-            }
+            if file.read_to_end(&mut sender_seq_num_bytes).await.is_ok()
+                && let Ok(sender_seq_num_str) = std::str::from_utf8(&sender_seq_num_bytes)
+                    && let Ok(sender_seq_num) =
+                        atoi_simd::parse::<isize, false, false>(sender_seq_num_str.trim().as_bytes())
+                    {
+                        map_err_with!(
+                            self.cache.set_next_sender_msg_seq_num(sender_seq_num).await,
+                            "cache set next target"
+                        )?;
+                    }
         }
 
         if let Ok(mut file) = File::open(&self.target_seq_nums_file.file_name).await {
             let mut target_seq_num_bytes: Vec<u8> = Vec::with_capacity(19);
-            if file.read_to_end(&mut target_seq_num_bytes).await.is_ok() {
-                let target_seq_num_string = String::from_utf8_lossy(&target_seq_num_bytes);
-                let target_seq_num_str = target_seq_num_string.trim();
-                if let Ok(target_seq_num) =
-                    atoi_simd::parse::<isize, false, false>(target_seq_num_str.as_bytes())
-                {
-                    map_err_with!(
-                        self.cache.set_next_target_msg_seq_num(target_seq_num).await,
-                        "cache set next target"
-                    )?;
-                }
-            }
+            if file.read_to_end(&mut target_seq_num_bytes).await.is_ok()
+                && let Ok(target_seq_num_str) = std::str::from_utf8(&target_seq_num_bytes)
+                    && let Ok(target_seq_num) =
+                        atoi_simd::parse::<isize, false, false>(target_seq_num_str.trim().as_bytes())
+                    {
+                        map_err_with!(
+                            self.cache.set_next_target_msg_seq_num(target_seq_num).await,
+                            "cache set next target"
+                        )?;
+                    }
         }
 
         Ok(creation_time_populated)

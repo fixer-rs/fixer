@@ -570,8 +570,8 @@ mod tests {
                 assert_eq!(actual_msgs.len(), test.expected_bytes.len());
                 for (i, expected_msg) in test.expected_bytes.iter().enumerate() {
                     assert_eq!(
-                        String::from_utf8_lossy(expected_msg).to_string(),
-                        String::from_utf8_lossy(&actual_msgs[i].clone()).to_string()
+                        std::str::from_utf8(expected_msg).unwrap().to_string(),
+                        std::str::from_utf8(&actual_msgs[i]).unwrap().to_string()
                     );
                 }
             }

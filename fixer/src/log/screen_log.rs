@@ -22,7 +22,7 @@ impl LogTrait for ScreenLog {
             "<{}, {}, incoming>\n  ({})\n",
             log_time.strftime(TIME_FORMAT),
             &self.prefix,
-            String::from_utf8_lossy(data)
+            std::str::from_utf8(data).unwrap_or("<invalid utf8>")
         );
         let mut stdout = io::stdout();
         let _ = stdout.write_all(output.as_bytes()).await;
@@ -35,7 +35,7 @@ impl LogTrait for ScreenLog {
             "<{}, {}, outgoing>\n  ({})\n",
             log_time.strftime(TIME_FORMAT),
             &self.prefix,
-            String::from_utf8_lossy(data)
+            std::str::from_utf8(data).unwrap_or("<invalid utf8>")
         );
         let mut stdout = io::stdout();
         let _ = stdout.write_all(output.as_bytes()).await;

@@ -174,7 +174,7 @@ pub fn lookup_session_registration_flexible(
     // incoming session has an empty qualifier. A non-empty qualifier (e.g.
     // from DynamicQualifier assignment) should require an exact match.
     if session_id.qualifier.is_empty() {
-        for entry in (*SESSIONS).iter() {
+        for entry in &(*SESSIONS) {
             let candidate = entry.key();
             if candidate.begin_string == session_id.begin_string
                 && candidate.sender_comp_id == session_id.sender_comp_id

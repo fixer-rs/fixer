@@ -200,7 +200,7 @@ impl Builder {
             XMLComponentEnum::Component(c)
             | XMLComponentEnum::Field(c)
             | XMLComponentEnum::Group(c) => &c.fields,
-            _ => &None,
+            XMLComponentEnum::Message(_) => &None,
         };
 
         if let Some(members) = inner {
@@ -236,8 +236,8 @@ impl Builder {
     fn build_field_types(&mut self) {
         self.dict.field_type_by_tag = hashmap! {};
         self.dict.field_type_by_name = hashmap! {};
-        if let Some(inner_fields) = &self.doc.fields {
-            if let Some(fields) = &inner_fields.fields {
+        if let Some(inner_fields) = &self.doc.fields
+            && let Some(fields) = &inner_fields.fields {
                 for f in fields {
                     let field = build_field_type(f);
                     self.dict
@@ -248,7 +248,6 @@ impl Builder {
                         .insert(field.name().to_string(), field.clone());
                 }
             }
-        }
     }
 }
 
@@ -259,8 +258,8 @@ fn build_field_type(xml_field: &XMLField) -> FieldType {
         xml_field.r#type.as_ref().unwrap().clone(),
     );
 
-    if let Some(values) = &xml_field.values {
-        if !values.is_empty() {
+    if let Some(values) = &xml_field.values
+        && !values.is_empty() {
             field.enums = hashmap! {};
             for e in values {
                 field.enums.insert(
@@ -272,7 +271,6 @@ fn build_field_type(xml_field: &XMLField) -> FieldType {
                 );
             }
         }
-    }
 
     field
 }
@@ -341,7 +339,8 @@ mod tests {
         let tests = vec![4, 5];
 
         for test in tests {
-            suite.doc.major = itoa::Buffer::new().format(test).to_string();
+            suite.doc.major.clear();
+            itoap::write_to_string(&mut suite.doc.major, test);
             let result = suite.builder.build(&suite.doc);
             assert!(result.is_ok());
             assert_eq!(test, result.unwrap().major);
@@ -366,7 +365,8 @@ mod tests {
         let tests = vec![4, 5];
 
         for test in tests {
-            suite.doc.minor = itoa::Buffer::new().format(test).to_string();
+            suite.doc.minor.clear();
+            itoap::write_to_string(&mut suite.doc.minor, test);
             let result = suite.builder.build(&suite.doc);
             assert!(result.is_ok());
             assert_eq!(test, result.unwrap().minor);

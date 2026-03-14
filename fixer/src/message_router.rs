@@ -78,8 +78,8 @@ impl MessageRouter {
     ) -> MessageRejectErrorResult {
         let begin_bytes = msg.header.get_bytes(TAG_BEGIN_STRING)?;
         let msg_type_bytes = msg.header.get_bytes(TAG_MSG_TYPE)?;
-        let begin_string = String::from_utf8_lossy(begin_bytes).to_string();
-        let msg_type_string = String::from_utf8_lossy(msg_type_bytes).to_string();
+        let begin_string = std::str::from_utf8(begin_bytes).unwrap_or_default().to_string();
+        let msg_type_string = std::str::from_utf8(msg_type_bytes).unwrap_or_default().to_string();
         Self::try_route(g, begin_string, msg_type_string, msg, session_id).await
     }
 
@@ -91,8 +91,8 @@ impl MessageRouter {
     ) -> MessageRejectErrorResult {
         let begin_bytes = msg.header.get_bytes(TAG_BEGIN_STRING)?;
         let msg_type_bytes = msg.header.get_bytes(TAG_MSG_TYPE)?;
-        let begin_string = String::from_utf8_lossy(begin_bytes).to_string();
-        let msg_type_string = String::from_utf8_lossy(msg_type_bytes).to_string();
+        let begin_string = std::str::from_utf8(begin_bytes).unwrap_or_default().to_string();
+        let msg_type_string = std::str::from_utf8(msg_type_bytes).unwrap_or_default().to_string();
         Self::try_route(g, begin_string, msg_type_string, msg, session_id).await
     }
 
@@ -171,11 +171,9 @@ impl MessageRouter {
                 .header
                 .get_field(TAG_APPL_VER_ID, &mut appl_ver_id)
                 .is_err()
-            {
-                if let Some(reg) = (*SESSIONS).get(&session_id) {
+                && let Some(reg) = (*SESSIONS).get(&session_id) {
                     appl_ver_id.clone_from(&reg.target_default_appl_ver_id.lock().unwrap());
                 }
-            }
 
             fix_version = match appl_ver_id.as_str() {
                 APPL_VER_ID_FIX40 => BEGIN_STRING_FIX40.to_string(),

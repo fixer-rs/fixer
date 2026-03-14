@@ -115,7 +115,7 @@ mod tests {
         s.ssr.state(&SessionStateEnum::new_resend_state());
         s.ssr.last_to_admin_message_sent().await;
         s.message_type(
-            String::from_utf8_lossy(MSG_TYPE_RESEND_REQUEST).to_string(),
+            std::str::from_utf8(MSG_TYPE_RESEND_REQUEST).unwrap().to_string(),
             s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap(),
         );
         s.field_equals(
@@ -177,7 +177,7 @@ mod tests {
         s.ssr.state(&SessionStateEnum::new_resend_state());
         s.ssr.last_to_admin_message_sent().await;
         s.message_type(
-            String::from_utf8_lossy(MSG_TYPE_RESEND_REQUEST).to_string(),
+            std::str::from_utf8(MSG_TYPE_RESEND_REQUEST).unwrap().to_string(),
             s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap(),
         );
         s.field_equals(
@@ -233,7 +233,7 @@ mod tests {
         s.ssr.state(&SessionStateEnum::new_resend_state());
         s.ssr.last_to_admin_message_sent().await;
         s.message_type(
-            String::from_utf8_lossy(MSG_TYPE_RESEND_REQUEST).to_string(),
+            std::str::from_utf8(MSG_TYPE_RESEND_REQUEST).unwrap().to_string(),
             s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap(),
         );
         s.field_equals(
@@ -303,7 +303,7 @@ mod tests {
 
         s.ssr.last_to_admin_message_sent().await;
         s.message_type(
-            String::from_utf8_lossy(MSG_TYPE_RESEND_REQUEST).to_string(),
+            std::str::from_utf8(MSG_TYPE_RESEND_REQUEST).unwrap().to_string(),
             s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap(),
         );
         s.field_equals(
@@ -351,7 +351,7 @@ mod tests {
         s.ssr.state(&SessionStateEnum::new_resend_state());
         s.ssr.last_to_admin_message_sent().await;
         s.message_type(
-            String::from_utf8_lossy(MSG_TYPE_RESEND_REQUEST).to_string(),
+            std::str::from_utf8(MSG_TYPE_RESEND_REQUEST).unwrap().to_string(),
             s.ssr.mock_app.last_to_admin.lock().unwrap().as_ref().unwrap(),
         );
         s.field_equals(
