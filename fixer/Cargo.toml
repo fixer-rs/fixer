@@ -18,6 +18,7 @@ path = "src/lib.rs"
 
 [dependencies]
 addr = "0.15"
+bytes = "1"
 async-recursion = "1.0"
 atoi_simd = "0.18"
 jiff = "0.2"

@@ -282,9 +282,9 @@ impl Message {
         self.trailer.clear();
         self.raw_message = raw_message.to_vec();
 
-        // allocate fields in one chunk
+        // Count SOH delimiters to pre-allocate fields.
         #[allow(clippy::naive_bytecount)]
-        let field_count = self.raw_message.iter().filter(|&&b| b == 0o001).count();
+        let field_count = self.raw_message.iter().filter(|&&b| b == 0x01).count();
 
         if field_count == 0 {
             return Err(ParseError {
@@ -295,27 +295,43 @@ impl Message {
             });
         }
 
+        // Shared buffer: all TagValues hold Bytes slices of this single allocation.
+        let shared = bytes::Bytes::copy_from_slice(raw_message);
+        let msg_len = raw_message.len();
+
         let mut parsed_fields: Vec<TagValue> = vec![TagValue::default(); field_count];
         let mut field_index = 0;
 
         // message must start with begin string, body length, msg type
-        let raw_bytes = extract_specific_field(
+        let raw_bytes = extract_specific_field_shared(
             &mut parsed_fields[field_index],
             TAG_BEGIN_STRING,
             raw_message,
+            &shared,
+            msg_len,
         )?;
         self.header
             .add(LocalField::new(vec![parsed_fields[field_index].clone()]));
         field_index += 1;
 
-        let raw_bytes =
-            extract_specific_field(&mut parsed_fields[field_index], TAG_BODY_LENGTH, raw_bytes)?;
+        let raw_bytes = extract_specific_field_shared(
+            &mut parsed_fields[field_index],
+            TAG_BODY_LENGTH,
+            raw_bytes,
+            &shared,
+            msg_len,
+        )?;
         self.header
             .add(LocalField::new(vec![parsed_fields[field_index].clone()]));
         field_index += 1;
 
-        let mut raw_bytes =
-            extract_specific_field(&mut parsed_fields[field_index], TAG_MSG_TYPE, raw_bytes)?;
+        let mut raw_bytes = extract_specific_field_shared(
+            &mut parsed_fields[field_index],
+            TAG_MSG_TYPE,
+            raw_bytes,
+            &shared,
+            msg_len,
+        )?;
         let mut xml_data_len = 0_isize;
         let mut xml_data_msg = false;
         self.header
@@ -329,12 +345,13 @@ impl Message {
         loop {
             let pf = &mut parsed_fields[field_index];
             raw_bytes = if xml_data_len.is_positive() {
+                // XML data fields may span across SOH boundaries; use allocating parse.
                 let raw_bytes = extract_xml_data_field(pf, raw_bytes, xml_data_len)?;
                 xml_data_len = 0;
                 xml_data_msg = true;
                 raw_bytes
             } else {
-                extract_field(pf, raw_bytes)?
+                extract_field_shared(pf, raw_bytes, &shared, msg_len)?
             };
 
             let tag = pf.tag;
@@ -628,6 +645,26 @@ fn extract_specific_field<'a>(
     Ok(rem_buffer)
 }
 
+/// Shared-buffer variant: parses the field using a zero-copy Bytes slice.
+fn extract_specific_field_shared<'a>(
+    field: &mut TagValue,
+    expected_tag: Tag,
+    buffer: &'a [u8],
+    shared: &bytes::Bytes,
+    msg_len: usize,
+) -> Result<&'a [u8], ParseError> {
+    let rem_buffer = extract_field_shared(field, buffer, shared, msg_len)?;
+    if field.tag != expected_tag {
+        return Err(ParseError {
+            orig_error: format!(
+                "extract_specific_field: Fields out of order, expected {}, got {}",
+                expected_tag, field.tag
+            ),
+        });
+    }
+    Ok(rem_buffer)
+}
+
 #[allow(clippy::cast_sign_loss)]
 fn extract_xml_data_field<'a>(
     parsed_field_bytes: &mut TagValue,
@@ -664,6 +701,28 @@ fn extract_field<'a>(
         .parse(buffer_slice)
         .map_err(|err| ParseError { orig_error: err })?;
     Ok(buffer.get((end_index + 1)..).unwrap())
+}
+
+/// Shared-buffer variant: uses `parse_shared` for zero-copy field bytes.
+fn extract_field_shared<'a>(
+    parsed_field_bytes: &mut TagValue,
+    buffer: &'a [u8],
+    shared: &bytes::Bytes,
+    msg_len: usize,
+) -> Result<&'a [u8], ParseError> {
+    let end_index = buffer.iter().position(|x| *x == 1).ok_or(ParseError {
+        orig_error: format!(
+            "extract_field: No Trailing Delim in {}",
+            std::str::from_utf8(buffer).unwrap_or("<invalid utf8>")
+        ),
+    })?;
+    let field_len = end_index + 1;
+    let field_start = msg_len - buffer.len();
+    let buffer_slice = &buffer[..field_len];
+    parsed_field_bytes
+        .parse_shared(buffer_slice, shared.slice(field_start..field_start + field_len))
+        .map_err(|err| ParseError { orig_error: err })?;
+    Ok(&buffer[field_len..])
 }
 
 /// Compute the total (sum of all byte values) for a raw byte slice.

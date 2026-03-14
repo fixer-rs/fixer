@@ -1,12 +1,14 @@
+use bytes::Bytes;
 use crate::tag::Tag;
 
 // TagValue is a low-level FIX field abstraction.
 // Only `bytes` (the full `tag=value\x01` wire format) is stored; `value` is
 // derived on demand via `sep_index` (the position of `=` in `bytes`).
+// Uses `bytes::Bytes` for O(1) clone (refcount bump instead of memcpy).
 #[derive(Default, Clone, Debug, PartialEq)]
 pub struct TagValue {
     pub tag: Tag,
-    pub bytes: Vec<u8>,
+    pub bytes: Bytes,
     // Position of '=' in bytes. Value slice is bytes[sep_index+1..bytes.len()-1].
     sep_index: usize,
 }
@@ -27,27 +29,39 @@ impl TagValue {
     }
 
     pub fn init_with_writer<W: crate::field::FieldValueWriter>(&mut self, tag: Tag, writer: &W) {
-        self.bytes.clear();
-        let _ = itoap::write(&mut self.bytes, tag);
-        self.bytes.push(b'=');
-        self.sep_index = self.bytes.len() - 1;
-        writer.write_to(&mut self.bytes);
-        self.bytes.push(1); // SOH delimiter
+        let mut buf = Vec::new();
+        let _ = itoap::write(&mut buf, tag);
+        buf.push(b'=');
+        let sep_index = buf.len() - 1;
+        writer.write_to(&mut buf);
+        buf.push(1); // SOH delimiter
+        self.bytes = Bytes::from(buf);
+        self.sep_index = sep_index;
         self.tag = tag;
     }
 
     pub fn init(&mut self, tag: Tag, value: &[u8]) {
-        self.bytes.clear();
-        let _ = itoap::write(&mut self.bytes, tag);
-        self.bytes.push(b'=');
-        self.sep_index = self.bytes.len() - 1;
-        self.bytes.extend_from_slice(value);
-        self.bytes.push(1); // SOH delimiter
-
+        let mut buf = Vec::new();
+        let _ = itoap::write(&mut buf, tag);
+        buf.push(b'=');
+        let sep_index = buf.len() - 1;
+        buf.extend_from_slice(value);
+        buf.push(1); // SOH delimiter
+        self.bytes = Bytes::from(buf);
+        self.sep_index = sep_index;
         self.tag = tag;
     }
 
     pub fn parse(&mut self, raw_field_bytes: &[u8]) -> Result<(), String> {
+        self.parse_into(raw_field_bytes, Bytes::copy_from_slice(raw_field_bytes))
+    }
+
+    /// Parse from a pre-sliced shared Bytes buffer (zero allocation).
+    pub fn parse_shared(&mut self, raw_field_bytes: &[u8], shared_bytes: Bytes) -> Result<(), String> {
+        self.parse_into(raw_field_bytes, shared_bytes)
+    }
+
+    fn parse_into(&mut self, raw_field_bytes: &[u8], bytes: Bytes) -> Result<(), String> {
         let sep_index = raw_field_bytes
             .iter()
             .position(|x| *x == b'=')
@@ -74,7 +88,7 @@ impl TagValue {
 
         self.tag = parsed_tag;
         self.sep_index = sep_index;
-        self.bytes = raw_field_bytes.to_vec();
+        self.bytes = bytes;
 
         Ok(())
     }
@@ -114,7 +128,7 @@ mod tests {
         let expected_data = "8=blahblah\x01".as_bytes();
 
         assert_eq!(
-            &tv.bytes, expected_data,
+            &tv.bytes[..], expected_data,
             "Expected {:?}, got {:?}",
             expected_data, tv.bytes,
         );
@@ -134,7 +148,7 @@ mod tests {
         let result = tv.parse(string_field.as_bytes());
         assert!(result.is_ok());
         assert_eq!(8, tv.tag);
-        assert_eq!(tv.bytes, string_field.as_bytes());
+        assert_eq!(&tv.bytes[..], string_field.as_bytes());
         assert_eq!(tv.value(), "FIX.4.0".as_bytes());
     }
 
