@@ -31,7 +31,7 @@ futures = "0.3"
 itoap = "1"
 memchr = "2"
 mongodb = { version = "3", optional = true }
-opentelemetry = { version = "0.30", optional = true }
+opentelemetry = { version = "0.31", optional = true }
 opentelemetry_sdk = { version = "0.30", features = ["rt-tokio", "logs"], optional = true }
 opentelemetry-otlp = { version = "0.30", features = ["logs", "grpc-tonic"], optional = true }
 parse_duration = "2.1"
