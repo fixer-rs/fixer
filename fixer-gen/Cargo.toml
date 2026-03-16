@@ -8,7 +8,7 @@ name = "fixer-gen"
 readme = "../README.md"
 repository = "https://github.com/fixer-rs/fixer"
 rust-version = "1.85"
-version = "0.10.2"
+version = "0.10.3"
 categories = ["finance"]
 keywords = ["finance", "fix-protocol", "fix", "protocol"]
 
@@ -17,7 +17,7 @@ name = "fixer-gen"
 path = "src/main.rs"
 
 [dependencies]
-fixer = { path = "../fixer", version = "0.10.2" }
+fixer = { path = "../fixer", version = "0.10.3" }
 clap = { version = "4", features = ["derive"] }
 rustc-hash = "2"
 tera = "1"
