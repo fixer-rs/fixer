@@ -24,7 +24,7 @@ build-test:
 	cargo build -p fixer-test
 
 fix40: build-test
-	cargo run -p fixer-test -- _test/cfg/server/fix40.cfg 5001 _test/definitions/server/fix40/*.def
+	cargo run -p fixer-test -- _test/cfg/server/fix40.cfg 5010 _test/definitions/server/fix40/*.def
 
 fix41: build-test
 	cargo run -p fixer-test -- _test/cfg/server/fix41.cfg 5002 _test/definitions/server/fix41/*.def

@@ -732,6 +732,7 @@ impl SessionSuiteRig {
             app_data_dictionary: Option::default(),
             timestamp_precision: TimestampPrecision::default(),
             last_checked_reset_seq_time: None,
+            incoming_msg: Message::new(),
         };
 
         SessionSuiteRig {

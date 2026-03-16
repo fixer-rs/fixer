@@ -491,7 +491,7 @@ async fn handle_connection<R, W>(
 
     // Parse to extract session identification fields
     let mut msg = Message::default();
-    if msg.parse_message(&first_msg_bytes).is_err() {
+    if let Err(_e) = msg.parse_message(&first_msg_bytes) {
         return;
     }
 

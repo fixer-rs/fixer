@@ -8,6 +8,7 @@ use crate::{
 use delegate::delegate;
 use dyn_clone::{DynClone, clone_trait_object};
 use rustc_hash::FxHashMap;
+use smallvec::smallvec;
 use std::sync::Arc;
 
 // GroupItem interface is used to construct repeating group templates.
@@ -38,7 +39,7 @@ impl FieldTag for ProtoGroupElement {
 impl FieldGroupReader for ProtoGroupElement {
     fn read(&mut self, tv: LocalField) -> Result<LocalField, MessageRejectErrorEnum> {
         if !tv.is_empty() && tv.data[0].tag == self.tag {
-            return Ok(LocalField::new(tv.data[1..].to_vec()));
+            return Ok(LocalField::new(tv.data[1..].iter().cloned().collect()));
         }
         Ok(tv)
     }
@@ -144,7 +145,7 @@ impl FieldTag for RepeatingGroup {
 impl FieldGroupReader for RepeatingGroup {
     fn read(&mut self, tv: LocalField) -> Result<LocalField, MessageRejectErrorEnum> {
         if tv.is_empty() {
-            return Ok(LocalField::new(vec![]));
+            return Ok(LocalField::new(smallvec![]));
         }
 
         let Ok(expected_group_size) = atoi_simd::parse::<usize, false, false>(tv.data[0].value()) else {
@@ -152,10 +153,10 @@ impl FieldGroupReader for RepeatingGroup {
         };
 
         if expected_group_size == 0 {
-            return Ok(LocalField::new(tv.data[1..].to_vec()));
+            return Ok(LocalField::new(tv.data[1..].iter().cloned().collect()));
         }
 
-        let mut tv = LocalField::new(tv.data[1..].to_vec());
+        let mut tv = LocalField::new(tv.data[1..].iter().cloned().collect());
         let tag_ordering = self.tag_order.clone();
 
         while !tv.is_empty() {
@@ -167,7 +168,7 @@ impl FieldGroupReader for RepeatingGroup {
             let mut gi = gi_result.unwrap();
 
             let current_tag = tv.data[0].tag;
-            let current_tv = LocalField::new(vec![tv.data[0].clone()]);
+            let current_tv = LocalField::new(smallvec![tv.data[0].clone()]);
 
             tv = gi.read(tv)?;
             if self.is_delimiter(gi.tag()) {
@@ -209,14 +210,14 @@ impl FieldGroupWriter for RepeatingGroup {
 
         let mut tv = TagValue::default();
         tv.init(self.tag, &len_buf);
-        let mut tvs = vec![tv];
+        let mut tvs = smallvec![tv];
 
         for group in &self.groups {
             let mut group_clone = group.clone();
             let tags = group_clone.sorted_tags();
             for tag in tags {
                 if let Some(fields) = group.field_map.content.tag_lookup.get(&tag) {
-                    tvs.extend_from_slice(&fields.data);
+                    tvs.extend(fields.data.iter().cloned());
                 }
             }
         }
@@ -239,6 +240,7 @@ mod tests {
         tag::Tag,
         tag_value::TagValue,
     };
+    use smallvec::smallvec;
 
     #[test]
     fn test_repeating_group_add() {
@@ -360,7 +362,7 @@ mod tests {
 
         let test_cases = [
             TestCase {
-                tv: LocalField::new(vec![
+                tv: LocalField::new(smallvec![
                     TagValue::new(0, b"1"),
                     TagValue::new(2, b"not in template"),
                     TagValue::new(1, b"hello"),
@@ -368,7 +370,7 @@ mod tests {
                 expected_group_num: 0,
             },
             TestCase {
-                tv: LocalField::new(vec![
+                tv: LocalField::new(smallvec![
                     TagValue::new(0, b"2"),
                     TagValue::new(1, b"hello"),
                     TagValue::new(2, b"not in template"),
@@ -405,41 +407,41 @@ mod tests {
         let mut test_cases = [
             TestCase {
                 group_template: Some(single_field_template.clone()),
-                tv: LocalField::new(vec![TagValue::new(0, b"0")]),
+                tv: LocalField::new(smallvec![TagValue::new(0, b"0")]),
                 ..Default::default()
             },
             TestCase {
                 group_template: Some(single_field_template.clone()),
-                tv: LocalField::new(vec![
+                tv: LocalField::new(smallvec![
                     TagValue::new(0, b"1"),
                     TagValue::new(1, b"hello"),
                 ]),
-                expected_group_tvs: vec![LocalField::new(vec![TagValue::new(1, b"hello")])],
+                expected_group_tvs: vec![LocalField::new(smallvec![TagValue::new(1, b"hello")])],
             },
             TestCase {
                 group_template: Some(single_field_template.clone()),
-                tv: LocalField::new(vec![
+                tv: LocalField::new(smallvec![
                     TagValue::new(0, b"1"),
                     TagValue::new(1, b"hello"),
                     TagValue::new(2, b"not in group"),
                 ]),
-                expected_group_tvs: vec![LocalField::new(vec![TagValue::new(1, b"hello")])],
+                expected_group_tvs: vec![LocalField::new(smallvec![TagValue::new(1, b"hello")])],
             },
             TestCase {
                 group_template: Some(single_field_template.clone()),
-                tv: LocalField::new(vec![
+                tv: LocalField::new(smallvec![
                     TagValue::new(0, b"2"),
                     TagValue::new(1, b"hello"),
                     TagValue::new(1, b"world"),
                 ]),
                 expected_group_tvs: vec![
-                    LocalField::new(vec![TagValue::new(1, b"hello")]),
-                    LocalField::new(vec![TagValue::new(1, b"world")]),
+                    LocalField::new(smallvec![TagValue::new(1, b"hello")]),
+                    LocalField::new(smallvec![TagValue::new(1, b"world")]),
                 ],
             },
             TestCase {
                 group_template: Some(multi_field_template.clone()),
-                tv: LocalField::new(vec![
+                tv: LocalField::new(smallvec![
                     TagValue::new(0, b"2"),
                     TagValue::new(1, b"hello"),
                     TagValue::new(1, b"goodbye"),
@@ -447,8 +449,8 @@ mod tests {
                     TagValue::new(3, b"world"),
                 ]),
                 expected_group_tvs: vec![
-                    LocalField::new(vec![TagValue::new(1, b"hello")]),
-                    LocalField::new(vec![
+                    LocalField::new(smallvec![TagValue::new(1, b"hello")]),
+                    LocalField::new(smallvec![
                         TagValue::new(1, b"goodbye"),
                         TagValue::new(2, b"cruel"),
                         TagValue::new(3, b"world"),
@@ -457,7 +459,7 @@ mod tests {
             },
             TestCase {
                 group_template: Some(multi_field_template.clone()),
-                tv: LocalField::new(vec![
+                tv: LocalField::new(smallvec![
                     TagValue::new(0, b"3"),
                     TagValue::new(1, b"hello"),
                     TagValue::new(1, b"goodbye"),
@@ -466,13 +468,13 @@ mod tests {
                     TagValue::new(1, b"another"),
                 ]),
                 expected_group_tvs: vec![
-                    LocalField::new(vec![TagValue::new(1, b"hello")]),
-                    LocalField::new(vec![
+                    LocalField::new(smallvec![TagValue::new(1, b"hello")]),
+                    LocalField::new(smallvec![
                         TagValue::new(1, b"goodbye"),
                         TagValue::new(2, b"cruel"),
                         TagValue::new(3, b"world"),
                     ]),
-                    LocalField::new(vec![TagValue::new(1, b"another")]),
+                    LocalField::new(smallvec![TagValue::new(1, b"another")]),
                 ],
             },
         ];
@@ -522,7 +524,7 @@ mod tests {
         ];
 
         let mut f = RepeatingGroup::new(1, parent_template);
-        let read_result = f.read(LocalField::new(vec![
+        let read_result = f.read(LocalField::new(smallvec![
             TagValue::new(0, b"2"),
             TagValue::new(2, b"hello"),
             TagValue::new(3, b"1"),
