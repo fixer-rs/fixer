@@ -14,7 +14,7 @@ pub(crate) mod parser;
 criterion_group! {
     name = benches;
     config = Criterion::default().with_profiler(PProfProfiler::new(100, Output::Flamegraph(Some(Options::default()))));
-    targets = fix_float::benchmark_fix_float_read, fix_int::benchmark_fix_int_read, fix_utc_timestamp::benchmark_fix_utc_timestamp_read, internal::time_range::benchmark_in_range, parser::benchmark_parser_read_message,message::parse_message
+    targets = fix_float::benchmark_fix_float_read, fix_int::benchmark_fix_int_read, fix_utc_timestamp::benchmark_fix_utc_timestamp_read, internal::time_range::benchmark_in_range, parser::benchmark_parser_read_message, parser::benchmark_parser_read_message_json, parser::benchmark_parser_read_message_fixml, message::parse_message, message::parse_message_json, message::parse_message_fixml
 }
 
 criterion_main!(benches);

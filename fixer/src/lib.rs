@@ -196,14 +196,23 @@ pub mod log;
 pub mod message;
 pub mod message_router;
 pub mod msg_type;
-pub mod parser;
+pub mod encoding;
 pub mod registry;
 pub mod repeating_group;
 pub mod session;
 pub mod settings;
 pub mod store;
 pub mod tag;
-pub mod tag_value;
+
+/// Re-export for backward compatibility.
+pub mod parser {
+    pub use crate::encoding::tagvalue::parser::*;
+}
+
+/// Re-export for backward compatibility.
+pub mod tag_value {
+    pub use crate::encoding::tagvalue::tag_value::*;
+}
 pub mod tls;
 pub mod validation;
 
