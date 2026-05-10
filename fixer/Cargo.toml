@@ -70,7 +70,7 @@ sql_log = ["sqlx"]
 otel_log = ["opentelemetry", "opentelemetry_sdk", "opentelemetry-otlp"]
 
 [dev-dependencies]
-criterion = "0.5"
+criterion = "0.8"
 mockall = "0.14"
 pprof = { version = "0.15", features = ["flamegraph", "criterion"] }
 rcgen = "0.14"
