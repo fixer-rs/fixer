@@ -35,7 +35,7 @@ opentelemetry = { version = "0.32", optional = true }
 opentelemetry_sdk = { version = "0.32", features = ["rt-tokio", "logs"], optional = true }
 opentelemetry-otlp = { version = "0.32", features = ["logs", "grpc-tonic"], optional = true }
 parse_duration = "2.1"
-quick-xml = { version = "0.39", features = ["serialize"] }
+quick-xml = { version = "0.40", features = ["serialize"] }
 ramhorns = "1.0"
 regex = "1.12"
 rust_decimal = "1.40"
