@@ -20,7 +20,7 @@ path = "src/main.rs"
 fixer = { path = "../fixer", version = "0.10.3" }
 clap = { version = "4", features = ["derive"] }
 rustc-hash = "2"
-tera = "1"
+tera = "2"
 heck = "0.5"
 serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1.50", features = ["rt", "macros"] }
