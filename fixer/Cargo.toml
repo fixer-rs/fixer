@@ -71,7 +71,7 @@ otel_log = ["opentelemetry", "opentelemetry_sdk", "opentelemetry-otlp"]
 
 [dev-dependencies]
 criterion = "0.5"
-mockall = "0.14"
+mockall = "0.15"
 pprof = { version = "0.15", features = ["flamegraph", "criterion"] }
 rcgen = "0.14"
 serial_test = "3.0"
