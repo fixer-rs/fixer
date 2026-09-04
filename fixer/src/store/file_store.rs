@@ -12,7 +12,9 @@ use crate::{
 use jiff::{Timestamp, tz::TimeZone};
 use simple_error::{SimpleError, SimpleResult};
 use sscanf::sscanf;
-use std::{io::SeekFrom, os::unix::prelude::PermissionsExt, path::Path, sync::Arc};
+use std::{io::SeekFrom, path::Path, sync::Arc};
+#[cfg(unix)]
+use std::os::unix::prelude::PermissionsExt;
 use tokio::{
     fs::{self, File},
     io::{AsyncBufReadExt, AsyncReadExt, AsyncSeekExt, AsyncWriteExt, BufReader},
@@ -380,10 +382,13 @@ impl FileStore {
         fs::create_dir_all(&dirname)
             .await
             .map_err(|_| simple_error!("cannot create store directory: {}", dirname))?;
+        #[cfg(unix)]
+        {
         let metadata = fs::metadata(&dirname)
             .await
             .map_err(|_| simple_error!("cannot get store directory metadata: {}", dirname))?;
-        metadata.permissions().set_mode(0o511);
+            metadata.permissions().set_mode(0o511);
+        }
 
         let session_prefix = session_id_filename_prefix(&session_id);
 

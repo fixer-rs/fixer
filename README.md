@@ -89,6 +89,13 @@ make test
 make fmt
 ```
 
+### Windows
+
+Native Windows builds use the MSVC Rust toolchain and Visual Studio C++ Build
+Tools. The `Makefile` targets require a Unix shell; use `cargo build --workspace`
+and `cargo test --workspace` from PowerShell instead. See
+[`docs/WINDOWS_BUILD.md`](docs/WINDOWS_BUILD.md) for setup and example commands.
+
 ## General Support
 
 ### FIX Protocol

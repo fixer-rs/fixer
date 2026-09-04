@@ -1,10 +1,14 @@
 use crate::session::session_id::SessionID;
 use simple_error::SimpleResult;
-use std::{io::ErrorKind, os::unix::prelude::PermissionsExt, sync::Arc};
+use std::{io::ErrorKind, sync::Arc};
+#[cfg(unix)]
+use std::os::unix::prelude::PermissionsExt;
 use tokio::{
-    fs::{File, OpenOptions, metadata, remove_file as rm},
+    fs::{File, OpenOptions, remove_file as rm},
     io::AsyncWriteExt,
 };
+#[cfg(unix)]
+use tokio::fs::metadata;
 
 pub fn session_id_filename_prefix(s: &Arc<SessionID>) -> String {
     let mut sender = vec![s.sender_comp_id.as_str()];
@@ -60,7 +64,7 @@ pub async fn remove_file(fname: &str) -> SimpleResult<()> {
 }
 
 // open_or_create_file opens a file for reading and writing, creating it if necessary.
-pub async fn open_or_create_file(fname: &str, perm: u32) -> SimpleResult<File> {
+pub async fn open_or_create_file(fname: &str, _perm: u32) -> SimpleResult<File> {
     match OpenOptions::new()
         .read(true)
         .write(true)
@@ -70,6 +74,8 @@ pub async fn open_or_create_file(fname: &str, perm: u32) -> SimpleResult<File> {
         .await
     {
         Ok(file) => {
+            #[cfg(unix)]
+            {
             let md = metadata(fname).await.map_err(|err| {
                 simple_error!(
                     "error opening or creating file: {}: {}",
@@ -77,7 +83,8 @@ pub async fn open_or_create_file(fname: &str, perm: u32) -> SimpleResult<File> {
                     err.to_string(),
                 )
             })?;
-            md.permissions().set_mode(perm);
+                md.permissions().set_mode(_perm);
+            }
             Ok(file)
         }
         Err(err) => Err(simple_error!(
