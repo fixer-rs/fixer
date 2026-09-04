@@ -8,7 +8,7 @@ name = "fixer"
 readme = "../README.md"
 repository = "https://github.com/fixer-rs/fixer.git"
 rust-version = "1.88"
-version = "0.10.3"
+version = "0.10.4"
 categories = ["finance"]
 keywords = ["finance", "fix-protocol", "fix", "protocol"]
 
