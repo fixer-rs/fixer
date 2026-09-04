@@ -13,7 +13,7 @@ name = "fixer-test"
 path = "src/main.rs"
 
 [dependencies]
-fixer = { path = "../fixer" }
+fixer = { package = "fixer-windows", path = "../fixer", version = "0.10.4" }
 regex = "1.12"
 simple-error = "0.3"
 tokio = { version = "1.50", features = ["io-util", "rt", "rt-multi-thread", "sync", "macros", "net", "signal", "time"] }
