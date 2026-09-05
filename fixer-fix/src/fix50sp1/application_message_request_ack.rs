@@ -8,6 +8,8 @@ use fixer::message::Message;
 use fixer::fix_string::FIXString;
 use fixer::errors::MessageRejectErrorEnum;
 use fixer::session::session_id::SessionID;
+use fixer::repeating_group::{Group, GroupTemplate, RepeatingGroup, group_element};
+use std::borrow::{Borrow, BorrowMut};
 
 
 use crate::field;
@@ -190,15 +192,14 @@ impl ApplicationMessageRequestAck {
 
 
     /// Sets `NoApplIDs`, Tag 1351.
-    pub fn set_no_appl_i_ds(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_APPL_I_DS, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_appl_i_ds(&mut self, f: NoApplIDsRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoApplIDs`, Tag 1351.
-    pub fn get_no_appl_i_ds(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoApplIDsField::new(0);
-        self.message.body.get_field(tag::NO_APPL_I_DS, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_appl_i_ds(&self) -> Result<NoApplIDsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoApplIDsRepeatingGroup::new();
+        Ok(NoApplIDsRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -244,3 +245,206 @@ pub fn route(router: RouteOut) -> Route {
     };
     ("8", "BX", Box::new(r))
 }
+
+
+/// `NoApplIDs` is an entry in the `NoApplIDs` repeating group, Tag 1351.
+pub struct NoApplIDs<G>(pub G);
+
+impl<G: Borrow<Group>> NoApplIDs<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `RefApplID`, Tag 1355.
+    pub fn get_ref_appl_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RefApplIDField::new(String::new());
+        self.group().field_map.get_field(tag::REF_APPL_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RefApplID` is present, Tag 1355.
+    pub fn has_ref_appl_id(&self) -> bool {
+        self.group().field_map.has(tag::REF_APPL_ID)
+    }
+
+
+
+
+    /// Gets `ApplBegSeqNum`, Tag 1182.
+    pub fn get_appl_beg_seq_num(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::ApplBegSeqNumField::new(0);
+        self.group().field_map.get_field(tag::APPL_BEG_SEQ_NUM, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `ApplBegSeqNum` is present, Tag 1182.
+    pub fn has_appl_beg_seq_num(&self) -> bool {
+        self.group().field_map.has(tag::APPL_BEG_SEQ_NUM)
+    }
+
+
+
+
+    /// Gets `ApplEndSeqNum`, Tag 1183.
+    pub fn get_appl_end_seq_num(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::ApplEndSeqNumField::new(0);
+        self.group().field_map.get_field(tag::APPL_END_SEQ_NUM, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `ApplEndSeqNum` is present, Tag 1183.
+    pub fn has_appl_end_seq_num(&self) -> bool {
+        self.group().field_map.has(tag::APPL_END_SEQ_NUM)
+    }
+
+
+
+
+    /// Gets `RefApplLastSeqNum`, Tag 1357.
+    pub fn get_ref_appl_last_seq_num(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::RefApplLastSeqNumField::new(0);
+        self.group().field_map.get_field(tag::REF_APPL_LAST_SEQ_NUM, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `RefApplLastSeqNum` is present, Tag 1357.
+    pub fn has_ref_appl_last_seq_num(&self) -> bool {
+        self.group().field_map.has(tag::REF_APPL_LAST_SEQ_NUM)
+    }
+
+
+
+
+    /// Gets `ApplResponseError`, Tag 1354.
+    pub fn get_appl_response_error(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::ApplResponseErrorField::new(0);
+        self.group().field_map.get_field(tag::APPL_RESPONSE_ERROR, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `ApplResponseError` is present, Tag 1354.
+    pub fn has_appl_response_error(&self) -> bool {
+        self.group().field_map.has(tag::APPL_RESPONSE_ERROR)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoApplIDs<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `RefApplID`, Tag 1355.
+    pub fn set_ref_appl_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::REF_APPL_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `ApplBegSeqNum`, Tag 1182.
+    pub fn set_appl_beg_seq_num(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::APPL_BEG_SEQ_NUM, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `ApplEndSeqNum`, Tag 1183.
+    pub fn set_appl_end_seq_num(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::APPL_END_SEQ_NUM, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `RefApplLastSeqNum`, Tag 1357.
+    pub fn set_ref_appl_last_seq_num(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::REF_APPL_LAST_SEQ_NUM, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `ApplResponseError`, Tag 1354.
+    pub fn set_appl_response_error(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::APPL_RESPONSE_ERROR, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+}
+
+/// `NoApplIDsRepeatingGroup` is the `NoApplIDs` repeating group, Tag 1351.
+pub struct NoApplIDsRepeatingGroup(pub RepeatingGroup);
+
+impl NoApplIDsRepeatingGroup {
+    /// Creates an empty `NoApplIDs` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::REF_APPL_ID),
+
+
+
+            group_element(tag::APPL_BEG_SEQ_NUM),
+
+
+
+            group_element(tag::APPL_END_SEQ_NUM),
+
+
+
+            group_element(tag::REF_APPL_LAST_SEQ_NUM),
+
+
+
+            group_element(tag::APPL_RESPONSE_ERROR),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_APPL_I_DS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoApplIDs<&mut Group> {
+        NoApplIDs(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoApplIDs<&Group> {
+        NoApplIDs(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoApplIDsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+

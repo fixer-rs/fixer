@@ -8,6 +8,8 @@ use fixer::message::Message;
 use fixer::fix_string::FIXString;
 use fixer::errors::MessageRejectErrorEnum;
 use fixer::session::session_id::SessionID;
+use fixer::repeating_group::{Group, GroupTemplate, RepeatingGroup, group_element};
+use std::borrow::{Borrow, BorrowMut};
 
 
 use crate::field;
@@ -20,13 +22,11 @@ pub struct PartyDetailsListRequest {
 
 impl PartyDetailsListRequest {
     /// Creates a new `PartyDetailsListRequest` with required fields.
-    pub fn new(party_details_list_request_id: field::PartyDetailsListRequestIDField, no_party_list_response_types: field::NoPartyListResponseTypesField) -> Self {
+    pub fn new(party_details_list_request_id: field::PartyDetailsListRequestIDField) -> Self {
         let mut msg = Message::new();
         msg.header.set_field(tag::MSG_TYPE, FIXString::from("CF".to_string()));
 
         msg.body.set_field(tag::PARTY_DETAILS_LIST_REQUEST_ID, party_details_list_request_id.0);
-
-        msg.body.set_field(tag::NO_PARTY_LIST_RESPONSE_TYPES, no_party_list_response_types.0);
 
         Self { message: msg }
     }
@@ -87,15 +87,14 @@ impl PartyDetailsListRequest {
 
 
     /// Sets `NoPartyIDs`, Tag 453.
-    pub fn set_no_party_i_ds(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_PARTY_I_DS, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_party_i_ds(&mut self, f: NoPartyIDsRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoPartyIDs`, Tag 453.
-    pub fn get_no_party_i_ds(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoPartyIDsField::new(0);
-        self.message.body.get_field(tag::NO_PARTY_I_DS, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_party_i_ds(&self) -> Result<NoPartyIDsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoPartyIDsRepeatingGroup::new();
+        Ok(NoPartyIDsRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -108,15 +107,14 @@ impl PartyDetailsListRequest {
 
 
     /// Sets `NoPartyListResponseTypes`, Tag 1506.
-    pub fn set_no_party_list_response_types(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_PARTY_LIST_RESPONSE_TYPES, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_party_list_response_types(&mut self, f: NoPartyListResponseTypesRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoPartyListResponseTypes`, Tag 1506.
-    pub fn get_no_party_list_response_types(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoPartyListResponseTypesField::new(0);
-        self.message.body.get_field(tag::NO_PARTY_LIST_RESPONSE_TYPES, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_party_list_response_types(&self) -> Result<NoPartyListResponseTypesRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoPartyListResponseTypesRepeatingGroup::new();
+        Ok(NoPartyListResponseTypesRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -129,15 +127,14 @@ impl PartyDetailsListRequest {
 
 
     /// Sets `NoPartyRelationships`, Tag 1514.
-    pub fn set_no_party_relationships(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_PARTY_RELATIONSHIPS, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_party_relationships(&mut self, f: NoPartyRelationshipsRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoPartyRelationships`, Tag 1514.
-    pub fn get_no_party_relationships(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoPartyRelationshipsField::new(0);
-        self.message.body.get_field(tag::NO_PARTY_RELATIONSHIPS, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_party_relationships(&self) -> Result<NoPartyRelationshipsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoPartyRelationshipsRepeatingGroup::new();
+        Ok(NoPartyRelationshipsRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -150,15 +147,14 @@ impl PartyDetailsListRequest {
 
 
     /// Sets `NoRequestedPartyRoles`, Tag 1508.
-    pub fn set_no_requested_party_roles(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_REQUESTED_PARTY_ROLES, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_requested_party_roles(&mut self, f: NoRequestedPartyRolesRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoRequestedPartyRoles`, Tag 1508.
-    pub fn get_no_requested_party_roles(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoRequestedPartyRolesField::new(0);
-        self.message.body.get_field(tag::NO_REQUESTED_PARTY_ROLES, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_requested_party_roles(&self) -> Result<NoRequestedPartyRolesRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoRequestedPartyRolesRepeatingGroup::new();
+        Ok(NoRequestedPartyRolesRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -246,3 +242,553 @@ pub fn route(router: RouteOut) -> Route {
     };
     ("9", "CF", Box::new(r))
 }
+
+
+/// `NoPartySubIDs` is an entry in the `NoPartySubIDs` repeating group, Tag 802.
+pub struct NoPartyIDsNoPartySubIDs<G>(pub G);
+
+impl<G: Borrow<Group>> NoPartyIDsNoPartySubIDs<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `PartySubID`, Tag 523.
+    pub fn get_party_sub_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::PartySubIDField::new(String::new());
+        self.group().field_map.get_field(tag::PARTY_SUB_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `PartySubID` is present, Tag 523.
+    pub fn has_party_sub_id(&self) -> bool {
+        self.group().field_map.has(tag::PARTY_SUB_ID)
+    }
+
+
+
+
+    /// Gets `PartySubIDType`, Tag 803.
+    pub fn get_party_sub_id_type(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::PartySubIDTypeField::new(0);
+        self.group().field_map.get_field(tag::PARTY_SUB_ID_TYPE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `PartySubIDType` is present, Tag 803.
+    pub fn has_party_sub_id_type(&self) -> bool {
+        self.group().field_map.has(tag::PARTY_SUB_ID_TYPE)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoPartyIDsNoPartySubIDs<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `PartySubID`, Tag 523.
+    pub fn set_party_sub_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::PARTY_SUB_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `PartySubIDType`, Tag 803.
+    pub fn set_party_sub_id_type(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::PARTY_SUB_ID_TYPE, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+}
+
+/// `NoPartyIDsNoPartySubIDsRepeatingGroup` is the `NoPartySubIDs` repeating group, Tag 802.
+pub struct NoPartyIDsNoPartySubIDsRepeatingGroup(pub RepeatingGroup);
+
+impl NoPartyIDsNoPartySubIDsRepeatingGroup {
+    /// Creates an empty `NoPartySubIDs` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::PARTY_SUB_ID),
+
+
+
+            group_element(tag::PARTY_SUB_ID_TYPE),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_PARTY_SUB_I_DS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoPartyIDsNoPartySubIDs<&mut Group> {
+        NoPartyIDsNoPartySubIDs(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoPartyIDsNoPartySubIDs<&Group> {
+        NoPartyIDsNoPartySubIDs(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoPartyIDsNoPartySubIDsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoPartyIDs` is an entry in the `NoPartyIDs` repeating group, Tag 453.
+pub struct NoPartyIDs<G>(pub G);
+
+impl<G: Borrow<Group>> NoPartyIDs<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `PartyID`, Tag 448.
+    pub fn get_party_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::PartyIDField::new(String::new());
+        self.group().field_map.get_field(tag::PARTY_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `PartyID` is present, Tag 448.
+    pub fn has_party_id(&self) -> bool {
+        self.group().field_map.has(tag::PARTY_ID)
+    }
+
+
+
+
+    /// Gets `PartyIDSource`, Tag 447.
+    pub fn get_party_id_source(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::PartyIDSourceField::new(String::new());
+        self.group().field_map.get_field(tag::PARTY_ID_SOURCE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `PartyIDSource` is present, Tag 447.
+    pub fn has_party_id_source(&self) -> bool {
+        self.group().field_map.has(tag::PARTY_ID_SOURCE)
+    }
+
+
+
+
+    /// Gets `PartyRole`, Tag 452.
+    pub fn get_party_role(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::PartyRoleField::new(0);
+        self.group().field_map.get_field(tag::PARTY_ROLE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `PartyRole` is present, Tag 452.
+    pub fn has_party_role(&self) -> bool {
+        self.group().field_map.has(tag::PARTY_ROLE)
+    }
+
+
+
+
+    /// Gets `NoPartySubIDs`, Tag 802.
+    pub fn get_no_party_sub_i_ds(&self) -> Result<NoPartyIDsNoPartySubIDsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoPartyIDsNoPartySubIDsRepeatingGroup::new();
+        Ok(NoPartyIDsNoPartySubIDsRepeatingGroup(self.group().field_map.get_group(g.0)?))
+    }
+
+
+    /// Returns true if `NoPartySubIDs` is present, Tag 802.
+    pub fn has_no_party_sub_i_ds(&self) -> bool {
+        self.group().field_map.has(tag::NO_PARTY_SUB_I_DS)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoPartyIDs<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `PartyID`, Tag 448.
+    pub fn set_party_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::PARTY_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `PartyIDSource`, Tag 447.
+    pub fn set_party_id_source(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::PARTY_ID_SOURCE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `PartyRole`, Tag 452.
+    pub fn set_party_role(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::PARTY_ROLE, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `NoPartySubIDs`, Tag 802.
+    pub fn set_no_party_sub_i_ds(&mut self, f: NoPartyIDsNoPartySubIDsRepeatingGroup) {
+        self.group_mut().field_map.set_group(f.0);
+    }
+
+
+
+}
+
+/// `NoPartyIDsRepeatingGroup` is the `NoPartyIDs` repeating group, Tag 453.
+pub struct NoPartyIDsRepeatingGroup(pub RepeatingGroup);
+
+impl NoPartyIDsRepeatingGroup {
+    /// Creates an empty `NoPartyIDs` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::PARTY_ID),
+
+
+
+            group_element(tag::PARTY_ID_SOURCE),
+
+
+
+            group_element(tag::PARTY_ROLE),
+
+
+
+            Box::new(NoPartyIDsNoPartySubIDsRepeatingGroup::new().0),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_PARTY_I_DS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoPartyIDs<&mut Group> {
+        NoPartyIDs(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoPartyIDs<&Group> {
+        NoPartyIDs(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoPartyIDsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoPartyListResponseTypes` is an entry in the `NoPartyListResponseTypes` repeating group, Tag 1506.
+pub struct NoPartyListResponseTypes<G>(pub G);
+
+impl<G: Borrow<Group>> NoPartyListResponseTypes<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `PartyListResponseType`, Tag 1507.
+    pub fn get_party_list_response_type(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::PartyListResponseTypeField::new(0);
+        self.group().field_map.get_field(tag::PARTY_LIST_RESPONSE_TYPE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `PartyListResponseType` is present, Tag 1507.
+    pub fn has_party_list_response_type(&self) -> bool {
+        self.group().field_map.has(tag::PARTY_LIST_RESPONSE_TYPE)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoPartyListResponseTypes<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `PartyListResponseType`, Tag 1507.
+    pub fn set_party_list_response_type(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::PARTY_LIST_RESPONSE_TYPE, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+}
+
+/// `NoPartyListResponseTypesRepeatingGroup` is the `NoPartyListResponseTypes` repeating group, Tag 1506.
+pub struct NoPartyListResponseTypesRepeatingGroup(pub RepeatingGroup);
+
+impl NoPartyListResponseTypesRepeatingGroup {
+    /// Creates an empty `NoPartyListResponseTypes` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::PARTY_LIST_RESPONSE_TYPE),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_PARTY_LIST_RESPONSE_TYPES, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoPartyListResponseTypes<&mut Group> {
+        NoPartyListResponseTypes(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoPartyListResponseTypes<&Group> {
+        NoPartyListResponseTypes(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoPartyListResponseTypesRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoPartyRelationships` is an entry in the `NoPartyRelationships` repeating group, Tag 1514.
+pub struct NoPartyRelationships<G>(pub G);
+
+impl<G: Borrow<Group>> NoPartyRelationships<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `PartyRelationship`, Tag 1515.
+    pub fn get_party_relationship(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::PartyRelationshipField::new(0);
+        self.group().field_map.get_field(tag::PARTY_RELATIONSHIP, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `PartyRelationship` is present, Tag 1515.
+    pub fn has_party_relationship(&self) -> bool {
+        self.group().field_map.has(tag::PARTY_RELATIONSHIP)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoPartyRelationships<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `PartyRelationship`, Tag 1515.
+    pub fn set_party_relationship(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::PARTY_RELATIONSHIP, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+}
+
+/// `NoPartyRelationshipsRepeatingGroup` is the `NoPartyRelationships` repeating group, Tag 1514.
+pub struct NoPartyRelationshipsRepeatingGroup(pub RepeatingGroup);
+
+impl NoPartyRelationshipsRepeatingGroup {
+    /// Creates an empty `NoPartyRelationships` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::PARTY_RELATIONSHIP),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_PARTY_RELATIONSHIPS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoPartyRelationships<&mut Group> {
+        NoPartyRelationships(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoPartyRelationships<&Group> {
+        NoPartyRelationships(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoPartyRelationshipsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoRequestedPartyRoles` is an entry in the `NoRequestedPartyRoles` repeating group, Tag 1508.
+pub struct NoRequestedPartyRoles<G>(pub G);
+
+impl<G: Borrow<Group>> NoRequestedPartyRoles<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `RequestedPartyRole`, Tag 1509.
+    pub fn get_requested_party_role(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::RequestedPartyRoleField::new(0);
+        self.group().field_map.get_field(tag::REQUESTED_PARTY_ROLE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `RequestedPartyRole` is present, Tag 1509.
+    pub fn has_requested_party_role(&self) -> bool {
+        self.group().field_map.has(tag::REQUESTED_PARTY_ROLE)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoRequestedPartyRoles<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `RequestedPartyRole`, Tag 1509.
+    pub fn set_requested_party_role(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::REQUESTED_PARTY_ROLE, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+}
+
+/// `NoRequestedPartyRolesRepeatingGroup` is the `NoRequestedPartyRoles` repeating group, Tag 1508.
+pub struct NoRequestedPartyRolesRepeatingGroup(pub RepeatingGroup);
+
+impl NoRequestedPartyRolesRepeatingGroup {
+    /// Creates an empty `NoRequestedPartyRoles` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::REQUESTED_PARTY_ROLE),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_REQUESTED_PARTY_ROLES, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoRequestedPartyRoles<&mut Group> {
+        NoRequestedPartyRoles(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoRequestedPartyRoles<&Group> {
+        NoRequestedPartyRoles(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoRequestedPartyRolesRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+

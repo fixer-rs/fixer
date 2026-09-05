@@ -4,6 +4,14 @@
 
 use fixer::field_map::FieldMap;
 use fixer::fix_string::FIXString;
+use fixer::errors::MessageRejectErrorEnum;
+use fixer::repeating_group::{Group, GroupTemplate, RepeatingGroup, group_element};
+use std::borrow::{Borrow, BorrowMut};
+
+
+use jiff::Timestamp;
+
+use crate::field;
 use crate::tag;
 
 /// `Header` is the `fixt11` Header type.
@@ -176,8 +184,14 @@ impl Header<'_> {
 
 
     /// Sets `NoHops`, Tag 627.
-    pub fn set_no_hops(&mut self, v: isize) {
-        self.header.set_field(tag::NO_HOPS, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_hops(&mut self, f: NoHopsRepeatingGroup) {
+        self.header.set_group(f.0);
+    }
+
+    /// Gets `NoHops`, Tag 627.
+    pub fn get_no_hops(&self) -> Result<NoHopsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoHopsRepeatingGroup::new();
+        Ok(NoHopsRepeatingGroup(self.header.get_group(g.0)?))
     }
 
 
@@ -432,3 +446,151 @@ impl Header<'_> {
 
 
 }
+
+
+/// `NoHops` is an entry in the `NoHops` repeating group, Tag 627.
+pub struct NoHops<G>(pub G);
+
+impl<G: Borrow<Group>> NoHops<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `HopCompID`, Tag 628.
+    pub fn get_hop_comp_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::HopCompIDField::new(String::new());
+        self.group().field_map.get_field(tag::HOP_COMP_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `HopCompID` is present, Tag 628.
+    pub fn has_hop_comp_id(&self) -> bool {
+        self.group().field_map.has(tag::HOP_COMP_ID)
+    }
+
+
+
+
+    /// Gets `HopSendingTime`, Tag 629.
+    pub fn get_hop_sending_time(&self) -> Result<Timestamp, MessageRejectErrorEnum> {
+        let mut fld = field::HopSendingTimeField::new(Timestamp::UNIX_EPOCH);
+        self.group().field_map.get_field(tag::HOP_SENDING_TIME, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `HopSendingTime` is present, Tag 629.
+    pub fn has_hop_sending_time(&self) -> bool {
+        self.group().field_map.has(tag::HOP_SENDING_TIME)
+    }
+
+
+
+
+    /// Gets `HopRefID`, Tag 630.
+    pub fn get_hop_ref_id(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::HopRefIDField::new(0);
+        self.group().field_map.get_field(tag::HOP_REF_ID, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `HopRefID` is present, Tag 630.
+    pub fn has_hop_ref_id(&self) -> bool {
+        self.group().field_map.has(tag::HOP_REF_ID)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoHops<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `HopCompID`, Tag 628.
+    pub fn set_hop_comp_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::HOP_COMP_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `HopSendingTime`, Tag 629.
+    pub fn set_hop_sending_time(&mut self, v: Timestamp) {
+        self.group_mut().field_map.set_field(tag::HOP_SENDING_TIME, fixer::fix_utc_timestamp::FIXUTCTimestamp {
+            time: v,
+            precision: fixer::fix_utc_timestamp::TimestampPrecision::Millis,
+        });
+    }
+
+
+
+
+
+    /// Sets `HopRefID`, Tag 630.
+    pub fn set_hop_ref_id(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::HOP_REF_ID, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+}
+
+/// `NoHopsRepeatingGroup` is the `NoHops` repeating group, Tag 627.
+pub struct NoHopsRepeatingGroup(pub RepeatingGroup);
+
+impl NoHopsRepeatingGroup {
+    /// Creates an empty `NoHops` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::HOP_COMP_ID),
+
+
+
+            group_element(tag::HOP_SENDING_TIME),
+
+
+
+            group_element(tag::HOP_REF_ID),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_HOPS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoHops<&mut Group> {
+        NoHops(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoHops<&Group> {
+        NoHops(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoHopsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+

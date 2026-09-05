@@ -8,7 +8,13 @@ use fixer::message::Message;
 use fixer::fix_string::FIXString;
 use fixer::errors::MessageRejectErrorEnum;
 use fixer::session::session_id::SessionID;
+use fixer::repeating_group::{Group, GroupTemplate, RepeatingGroup, group_element};
+use std::borrow::{Borrow, BorrowMut};
 
+use rust_decimal::Decimal;
+
+
+use jiff::Timestamp;
 
 use crate::field;
 use crate::tag;
@@ -20,11 +26,9 @@ pub struct TradingSessionList {
 
 impl TradingSessionList {
     /// Creates a new `TradingSessionList` with required fields.
-    pub fn new(no_trading_sessions: field::NoTradingSessionsField) -> Self {
+    pub fn new() -> Self {
         let mut msg = Message::new();
         msg.header.set_field(tag::MSG_TYPE, FIXString::from("BJ".to_string()));
-
-        msg.body.set_field(tag::NO_TRADING_SESSIONS, no_trading_sessions.0);
 
         Self { message: msg }
     }
@@ -127,15 +131,14 @@ impl TradingSessionList {
 
 
     /// Sets `NoTradingSessions`, Tag 386.
-    pub fn set_no_trading_sessions(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_TRADING_SESSIONS, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_trading_sessions(&mut self, f: NoTradingSessionsRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoTradingSessions`, Tag 386.
-    pub fn get_no_trading_sessions(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoTradingSessionsField::new(0);
-        self.message.body.get_field(tag::NO_TRADING_SESSIONS, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_trading_sessions(&self) -> Result<NoTradingSessionsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoTradingSessionsRepeatingGroup::new();
+        Ok(NoTradingSessionsRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -181,3 +184,1379 @@ pub fn route(router: RouteOut) -> Route {
     };
     ("9", "BJ", Box::new(r))
 }
+
+
+/// `NoOrdTypeRules` is an entry in the `NoOrdTypeRules` repeating group, Tag 1237.
+pub struct NoTradingSessionsNoOrdTypeRules<G>(pub G);
+
+impl<G: Borrow<Group>> NoTradingSessionsNoOrdTypeRules<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `OrdType`, Tag 40.
+    pub fn get_ord_type(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::OrdTypeField::new(String::new());
+        self.group().field_map.get_field(tag::ORD_TYPE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `OrdType` is present, Tag 40.
+    pub fn has_ord_type(&self) -> bool {
+        self.group().field_map.has(tag::ORD_TYPE)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoTradingSessionsNoOrdTypeRules<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `OrdType`, Tag 40.
+    pub fn set_ord_type(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::ORD_TYPE, FIXString::from(v));
+    }
+
+
+
+}
+
+/// `NoTradingSessionsNoOrdTypeRulesRepeatingGroup` is the `NoOrdTypeRules` repeating group, Tag 1237.
+pub struct NoTradingSessionsNoOrdTypeRulesRepeatingGroup(pub RepeatingGroup);
+
+impl NoTradingSessionsNoOrdTypeRulesRepeatingGroup {
+    /// Creates an empty `NoOrdTypeRules` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::ORD_TYPE),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_ORD_TYPE_RULES, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoTradingSessionsNoOrdTypeRules<&mut Group> {
+        NoTradingSessionsNoOrdTypeRules(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoTradingSessionsNoOrdTypeRules<&Group> {
+        NoTradingSessionsNoOrdTypeRules(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoTradingSessionsNoOrdTypeRulesRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoTimeInForceRules` is an entry in the `NoTimeInForceRules` repeating group, Tag 1239.
+pub struct NoTradingSessionsNoTimeInForceRules<G>(pub G);
+
+impl<G: Borrow<Group>> NoTradingSessionsNoTimeInForceRules<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `TimeInForce`, Tag 59.
+    pub fn get_time_in_force(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::TimeInForceField::new(String::new());
+        self.group().field_map.get_field(tag::TIME_IN_FORCE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `TimeInForce` is present, Tag 59.
+    pub fn has_time_in_force(&self) -> bool {
+        self.group().field_map.has(tag::TIME_IN_FORCE)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoTradingSessionsNoTimeInForceRules<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `TimeInForce`, Tag 59.
+    pub fn set_time_in_force(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::TIME_IN_FORCE, FIXString::from(v));
+    }
+
+
+
+}
+
+/// `NoTradingSessionsNoTimeInForceRulesRepeatingGroup` is the `NoTimeInForceRules` repeating group, Tag 1239.
+pub struct NoTradingSessionsNoTimeInForceRulesRepeatingGroup(pub RepeatingGroup);
+
+impl NoTradingSessionsNoTimeInForceRulesRepeatingGroup {
+    /// Creates an empty `NoTimeInForceRules` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::TIME_IN_FORCE),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_TIME_IN_FORCE_RULES, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoTradingSessionsNoTimeInForceRules<&mut Group> {
+        NoTradingSessionsNoTimeInForceRules(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoTradingSessionsNoTimeInForceRules<&Group> {
+        NoTradingSessionsNoTimeInForceRules(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoTradingSessionsNoTimeInForceRulesRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoExecInstRules` is an entry in the `NoExecInstRules` repeating group, Tag 1232.
+pub struct NoTradingSessionsNoExecInstRules<G>(pub G);
+
+impl<G: Borrow<Group>> NoTradingSessionsNoExecInstRules<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `ExecInstValue`, Tag 1308.
+    pub fn get_exec_inst_value(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::ExecInstValueField::new(String::new());
+        self.group().field_map.get_field(tag::EXEC_INST_VALUE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `ExecInstValue` is present, Tag 1308.
+    pub fn has_exec_inst_value(&self) -> bool {
+        self.group().field_map.has(tag::EXEC_INST_VALUE)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoTradingSessionsNoExecInstRules<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `ExecInstValue`, Tag 1308.
+    pub fn set_exec_inst_value(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::EXEC_INST_VALUE, FIXString::from(v));
+    }
+
+
+
+}
+
+/// `NoTradingSessionsNoExecInstRulesRepeatingGroup` is the `NoExecInstRules` repeating group, Tag 1232.
+pub struct NoTradingSessionsNoExecInstRulesRepeatingGroup(pub RepeatingGroup);
+
+impl NoTradingSessionsNoExecInstRulesRepeatingGroup {
+    /// Creates an empty `NoExecInstRules` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::EXEC_INST_VALUE),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_EXEC_INST_RULES, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoTradingSessionsNoExecInstRules<&mut Group> {
+        NoTradingSessionsNoExecInstRules(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoTradingSessionsNoExecInstRules<&Group> {
+        NoTradingSessionsNoExecInstRules(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoTradingSessionsNoExecInstRulesRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoMatchRules` is an entry in the `NoMatchRules` repeating group, Tag 1235.
+pub struct NoTradingSessionsNoMatchRules<G>(pub G);
+
+impl<G: Borrow<Group>> NoTradingSessionsNoMatchRules<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `MatchAlgorithm`, Tag 1142.
+    pub fn get_match_algorithm(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::MatchAlgorithmField::new(String::new());
+        self.group().field_map.get_field(tag::MATCH_ALGORITHM, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `MatchAlgorithm` is present, Tag 1142.
+    pub fn has_match_algorithm(&self) -> bool {
+        self.group().field_map.has(tag::MATCH_ALGORITHM)
+    }
+
+
+
+
+    /// Gets `MatchType`, Tag 574.
+    pub fn get_match_type(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::MatchTypeField::new(String::new());
+        self.group().field_map.get_field(tag::MATCH_TYPE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `MatchType` is present, Tag 574.
+    pub fn has_match_type(&self) -> bool {
+        self.group().field_map.has(tag::MATCH_TYPE)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoTradingSessionsNoMatchRules<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `MatchAlgorithm`, Tag 1142.
+    pub fn set_match_algorithm(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::MATCH_ALGORITHM, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `MatchType`, Tag 574.
+    pub fn set_match_type(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::MATCH_TYPE, FIXString::from(v));
+    }
+
+
+
+}
+
+/// `NoTradingSessionsNoMatchRulesRepeatingGroup` is the `NoMatchRules` repeating group, Tag 1235.
+pub struct NoTradingSessionsNoMatchRulesRepeatingGroup(pub RepeatingGroup);
+
+impl NoTradingSessionsNoMatchRulesRepeatingGroup {
+    /// Creates an empty `NoMatchRules` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::MATCH_ALGORITHM),
+
+
+
+            group_element(tag::MATCH_TYPE),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_MATCH_RULES, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoTradingSessionsNoMatchRules<&mut Group> {
+        NoTradingSessionsNoMatchRules(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoTradingSessionsNoMatchRules<&Group> {
+        NoTradingSessionsNoMatchRules(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoTradingSessionsNoMatchRulesRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoMDFeedTypes` is an entry in the `NoMDFeedTypes` repeating group, Tag 1141.
+pub struct NoTradingSessionsNoMDFeedTypes<G>(pub G);
+
+impl<G: Borrow<Group>> NoTradingSessionsNoMDFeedTypes<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `MDFeedType`, Tag 1022.
+    pub fn get_md_feed_type(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::MDFeedTypeField::new(String::new());
+        self.group().field_map.get_field(tag::MD_FEED_TYPE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `MDFeedType` is present, Tag 1022.
+    pub fn has_md_feed_type(&self) -> bool {
+        self.group().field_map.has(tag::MD_FEED_TYPE)
+    }
+
+
+
+
+    /// Gets `MarketDepth`, Tag 264.
+    pub fn get_market_depth(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::MarketDepthField::new(0);
+        self.group().field_map.get_field(tag::MARKET_DEPTH, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `MarketDepth` is present, Tag 264.
+    pub fn has_market_depth(&self) -> bool {
+        self.group().field_map.has(tag::MARKET_DEPTH)
+    }
+
+
+
+
+    /// Gets `MDBookType`, Tag 1021.
+    pub fn get_md_book_type(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::MDBookTypeField::new(0);
+        self.group().field_map.get_field(tag::MD_BOOK_TYPE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `MDBookType` is present, Tag 1021.
+    pub fn has_md_book_type(&self) -> bool {
+        self.group().field_map.has(tag::MD_BOOK_TYPE)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoTradingSessionsNoMDFeedTypes<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `MDFeedType`, Tag 1022.
+    pub fn set_md_feed_type(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::MD_FEED_TYPE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `MarketDepth`, Tag 264.
+    pub fn set_market_depth(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::MARKET_DEPTH, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `MDBookType`, Tag 1021.
+    pub fn set_md_book_type(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::MD_BOOK_TYPE, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+}
+
+/// `NoTradingSessionsNoMDFeedTypesRepeatingGroup` is the `NoMDFeedTypes` repeating group, Tag 1141.
+pub struct NoTradingSessionsNoMDFeedTypesRepeatingGroup(pub RepeatingGroup);
+
+impl NoTradingSessionsNoMDFeedTypesRepeatingGroup {
+    /// Creates an empty `NoMDFeedTypes` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::MD_FEED_TYPE),
+
+
+
+            group_element(tag::MARKET_DEPTH),
+
+
+
+            group_element(tag::MD_BOOK_TYPE),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_MD_FEED_TYPES, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoTradingSessionsNoMDFeedTypes<&mut Group> {
+        NoTradingSessionsNoMDFeedTypes(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoTradingSessionsNoMDFeedTypes<&Group> {
+        NoTradingSessionsNoMDFeedTypes(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoTradingSessionsNoMDFeedTypesRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoTradingSessions` is an entry in the `NoTradingSessions` repeating group, Tag 386.
+pub struct NoTradingSessions<G>(pub G);
+
+impl<G: Borrow<Group>> NoTradingSessions<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `TradingSessionID`, Tag 336.
+    pub fn get_trading_session_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::TradingSessionIDField::new(String::new());
+        self.group().field_map.get_field(tag::TRADING_SESSION_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `TradingSessionID` is present, Tag 336.
+    pub fn has_trading_session_id(&self) -> bool {
+        self.group().field_map.has(tag::TRADING_SESSION_ID)
+    }
+
+
+
+
+    /// Gets `TradingSessionSubID`, Tag 625.
+    pub fn get_trading_session_sub_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::TradingSessionSubIDField::new(String::new());
+        self.group().field_map.get_field(tag::TRADING_SESSION_SUB_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `TradingSessionSubID` is present, Tag 625.
+    pub fn has_trading_session_sub_id(&self) -> bool {
+        self.group().field_map.has(tag::TRADING_SESSION_SUB_ID)
+    }
+
+
+
+
+    /// Gets `SecurityExchange`, Tag 207.
+    pub fn get_security_exchange(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::SecurityExchangeField::new(String::new());
+        self.group().field_map.get_field(tag::SECURITY_EXCHANGE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `SecurityExchange` is present, Tag 207.
+    pub fn has_security_exchange(&self) -> bool {
+        self.group().field_map.has(tag::SECURITY_EXCHANGE)
+    }
+
+
+
+
+    /// Gets `TradSesMethod`, Tag 338.
+    pub fn get_trad_ses_method(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::TradSesMethodField::new(0);
+        self.group().field_map.get_field(tag::TRAD_SES_METHOD, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `TradSesMethod` is present, Tag 338.
+    pub fn has_trad_ses_method(&self) -> bool {
+        self.group().field_map.has(tag::TRAD_SES_METHOD)
+    }
+
+
+
+
+    /// Gets `TradSesMode`, Tag 339.
+    pub fn get_trad_ses_mode(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::TradSesModeField::new(0);
+        self.group().field_map.get_field(tag::TRAD_SES_MODE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `TradSesMode` is present, Tag 339.
+    pub fn has_trad_ses_mode(&self) -> bool {
+        self.group().field_map.has(tag::TRAD_SES_MODE)
+    }
+
+
+
+
+    /// Gets `UnsolicitedIndicator`, Tag 325.
+    pub fn get_unsolicited_indicator(&self) -> Result<bool, MessageRejectErrorEnum> {
+        let mut fld = field::UnsolicitedIndicatorField::new(false);
+        self.group().field_map.get_field(tag::UNSOLICITED_INDICATOR, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `UnsolicitedIndicator` is present, Tag 325.
+    pub fn has_unsolicited_indicator(&self) -> bool {
+        self.group().field_map.has(tag::UNSOLICITED_INDICATOR)
+    }
+
+
+
+
+    /// Gets `TradSesStatus`, Tag 340.
+    pub fn get_trad_ses_status(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::TradSesStatusField::new(0);
+        self.group().field_map.get_field(tag::TRAD_SES_STATUS, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `TradSesStatus` is present, Tag 340.
+    pub fn has_trad_ses_status(&self) -> bool {
+        self.group().field_map.has(tag::TRAD_SES_STATUS)
+    }
+
+
+
+
+    /// Gets `TradSesStatusRejReason`, Tag 567.
+    pub fn get_trad_ses_status_rej_reason(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::TradSesStatusRejReasonField::new(0);
+        self.group().field_map.get_field(tag::TRAD_SES_STATUS_REJ_REASON, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `TradSesStatusRejReason` is present, Tag 567.
+    pub fn has_trad_ses_status_rej_reason(&self) -> bool {
+        self.group().field_map.has(tag::TRAD_SES_STATUS_REJ_REASON)
+    }
+
+
+
+
+    /// Gets `TradSesStartTime`, Tag 341.
+    pub fn get_trad_ses_start_time(&self) -> Result<Timestamp, MessageRejectErrorEnum> {
+        let mut fld = field::TradSesStartTimeField::new(Timestamp::UNIX_EPOCH);
+        self.group().field_map.get_field(tag::TRAD_SES_START_TIME, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `TradSesStartTime` is present, Tag 341.
+    pub fn has_trad_ses_start_time(&self) -> bool {
+        self.group().field_map.has(tag::TRAD_SES_START_TIME)
+    }
+
+
+
+
+    /// Gets `TradSesOpenTime`, Tag 342.
+    pub fn get_trad_ses_open_time(&self) -> Result<Timestamp, MessageRejectErrorEnum> {
+        let mut fld = field::TradSesOpenTimeField::new(Timestamp::UNIX_EPOCH);
+        self.group().field_map.get_field(tag::TRAD_SES_OPEN_TIME, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `TradSesOpenTime` is present, Tag 342.
+    pub fn has_trad_ses_open_time(&self) -> bool {
+        self.group().field_map.has(tag::TRAD_SES_OPEN_TIME)
+    }
+
+
+
+
+    /// Gets `TradSesPreCloseTime`, Tag 343.
+    pub fn get_trad_ses_pre_close_time(&self) -> Result<Timestamp, MessageRejectErrorEnum> {
+        let mut fld = field::TradSesPreCloseTimeField::new(Timestamp::UNIX_EPOCH);
+        self.group().field_map.get_field(tag::TRAD_SES_PRE_CLOSE_TIME, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `TradSesPreCloseTime` is present, Tag 343.
+    pub fn has_trad_ses_pre_close_time(&self) -> bool {
+        self.group().field_map.has(tag::TRAD_SES_PRE_CLOSE_TIME)
+    }
+
+
+
+
+    /// Gets `TradSesCloseTime`, Tag 344.
+    pub fn get_trad_ses_close_time(&self) -> Result<Timestamp, MessageRejectErrorEnum> {
+        let mut fld = field::TradSesCloseTimeField::new(Timestamp::UNIX_EPOCH);
+        self.group().field_map.get_field(tag::TRAD_SES_CLOSE_TIME, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `TradSesCloseTime` is present, Tag 344.
+    pub fn has_trad_ses_close_time(&self) -> bool {
+        self.group().field_map.has(tag::TRAD_SES_CLOSE_TIME)
+    }
+
+
+
+
+    /// Gets `TradSesEndTime`, Tag 345.
+    pub fn get_trad_ses_end_time(&self) -> Result<Timestamp, MessageRejectErrorEnum> {
+        let mut fld = field::TradSesEndTimeField::new(Timestamp::UNIX_EPOCH);
+        self.group().field_map.get_field(tag::TRAD_SES_END_TIME, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `TradSesEndTime` is present, Tag 345.
+    pub fn has_trad_ses_end_time(&self) -> bool {
+        self.group().field_map.has(tag::TRAD_SES_END_TIME)
+    }
+
+
+
+
+    /// Gets `TotalVolumeTraded`, Tag 387.
+    pub fn get_total_volume_traded(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::TotalVolumeTradedField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::TOTAL_VOLUME_TRADED, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `TotalVolumeTraded` is present, Tag 387.
+    pub fn has_total_volume_traded(&self) -> bool {
+        self.group().field_map.has(tag::TOTAL_VOLUME_TRADED)
+    }
+
+
+
+
+    /// Gets `Text`, Tag 58.
+    pub fn get_text(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::TextField::new(String::new());
+        self.group().field_map.get_field(tag::TEXT, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `Text` is present, Tag 58.
+    pub fn has_text(&self) -> bool {
+        self.group().field_map.has(tag::TEXT)
+    }
+
+
+
+
+    /// Gets `EncodedTextLen`, Tag 354.
+    pub fn get_encoded_text_len(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::EncodedTextLenField::new(0);
+        self.group().field_map.get_field(tag::ENCODED_TEXT_LEN, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `EncodedTextLen` is present, Tag 354.
+    pub fn has_encoded_text_len(&self) -> bool {
+        self.group().field_map.has(tag::ENCODED_TEXT_LEN)
+    }
+
+
+
+
+    /// Gets `EncodedText`, Tag 355.
+    pub fn get_encoded_text(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::EncodedTextField::new(String::new());
+        self.group().field_map.get_field(tag::ENCODED_TEXT, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `EncodedText` is present, Tag 355.
+    pub fn has_encoded_text(&self) -> bool {
+        self.group().field_map.has(tag::ENCODED_TEXT)
+    }
+
+
+
+
+    /// Gets `MarketID`, Tag 1301.
+    pub fn get_market_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::MarketIDField::new(String::new());
+        self.group().field_map.get_field(tag::MARKET_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `MarketID` is present, Tag 1301.
+    pub fn has_market_id(&self) -> bool {
+        self.group().field_map.has(tag::MARKET_ID)
+    }
+
+
+
+
+    /// Gets `MarketSegmentID`, Tag 1300.
+    pub fn get_market_segment_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::MarketSegmentIDField::new(String::new());
+        self.group().field_map.get_field(tag::MARKET_SEGMENT_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `MarketSegmentID` is present, Tag 1300.
+    pub fn has_market_segment_id(&self) -> bool {
+        self.group().field_map.has(tag::MARKET_SEGMENT_ID)
+    }
+
+
+
+
+    /// Gets `TradingSessionDesc`, Tag 1326.
+    pub fn get_trading_session_desc(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::TradingSessionDescField::new(String::new());
+        self.group().field_map.get_field(tag::TRADING_SESSION_DESC, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `TradingSessionDesc` is present, Tag 1326.
+    pub fn has_trading_session_desc(&self) -> bool {
+        self.group().field_map.has(tag::TRADING_SESSION_DESC)
+    }
+
+
+
+
+    /// Gets `NoOrdTypeRules`, Tag 1237.
+    pub fn get_no_ord_type_rules(&self) -> Result<NoTradingSessionsNoOrdTypeRulesRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoTradingSessionsNoOrdTypeRulesRepeatingGroup::new();
+        Ok(NoTradingSessionsNoOrdTypeRulesRepeatingGroup(self.group().field_map.get_group(g.0)?))
+    }
+
+
+    /// Returns true if `NoOrdTypeRules` is present, Tag 1237.
+    pub fn has_no_ord_type_rules(&self) -> bool {
+        self.group().field_map.has(tag::NO_ORD_TYPE_RULES)
+    }
+
+
+
+
+    /// Gets `NoTimeInForceRules`, Tag 1239.
+    pub fn get_no_time_in_force_rules(&self) -> Result<NoTradingSessionsNoTimeInForceRulesRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoTradingSessionsNoTimeInForceRulesRepeatingGroup::new();
+        Ok(NoTradingSessionsNoTimeInForceRulesRepeatingGroup(self.group().field_map.get_group(g.0)?))
+    }
+
+
+    /// Returns true if `NoTimeInForceRules` is present, Tag 1239.
+    pub fn has_no_time_in_force_rules(&self) -> bool {
+        self.group().field_map.has(tag::NO_TIME_IN_FORCE_RULES)
+    }
+
+
+
+
+    /// Gets `NoExecInstRules`, Tag 1232.
+    pub fn get_no_exec_inst_rules(&self) -> Result<NoTradingSessionsNoExecInstRulesRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoTradingSessionsNoExecInstRulesRepeatingGroup::new();
+        Ok(NoTradingSessionsNoExecInstRulesRepeatingGroup(self.group().field_map.get_group(g.0)?))
+    }
+
+
+    /// Returns true if `NoExecInstRules` is present, Tag 1232.
+    pub fn has_no_exec_inst_rules(&self) -> bool {
+        self.group().field_map.has(tag::NO_EXEC_INST_RULES)
+    }
+
+
+
+
+    /// Gets `NoMatchRules`, Tag 1235.
+    pub fn get_no_match_rules(&self) -> Result<NoTradingSessionsNoMatchRulesRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoTradingSessionsNoMatchRulesRepeatingGroup::new();
+        Ok(NoTradingSessionsNoMatchRulesRepeatingGroup(self.group().field_map.get_group(g.0)?))
+    }
+
+
+    /// Returns true if `NoMatchRules` is present, Tag 1235.
+    pub fn has_no_match_rules(&self) -> bool {
+        self.group().field_map.has(tag::NO_MATCH_RULES)
+    }
+
+
+
+
+    /// Gets `NoMDFeedTypes`, Tag 1141.
+    pub fn get_no_md_feed_types(&self) -> Result<NoTradingSessionsNoMDFeedTypesRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoTradingSessionsNoMDFeedTypesRepeatingGroup::new();
+        Ok(NoTradingSessionsNoMDFeedTypesRepeatingGroup(self.group().field_map.get_group(g.0)?))
+    }
+
+
+    /// Returns true if `NoMDFeedTypes` is present, Tag 1141.
+    pub fn has_no_md_feed_types(&self) -> bool {
+        self.group().field_map.has(tag::NO_MD_FEED_TYPES)
+    }
+
+
+
+
+    /// Gets `TransactTime`, Tag 60.
+    pub fn get_transact_time(&self) -> Result<Timestamp, MessageRejectErrorEnum> {
+        let mut fld = field::TransactTimeField::new(Timestamp::UNIX_EPOCH);
+        self.group().field_map.get_field(tag::TRANSACT_TIME, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `TransactTime` is present, Tag 60.
+    pub fn has_transact_time(&self) -> bool {
+        self.group().field_map.has(tag::TRANSACT_TIME)
+    }
+
+
+
+
+    /// Gets `TradSesUpdateAction`, Tag 1327.
+    pub fn get_trad_ses_update_action(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::TradSesUpdateActionField::new(String::new());
+        self.group().field_map.get_field(tag::TRAD_SES_UPDATE_ACTION, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `TradSesUpdateAction` is present, Tag 1327.
+    pub fn has_trad_ses_update_action(&self) -> bool {
+        self.group().field_map.has(tag::TRAD_SES_UPDATE_ACTION)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoTradingSessions<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `TradingSessionID`, Tag 336.
+    pub fn set_trading_session_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::TRADING_SESSION_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `TradingSessionSubID`, Tag 625.
+    pub fn set_trading_session_sub_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::TRADING_SESSION_SUB_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `SecurityExchange`, Tag 207.
+    pub fn set_security_exchange(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::SECURITY_EXCHANGE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `TradSesMethod`, Tag 338.
+    pub fn set_trad_ses_method(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::TRAD_SES_METHOD, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `TradSesMode`, Tag 339.
+    pub fn set_trad_ses_mode(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::TRAD_SES_MODE, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `UnsolicitedIndicator`, Tag 325.
+    pub fn set_unsolicited_indicator(&mut self, v: bool) {
+        self.group_mut().field_map.set_field(tag::UNSOLICITED_INDICATOR, fixer::fix_boolean::FIXBoolean::from(v));
+    }
+
+
+
+
+
+    /// Sets `TradSesStatus`, Tag 340.
+    pub fn set_trad_ses_status(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::TRAD_SES_STATUS, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `TradSesStatusRejReason`, Tag 567.
+    pub fn set_trad_ses_status_rej_reason(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::TRAD_SES_STATUS_REJ_REASON, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `TradSesStartTime`, Tag 341.
+    pub fn set_trad_ses_start_time(&mut self, v: Timestamp) {
+        self.group_mut().field_map.set_field(tag::TRAD_SES_START_TIME, fixer::fix_utc_timestamp::FIXUTCTimestamp {
+            time: v,
+            precision: fixer::fix_utc_timestamp::TimestampPrecision::Millis,
+        });
+    }
+
+
+
+
+
+    /// Sets `TradSesOpenTime`, Tag 342.
+    pub fn set_trad_ses_open_time(&mut self, v: Timestamp) {
+        self.group_mut().field_map.set_field(tag::TRAD_SES_OPEN_TIME, fixer::fix_utc_timestamp::FIXUTCTimestamp {
+            time: v,
+            precision: fixer::fix_utc_timestamp::TimestampPrecision::Millis,
+        });
+    }
+
+
+
+
+
+    /// Sets `TradSesPreCloseTime`, Tag 343.
+    pub fn set_trad_ses_pre_close_time(&mut self, v: Timestamp) {
+        self.group_mut().field_map.set_field(tag::TRAD_SES_PRE_CLOSE_TIME, fixer::fix_utc_timestamp::FIXUTCTimestamp {
+            time: v,
+            precision: fixer::fix_utc_timestamp::TimestampPrecision::Millis,
+        });
+    }
+
+
+
+
+
+    /// Sets `TradSesCloseTime`, Tag 344.
+    pub fn set_trad_ses_close_time(&mut self, v: Timestamp) {
+        self.group_mut().field_map.set_field(tag::TRAD_SES_CLOSE_TIME, fixer::fix_utc_timestamp::FIXUTCTimestamp {
+            time: v,
+            precision: fixer::fix_utc_timestamp::TimestampPrecision::Millis,
+        });
+    }
+
+
+
+
+
+    /// Sets `TradSesEndTime`, Tag 345.
+    pub fn set_trad_ses_end_time(&mut self, v: Timestamp) {
+        self.group_mut().field_map.set_field(tag::TRAD_SES_END_TIME, fixer::fix_utc_timestamp::FIXUTCTimestamp {
+            time: v,
+            precision: fixer::fix_utc_timestamp::TimestampPrecision::Millis,
+        });
+    }
+
+
+
+
+
+    /// Sets `TotalVolumeTraded`, Tag 387.
+    pub fn set_total_volume_traded(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::TOTAL_VOLUME_TRADED, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `Text`, Tag 58.
+    pub fn set_text(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::TEXT, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `EncodedTextLen`, Tag 354.
+    pub fn set_encoded_text_len(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::ENCODED_TEXT_LEN, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `EncodedText`, Tag 355.
+    pub fn set_encoded_text(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::ENCODED_TEXT, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `MarketID`, Tag 1301.
+    pub fn set_market_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::MARKET_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `MarketSegmentID`, Tag 1300.
+    pub fn set_market_segment_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::MARKET_SEGMENT_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `TradingSessionDesc`, Tag 1326.
+    pub fn set_trading_session_desc(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::TRADING_SESSION_DESC, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `NoOrdTypeRules`, Tag 1237.
+    pub fn set_no_ord_type_rules(&mut self, f: NoTradingSessionsNoOrdTypeRulesRepeatingGroup) {
+        self.group_mut().field_map.set_group(f.0);
+    }
+
+
+
+
+
+    /// Sets `NoTimeInForceRules`, Tag 1239.
+    pub fn set_no_time_in_force_rules(&mut self, f: NoTradingSessionsNoTimeInForceRulesRepeatingGroup) {
+        self.group_mut().field_map.set_group(f.0);
+    }
+
+
+
+
+
+    /// Sets `NoExecInstRules`, Tag 1232.
+    pub fn set_no_exec_inst_rules(&mut self, f: NoTradingSessionsNoExecInstRulesRepeatingGroup) {
+        self.group_mut().field_map.set_group(f.0);
+    }
+
+
+
+
+
+    /// Sets `NoMatchRules`, Tag 1235.
+    pub fn set_no_match_rules(&mut self, f: NoTradingSessionsNoMatchRulesRepeatingGroup) {
+        self.group_mut().field_map.set_group(f.0);
+    }
+
+
+
+
+
+    /// Sets `NoMDFeedTypes`, Tag 1141.
+    pub fn set_no_md_feed_types(&mut self, f: NoTradingSessionsNoMDFeedTypesRepeatingGroup) {
+        self.group_mut().field_map.set_group(f.0);
+    }
+
+
+
+
+
+    /// Sets `TransactTime`, Tag 60.
+    pub fn set_transact_time(&mut self, v: Timestamp) {
+        self.group_mut().field_map.set_field(tag::TRANSACT_TIME, fixer::fix_utc_timestamp::FIXUTCTimestamp {
+            time: v,
+            precision: fixer::fix_utc_timestamp::TimestampPrecision::Millis,
+        });
+    }
+
+
+
+
+
+    /// Sets `TradSesUpdateAction`, Tag 1327.
+    pub fn set_trad_ses_update_action(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::TRAD_SES_UPDATE_ACTION, FIXString::from(v));
+    }
+
+
+
+}
+
+/// `NoTradingSessionsRepeatingGroup` is the `NoTradingSessions` repeating group, Tag 386.
+pub struct NoTradingSessionsRepeatingGroup(pub RepeatingGroup);
+
+impl NoTradingSessionsRepeatingGroup {
+    /// Creates an empty `NoTradingSessions` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::TRADING_SESSION_ID),
+
+
+
+            group_element(tag::TRADING_SESSION_SUB_ID),
+
+
+
+            group_element(tag::SECURITY_EXCHANGE),
+
+
+
+            group_element(tag::TRAD_SES_METHOD),
+
+
+
+            group_element(tag::TRAD_SES_MODE),
+
+
+
+            group_element(tag::UNSOLICITED_INDICATOR),
+
+
+
+            group_element(tag::TRAD_SES_STATUS),
+
+
+
+            group_element(tag::TRAD_SES_STATUS_REJ_REASON),
+
+
+
+            group_element(tag::TRAD_SES_START_TIME),
+
+
+
+            group_element(tag::TRAD_SES_OPEN_TIME),
+
+
+
+            group_element(tag::TRAD_SES_PRE_CLOSE_TIME),
+
+
+
+            group_element(tag::TRAD_SES_CLOSE_TIME),
+
+
+
+            group_element(tag::TRAD_SES_END_TIME),
+
+
+
+            group_element(tag::TOTAL_VOLUME_TRADED),
+
+
+
+            group_element(tag::TEXT),
+
+
+
+            group_element(tag::ENCODED_TEXT_LEN),
+
+
+
+            group_element(tag::ENCODED_TEXT),
+
+
+
+            group_element(tag::MARKET_ID),
+
+
+
+            group_element(tag::MARKET_SEGMENT_ID),
+
+
+
+            group_element(tag::TRADING_SESSION_DESC),
+
+
+
+            Box::new(NoTradingSessionsNoOrdTypeRulesRepeatingGroup::new().0),
+
+
+
+            Box::new(NoTradingSessionsNoTimeInForceRulesRepeatingGroup::new().0),
+
+
+
+            Box::new(NoTradingSessionsNoExecInstRulesRepeatingGroup::new().0),
+
+
+
+            Box::new(NoTradingSessionsNoMatchRulesRepeatingGroup::new().0),
+
+
+
+            Box::new(NoTradingSessionsNoMDFeedTypesRepeatingGroup::new().0),
+
+
+
+            group_element(tag::TRANSACT_TIME),
+
+
+
+            group_element(tag::TRAD_SES_UPDATE_ACTION),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_TRADING_SESSIONS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoTradingSessions<&mut Group> {
+        NoTradingSessions(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoTradingSessions<&Group> {
+        NoTradingSessions(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoTradingSessionsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+

@@ -8,6 +8,10 @@ use fixer::message::Message;
 use fixer::fix_string::FIXString;
 use fixer::errors::MessageRejectErrorEnum;
 use fixer::session::session_id::SessionID;
+use fixer::repeating_group::{Group, GroupTemplate, RepeatingGroup, group_element};
+use std::borrow::{Borrow, BorrowMut};
+
+use rust_decimal::Decimal;
 
 
 use crate::field;
@@ -20,11 +24,9 @@ pub struct BidResponse {
 
 impl BidResponse {
     /// Creates a new `BidResponse` with required fields.
-    pub fn new(no_bid_components: field::NoBidComponentsField) -> Self {
+    pub fn new() -> Self {
         let mut msg = Message::new();
         msg.header.set_field(tag::MSG_TYPE, FIXString::from("l".to_string()));
-
-        msg.body.set_field(tag::NO_BID_COMPONENTS, no_bid_components.0);
 
         Self { message: msg }
     }
@@ -85,15 +87,14 @@ impl BidResponse {
 
 
     /// Sets `NoBidComponents`, Tag 420.
-    pub fn set_no_bid_components(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_BID_COMPONENTS, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_bid_components(&mut self, f: NoBidComponentsRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoBidComponents`, Tag 420.
-    pub fn get_no_bid_components(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoBidComponentsField::new(0);
-        self.message.body.get_field(tag::NO_BID_COMPONENTS, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_bid_components(&self) -> Result<NoBidComponentsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoBidComponentsRepeatingGroup::new();
+        Ok(NoBidComponentsRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -118,3 +119,496 @@ pub fn route(router: RouteOut) -> Route {
     };
     ("FIX.4.2", "l", Box::new(r))
 }
+
+
+/// `NoBidComponents` is an entry in the `NoBidComponents` repeating group, Tag 420.
+pub struct NoBidComponents<G>(pub G);
+
+impl<G: Borrow<Group>> NoBidComponents<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `Commission`, Tag 12.
+    pub fn get_commission(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::CommissionField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::COMMISSION, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `Commission` is present, Tag 12.
+    pub fn has_commission(&self) -> bool {
+        self.group().field_map.has(tag::COMMISSION)
+    }
+
+
+
+
+    /// Gets `CommType`, Tag 13.
+    pub fn get_comm_type(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::CommTypeField::new(String::new());
+        self.group().field_map.get_field(tag::COMM_TYPE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `CommType` is present, Tag 13.
+    pub fn has_comm_type(&self) -> bool {
+        self.group().field_map.has(tag::COMM_TYPE)
+    }
+
+
+
+
+    /// Gets `ListID`, Tag 66.
+    pub fn get_list_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::ListIDField::new(String::new());
+        self.group().field_map.get_field(tag::LIST_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `ListID` is present, Tag 66.
+    pub fn has_list_id(&self) -> bool {
+        self.group().field_map.has(tag::LIST_ID)
+    }
+
+
+
+
+    /// Gets `Country`, Tag 421.
+    pub fn get_country(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::CountryField::new(String::new());
+        self.group().field_map.get_field(tag::COUNTRY, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `Country` is present, Tag 421.
+    pub fn has_country(&self) -> bool {
+        self.group().field_map.has(tag::COUNTRY)
+    }
+
+
+
+
+    /// Gets `Side`, Tag 54.
+    pub fn get_side(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::SideField::new(String::new());
+        self.group().field_map.get_field(tag::SIDE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `Side` is present, Tag 54.
+    pub fn has_side(&self) -> bool {
+        self.group().field_map.has(tag::SIDE)
+    }
+
+
+
+
+    /// Gets `Price`, Tag 44.
+    pub fn get_price(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::PriceField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::PRICE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `Price` is present, Tag 44.
+    pub fn has_price(&self) -> bool {
+        self.group().field_map.has(tag::PRICE)
+    }
+
+
+
+
+    /// Gets `PriceType`, Tag 423.
+    pub fn get_price_type(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::PriceTypeField::new(0);
+        self.group().field_map.get_field(tag::PRICE_TYPE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `PriceType` is present, Tag 423.
+    pub fn has_price_type(&self) -> bool {
+        self.group().field_map.has(tag::PRICE_TYPE)
+    }
+
+
+
+
+    /// Gets `FairValue`, Tag 406.
+    pub fn get_fair_value(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::FairValueField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::FAIR_VALUE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `FairValue` is present, Tag 406.
+    pub fn has_fair_value(&self) -> bool {
+        self.group().field_map.has(tag::FAIR_VALUE)
+    }
+
+
+
+
+    /// Gets `NetGrossInd`, Tag 430.
+    pub fn get_net_gross_ind(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::NetGrossIndField::new(0);
+        self.group().field_map.get_field(tag::NET_GROSS_IND, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `NetGrossInd` is present, Tag 430.
+    pub fn has_net_gross_ind(&self) -> bool {
+        self.group().field_map.has(tag::NET_GROSS_IND)
+    }
+
+
+
+
+    /// Gets `SettlmntTyp`, Tag 63.
+    pub fn get_settlmnt_typ(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::SettlmntTypField::new(String::new());
+        self.group().field_map.get_field(tag::SETTLMNT_TYP, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `SettlmntTyp` is present, Tag 63.
+    pub fn has_settlmnt_typ(&self) -> bool {
+        self.group().field_map.has(tag::SETTLMNT_TYP)
+    }
+
+
+
+
+    /// Gets `FutSettDate`, Tag 64.
+    pub fn get_fut_sett_date(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::FutSettDateField::new(String::new());
+        self.group().field_map.get_field(tag::FUT_SETT_DATE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `FutSettDate` is present, Tag 64.
+    pub fn has_fut_sett_date(&self) -> bool {
+        self.group().field_map.has(tag::FUT_SETT_DATE)
+    }
+
+
+
+
+    /// Gets `TradingSessionID`, Tag 336.
+    pub fn get_trading_session_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::TradingSessionIDField::new(String::new());
+        self.group().field_map.get_field(tag::TRADING_SESSION_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `TradingSessionID` is present, Tag 336.
+    pub fn has_trading_session_id(&self) -> bool {
+        self.group().field_map.has(tag::TRADING_SESSION_ID)
+    }
+
+
+
+
+    /// Gets `Text`, Tag 58.
+    pub fn get_text(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::TextField::new(String::new());
+        self.group().field_map.get_field(tag::TEXT, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `Text` is present, Tag 58.
+    pub fn has_text(&self) -> bool {
+        self.group().field_map.has(tag::TEXT)
+    }
+
+
+
+
+    /// Gets `EncodedTextLen`, Tag 354.
+    pub fn get_encoded_text_len(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::EncodedTextLenField::new(0);
+        self.group().field_map.get_field(tag::ENCODED_TEXT_LEN, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `EncodedTextLen` is present, Tag 354.
+    pub fn has_encoded_text_len(&self) -> bool {
+        self.group().field_map.has(tag::ENCODED_TEXT_LEN)
+    }
+
+
+
+
+    /// Gets `EncodedText`, Tag 355.
+    pub fn get_encoded_text(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::EncodedTextField::new(String::new());
+        self.group().field_map.get_field(tag::ENCODED_TEXT, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `EncodedText` is present, Tag 355.
+    pub fn has_encoded_text(&self) -> bool {
+        self.group().field_map.has(tag::ENCODED_TEXT)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoBidComponents<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `Commission`, Tag 12.
+    pub fn set_commission(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::COMMISSION, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `CommType`, Tag 13.
+    pub fn set_comm_type(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::COMM_TYPE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `ListID`, Tag 66.
+    pub fn set_list_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::LIST_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `Country`, Tag 421.
+    pub fn set_country(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::COUNTRY, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `Side`, Tag 54.
+    pub fn set_side(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::SIDE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `Price`, Tag 44.
+    pub fn set_price(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::PRICE, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `PriceType`, Tag 423.
+    pub fn set_price_type(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::PRICE_TYPE, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `FairValue`, Tag 406.
+    pub fn set_fair_value(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::FAIR_VALUE, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `NetGrossInd`, Tag 430.
+    pub fn set_net_gross_ind(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::NET_GROSS_IND, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `SettlmntTyp`, Tag 63.
+    pub fn set_settlmnt_typ(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::SETTLMNT_TYP, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `FutSettDate`, Tag 64.
+    pub fn set_fut_sett_date(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::FUT_SETT_DATE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `TradingSessionID`, Tag 336.
+    pub fn set_trading_session_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::TRADING_SESSION_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `Text`, Tag 58.
+    pub fn set_text(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::TEXT, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `EncodedTextLen`, Tag 354.
+    pub fn set_encoded_text_len(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::ENCODED_TEXT_LEN, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `EncodedText`, Tag 355.
+    pub fn set_encoded_text(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::ENCODED_TEXT, FIXString::from(v));
+    }
+
+
+
+}
+
+/// `NoBidComponentsRepeatingGroup` is the `NoBidComponents` repeating group, Tag 420.
+pub struct NoBidComponentsRepeatingGroup(pub RepeatingGroup);
+
+impl NoBidComponentsRepeatingGroup {
+    /// Creates an empty `NoBidComponents` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::COMMISSION),
+
+
+
+            group_element(tag::COMM_TYPE),
+
+
+
+            group_element(tag::LIST_ID),
+
+
+
+            group_element(tag::COUNTRY),
+
+
+
+            group_element(tag::SIDE),
+
+
+
+            group_element(tag::PRICE),
+
+
+
+            group_element(tag::PRICE_TYPE),
+
+
+
+            group_element(tag::FAIR_VALUE),
+
+
+
+            group_element(tag::NET_GROSS_IND),
+
+
+
+            group_element(tag::SETTLMNT_TYP),
+
+
+
+            group_element(tag::FUT_SETT_DATE),
+
+
+
+            group_element(tag::TRADING_SESSION_ID),
+
+
+
+            group_element(tag::TEXT),
+
+
+
+            group_element(tag::ENCODED_TEXT_LEN),
+
+
+
+            group_element(tag::ENCODED_TEXT),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_BID_COMPONENTS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoBidComponents<&mut Group> {
+        NoBidComponents(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoBidComponents<&Group> {
+        NoBidComponents(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoBidComponentsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+

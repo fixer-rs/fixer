@@ -8,7 +8,13 @@ use fixer::message::Message;
 use fixer::fix_string::FIXString;
 use fixer::errors::MessageRejectErrorEnum;
 use fixer::session::session_id::SessionID;
+use fixer::repeating_group::{Group, GroupTemplate, RepeatingGroup, group_element};
+use std::borrow::{Borrow, BorrowMut};
 
+use rust_decimal::Decimal;
+
+
+use jiff::Timestamp;
 
 use crate::field;
 use crate::tag;
@@ -20,11 +26,9 @@ pub struct MarketDataIncrementalRefresh {
 
 impl MarketDataIncrementalRefresh {
     /// Creates a new `MarketDataIncrementalRefresh` with required fields.
-    pub fn new(no_md_entries: field::NoMDEntriesField) -> Self {
+    pub fn new() -> Self {
         let mut msg = Message::new();
         msg.header.set_field(tag::MSG_TYPE, FIXString::from("X".to_string()));
-
-        msg.body.set_field(tag::NO_MD_ENTRIES, no_md_entries.0);
 
         Self { message: msg }
     }
@@ -64,15 +68,14 @@ impl MarketDataIncrementalRefresh {
 
 
     /// Sets `NoMDEntries`, Tag 268.
-    pub fn set_no_md_entries(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_MD_ENTRIES, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_md_entries(&mut self, f: NoMDEntriesRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoMDEntries`, Tag 268.
-    pub fn get_no_md_entries(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoMDEntriesField::new(0);
-        self.message.body.get_field(tag::NO_MD_ENTRIES, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_md_entries(&self) -> Result<NoMDEntriesRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoMDEntriesRepeatingGroup::new();
+        Ok(NoMDEntriesRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -97,3 +100,2354 @@ pub fn route(router: RouteOut) -> Route {
     };
     ("FIX.4.3", "X", Box::new(r))
 }
+
+
+/// `NoSecurityAltID` is an entry in the `NoSecurityAltID` repeating group, Tag 454.
+pub struct NoMDEntriesNoSecurityAltID<G>(pub G);
+
+impl<G: Borrow<Group>> NoMDEntriesNoSecurityAltID<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `SecurityAltID`, Tag 455.
+    pub fn get_security_alt_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::SecurityAltIDField::new(String::new());
+        self.group().field_map.get_field(tag::SECURITY_ALT_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `SecurityAltID` is present, Tag 455.
+    pub fn has_security_alt_id(&self) -> bool {
+        self.group().field_map.has(tag::SECURITY_ALT_ID)
+    }
+
+
+
+
+    /// Gets `SecurityAltIDSource`, Tag 456.
+    pub fn get_security_alt_id_source(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::SecurityAltIDSourceField::new(String::new());
+        self.group().field_map.get_field(tag::SECURITY_ALT_ID_SOURCE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `SecurityAltIDSource` is present, Tag 456.
+    pub fn has_security_alt_id_source(&self) -> bool {
+        self.group().field_map.has(tag::SECURITY_ALT_ID_SOURCE)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoMDEntriesNoSecurityAltID<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `SecurityAltID`, Tag 455.
+    pub fn set_security_alt_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::SECURITY_ALT_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `SecurityAltIDSource`, Tag 456.
+    pub fn set_security_alt_id_source(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::SECURITY_ALT_ID_SOURCE, FIXString::from(v));
+    }
+
+
+
+}
+
+/// `NoMDEntriesNoSecurityAltIDRepeatingGroup` is the `NoSecurityAltID` repeating group, Tag 454.
+pub struct NoMDEntriesNoSecurityAltIDRepeatingGroup(pub RepeatingGroup);
+
+impl NoMDEntriesNoSecurityAltIDRepeatingGroup {
+    /// Creates an empty `NoSecurityAltID` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::SECURITY_ALT_ID),
+
+
+
+            group_element(tag::SECURITY_ALT_ID_SOURCE),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_SECURITY_ALT_ID, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoMDEntriesNoSecurityAltID<&mut Group> {
+        NoMDEntriesNoSecurityAltID(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoMDEntriesNoSecurityAltID<&Group> {
+        NoMDEntriesNoSecurityAltID(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoMDEntriesNoSecurityAltIDRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoMDEntries` is an entry in the `NoMDEntries` repeating group, Tag 268.
+pub struct NoMDEntries<G>(pub G);
+
+impl<G: Borrow<Group>> NoMDEntries<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `MDUpdateAction`, Tag 279.
+    pub fn get_md_update_action(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::MDUpdateActionField::new(String::new());
+        self.group().field_map.get_field(tag::MD_UPDATE_ACTION, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `MDUpdateAction` is present, Tag 279.
+    pub fn has_md_update_action(&self) -> bool {
+        self.group().field_map.has(tag::MD_UPDATE_ACTION)
+    }
+
+
+
+
+    /// Gets `DeleteReason`, Tag 285.
+    pub fn get_delete_reason(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::DeleteReasonField::new(String::new());
+        self.group().field_map.get_field(tag::DELETE_REASON, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `DeleteReason` is present, Tag 285.
+    pub fn has_delete_reason(&self) -> bool {
+        self.group().field_map.has(tag::DELETE_REASON)
+    }
+
+
+
+
+    /// Gets `MDEntryType`, Tag 269.
+    pub fn get_md_entry_type(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::MDEntryTypeField::new(String::new());
+        self.group().field_map.get_field(tag::MD_ENTRY_TYPE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `MDEntryType` is present, Tag 269.
+    pub fn has_md_entry_type(&self) -> bool {
+        self.group().field_map.has(tag::MD_ENTRY_TYPE)
+    }
+
+
+
+
+    /// Gets `MDEntryID`, Tag 278.
+    pub fn get_md_entry_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::MDEntryIDField::new(String::new());
+        self.group().field_map.get_field(tag::MD_ENTRY_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `MDEntryID` is present, Tag 278.
+    pub fn has_md_entry_id(&self) -> bool {
+        self.group().field_map.has(tag::MD_ENTRY_ID)
+    }
+
+
+
+
+    /// Gets `MDEntryRefID`, Tag 280.
+    pub fn get_md_entry_ref_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::MDEntryRefIDField::new(String::new());
+        self.group().field_map.get_field(tag::MD_ENTRY_REF_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `MDEntryRefID` is present, Tag 280.
+    pub fn has_md_entry_ref_id(&self) -> bool {
+        self.group().field_map.has(tag::MD_ENTRY_REF_ID)
+    }
+
+
+
+
+    /// Gets `Symbol`, Tag 55.
+    pub fn get_symbol(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::SymbolField::new(String::new());
+        self.group().field_map.get_field(tag::SYMBOL, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `Symbol` is present, Tag 55.
+    pub fn has_symbol(&self) -> bool {
+        self.group().field_map.has(tag::SYMBOL)
+    }
+
+
+
+
+    /// Gets `SymbolSfx`, Tag 65.
+    pub fn get_symbol_sfx(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::SymbolSfxField::new(String::new());
+        self.group().field_map.get_field(tag::SYMBOL_SFX, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `SymbolSfx` is present, Tag 65.
+    pub fn has_symbol_sfx(&self) -> bool {
+        self.group().field_map.has(tag::SYMBOL_SFX)
+    }
+
+
+
+
+    /// Gets `SecurityID`, Tag 48.
+    pub fn get_security_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::SecurityIDField::new(String::new());
+        self.group().field_map.get_field(tag::SECURITY_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `SecurityID` is present, Tag 48.
+    pub fn has_security_id(&self) -> bool {
+        self.group().field_map.has(tag::SECURITY_ID)
+    }
+
+
+
+
+    /// Gets `SecurityIDSource`, Tag 22.
+    pub fn get_security_id_source(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::SecurityIDSourceField::new(String::new());
+        self.group().field_map.get_field(tag::SECURITY_ID_SOURCE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `SecurityIDSource` is present, Tag 22.
+    pub fn has_security_id_source(&self) -> bool {
+        self.group().field_map.has(tag::SECURITY_ID_SOURCE)
+    }
+
+
+
+
+    /// Gets `NoSecurityAltID`, Tag 454.
+    pub fn get_no_security_alt_id(&self) -> Result<NoMDEntriesNoSecurityAltIDRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoMDEntriesNoSecurityAltIDRepeatingGroup::new();
+        Ok(NoMDEntriesNoSecurityAltIDRepeatingGroup(self.group().field_map.get_group(g.0)?))
+    }
+
+
+    /// Returns true if `NoSecurityAltID` is present, Tag 454.
+    pub fn has_no_security_alt_id(&self) -> bool {
+        self.group().field_map.has(tag::NO_SECURITY_ALT_ID)
+    }
+
+
+
+
+    /// Gets `Product`, Tag 460.
+    pub fn get_product(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::ProductField::new(0);
+        self.group().field_map.get_field(tag::PRODUCT, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `Product` is present, Tag 460.
+    pub fn has_product(&self) -> bool {
+        self.group().field_map.has(tag::PRODUCT)
+    }
+
+
+
+
+    /// Gets `CFICode`, Tag 461.
+    pub fn get_cfi_code(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::CFICodeField::new(String::new());
+        self.group().field_map.get_field(tag::CFI_CODE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `CFICode` is present, Tag 461.
+    pub fn has_cfi_code(&self) -> bool {
+        self.group().field_map.has(tag::CFI_CODE)
+    }
+
+
+
+
+    /// Gets `SecurityType`, Tag 167.
+    pub fn get_security_type(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::SecurityTypeField::new(String::new());
+        self.group().field_map.get_field(tag::SECURITY_TYPE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `SecurityType` is present, Tag 167.
+    pub fn has_security_type(&self) -> bool {
+        self.group().field_map.has(tag::SECURITY_TYPE)
+    }
+
+
+
+
+    /// Gets `MaturityMonthYear`, Tag 200.
+    pub fn get_maturity_month_year(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::MaturityMonthYearField::new(String::new());
+        self.group().field_map.get_field(tag::MATURITY_MONTH_YEAR, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `MaturityMonthYear` is present, Tag 200.
+    pub fn has_maturity_month_year(&self) -> bool {
+        self.group().field_map.has(tag::MATURITY_MONTH_YEAR)
+    }
+
+
+
+
+    /// Gets `MaturityDate`, Tag 541.
+    pub fn get_maturity_date(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::MaturityDateField::new(String::new());
+        self.group().field_map.get_field(tag::MATURITY_DATE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `MaturityDate` is present, Tag 541.
+    pub fn has_maturity_date(&self) -> bool {
+        self.group().field_map.has(tag::MATURITY_DATE)
+    }
+
+
+
+
+    /// Gets `CouponPaymentDate`, Tag 224.
+    pub fn get_coupon_payment_date(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::CouponPaymentDateField::new(String::new());
+        self.group().field_map.get_field(tag::COUPON_PAYMENT_DATE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `CouponPaymentDate` is present, Tag 224.
+    pub fn has_coupon_payment_date(&self) -> bool {
+        self.group().field_map.has(tag::COUPON_PAYMENT_DATE)
+    }
+
+
+
+
+    /// Gets `IssueDate`, Tag 225.
+    pub fn get_issue_date(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::IssueDateField::new(String::new());
+        self.group().field_map.get_field(tag::ISSUE_DATE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `IssueDate` is present, Tag 225.
+    pub fn has_issue_date(&self) -> bool {
+        self.group().field_map.has(tag::ISSUE_DATE)
+    }
+
+
+
+
+    /// Gets `RepoCollateralSecurityType`, Tag 239.
+    pub fn get_repo_collateral_security_type(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::RepoCollateralSecurityTypeField::new(0);
+        self.group().field_map.get_field(tag::REPO_COLLATERAL_SECURITY_TYPE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `RepoCollateralSecurityType` is present, Tag 239.
+    pub fn has_repo_collateral_security_type(&self) -> bool {
+        self.group().field_map.has(tag::REPO_COLLATERAL_SECURITY_TYPE)
+    }
+
+
+
+
+    /// Gets `RepurchaseTerm`, Tag 226.
+    pub fn get_repurchase_term(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::RepurchaseTermField::new(0);
+        self.group().field_map.get_field(tag::REPURCHASE_TERM, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `RepurchaseTerm` is present, Tag 226.
+    pub fn has_repurchase_term(&self) -> bool {
+        self.group().field_map.has(tag::REPURCHASE_TERM)
+    }
+
+
+
+
+    /// Gets `RepurchaseRate`, Tag 227.
+    pub fn get_repurchase_rate(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::RepurchaseRateField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::REPURCHASE_RATE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `RepurchaseRate` is present, Tag 227.
+    pub fn has_repurchase_rate(&self) -> bool {
+        self.group().field_map.has(tag::REPURCHASE_RATE)
+    }
+
+
+
+
+    /// Gets `Factor`, Tag 228.
+    pub fn get_factor(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::FactorField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::FACTOR, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `Factor` is present, Tag 228.
+    pub fn has_factor(&self) -> bool {
+        self.group().field_map.has(tag::FACTOR)
+    }
+
+
+
+
+    /// Gets `CreditRating`, Tag 255.
+    pub fn get_credit_rating(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::CreditRatingField::new(String::new());
+        self.group().field_map.get_field(tag::CREDIT_RATING, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `CreditRating` is present, Tag 255.
+    pub fn has_credit_rating(&self) -> bool {
+        self.group().field_map.has(tag::CREDIT_RATING)
+    }
+
+
+
+
+    /// Gets `InstrRegistry`, Tag 543.
+    pub fn get_instr_registry(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::InstrRegistryField::new(String::new());
+        self.group().field_map.get_field(tag::INSTR_REGISTRY, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `InstrRegistry` is present, Tag 543.
+    pub fn has_instr_registry(&self) -> bool {
+        self.group().field_map.has(tag::INSTR_REGISTRY)
+    }
+
+
+
+
+    /// Gets `CountryOfIssue`, Tag 470.
+    pub fn get_country_of_issue(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::CountryOfIssueField::new(String::new());
+        self.group().field_map.get_field(tag::COUNTRY_OF_ISSUE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `CountryOfIssue` is present, Tag 470.
+    pub fn has_country_of_issue(&self) -> bool {
+        self.group().field_map.has(tag::COUNTRY_OF_ISSUE)
+    }
+
+
+
+
+    /// Gets `StateOrProvinceOfIssue`, Tag 471.
+    pub fn get_state_or_province_of_issue(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::StateOrProvinceOfIssueField::new(String::new());
+        self.group().field_map.get_field(tag::STATE_OR_PROVINCE_OF_ISSUE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `StateOrProvinceOfIssue` is present, Tag 471.
+    pub fn has_state_or_province_of_issue(&self) -> bool {
+        self.group().field_map.has(tag::STATE_OR_PROVINCE_OF_ISSUE)
+    }
+
+
+
+
+    /// Gets `LocaleOfIssue`, Tag 472.
+    pub fn get_locale_of_issue(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::LocaleOfIssueField::new(String::new());
+        self.group().field_map.get_field(tag::LOCALE_OF_ISSUE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `LocaleOfIssue` is present, Tag 472.
+    pub fn has_locale_of_issue(&self) -> bool {
+        self.group().field_map.has(tag::LOCALE_OF_ISSUE)
+    }
+
+
+
+
+    /// Gets `RedemptionDate`, Tag 240.
+    pub fn get_redemption_date(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RedemptionDateField::new(String::new());
+        self.group().field_map.get_field(tag::REDEMPTION_DATE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RedemptionDate` is present, Tag 240.
+    pub fn has_redemption_date(&self) -> bool {
+        self.group().field_map.has(tag::REDEMPTION_DATE)
+    }
+
+
+
+
+    /// Gets `StrikePrice`, Tag 202.
+    pub fn get_strike_price(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::StrikePriceField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::STRIKE_PRICE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `StrikePrice` is present, Tag 202.
+    pub fn has_strike_price(&self) -> bool {
+        self.group().field_map.has(tag::STRIKE_PRICE)
+    }
+
+
+
+
+    /// Gets `OptAttribute`, Tag 206.
+    pub fn get_opt_attribute(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::OptAttributeField::new(String::new());
+        self.group().field_map.get_field(tag::OPT_ATTRIBUTE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `OptAttribute` is present, Tag 206.
+    pub fn has_opt_attribute(&self) -> bool {
+        self.group().field_map.has(tag::OPT_ATTRIBUTE)
+    }
+
+
+
+
+    /// Gets `ContractMultiplier`, Tag 231.
+    pub fn get_contract_multiplier(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::ContractMultiplierField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::CONTRACT_MULTIPLIER, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `ContractMultiplier` is present, Tag 231.
+    pub fn has_contract_multiplier(&self) -> bool {
+        self.group().field_map.has(tag::CONTRACT_MULTIPLIER)
+    }
+
+
+
+
+    /// Gets `CouponRate`, Tag 223.
+    pub fn get_coupon_rate(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::CouponRateField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::COUPON_RATE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `CouponRate` is present, Tag 223.
+    pub fn has_coupon_rate(&self) -> bool {
+        self.group().field_map.has(tag::COUPON_RATE)
+    }
+
+
+
+
+    /// Gets `SecurityExchange`, Tag 207.
+    pub fn get_security_exchange(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::SecurityExchangeField::new(String::new());
+        self.group().field_map.get_field(tag::SECURITY_EXCHANGE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `SecurityExchange` is present, Tag 207.
+    pub fn has_security_exchange(&self) -> bool {
+        self.group().field_map.has(tag::SECURITY_EXCHANGE)
+    }
+
+
+
+
+    /// Gets `Issuer`, Tag 106.
+    pub fn get_issuer(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::IssuerField::new(String::new());
+        self.group().field_map.get_field(tag::ISSUER, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `Issuer` is present, Tag 106.
+    pub fn has_issuer(&self) -> bool {
+        self.group().field_map.has(tag::ISSUER)
+    }
+
+
+
+
+    /// Gets `EncodedIssuerLen`, Tag 348.
+    pub fn get_encoded_issuer_len(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::EncodedIssuerLenField::new(0);
+        self.group().field_map.get_field(tag::ENCODED_ISSUER_LEN, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `EncodedIssuerLen` is present, Tag 348.
+    pub fn has_encoded_issuer_len(&self) -> bool {
+        self.group().field_map.has(tag::ENCODED_ISSUER_LEN)
+    }
+
+
+
+
+    /// Gets `EncodedIssuer`, Tag 349.
+    pub fn get_encoded_issuer(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::EncodedIssuerField::new(String::new());
+        self.group().field_map.get_field(tag::ENCODED_ISSUER, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `EncodedIssuer` is present, Tag 349.
+    pub fn has_encoded_issuer(&self) -> bool {
+        self.group().field_map.has(tag::ENCODED_ISSUER)
+    }
+
+
+
+
+    /// Gets `SecurityDesc`, Tag 107.
+    pub fn get_security_desc(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::SecurityDescField::new(String::new());
+        self.group().field_map.get_field(tag::SECURITY_DESC, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `SecurityDesc` is present, Tag 107.
+    pub fn has_security_desc(&self) -> bool {
+        self.group().field_map.has(tag::SECURITY_DESC)
+    }
+
+
+
+
+    /// Gets `EncodedSecurityDescLen`, Tag 350.
+    pub fn get_encoded_security_desc_len(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::EncodedSecurityDescLenField::new(0);
+        self.group().field_map.get_field(tag::ENCODED_SECURITY_DESC_LEN, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `EncodedSecurityDescLen` is present, Tag 350.
+    pub fn has_encoded_security_desc_len(&self) -> bool {
+        self.group().field_map.has(tag::ENCODED_SECURITY_DESC_LEN)
+    }
+
+
+
+
+    /// Gets `EncodedSecurityDesc`, Tag 351.
+    pub fn get_encoded_security_desc(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::EncodedSecurityDescField::new(String::new());
+        self.group().field_map.get_field(tag::ENCODED_SECURITY_DESC, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `EncodedSecurityDesc` is present, Tag 351.
+    pub fn has_encoded_security_desc(&self) -> bool {
+        self.group().field_map.has(tag::ENCODED_SECURITY_DESC)
+    }
+
+
+
+
+    /// Gets `FinancialStatus`, Tag 291.
+    pub fn get_financial_status(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::FinancialStatusField::new(String::new());
+        self.group().field_map.get_field(tag::FINANCIAL_STATUS, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `FinancialStatus` is present, Tag 291.
+    pub fn has_financial_status(&self) -> bool {
+        self.group().field_map.has(tag::FINANCIAL_STATUS)
+    }
+
+
+
+
+    /// Gets `CorporateAction`, Tag 292.
+    pub fn get_corporate_action(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::CorporateActionField::new(String::new());
+        self.group().field_map.get_field(tag::CORPORATE_ACTION, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `CorporateAction` is present, Tag 292.
+    pub fn has_corporate_action(&self) -> bool {
+        self.group().field_map.has(tag::CORPORATE_ACTION)
+    }
+
+
+
+
+    /// Gets `MDEntryPx`, Tag 270.
+    pub fn get_md_entry_px(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::MDEntryPxField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::MD_ENTRY_PX, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `MDEntryPx` is present, Tag 270.
+    pub fn has_md_entry_px(&self) -> bool {
+        self.group().field_map.has(tag::MD_ENTRY_PX)
+    }
+
+
+
+
+    /// Gets `Currency`, Tag 15.
+    pub fn get_currency(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::CurrencyField::new(String::new());
+        self.group().field_map.get_field(tag::CURRENCY, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `Currency` is present, Tag 15.
+    pub fn has_currency(&self) -> bool {
+        self.group().field_map.has(tag::CURRENCY)
+    }
+
+
+
+
+    /// Gets `MDEntrySize`, Tag 271.
+    pub fn get_md_entry_size(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::MDEntrySizeField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::MD_ENTRY_SIZE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `MDEntrySize` is present, Tag 271.
+    pub fn has_md_entry_size(&self) -> bool {
+        self.group().field_map.has(tag::MD_ENTRY_SIZE)
+    }
+
+
+
+
+    /// Gets `MDEntryDate`, Tag 272.
+    pub fn get_md_entry_date(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::MDEntryDateField::new(String::new());
+        self.group().field_map.get_field(tag::MD_ENTRY_DATE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `MDEntryDate` is present, Tag 272.
+    pub fn has_md_entry_date(&self) -> bool {
+        self.group().field_map.has(tag::MD_ENTRY_DATE)
+    }
+
+
+
+
+    /// Gets `MDEntryTime`, Tag 273.
+    pub fn get_md_entry_time(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::MDEntryTimeField::new(String::new());
+        self.group().field_map.get_field(tag::MD_ENTRY_TIME, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `MDEntryTime` is present, Tag 273.
+    pub fn has_md_entry_time(&self) -> bool {
+        self.group().field_map.has(tag::MD_ENTRY_TIME)
+    }
+
+
+
+
+    /// Gets `TickDirection`, Tag 274.
+    pub fn get_tick_direction(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::TickDirectionField::new(String::new());
+        self.group().field_map.get_field(tag::TICK_DIRECTION, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `TickDirection` is present, Tag 274.
+    pub fn has_tick_direction(&self) -> bool {
+        self.group().field_map.has(tag::TICK_DIRECTION)
+    }
+
+
+
+
+    /// Gets `MDMkt`, Tag 275.
+    pub fn get_md_mkt(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::MDMktField::new(String::new());
+        self.group().field_map.get_field(tag::MD_MKT, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `MDMkt` is present, Tag 275.
+    pub fn has_md_mkt(&self) -> bool {
+        self.group().field_map.has(tag::MD_MKT)
+    }
+
+
+
+
+    /// Gets `TradingSessionID`, Tag 336.
+    pub fn get_trading_session_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::TradingSessionIDField::new(String::new());
+        self.group().field_map.get_field(tag::TRADING_SESSION_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `TradingSessionID` is present, Tag 336.
+    pub fn has_trading_session_id(&self) -> bool {
+        self.group().field_map.has(tag::TRADING_SESSION_ID)
+    }
+
+
+
+
+    /// Gets `TradingSessionSubID`, Tag 625.
+    pub fn get_trading_session_sub_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::TradingSessionSubIDField::new(String::new());
+        self.group().field_map.get_field(tag::TRADING_SESSION_SUB_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `TradingSessionSubID` is present, Tag 625.
+    pub fn has_trading_session_sub_id(&self) -> bool {
+        self.group().field_map.has(tag::TRADING_SESSION_SUB_ID)
+    }
+
+
+
+
+    /// Gets `QuoteCondition`, Tag 276.
+    pub fn get_quote_condition(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::QuoteConditionField::new(String::new());
+        self.group().field_map.get_field(tag::QUOTE_CONDITION, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `QuoteCondition` is present, Tag 276.
+    pub fn has_quote_condition(&self) -> bool {
+        self.group().field_map.has(tag::QUOTE_CONDITION)
+    }
+
+
+
+
+    /// Gets `TradeCondition`, Tag 277.
+    pub fn get_trade_condition(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::TradeConditionField::new(String::new());
+        self.group().field_map.get_field(tag::TRADE_CONDITION, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `TradeCondition` is present, Tag 277.
+    pub fn has_trade_condition(&self) -> bool {
+        self.group().field_map.has(tag::TRADE_CONDITION)
+    }
+
+
+
+
+    /// Gets `MDEntryOriginator`, Tag 282.
+    pub fn get_md_entry_originator(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::MDEntryOriginatorField::new(String::new());
+        self.group().field_map.get_field(tag::MD_ENTRY_ORIGINATOR, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `MDEntryOriginator` is present, Tag 282.
+    pub fn has_md_entry_originator(&self) -> bool {
+        self.group().field_map.has(tag::MD_ENTRY_ORIGINATOR)
+    }
+
+
+
+
+    /// Gets `LocationID`, Tag 283.
+    pub fn get_location_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::LocationIDField::new(String::new());
+        self.group().field_map.get_field(tag::LOCATION_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `LocationID` is present, Tag 283.
+    pub fn has_location_id(&self) -> bool {
+        self.group().field_map.has(tag::LOCATION_ID)
+    }
+
+
+
+
+    /// Gets `DeskID`, Tag 284.
+    pub fn get_desk_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::DeskIDField::new(String::new());
+        self.group().field_map.get_field(tag::DESK_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `DeskID` is present, Tag 284.
+    pub fn has_desk_id(&self) -> bool {
+        self.group().field_map.has(tag::DESK_ID)
+    }
+
+
+
+
+    /// Gets `OpenCloseSettleFlag`, Tag 286.
+    pub fn get_open_close_settle_flag(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::OpenCloseSettleFlagField::new(String::new());
+        self.group().field_map.get_field(tag::OPEN_CLOSE_SETTLE_FLAG, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `OpenCloseSettleFlag` is present, Tag 286.
+    pub fn has_open_close_settle_flag(&self) -> bool {
+        self.group().field_map.has(tag::OPEN_CLOSE_SETTLE_FLAG)
+    }
+
+
+
+
+    /// Gets `TimeInForce`, Tag 59.
+    pub fn get_time_in_force(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::TimeInForceField::new(String::new());
+        self.group().field_map.get_field(tag::TIME_IN_FORCE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `TimeInForce` is present, Tag 59.
+    pub fn has_time_in_force(&self) -> bool {
+        self.group().field_map.has(tag::TIME_IN_FORCE)
+    }
+
+
+
+
+    /// Gets `ExpireDate`, Tag 432.
+    pub fn get_expire_date(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::ExpireDateField::new(String::new());
+        self.group().field_map.get_field(tag::EXPIRE_DATE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `ExpireDate` is present, Tag 432.
+    pub fn has_expire_date(&self) -> bool {
+        self.group().field_map.has(tag::EXPIRE_DATE)
+    }
+
+
+
+
+    /// Gets `ExpireTime`, Tag 126.
+    pub fn get_expire_time(&self) -> Result<Timestamp, MessageRejectErrorEnum> {
+        let mut fld = field::ExpireTimeField::new(Timestamp::UNIX_EPOCH);
+        self.group().field_map.get_field(tag::EXPIRE_TIME, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `ExpireTime` is present, Tag 126.
+    pub fn has_expire_time(&self) -> bool {
+        self.group().field_map.has(tag::EXPIRE_TIME)
+    }
+
+
+
+
+    /// Gets `MinQty`, Tag 110.
+    pub fn get_min_qty(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::MinQtyField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::MIN_QTY, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `MinQty` is present, Tag 110.
+    pub fn has_min_qty(&self) -> bool {
+        self.group().field_map.has(tag::MIN_QTY)
+    }
+
+
+
+
+    /// Gets `ExecInst`, Tag 18.
+    pub fn get_exec_inst(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::ExecInstField::new(String::new());
+        self.group().field_map.get_field(tag::EXEC_INST, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `ExecInst` is present, Tag 18.
+    pub fn has_exec_inst(&self) -> bool {
+        self.group().field_map.has(tag::EXEC_INST)
+    }
+
+
+
+
+    /// Gets `SellerDays`, Tag 287.
+    pub fn get_seller_days(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::SellerDaysField::new(0);
+        self.group().field_map.get_field(tag::SELLER_DAYS, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `SellerDays` is present, Tag 287.
+    pub fn has_seller_days(&self) -> bool {
+        self.group().field_map.has(tag::SELLER_DAYS)
+    }
+
+
+
+
+    /// Gets `OrderID`, Tag 37.
+    pub fn get_order_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::OrderIDField::new(String::new());
+        self.group().field_map.get_field(tag::ORDER_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `OrderID` is present, Tag 37.
+    pub fn has_order_id(&self) -> bool {
+        self.group().field_map.has(tag::ORDER_ID)
+    }
+
+
+
+
+    /// Gets `QuoteEntryID`, Tag 299.
+    pub fn get_quote_entry_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::QuoteEntryIDField::new(String::new());
+        self.group().field_map.get_field(tag::QUOTE_ENTRY_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `QuoteEntryID` is present, Tag 299.
+    pub fn has_quote_entry_id(&self) -> bool {
+        self.group().field_map.has(tag::QUOTE_ENTRY_ID)
+    }
+
+
+
+
+    /// Gets `MDEntryBuyer`, Tag 288.
+    pub fn get_md_entry_buyer(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::MDEntryBuyerField::new(String::new());
+        self.group().field_map.get_field(tag::MD_ENTRY_BUYER, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `MDEntryBuyer` is present, Tag 288.
+    pub fn has_md_entry_buyer(&self) -> bool {
+        self.group().field_map.has(tag::MD_ENTRY_BUYER)
+    }
+
+
+
+
+    /// Gets `MDEntrySeller`, Tag 289.
+    pub fn get_md_entry_seller(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::MDEntrySellerField::new(String::new());
+        self.group().field_map.get_field(tag::MD_ENTRY_SELLER, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `MDEntrySeller` is present, Tag 289.
+    pub fn has_md_entry_seller(&self) -> bool {
+        self.group().field_map.has(tag::MD_ENTRY_SELLER)
+    }
+
+
+
+
+    /// Gets `NumberOfOrders`, Tag 346.
+    pub fn get_number_of_orders(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::NumberOfOrdersField::new(0);
+        self.group().field_map.get_field(tag::NUMBER_OF_ORDERS, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `NumberOfOrders` is present, Tag 346.
+    pub fn has_number_of_orders(&self) -> bool {
+        self.group().field_map.has(tag::NUMBER_OF_ORDERS)
+    }
+
+
+
+
+    /// Gets `MDEntryPositionNo`, Tag 290.
+    pub fn get_md_entry_position_no(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::MDEntryPositionNoField::new(0);
+        self.group().field_map.get_field(tag::MD_ENTRY_POSITION_NO, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `MDEntryPositionNo` is present, Tag 290.
+    pub fn has_md_entry_position_no(&self) -> bool {
+        self.group().field_map.has(tag::MD_ENTRY_POSITION_NO)
+    }
+
+
+
+
+    /// Gets `Scope`, Tag 546.
+    pub fn get_scope(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::ScopeField::new(String::new());
+        self.group().field_map.get_field(tag::SCOPE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `Scope` is present, Tag 546.
+    pub fn has_scope(&self) -> bool {
+        self.group().field_map.has(tag::SCOPE)
+    }
+
+
+
+
+    /// Gets `TotalVolumeTraded`, Tag 387.
+    pub fn get_total_volume_traded(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::TotalVolumeTradedField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::TOTAL_VOLUME_TRADED, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `TotalVolumeTraded` is present, Tag 387.
+    pub fn has_total_volume_traded(&self) -> bool {
+        self.group().field_map.has(tag::TOTAL_VOLUME_TRADED)
+    }
+
+
+
+
+    /// Gets `TotalVolumeTradedDate`, Tag 449.
+    pub fn get_total_volume_traded_date(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::TotalVolumeTradedDateField::new(String::new());
+        self.group().field_map.get_field(tag::TOTAL_VOLUME_TRADED_DATE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `TotalVolumeTradedDate` is present, Tag 449.
+    pub fn has_total_volume_traded_date(&self) -> bool {
+        self.group().field_map.has(tag::TOTAL_VOLUME_TRADED_DATE)
+    }
+
+
+
+
+    /// Gets `TotalVolumeTradedTime`, Tag 450.
+    pub fn get_total_volume_traded_time(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::TotalVolumeTradedTimeField::new(String::new());
+        self.group().field_map.get_field(tag::TOTAL_VOLUME_TRADED_TIME, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `TotalVolumeTradedTime` is present, Tag 450.
+    pub fn has_total_volume_traded_time(&self) -> bool {
+        self.group().field_map.has(tag::TOTAL_VOLUME_TRADED_TIME)
+    }
+
+
+
+
+    /// Gets `NetChgPrevDay`, Tag 451.
+    pub fn get_net_chg_prev_day(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::NetChgPrevDayField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::NET_CHG_PREV_DAY, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `NetChgPrevDay` is present, Tag 451.
+    pub fn has_net_chg_prev_day(&self) -> bool {
+        self.group().field_map.has(tag::NET_CHG_PREV_DAY)
+    }
+
+
+
+
+    /// Gets `Text`, Tag 58.
+    pub fn get_text(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::TextField::new(String::new());
+        self.group().field_map.get_field(tag::TEXT, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `Text` is present, Tag 58.
+    pub fn has_text(&self) -> bool {
+        self.group().field_map.has(tag::TEXT)
+    }
+
+
+
+
+    /// Gets `EncodedTextLen`, Tag 354.
+    pub fn get_encoded_text_len(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::EncodedTextLenField::new(0);
+        self.group().field_map.get_field(tag::ENCODED_TEXT_LEN, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `EncodedTextLen` is present, Tag 354.
+    pub fn has_encoded_text_len(&self) -> bool {
+        self.group().field_map.has(tag::ENCODED_TEXT_LEN)
+    }
+
+
+
+
+    /// Gets `EncodedText`, Tag 355.
+    pub fn get_encoded_text(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::EncodedTextField::new(String::new());
+        self.group().field_map.get_field(tag::ENCODED_TEXT, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `EncodedText` is present, Tag 355.
+    pub fn has_encoded_text(&self) -> bool {
+        self.group().field_map.has(tag::ENCODED_TEXT)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoMDEntries<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `MDUpdateAction`, Tag 279.
+    pub fn set_md_update_action(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::MD_UPDATE_ACTION, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `DeleteReason`, Tag 285.
+    pub fn set_delete_reason(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::DELETE_REASON, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `MDEntryType`, Tag 269.
+    pub fn set_md_entry_type(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::MD_ENTRY_TYPE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `MDEntryID`, Tag 278.
+    pub fn set_md_entry_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::MD_ENTRY_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `MDEntryRefID`, Tag 280.
+    pub fn set_md_entry_ref_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::MD_ENTRY_REF_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `Symbol`, Tag 55.
+    pub fn set_symbol(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::SYMBOL, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `SymbolSfx`, Tag 65.
+    pub fn set_symbol_sfx(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::SYMBOL_SFX, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `SecurityID`, Tag 48.
+    pub fn set_security_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::SECURITY_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `SecurityIDSource`, Tag 22.
+    pub fn set_security_id_source(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::SECURITY_ID_SOURCE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `NoSecurityAltID`, Tag 454.
+    pub fn set_no_security_alt_id(&mut self, f: NoMDEntriesNoSecurityAltIDRepeatingGroup) {
+        self.group_mut().field_map.set_group(f.0);
+    }
+
+
+
+
+
+    /// Sets `Product`, Tag 460.
+    pub fn set_product(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::PRODUCT, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `CFICode`, Tag 461.
+    pub fn set_cfi_code(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::CFI_CODE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `SecurityType`, Tag 167.
+    pub fn set_security_type(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::SECURITY_TYPE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `MaturityMonthYear`, Tag 200.
+    pub fn set_maturity_month_year(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::MATURITY_MONTH_YEAR, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `MaturityDate`, Tag 541.
+    pub fn set_maturity_date(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::MATURITY_DATE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `CouponPaymentDate`, Tag 224.
+    pub fn set_coupon_payment_date(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::COUPON_PAYMENT_DATE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `IssueDate`, Tag 225.
+    pub fn set_issue_date(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::ISSUE_DATE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RepoCollateralSecurityType`, Tag 239.
+    pub fn set_repo_collateral_security_type(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::REPO_COLLATERAL_SECURITY_TYPE, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `RepurchaseTerm`, Tag 226.
+    pub fn set_repurchase_term(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::REPURCHASE_TERM, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `RepurchaseRate`, Tag 227.
+    pub fn set_repurchase_rate(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::REPURCHASE_RATE, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `Factor`, Tag 228.
+    pub fn set_factor(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::FACTOR, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `CreditRating`, Tag 255.
+    pub fn set_credit_rating(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::CREDIT_RATING, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `InstrRegistry`, Tag 543.
+    pub fn set_instr_registry(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::INSTR_REGISTRY, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `CountryOfIssue`, Tag 470.
+    pub fn set_country_of_issue(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::COUNTRY_OF_ISSUE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `StateOrProvinceOfIssue`, Tag 471.
+    pub fn set_state_or_province_of_issue(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::STATE_OR_PROVINCE_OF_ISSUE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `LocaleOfIssue`, Tag 472.
+    pub fn set_locale_of_issue(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::LOCALE_OF_ISSUE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RedemptionDate`, Tag 240.
+    pub fn set_redemption_date(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::REDEMPTION_DATE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `StrikePrice`, Tag 202.
+    pub fn set_strike_price(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::STRIKE_PRICE, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `OptAttribute`, Tag 206.
+    pub fn set_opt_attribute(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::OPT_ATTRIBUTE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `ContractMultiplier`, Tag 231.
+    pub fn set_contract_multiplier(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::CONTRACT_MULTIPLIER, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `CouponRate`, Tag 223.
+    pub fn set_coupon_rate(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::COUPON_RATE, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `SecurityExchange`, Tag 207.
+    pub fn set_security_exchange(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::SECURITY_EXCHANGE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `Issuer`, Tag 106.
+    pub fn set_issuer(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::ISSUER, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `EncodedIssuerLen`, Tag 348.
+    pub fn set_encoded_issuer_len(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::ENCODED_ISSUER_LEN, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `EncodedIssuer`, Tag 349.
+    pub fn set_encoded_issuer(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::ENCODED_ISSUER, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `SecurityDesc`, Tag 107.
+    pub fn set_security_desc(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::SECURITY_DESC, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `EncodedSecurityDescLen`, Tag 350.
+    pub fn set_encoded_security_desc_len(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::ENCODED_SECURITY_DESC_LEN, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `EncodedSecurityDesc`, Tag 351.
+    pub fn set_encoded_security_desc(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::ENCODED_SECURITY_DESC, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `FinancialStatus`, Tag 291.
+    pub fn set_financial_status(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::FINANCIAL_STATUS, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `CorporateAction`, Tag 292.
+    pub fn set_corporate_action(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::CORPORATE_ACTION, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `MDEntryPx`, Tag 270.
+    pub fn set_md_entry_px(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::MD_ENTRY_PX, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `Currency`, Tag 15.
+    pub fn set_currency(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::CURRENCY, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `MDEntrySize`, Tag 271.
+    pub fn set_md_entry_size(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::MD_ENTRY_SIZE, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `MDEntryDate`, Tag 272.
+    pub fn set_md_entry_date(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::MD_ENTRY_DATE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `MDEntryTime`, Tag 273.
+    pub fn set_md_entry_time(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::MD_ENTRY_TIME, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `TickDirection`, Tag 274.
+    pub fn set_tick_direction(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::TICK_DIRECTION, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `MDMkt`, Tag 275.
+    pub fn set_md_mkt(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::MD_MKT, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `TradingSessionID`, Tag 336.
+    pub fn set_trading_session_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::TRADING_SESSION_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `TradingSessionSubID`, Tag 625.
+    pub fn set_trading_session_sub_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::TRADING_SESSION_SUB_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `QuoteCondition`, Tag 276.
+    pub fn set_quote_condition(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::QUOTE_CONDITION, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `TradeCondition`, Tag 277.
+    pub fn set_trade_condition(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::TRADE_CONDITION, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `MDEntryOriginator`, Tag 282.
+    pub fn set_md_entry_originator(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::MD_ENTRY_ORIGINATOR, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `LocationID`, Tag 283.
+    pub fn set_location_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::LOCATION_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `DeskID`, Tag 284.
+    pub fn set_desk_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::DESK_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `OpenCloseSettleFlag`, Tag 286.
+    pub fn set_open_close_settle_flag(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::OPEN_CLOSE_SETTLE_FLAG, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `TimeInForce`, Tag 59.
+    pub fn set_time_in_force(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::TIME_IN_FORCE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `ExpireDate`, Tag 432.
+    pub fn set_expire_date(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::EXPIRE_DATE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `ExpireTime`, Tag 126.
+    pub fn set_expire_time(&mut self, v: Timestamp) {
+        self.group_mut().field_map.set_field(tag::EXPIRE_TIME, fixer::fix_utc_timestamp::FIXUTCTimestamp {
+            time: v,
+            precision: fixer::fix_utc_timestamp::TimestampPrecision::Millis,
+        });
+    }
+
+
+
+
+
+    /// Sets `MinQty`, Tag 110.
+    pub fn set_min_qty(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::MIN_QTY, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `ExecInst`, Tag 18.
+    pub fn set_exec_inst(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::EXEC_INST, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `SellerDays`, Tag 287.
+    pub fn set_seller_days(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::SELLER_DAYS, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `OrderID`, Tag 37.
+    pub fn set_order_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::ORDER_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `QuoteEntryID`, Tag 299.
+    pub fn set_quote_entry_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::QUOTE_ENTRY_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `MDEntryBuyer`, Tag 288.
+    pub fn set_md_entry_buyer(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::MD_ENTRY_BUYER, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `MDEntrySeller`, Tag 289.
+    pub fn set_md_entry_seller(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::MD_ENTRY_SELLER, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `NumberOfOrders`, Tag 346.
+    pub fn set_number_of_orders(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::NUMBER_OF_ORDERS, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `MDEntryPositionNo`, Tag 290.
+    pub fn set_md_entry_position_no(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::MD_ENTRY_POSITION_NO, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `Scope`, Tag 546.
+    pub fn set_scope(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::SCOPE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `TotalVolumeTraded`, Tag 387.
+    pub fn set_total_volume_traded(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::TOTAL_VOLUME_TRADED, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `TotalVolumeTradedDate`, Tag 449.
+    pub fn set_total_volume_traded_date(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::TOTAL_VOLUME_TRADED_DATE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `TotalVolumeTradedTime`, Tag 450.
+    pub fn set_total_volume_traded_time(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::TOTAL_VOLUME_TRADED_TIME, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `NetChgPrevDay`, Tag 451.
+    pub fn set_net_chg_prev_day(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::NET_CHG_PREV_DAY, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `Text`, Tag 58.
+    pub fn set_text(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::TEXT, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `EncodedTextLen`, Tag 354.
+    pub fn set_encoded_text_len(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::ENCODED_TEXT_LEN, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `EncodedText`, Tag 355.
+    pub fn set_encoded_text(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::ENCODED_TEXT, FIXString::from(v));
+    }
+
+
+
+}
+
+/// `NoMDEntriesRepeatingGroup` is the `NoMDEntries` repeating group, Tag 268.
+pub struct NoMDEntriesRepeatingGroup(pub RepeatingGroup);
+
+impl NoMDEntriesRepeatingGroup {
+    /// Creates an empty `NoMDEntries` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::MD_UPDATE_ACTION),
+
+
+
+            group_element(tag::DELETE_REASON),
+
+
+
+            group_element(tag::MD_ENTRY_TYPE),
+
+
+
+            group_element(tag::MD_ENTRY_ID),
+
+
+
+            group_element(tag::MD_ENTRY_REF_ID),
+
+
+
+            group_element(tag::SYMBOL),
+
+
+
+            group_element(tag::SYMBOL_SFX),
+
+
+
+            group_element(tag::SECURITY_ID),
+
+
+
+            group_element(tag::SECURITY_ID_SOURCE),
+
+
+
+            Box::new(NoMDEntriesNoSecurityAltIDRepeatingGroup::new().0),
+
+
+
+            group_element(tag::PRODUCT),
+
+
+
+            group_element(tag::CFI_CODE),
+
+
+
+            group_element(tag::SECURITY_TYPE),
+
+
+
+            group_element(tag::MATURITY_MONTH_YEAR),
+
+
+
+            group_element(tag::MATURITY_DATE),
+
+
+
+            group_element(tag::COUPON_PAYMENT_DATE),
+
+
+
+            group_element(tag::ISSUE_DATE),
+
+
+
+            group_element(tag::REPO_COLLATERAL_SECURITY_TYPE),
+
+
+
+            group_element(tag::REPURCHASE_TERM),
+
+
+
+            group_element(tag::REPURCHASE_RATE),
+
+
+
+            group_element(tag::FACTOR),
+
+
+
+            group_element(tag::CREDIT_RATING),
+
+
+
+            group_element(tag::INSTR_REGISTRY),
+
+
+
+            group_element(tag::COUNTRY_OF_ISSUE),
+
+
+
+            group_element(tag::STATE_OR_PROVINCE_OF_ISSUE),
+
+
+
+            group_element(tag::LOCALE_OF_ISSUE),
+
+
+
+            group_element(tag::REDEMPTION_DATE),
+
+
+
+            group_element(tag::STRIKE_PRICE),
+
+
+
+            group_element(tag::OPT_ATTRIBUTE),
+
+
+
+            group_element(tag::CONTRACT_MULTIPLIER),
+
+
+
+            group_element(tag::COUPON_RATE),
+
+
+
+            group_element(tag::SECURITY_EXCHANGE),
+
+
+
+            group_element(tag::ISSUER),
+
+
+
+            group_element(tag::ENCODED_ISSUER_LEN),
+
+
+
+            group_element(tag::ENCODED_ISSUER),
+
+
+
+            group_element(tag::SECURITY_DESC),
+
+
+
+            group_element(tag::ENCODED_SECURITY_DESC_LEN),
+
+
+
+            group_element(tag::ENCODED_SECURITY_DESC),
+
+
+
+            group_element(tag::FINANCIAL_STATUS),
+
+
+
+            group_element(tag::CORPORATE_ACTION),
+
+
+
+            group_element(tag::MD_ENTRY_PX),
+
+
+
+            group_element(tag::CURRENCY),
+
+
+
+            group_element(tag::MD_ENTRY_SIZE),
+
+
+
+            group_element(tag::MD_ENTRY_DATE),
+
+
+
+            group_element(tag::MD_ENTRY_TIME),
+
+
+
+            group_element(tag::TICK_DIRECTION),
+
+
+
+            group_element(tag::MD_MKT),
+
+
+
+            group_element(tag::TRADING_SESSION_ID),
+
+
+
+            group_element(tag::TRADING_SESSION_SUB_ID),
+
+
+
+            group_element(tag::QUOTE_CONDITION),
+
+
+
+            group_element(tag::TRADE_CONDITION),
+
+
+
+            group_element(tag::MD_ENTRY_ORIGINATOR),
+
+
+
+            group_element(tag::LOCATION_ID),
+
+
+
+            group_element(tag::DESK_ID),
+
+
+
+            group_element(tag::OPEN_CLOSE_SETTLE_FLAG),
+
+
+
+            group_element(tag::TIME_IN_FORCE),
+
+
+
+            group_element(tag::EXPIRE_DATE),
+
+
+
+            group_element(tag::EXPIRE_TIME),
+
+
+
+            group_element(tag::MIN_QTY),
+
+
+
+            group_element(tag::EXEC_INST),
+
+
+
+            group_element(tag::SELLER_DAYS),
+
+
+
+            group_element(tag::ORDER_ID),
+
+
+
+            group_element(tag::QUOTE_ENTRY_ID),
+
+
+
+            group_element(tag::MD_ENTRY_BUYER),
+
+
+
+            group_element(tag::MD_ENTRY_SELLER),
+
+
+
+            group_element(tag::NUMBER_OF_ORDERS),
+
+
+
+            group_element(tag::MD_ENTRY_POSITION_NO),
+
+
+
+            group_element(tag::SCOPE),
+
+
+
+            group_element(tag::TOTAL_VOLUME_TRADED),
+
+
+
+            group_element(tag::TOTAL_VOLUME_TRADED_DATE),
+
+
+
+            group_element(tag::TOTAL_VOLUME_TRADED_TIME),
+
+
+
+            group_element(tag::NET_CHG_PREV_DAY),
+
+
+
+            group_element(tag::TEXT),
+
+
+
+            group_element(tag::ENCODED_TEXT_LEN),
+
+
+
+            group_element(tag::ENCODED_TEXT),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_MD_ENTRIES, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoMDEntries<&mut Group> {
+        NoMDEntries(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoMDEntries<&Group> {
+        NoMDEntries(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoMDEntriesRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+

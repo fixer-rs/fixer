@@ -74,6 +74,10 @@ pub fn fixer_type(fix_xml_type: &str, use_float: bool) -> Result<FixerType, Stri
 ///
 /// Ports Go's `requiredFields()`. Walks `required_parts`, pulling out
 /// non-group `FieldDef`s directly, and non-group fields from required `Component`s.
+///
+/// Repeating groups are excluded: their `NumInGroup` counter is written by
+/// `RepeatingGroup`'s `FieldGroupWriter` impl from the number of entries, so
+/// taking it as a constructor argument would let it contradict the group.
 pub fn required_fields(msg_def: &MessageDef) -> Vec<&FieldDef> {
     let mut required = Vec::new();
 
@@ -399,10 +403,18 @@ mod tests {
         assert!(names.contains(&"Side"), "Side should be required");
         assert!(names.contains(&"OrdType"), "OrdType should be required");
 
-        // None should be groups
+        // Groups are excluded: their counter is derived from the entries added
+        // to the RepeatingGroup, so it is not a constructor argument.
         for f in &req {
             assert!(!f.is_group(), "{} should not be a group", f.name());
         }
+
+        let nol = fix44.messages.get("E").expect("NewOrderList not found");
+        let names: Vec<&str> = required_fields(nol).iter().map(|f| f.name()).collect();
+        assert!(
+            !names.contains(&"NoOrders"),
+            "required group counter NoOrders should be excluded, got {names:?}"
+        );
     }
 
     #[test]

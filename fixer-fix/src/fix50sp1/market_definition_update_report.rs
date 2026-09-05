@@ -8,6 +8,8 @@ use fixer::message::Message;
 use fixer::fix_string::FIXString;
 use fixer::errors::MessageRejectErrorEnum;
 use fixer::session::session_id::SessionID;
+use fixer::repeating_group::{Group, GroupTemplate, RepeatingGroup, group_element};
+use std::borrow::{Borrow, BorrowMut};
 
 use rust_decimal::Decimal;
 
@@ -553,15 +555,14 @@ impl MarketDefinitionUpdateReport {
 
 
     /// Sets `NoExecInstRules`, Tag 1232.
-    pub fn set_no_exec_inst_rules(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_EXEC_INST_RULES, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_exec_inst_rules(&mut self, f: NoExecInstRulesRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoExecInstRules`, Tag 1232.
-    pub fn get_no_exec_inst_rules(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoExecInstRulesField::new(0);
-        self.message.body.get_field(tag::NO_EXEC_INST_RULES, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_exec_inst_rules(&self) -> Result<NoExecInstRulesRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoExecInstRulesRepeatingGroup::new();
+        Ok(NoExecInstRulesRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -574,15 +575,14 @@ impl MarketDefinitionUpdateReport {
 
 
     /// Sets `NoLotTypeRules`, Tag 1234.
-    pub fn set_no_lot_type_rules(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_LOT_TYPE_RULES, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_lot_type_rules(&mut self, f: NoLotTypeRulesRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoLotTypeRules`, Tag 1234.
-    pub fn get_no_lot_type_rules(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoLotTypeRulesField::new(0);
-        self.message.body.get_field(tag::NO_LOT_TYPE_RULES, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_lot_type_rules(&self) -> Result<NoLotTypeRulesRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoLotTypeRulesRepeatingGroup::new();
+        Ok(NoLotTypeRulesRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -595,15 +595,14 @@ impl MarketDefinitionUpdateReport {
 
 
     /// Sets `NoOrdTypeRules`, Tag 1237.
-    pub fn set_no_ord_type_rules(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_ORD_TYPE_RULES, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_ord_type_rules(&mut self, f: NoOrdTypeRulesRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoOrdTypeRules`, Tag 1237.
-    pub fn get_no_ord_type_rules(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoOrdTypeRulesField::new(0);
-        self.message.body.get_field(tag::NO_ORD_TYPE_RULES, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_ord_type_rules(&self) -> Result<NoOrdTypeRulesRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoOrdTypeRulesRepeatingGroup::new();
+        Ok(NoOrdTypeRulesRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -616,15 +615,14 @@ impl MarketDefinitionUpdateReport {
 
 
     /// Sets `NoTickRules`, Tag 1205.
-    pub fn set_no_tick_rules(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_TICK_RULES, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_tick_rules(&mut self, f: NoTickRulesRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoTickRules`, Tag 1205.
-    pub fn get_no_tick_rules(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoTickRulesField::new(0);
-        self.message.body.get_field(tag::NO_TICK_RULES, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_tick_rules(&self) -> Result<NoTickRulesRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoTickRulesRepeatingGroup::new();
+        Ok(NoTickRulesRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -637,15 +635,14 @@ impl MarketDefinitionUpdateReport {
 
 
     /// Sets `NoTimeInForceRules`, Tag 1239.
-    pub fn set_no_time_in_force_rules(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_TIME_IN_FORCE_RULES, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_time_in_force_rules(&mut self, f: NoTimeInForceRulesRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoTimeInForceRules`, Tag 1239.
-    pub fn get_no_time_in_force_rules(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoTimeInForceRulesField::new(0);
-        self.message.body.get_field(tag::NO_TIME_IN_FORCE_RULES, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_time_in_force_rules(&self) -> Result<NoTimeInForceRulesRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoTimeInForceRulesRepeatingGroup::new();
+        Ok(NoTimeInForceRulesRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -841,3 +838,554 @@ pub fn route(router: RouteOut) -> Route {
     };
     ("8", "BV", Box::new(r))
 }
+
+
+/// `NoExecInstRules` is an entry in the `NoExecInstRules` repeating group, Tag 1232.
+pub struct NoExecInstRules<G>(pub G);
+
+impl<G: Borrow<Group>> NoExecInstRules<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `ExecInstValue`, Tag 1308.
+    pub fn get_exec_inst_value(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::ExecInstValueField::new(String::new());
+        self.group().field_map.get_field(tag::EXEC_INST_VALUE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `ExecInstValue` is present, Tag 1308.
+    pub fn has_exec_inst_value(&self) -> bool {
+        self.group().field_map.has(tag::EXEC_INST_VALUE)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoExecInstRules<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `ExecInstValue`, Tag 1308.
+    pub fn set_exec_inst_value(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::EXEC_INST_VALUE, FIXString::from(v));
+    }
+
+
+
+}
+
+/// `NoExecInstRulesRepeatingGroup` is the `NoExecInstRules` repeating group, Tag 1232.
+pub struct NoExecInstRulesRepeatingGroup(pub RepeatingGroup);
+
+impl NoExecInstRulesRepeatingGroup {
+    /// Creates an empty `NoExecInstRules` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::EXEC_INST_VALUE),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_EXEC_INST_RULES, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoExecInstRules<&mut Group> {
+        NoExecInstRules(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoExecInstRules<&Group> {
+        NoExecInstRules(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoExecInstRulesRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoLotTypeRules` is an entry in the `NoLotTypeRules` repeating group, Tag 1234.
+pub struct NoLotTypeRules<G>(pub G);
+
+impl<G: Borrow<Group>> NoLotTypeRules<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `LotType`, Tag 1093.
+    pub fn get_lot_type(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::LotTypeField::new(String::new());
+        self.group().field_map.get_field(tag::LOT_TYPE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `LotType` is present, Tag 1093.
+    pub fn has_lot_type(&self) -> bool {
+        self.group().field_map.has(tag::LOT_TYPE)
+    }
+
+
+
+
+    /// Gets `MinLotSize`, Tag 1231.
+    pub fn get_min_lot_size(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::MinLotSizeField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::MIN_LOT_SIZE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `MinLotSize` is present, Tag 1231.
+    pub fn has_min_lot_size(&self) -> bool {
+        self.group().field_map.has(tag::MIN_LOT_SIZE)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoLotTypeRules<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `LotType`, Tag 1093.
+    pub fn set_lot_type(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::LOT_TYPE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `MinLotSize`, Tag 1231.
+    pub fn set_min_lot_size(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::MIN_LOT_SIZE, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+}
+
+/// `NoLotTypeRulesRepeatingGroup` is the `NoLotTypeRules` repeating group, Tag 1234.
+pub struct NoLotTypeRulesRepeatingGroup(pub RepeatingGroup);
+
+impl NoLotTypeRulesRepeatingGroup {
+    /// Creates an empty `NoLotTypeRules` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::LOT_TYPE),
+
+
+
+            group_element(tag::MIN_LOT_SIZE),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_LOT_TYPE_RULES, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoLotTypeRules<&mut Group> {
+        NoLotTypeRules(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoLotTypeRules<&Group> {
+        NoLotTypeRules(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoLotTypeRulesRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoOrdTypeRules` is an entry in the `NoOrdTypeRules` repeating group, Tag 1237.
+pub struct NoOrdTypeRules<G>(pub G);
+
+impl<G: Borrow<Group>> NoOrdTypeRules<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `OrdType`, Tag 40.
+    pub fn get_ord_type(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::OrdTypeField::new(String::new());
+        self.group().field_map.get_field(tag::ORD_TYPE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `OrdType` is present, Tag 40.
+    pub fn has_ord_type(&self) -> bool {
+        self.group().field_map.has(tag::ORD_TYPE)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoOrdTypeRules<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `OrdType`, Tag 40.
+    pub fn set_ord_type(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::ORD_TYPE, FIXString::from(v));
+    }
+
+
+
+}
+
+/// `NoOrdTypeRulesRepeatingGroup` is the `NoOrdTypeRules` repeating group, Tag 1237.
+pub struct NoOrdTypeRulesRepeatingGroup(pub RepeatingGroup);
+
+impl NoOrdTypeRulesRepeatingGroup {
+    /// Creates an empty `NoOrdTypeRules` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::ORD_TYPE),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_ORD_TYPE_RULES, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoOrdTypeRules<&mut Group> {
+        NoOrdTypeRules(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoOrdTypeRules<&Group> {
+        NoOrdTypeRules(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoOrdTypeRulesRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoTickRules` is an entry in the `NoTickRules` repeating group, Tag 1205.
+pub struct NoTickRules<G>(pub G);
+
+impl<G: Borrow<Group>> NoTickRules<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `StartTickPriceRange`, Tag 1206.
+    pub fn get_start_tick_price_range(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::StartTickPriceRangeField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::START_TICK_PRICE_RANGE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `StartTickPriceRange` is present, Tag 1206.
+    pub fn has_start_tick_price_range(&self) -> bool {
+        self.group().field_map.has(tag::START_TICK_PRICE_RANGE)
+    }
+
+
+
+
+    /// Gets `EndTickPriceRange`, Tag 1207.
+    pub fn get_end_tick_price_range(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::EndTickPriceRangeField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::END_TICK_PRICE_RANGE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `EndTickPriceRange` is present, Tag 1207.
+    pub fn has_end_tick_price_range(&self) -> bool {
+        self.group().field_map.has(tag::END_TICK_PRICE_RANGE)
+    }
+
+
+
+
+    /// Gets `TickIncrement`, Tag 1208.
+    pub fn get_tick_increment(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::TickIncrementField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::TICK_INCREMENT, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `TickIncrement` is present, Tag 1208.
+    pub fn has_tick_increment(&self) -> bool {
+        self.group().field_map.has(tag::TICK_INCREMENT)
+    }
+
+
+
+
+    /// Gets `TickRuleType`, Tag 1209.
+    pub fn get_tick_rule_type(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::TickRuleTypeField::new(0);
+        self.group().field_map.get_field(tag::TICK_RULE_TYPE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `TickRuleType` is present, Tag 1209.
+    pub fn has_tick_rule_type(&self) -> bool {
+        self.group().field_map.has(tag::TICK_RULE_TYPE)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoTickRules<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `StartTickPriceRange`, Tag 1206.
+    pub fn set_start_tick_price_range(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::START_TICK_PRICE_RANGE, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `EndTickPriceRange`, Tag 1207.
+    pub fn set_end_tick_price_range(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::END_TICK_PRICE_RANGE, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `TickIncrement`, Tag 1208.
+    pub fn set_tick_increment(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::TICK_INCREMENT, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `TickRuleType`, Tag 1209.
+    pub fn set_tick_rule_type(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::TICK_RULE_TYPE, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+}
+
+/// `NoTickRulesRepeatingGroup` is the `NoTickRules` repeating group, Tag 1205.
+pub struct NoTickRulesRepeatingGroup(pub RepeatingGroup);
+
+impl NoTickRulesRepeatingGroup {
+    /// Creates an empty `NoTickRules` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::START_TICK_PRICE_RANGE),
+
+
+
+            group_element(tag::END_TICK_PRICE_RANGE),
+
+
+
+            group_element(tag::TICK_INCREMENT),
+
+
+
+            group_element(tag::TICK_RULE_TYPE),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_TICK_RULES, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoTickRules<&mut Group> {
+        NoTickRules(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoTickRules<&Group> {
+        NoTickRules(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoTickRulesRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoTimeInForceRules` is an entry in the `NoTimeInForceRules` repeating group, Tag 1239.
+pub struct NoTimeInForceRules<G>(pub G);
+
+impl<G: Borrow<Group>> NoTimeInForceRules<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `TimeInForce`, Tag 59.
+    pub fn get_time_in_force(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::TimeInForceField::new(String::new());
+        self.group().field_map.get_field(tag::TIME_IN_FORCE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `TimeInForce` is present, Tag 59.
+    pub fn has_time_in_force(&self) -> bool {
+        self.group().field_map.has(tag::TIME_IN_FORCE)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoTimeInForceRules<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `TimeInForce`, Tag 59.
+    pub fn set_time_in_force(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::TIME_IN_FORCE, FIXString::from(v));
+    }
+
+
+
+}
+
+/// `NoTimeInForceRulesRepeatingGroup` is the `NoTimeInForceRules` repeating group, Tag 1239.
+pub struct NoTimeInForceRulesRepeatingGroup(pub RepeatingGroup);
+
+impl NoTimeInForceRulesRepeatingGroup {
+    /// Creates an empty `NoTimeInForceRules` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::TIME_IN_FORCE),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_TIME_IN_FORCE_RULES, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoTimeInForceRules<&mut Group> {
+        NoTimeInForceRules(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoTimeInForceRules<&Group> {
+        NoTimeInForceRules(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoTimeInForceRulesRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+

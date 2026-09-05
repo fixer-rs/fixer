@@ -92,7 +92,7 @@ impl SqlLog {
             "INSERT INTO {table} (time, beginstring, session_qualifier, sendercompid, sendersubid, senderlocid, targetcompid, targetsubid, targetlocid, text) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         );
 
-        let _ = sqlx::query(&sql)
+        let _ = sqlx::query(sqlx::AssertSqlSafe(sql))
             .bind(&now)
             .bind(&s.begin_string)
             .bind(&s.qualifier)

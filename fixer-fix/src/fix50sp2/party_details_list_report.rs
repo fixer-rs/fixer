@@ -8,6 +8,10 @@ use fixer::message::Message;
 use fixer::fix_string::FIXString;
 use fixer::errors::MessageRejectErrorEnum;
 use fixer::session::session_id::SessionID;
+use fixer::repeating_group::{Group, GroupTemplate, RepeatingGroup, group_element};
+use std::borrow::{Borrow, BorrowMut};
+
+use rust_decimal::Decimal;
 
 
 use crate::field;
@@ -190,15 +194,14 @@ impl PartyDetailsListReport {
 
 
     /// Sets `NoPartyList`, Tag 1513.
-    pub fn set_no_party_list(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_PARTY_LIST, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_party_list(&mut self, f: NoPartyListRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoPartyList`, Tag 1513.
-    pub fn get_no_party_list(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoPartyListField::new(0);
-        self.message.body.get_field(tag::NO_PARTY_LIST, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_party_list(&self) -> Result<NoPartyListRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoPartyListRepeatingGroup::new();
+        Ok(NoPartyListRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -328,3 +331,4478 @@ pub fn route(router: RouteOut) -> Route {
     };
     ("9", "CG", Box::new(r))
 }
+
+
+/// `NoPartySubIDs` is an entry in the `NoPartySubIDs` repeating group, Tag 802.
+pub struct NoPartyListNoPartySubIDs<G>(pub G);
+
+impl<G: Borrow<Group>> NoPartyListNoPartySubIDs<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `PartySubID`, Tag 523.
+    pub fn get_party_sub_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::PartySubIDField::new(String::new());
+        self.group().field_map.get_field(tag::PARTY_SUB_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `PartySubID` is present, Tag 523.
+    pub fn has_party_sub_id(&self) -> bool {
+        self.group().field_map.has(tag::PARTY_SUB_ID)
+    }
+
+
+
+
+    /// Gets `PartySubIDType`, Tag 803.
+    pub fn get_party_sub_id_type(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::PartySubIDTypeField::new(0);
+        self.group().field_map.get_field(tag::PARTY_SUB_ID_TYPE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `PartySubIDType` is present, Tag 803.
+    pub fn has_party_sub_id_type(&self) -> bool {
+        self.group().field_map.has(tag::PARTY_SUB_ID_TYPE)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoPartyListNoPartySubIDs<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `PartySubID`, Tag 523.
+    pub fn set_party_sub_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::PARTY_SUB_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `PartySubIDType`, Tag 803.
+    pub fn set_party_sub_id_type(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::PARTY_SUB_ID_TYPE, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+}
+
+/// `NoPartyListNoPartySubIDsRepeatingGroup` is the `NoPartySubIDs` repeating group, Tag 802.
+pub struct NoPartyListNoPartySubIDsRepeatingGroup(pub RepeatingGroup);
+
+impl NoPartyListNoPartySubIDsRepeatingGroup {
+    /// Creates an empty `NoPartySubIDs` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::PARTY_SUB_ID),
+
+
+
+            group_element(tag::PARTY_SUB_ID_TYPE),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_PARTY_SUB_I_DS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoPartyListNoPartySubIDs<&mut Group> {
+        NoPartyListNoPartySubIDs(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoPartyListNoPartySubIDs<&Group> {
+        NoPartyListNoPartySubIDs(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoPartyListNoPartySubIDsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoPartyAltSubIDs` is an entry in the `NoPartyAltSubIDs` repeating group, Tag 1519.
+pub struct NoPartyListNoPartyAltIDsNoPartyAltSubIDs<G>(pub G);
+
+impl<G: Borrow<Group>> NoPartyListNoPartyAltIDsNoPartyAltSubIDs<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `PartyAltSubID`, Tag 1520.
+    pub fn get_party_alt_sub_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::PartyAltSubIDField::new(String::new());
+        self.group().field_map.get_field(tag::PARTY_ALT_SUB_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `PartyAltSubID` is present, Tag 1520.
+    pub fn has_party_alt_sub_id(&self) -> bool {
+        self.group().field_map.has(tag::PARTY_ALT_SUB_ID)
+    }
+
+
+
+
+    /// Gets `PartyAltSubIDType`, Tag 1521.
+    pub fn get_party_alt_sub_id_type(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::PartyAltSubIDTypeField::new(0);
+        self.group().field_map.get_field(tag::PARTY_ALT_SUB_ID_TYPE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `PartyAltSubIDType` is present, Tag 1521.
+    pub fn has_party_alt_sub_id_type(&self) -> bool {
+        self.group().field_map.has(tag::PARTY_ALT_SUB_ID_TYPE)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoPartyListNoPartyAltIDsNoPartyAltSubIDs<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `PartyAltSubID`, Tag 1520.
+    pub fn set_party_alt_sub_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::PARTY_ALT_SUB_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `PartyAltSubIDType`, Tag 1521.
+    pub fn set_party_alt_sub_id_type(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::PARTY_ALT_SUB_ID_TYPE, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+}
+
+/// `NoPartyListNoPartyAltIDsNoPartyAltSubIDsRepeatingGroup` is the `NoPartyAltSubIDs` repeating group, Tag 1519.
+pub struct NoPartyListNoPartyAltIDsNoPartyAltSubIDsRepeatingGroup(pub RepeatingGroup);
+
+impl NoPartyListNoPartyAltIDsNoPartyAltSubIDsRepeatingGroup {
+    /// Creates an empty `NoPartyAltSubIDs` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::PARTY_ALT_SUB_ID),
+
+
+
+            group_element(tag::PARTY_ALT_SUB_ID_TYPE),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_PARTY_ALT_SUB_I_DS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoPartyListNoPartyAltIDsNoPartyAltSubIDs<&mut Group> {
+        NoPartyListNoPartyAltIDsNoPartyAltSubIDs(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoPartyListNoPartyAltIDsNoPartyAltSubIDs<&Group> {
+        NoPartyListNoPartyAltIDsNoPartyAltSubIDs(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoPartyListNoPartyAltIDsNoPartyAltSubIDsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoPartyAltIDs` is an entry in the `NoPartyAltIDs` repeating group, Tag 1516.
+pub struct NoPartyListNoPartyAltIDs<G>(pub G);
+
+impl<G: Borrow<Group>> NoPartyListNoPartyAltIDs<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `PartyAltID`, Tag 1517.
+    pub fn get_party_alt_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::PartyAltIDField::new(String::new());
+        self.group().field_map.get_field(tag::PARTY_ALT_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `PartyAltID` is present, Tag 1517.
+    pub fn has_party_alt_id(&self) -> bool {
+        self.group().field_map.has(tag::PARTY_ALT_ID)
+    }
+
+
+
+
+    /// Gets `PartyAltIDSource`, Tag 1518.
+    pub fn get_party_alt_id_source(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::PartyAltIDSourceField::new(String::new());
+        self.group().field_map.get_field(tag::PARTY_ALT_ID_SOURCE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `PartyAltIDSource` is present, Tag 1518.
+    pub fn has_party_alt_id_source(&self) -> bool {
+        self.group().field_map.has(tag::PARTY_ALT_ID_SOURCE)
+    }
+
+
+
+
+    /// Gets `NoPartyAltSubIDs`, Tag 1519.
+    pub fn get_no_party_alt_sub_i_ds(&self) -> Result<NoPartyListNoPartyAltIDsNoPartyAltSubIDsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoPartyListNoPartyAltIDsNoPartyAltSubIDsRepeatingGroup::new();
+        Ok(NoPartyListNoPartyAltIDsNoPartyAltSubIDsRepeatingGroup(self.group().field_map.get_group(g.0)?))
+    }
+
+
+    /// Returns true if `NoPartyAltSubIDs` is present, Tag 1519.
+    pub fn has_no_party_alt_sub_i_ds(&self) -> bool {
+        self.group().field_map.has(tag::NO_PARTY_ALT_SUB_I_DS)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoPartyListNoPartyAltIDs<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `PartyAltID`, Tag 1517.
+    pub fn set_party_alt_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::PARTY_ALT_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `PartyAltIDSource`, Tag 1518.
+    pub fn set_party_alt_id_source(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::PARTY_ALT_ID_SOURCE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `NoPartyAltSubIDs`, Tag 1519.
+    pub fn set_no_party_alt_sub_i_ds(&mut self, f: NoPartyListNoPartyAltIDsNoPartyAltSubIDsRepeatingGroup) {
+        self.group_mut().field_map.set_group(f.0);
+    }
+
+
+
+}
+
+/// `NoPartyListNoPartyAltIDsRepeatingGroup` is the `NoPartyAltIDs` repeating group, Tag 1516.
+pub struct NoPartyListNoPartyAltIDsRepeatingGroup(pub RepeatingGroup);
+
+impl NoPartyListNoPartyAltIDsRepeatingGroup {
+    /// Creates an empty `NoPartyAltIDs` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::PARTY_ALT_ID),
+
+
+
+            group_element(tag::PARTY_ALT_ID_SOURCE),
+
+
+
+            Box::new(NoPartyListNoPartyAltIDsNoPartyAltSubIDsRepeatingGroup::new().0),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_PARTY_ALT_I_DS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoPartyListNoPartyAltIDs<&mut Group> {
+        NoPartyListNoPartyAltIDs(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoPartyListNoPartyAltIDs<&Group> {
+        NoPartyListNoPartyAltIDs(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoPartyListNoPartyAltIDsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoContextPartySubIDs` is an entry in the `NoContextPartySubIDs` repeating group, Tag 1526.
+pub struct NoPartyListNoContextPartyIDsNoContextPartySubIDs<G>(pub G);
+
+impl<G: Borrow<Group>> NoPartyListNoContextPartyIDsNoContextPartySubIDs<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `ContextPartySubID`, Tag 1527.
+    pub fn get_context_party_sub_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::ContextPartySubIDField::new(String::new());
+        self.group().field_map.get_field(tag::CONTEXT_PARTY_SUB_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `ContextPartySubID` is present, Tag 1527.
+    pub fn has_context_party_sub_id(&self) -> bool {
+        self.group().field_map.has(tag::CONTEXT_PARTY_SUB_ID)
+    }
+
+
+
+
+    /// Gets `ContextPartySubIDType`, Tag 1528.
+    pub fn get_context_party_sub_id_type(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::ContextPartySubIDTypeField::new(0);
+        self.group().field_map.get_field(tag::CONTEXT_PARTY_SUB_ID_TYPE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `ContextPartySubIDType` is present, Tag 1528.
+    pub fn has_context_party_sub_id_type(&self) -> bool {
+        self.group().field_map.has(tag::CONTEXT_PARTY_SUB_ID_TYPE)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoPartyListNoContextPartyIDsNoContextPartySubIDs<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `ContextPartySubID`, Tag 1527.
+    pub fn set_context_party_sub_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::CONTEXT_PARTY_SUB_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `ContextPartySubIDType`, Tag 1528.
+    pub fn set_context_party_sub_id_type(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::CONTEXT_PARTY_SUB_ID_TYPE, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+}
+
+/// `NoPartyListNoContextPartyIDsNoContextPartySubIDsRepeatingGroup` is the `NoContextPartySubIDs` repeating group, Tag 1526.
+pub struct NoPartyListNoContextPartyIDsNoContextPartySubIDsRepeatingGroup(pub RepeatingGroup);
+
+impl NoPartyListNoContextPartyIDsNoContextPartySubIDsRepeatingGroup {
+    /// Creates an empty `NoContextPartySubIDs` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::CONTEXT_PARTY_SUB_ID),
+
+
+
+            group_element(tag::CONTEXT_PARTY_SUB_ID_TYPE),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_CONTEXT_PARTY_SUB_I_DS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoPartyListNoContextPartyIDsNoContextPartySubIDs<&mut Group> {
+        NoPartyListNoContextPartyIDsNoContextPartySubIDs(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoPartyListNoContextPartyIDsNoContextPartySubIDs<&Group> {
+        NoPartyListNoContextPartyIDsNoContextPartySubIDs(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoPartyListNoContextPartyIDsNoContextPartySubIDsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoContextPartyIDs` is an entry in the `NoContextPartyIDs` repeating group, Tag 1522.
+pub struct NoPartyListNoContextPartyIDs<G>(pub G);
+
+impl<G: Borrow<Group>> NoPartyListNoContextPartyIDs<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `ContextPartyID`, Tag 1523.
+    pub fn get_context_party_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::ContextPartyIDField::new(String::new());
+        self.group().field_map.get_field(tag::CONTEXT_PARTY_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `ContextPartyID` is present, Tag 1523.
+    pub fn has_context_party_id(&self) -> bool {
+        self.group().field_map.has(tag::CONTEXT_PARTY_ID)
+    }
+
+
+
+
+    /// Gets `ContextPartyIDSource`, Tag 1524.
+    pub fn get_context_party_id_source(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::ContextPartyIDSourceField::new(String::new());
+        self.group().field_map.get_field(tag::CONTEXT_PARTY_ID_SOURCE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `ContextPartyIDSource` is present, Tag 1524.
+    pub fn has_context_party_id_source(&self) -> bool {
+        self.group().field_map.has(tag::CONTEXT_PARTY_ID_SOURCE)
+    }
+
+
+
+
+    /// Gets `ContextPartyRole`, Tag 1525.
+    pub fn get_context_party_role(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::ContextPartyRoleField::new(0);
+        self.group().field_map.get_field(tag::CONTEXT_PARTY_ROLE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `ContextPartyRole` is present, Tag 1525.
+    pub fn has_context_party_role(&self) -> bool {
+        self.group().field_map.has(tag::CONTEXT_PARTY_ROLE)
+    }
+
+
+
+
+    /// Gets `NoContextPartySubIDs`, Tag 1526.
+    pub fn get_no_context_party_sub_i_ds(&self) -> Result<NoPartyListNoContextPartyIDsNoContextPartySubIDsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoPartyListNoContextPartyIDsNoContextPartySubIDsRepeatingGroup::new();
+        Ok(NoPartyListNoContextPartyIDsNoContextPartySubIDsRepeatingGroup(self.group().field_map.get_group(g.0)?))
+    }
+
+
+    /// Returns true if `NoContextPartySubIDs` is present, Tag 1526.
+    pub fn has_no_context_party_sub_i_ds(&self) -> bool {
+        self.group().field_map.has(tag::NO_CONTEXT_PARTY_SUB_I_DS)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoPartyListNoContextPartyIDs<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `ContextPartyID`, Tag 1523.
+    pub fn set_context_party_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::CONTEXT_PARTY_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `ContextPartyIDSource`, Tag 1524.
+    pub fn set_context_party_id_source(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::CONTEXT_PARTY_ID_SOURCE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `ContextPartyRole`, Tag 1525.
+    pub fn set_context_party_role(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::CONTEXT_PARTY_ROLE, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `NoContextPartySubIDs`, Tag 1526.
+    pub fn set_no_context_party_sub_i_ds(&mut self, f: NoPartyListNoContextPartyIDsNoContextPartySubIDsRepeatingGroup) {
+        self.group_mut().field_map.set_group(f.0);
+    }
+
+
+
+}
+
+/// `NoPartyListNoContextPartyIDsRepeatingGroup` is the `NoContextPartyIDs` repeating group, Tag 1522.
+pub struct NoPartyListNoContextPartyIDsRepeatingGroup(pub RepeatingGroup);
+
+impl NoPartyListNoContextPartyIDsRepeatingGroup {
+    /// Creates an empty `NoContextPartyIDs` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::CONTEXT_PARTY_ID),
+
+
+
+            group_element(tag::CONTEXT_PARTY_ID_SOURCE),
+
+
+
+            group_element(tag::CONTEXT_PARTY_ROLE),
+
+
+
+            Box::new(NoPartyListNoContextPartyIDsNoContextPartySubIDsRepeatingGroup::new().0),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_CONTEXT_PARTY_I_DS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoPartyListNoContextPartyIDs<&mut Group> {
+        NoPartyListNoContextPartyIDs(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoPartyListNoContextPartyIDs<&Group> {
+        NoPartyListNoContextPartyIDs(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoPartyListNoContextPartyIDsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoRiskSecurityAltID` is an entry in the `NoRiskSecurityAltID` repeating group, Tag 1540.
+pub struct NoPartyListNoRiskLimitsNoRiskInstrumentsNoRiskSecurityAltID<G>(pub G);
+
+impl<G: Borrow<Group>> NoPartyListNoRiskLimitsNoRiskInstrumentsNoRiskSecurityAltID<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `RiskSecurityAltID`, Tag 1541.
+    pub fn get_risk_security_alt_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RiskSecurityAltIDField::new(String::new());
+        self.group().field_map.get_field(tag::RISK_SECURITY_ALT_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RiskSecurityAltID` is present, Tag 1541.
+    pub fn has_risk_security_alt_id(&self) -> bool {
+        self.group().field_map.has(tag::RISK_SECURITY_ALT_ID)
+    }
+
+
+
+
+    /// Gets `RiskSecurityAltIDSource`, Tag 1542.
+    pub fn get_risk_security_alt_id_source(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RiskSecurityAltIDSourceField::new(String::new());
+        self.group().field_map.get_field(tag::RISK_SECURITY_ALT_ID_SOURCE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RiskSecurityAltIDSource` is present, Tag 1542.
+    pub fn has_risk_security_alt_id_source(&self) -> bool {
+        self.group().field_map.has(tag::RISK_SECURITY_ALT_ID_SOURCE)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoPartyListNoRiskLimitsNoRiskInstrumentsNoRiskSecurityAltID<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `RiskSecurityAltID`, Tag 1541.
+    pub fn set_risk_security_alt_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RISK_SECURITY_ALT_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RiskSecurityAltIDSource`, Tag 1542.
+    pub fn set_risk_security_alt_id_source(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RISK_SECURITY_ALT_ID_SOURCE, FIXString::from(v));
+    }
+
+
+
+}
+
+/// `NoPartyListNoRiskLimitsNoRiskInstrumentsNoRiskSecurityAltIDRepeatingGroup` is the `NoRiskSecurityAltID` repeating group, Tag 1540.
+pub struct NoPartyListNoRiskLimitsNoRiskInstrumentsNoRiskSecurityAltIDRepeatingGroup(pub RepeatingGroup);
+
+impl NoPartyListNoRiskLimitsNoRiskInstrumentsNoRiskSecurityAltIDRepeatingGroup {
+    /// Creates an empty `NoRiskSecurityAltID` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::RISK_SECURITY_ALT_ID),
+
+
+
+            group_element(tag::RISK_SECURITY_ALT_ID_SOURCE),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_RISK_SECURITY_ALT_ID, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoPartyListNoRiskLimitsNoRiskInstrumentsNoRiskSecurityAltID<&mut Group> {
+        NoPartyListNoRiskLimitsNoRiskInstrumentsNoRiskSecurityAltID(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoPartyListNoRiskLimitsNoRiskInstrumentsNoRiskSecurityAltID<&Group> {
+        NoPartyListNoRiskLimitsNoRiskInstrumentsNoRiskSecurityAltID(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoPartyListNoRiskLimitsNoRiskInstrumentsNoRiskSecurityAltIDRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoRiskInstruments` is an entry in the `NoRiskInstruments` repeating group, Tag 1534.
+pub struct NoPartyListNoRiskLimitsNoRiskInstruments<G>(pub G);
+
+impl<G: Borrow<Group>> NoPartyListNoRiskLimitsNoRiskInstruments<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `RiskInstrumentOperator`, Tag 1535.
+    pub fn get_risk_instrument_operator(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::RiskInstrumentOperatorField::new(0);
+        self.group().field_map.get_field(tag::RISK_INSTRUMENT_OPERATOR, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `RiskInstrumentOperator` is present, Tag 1535.
+    pub fn has_risk_instrument_operator(&self) -> bool {
+        self.group().field_map.has(tag::RISK_INSTRUMENT_OPERATOR)
+    }
+
+
+
+
+    /// Gets `RiskSymbol`, Tag 1536.
+    pub fn get_risk_symbol(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RiskSymbolField::new(String::new());
+        self.group().field_map.get_field(tag::RISK_SYMBOL, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RiskSymbol` is present, Tag 1536.
+    pub fn has_risk_symbol(&self) -> bool {
+        self.group().field_map.has(tag::RISK_SYMBOL)
+    }
+
+
+
+
+    /// Gets `RiskSymbolSfx`, Tag 1537.
+    pub fn get_risk_symbol_sfx(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RiskSymbolSfxField::new(String::new());
+        self.group().field_map.get_field(tag::RISK_SYMBOL_SFX, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RiskSymbolSfx` is present, Tag 1537.
+    pub fn has_risk_symbol_sfx(&self) -> bool {
+        self.group().field_map.has(tag::RISK_SYMBOL_SFX)
+    }
+
+
+
+
+    /// Gets `RiskSecurityID`, Tag 1538.
+    pub fn get_risk_security_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RiskSecurityIDField::new(String::new());
+        self.group().field_map.get_field(tag::RISK_SECURITY_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RiskSecurityID` is present, Tag 1538.
+    pub fn has_risk_security_id(&self) -> bool {
+        self.group().field_map.has(tag::RISK_SECURITY_ID)
+    }
+
+
+
+
+    /// Gets `RiskSecurityIDSource`, Tag 1539.
+    pub fn get_risk_security_id_source(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RiskSecurityIDSourceField::new(String::new());
+        self.group().field_map.get_field(tag::RISK_SECURITY_ID_SOURCE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RiskSecurityIDSource` is present, Tag 1539.
+    pub fn has_risk_security_id_source(&self) -> bool {
+        self.group().field_map.has(tag::RISK_SECURITY_ID_SOURCE)
+    }
+
+
+
+
+    /// Gets `NoRiskSecurityAltID`, Tag 1540.
+    pub fn get_no_risk_security_alt_id(&self) -> Result<NoPartyListNoRiskLimitsNoRiskInstrumentsNoRiskSecurityAltIDRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoPartyListNoRiskLimitsNoRiskInstrumentsNoRiskSecurityAltIDRepeatingGroup::new();
+        Ok(NoPartyListNoRiskLimitsNoRiskInstrumentsNoRiskSecurityAltIDRepeatingGroup(self.group().field_map.get_group(g.0)?))
+    }
+
+
+    /// Returns true if `NoRiskSecurityAltID` is present, Tag 1540.
+    pub fn has_no_risk_security_alt_id(&self) -> bool {
+        self.group().field_map.has(tag::NO_RISK_SECURITY_ALT_ID)
+    }
+
+
+
+
+    /// Gets `RiskProduct`, Tag 1543.
+    pub fn get_risk_product(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::RiskProductField::new(0);
+        self.group().field_map.get_field(tag::RISK_PRODUCT, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `RiskProduct` is present, Tag 1543.
+    pub fn has_risk_product(&self) -> bool {
+        self.group().field_map.has(tag::RISK_PRODUCT)
+    }
+
+
+
+
+    /// Gets `RiskProductComplex`, Tag 1544.
+    pub fn get_risk_product_complex(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RiskProductComplexField::new(String::new());
+        self.group().field_map.get_field(tag::RISK_PRODUCT_COMPLEX, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RiskProductComplex` is present, Tag 1544.
+    pub fn has_risk_product_complex(&self) -> bool {
+        self.group().field_map.has(tag::RISK_PRODUCT_COMPLEX)
+    }
+
+
+
+
+    /// Gets `RiskSecurityGroup`, Tag 1545.
+    pub fn get_risk_security_group(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RiskSecurityGroupField::new(String::new());
+        self.group().field_map.get_field(tag::RISK_SECURITY_GROUP, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RiskSecurityGroup` is present, Tag 1545.
+    pub fn has_risk_security_group(&self) -> bool {
+        self.group().field_map.has(tag::RISK_SECURITY_GROUP)
+    }
+
+
+
+
+    /// Gets `RiskCFICode`, Tag 1546.
+    pub fn get_risk_cfi_code(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RiskCFICodeField::new(String::new());
+        self.group().field_map.get_field(tag::RISK_CFI_CODE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RiskCFICode` is present, Tag 1546.
+    pub fn has_risk_cfi_code(&self) -> bool {
+        self.group().field_map.has(tag::RISK_CFI_CODE)
+    }
+
+
+
+
+    /// Gets `RiskSecurityType`, Tag 1547.
+    pub fn get_risk_security_type(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RiskSecurityTypeField::new(String::new());
+        self.group().field_map.get_field(tag::RISK_SECURITY_TYPE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RiskSecurityType` is present, Tag 1547.
+    pub fn has_risk_security_type(&self) -> bool {
+        self.group().field_map.has(tag::RISK_SECURITY_TYPE)
+    }
+
+
+
+
+    /// Gets `RiskSecuritySubType`, Tag 1548.
+    pub fn get_risk_security_sub_type(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RiskSecuritySubTypeField::new(String::new());
+        self.group().field_map.get_field(tag::RISK_SECURITY_SUB_TYPE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RiskSecuritySubType` is present, Tag 1548.
+    pub fn has_risk_security_sub_type(&self) -> bool {
+        self.group().field_map.has(tag::RISK_SECURITY_SUB_TYPE)
+    }
+
+
+
+
+    /// Gets `RiskMaturityMonthYear`, Tag 1549.
+    pub fn get_risk_maturity_month_year(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RiskMaturityMonthYearField::new(String::new());
+        self.group().field_map.get_field(tag::RISK_MATURITY_MONTH_YEAR, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RiskMaturityMonthYear` is present, Tag 1549.
+    pub fn has_risk_maturity_month_year(&self) -> bool {
+        self.group().field_map.has(tag::RISK_MATURITY_MONTH_YEAR)
+    }
+
+
+
+
+    /// Gets `RiskMaturityTime`, Tag 1550.
+    pub fn get_risk_maturity_time(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RiskMaturityTimeField::new(String::new());
+        self.group().field_map.get_field(tag::RISK_MATURITY_TIME, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RiskMaturityTime` is present, Tag 1550.
+    pub fn has_risk_maturity_time(&self) -> bool {
+        self.group().field_map.has(tag::RISK_MATURITY_TIME)
+    }
+
+
+
+
+    /// Gets `RiskRestructuringType`, Tag 1551.
+    pub fn get_risk_restructuring_type(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RiskRestructuringTypeField::new(String::new());
+        self.group().field_map.get_field(tag::RISK_RESTRUCTURING_TYPE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RiskRestructuringType` is present, Tag 1551.
+    pub fn has_risk_restructuring_type(&self) -> bool {
+        self.group().field_map.has(tag::RISK_RESTRUCTURING_TYPE)
+    }
+
+
+
+
+    /// Gets `RiskSeniority`, Tag 1552.
+    pub fn get_risk_seniority(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RiskSeniorityField::new(String::new());
+        self.group().field_map.get_field(tag::RISK_SENIORITY, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RiskSeniority` is present, Tag 1552.
+    pub fn has_risk_seniority(&self) -> bool {
+        self.group().field_map.has(tag::RISK_SENIORITY)
+    }
+
+
+
+
+    /// Gets `RiskPutOrCall`, Tag 1553.
+    pub fn get_risk_put_or_call(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::RiskPutOrCallField::new(0);
+        self.group().field_map.get_field(tag::RISK_PUT_OR_CALL, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `RiskPutOrCall` is present, Tag 1553.
+    pub fn has_risk_put_or_call(&self) -> bool {
+        self.group().field_map.has(tag::RISK_PUT_OR_CALL)
+    }
+
+
+
+
+    /// Gets `RiskFlexibleIndicator`, Tag 1554.
+    pub fn get_risk_flexible_indicator(&self) -> Result<bool, MessageRejectErrorEnum> {
+        let mut fld = field::RiskFlexibleIndicatorField::new(false);
+        self.group().field_map.get_field(tag::RISK_FLEXIBLE_INDICATOR, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `RiskFlexibleIndicator` is present, Tag 1554.
+    pub fn has_risk_flexible_indicator(&self) -> bool {
+        self.group().field_map.has(tag::RISK_FLEXIBLE_INDICATOR)
+    }
+
+
+
+
+    /// Gets `RiskCouponRate`, Tag 1555.
+    pub fn get_risk_coupon_rate(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::RiskCouponRateField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::RISK_COUPON_RATE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `RiskCouponRate` is present, Tag 1555.
+    pub fn has_risk_coupon_rate(&self) -> bool {
+        self.group().field_map.has(tag::RISK_COUPON_RATE)
+    }
+
+
+
+
+    /// Gets `RiskSecurityExchange`, Tag 1616.
+    pub fn get_risk_security_exchange(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RiskSecurityExchangeField::new(String::new());
+        self.group().field_map.get_field(tag::RISK_SECURITY_EXCHANGE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RiskSecurityExchange` is present, Tag 1616.
+    pub fn has_risk_security_exchange(&self) -> bool {
+        self.group().field_map.has(tag::RISK_SECURITY_EXCHANGE)
+    }
+
+
+
+
+    /// Gets `RiskSecurityDesc`, Tag 1556.
+    pub fn get_risk_security_desc(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RiskSecurityDescField::new(String::new());
+        self.group().field_map.get_field(tag::RISK_SECURITY_DESC, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RiskSecurityDesc` is present, Tag 1556.
+    pub fn has_risk_security_desc(&self) -> bool {
+        self.group().field_map.has(tag::RISK_SECURITY_DESC)
+    }
+
+
+
+
+    /// Gets `RiskEncodedSecurityDescLen`, Tag 1620.
+    pub fn get_risk_encoded_security_desc_len(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::RiskEncodedSecurityDescLenField::new(0);
+        self.group().field_map.get_field(tag::RISK_ENCODED_SECURITY_DESC_LEN, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `RiskEncodedSecurityDescLen` is present, Tag 1620.
+    pub fn has_risk_encoded_security_desc_len(&self) -> bool {
+        self.group().field_map.has(tag::RISK_ENCODED_SECURITY_DESC_LEN)
+    }
+
+
+
+
+    /// Gets `RiskEncodedSecurityDesc`, Tag 1621.
+    pub fn get_risk_encoded_security_desc(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RiskEncodedSecurityDescField::new(String::new());
+        self.group().field_map.get_field(tag::RISK_ENCODED_SECURITY_DESC, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RiskEncodedSecurityDesc` is present, Tag 1621.
+    pub fn has_risk_encoded_security_desc(&self) -> bool {
+        self.group().field_map.has(tag::RISK_ENCODED_SECURITY_DESC)
+    }
+
+
+
+
+    /// Gets `RiskInstrumentSettlType`, Tag 1557.
+    pub fn get_risk_instrument_settl_type(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RiskInstrumentSettlTypeField::new(String::new());
+        self.group().field_map.get_field(tag::RISK_INSTRUMENT_SETTL_TYPE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RiskInstrumentSettlType` is present, Tag 1557.
+    pub fn has_risk_instrument_settl_type(&self) -> bool {
+        self.group().field_map.has(tag::RISK_INSTRUMENT_SETTL_TYPE)
+    }
+
+
+
+
+    /// Gets `RiskInstrumentMultiplier`, Tag 1558.
+    pub fn get_risk_instrument_multiplier(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::RiskInstrumentMultiplierField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::RISK_INSTRUMENT_MULTIPLIER, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `RiskInstrumentMultiplier` is present, Tag 1558.
+    pub fn has_risk_instrument_multiplier(&self) -> bool {
+        self.group().field_map.has(tag::RISK_INSTRUMENT_MULTIPLIER)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoPartyListNoRiskLimitsNoRiskInstruments<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `RiskInstrumentOperator`, Tag 1535.
+    pub fn set_risk_instrument_operator(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::RISK_INSTRUMENT_OPERATOR, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `RiskSymbol`, Tag 1536.
+    pub fn set_risk_symbol(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RISK_SYMBOL, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RiskSymbolSfx`, Tag 1537.
+    pub fn set_risk_symbol_sfx(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RISK_SYMBOL_SFX, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RiskSecurityID`, Tag 1538.
+    pub fn set_risk_security_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RISK_SECURITY_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RiskSecurityIDSource`, Tag 1539.
+    pub fn set_risk_security_id_source(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RISK_SECURITY_ID_SOURCE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `NoRiskSecurityAltID`, Tag 1540.
+    pub fn set_no_risk_security_alt_id(&mut self, f: NoPartyListNoRiskLimitsNoRiskInstrumentsNoRiskSecurityAltIDRepeatingGroup) {
+        self.group_mut().field_map.set_group(f.0);
+    }
+
+
+
+
+
+    /// Sets `RiskProduct`, Tag 1543.
+    pub fn set_risk_product(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::RISK_PRODUCT, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `RiskProductComplex`, Tag 1544.
+    pub fn set_risk_product_complex(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RISK_PRODUCT_COMPLEX, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RiskSecurityGroup`, Tag 1545.
+    pub fn set_risk_security_group(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RISK_SECURITY_GROUP, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RiskCFICode`, Tag 1546.
+    pub fn set_risk_cfi_code(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RISK_CFI_CODE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RiskSecurityType`, Tag 1547.
+    pub fn set_risk_security_type(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RISK_SECURITY_TYPE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RiskSecuritySubType`, Tag 1548.
+    pub fn set_risk_security_sub_type(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RISK_SECURITY_SUB_TYPE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RiskMaturityMonthYear`, Tag 1549.
+    pub fn set_risk_maturity_month_year(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RISK_MATURITY_MONTH_YEAR, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RiskMaturityTime`, Tag 1550.
+    pub fn set_risk_maturity_time(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RISK_MATURITY_TIME, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RiskRestructuringType`, Tag 1551.
+    pub fn set_risk_restructuring_type(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RISK_RESTRUCTURING_TYPE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RiskSeniority`, Tag 1552.
+    pub fn set_risk_seniority(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RISK_SENIORITY, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RiskPutOrCall`, Tag 1553.
+    pub fn set_risk_put_or_call(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::RISK_PUT_OR_CALL, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `RiskFlexibleIndicator`, Tag 1554.
+    pub fn set_risk_flexible_indicator(&mut self, v: bool) {
+        self.group_mut().field_map.set_field(tag::RISK_FLEXIBLE_INDICATOR, fixer::fix_boolean::FIXBoolean::from(v));
+    }
+
+
+
+
+
+    /// Sets `RiskCouponRate`, Tag 1555.
+    pub fn set_risk_coupon_rate(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::RISK_COUPON_RATE, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `RiskSecurityExchange`, Tag 1616.
+    pub fn set_risk_security_exchange(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RISK_SECURITY_EXCHANGE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RiskSecurityDesc`, Tag 1556.
+    pub fn set_risk_security_desc(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RISK_SECURITY_DESC, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RiskEncodedSecurityDescLen`, Tag 1620.
+    pub fn set_risk_encoded_security_desc_len(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::RISK_ENCODED_SECURITY_DESC_LEN, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `RiskEncodedSecurityDesc`, Tag 1621.
+    pub fn set_risk_encoded_security_desc(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RISK_ENCODED_SECURITY_DESC, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RiskInstrumentSettlType`, Tag 1557.
+    pub fn set_risk_instrument_settl_type(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RISK_INSTRUMENT_SETTL_TYPE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RiskInstrumentMultiplier`, Tag 1558.
+    pub fn set_risk_instrument_multiplier(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::RISK_INSTRUMENT_MULTIPLIER, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+}
+
+/// `NoPartyListNoRiskLimitsNoRiskInstrumentsRepeatingGroup` is the `NoRiskInstruments` repeating group, Tag 1534.
+pub struct NoPartyListNoRiskLimitsNoRiskInstrumentsRepeatingGroup(pub RepeatingGroup);
+
+impl NoPartyListNoRiskLimitsNoRiskInstrumentsRepeatingGroup {
+    /// Creates an empty `NoRiskInstruments` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::RISK_INSTRUMENT_OPERATOR),
+
+
+
+            group_element(tag::RISK_SYMBOL),
+
+
+
+            group_element(tag::RISK_SYMBOL_SFX),
+
+
+
+            group_element(tag::RISK_SECURITY_ID),
+
+
+
+            group_element(tag::RISK_SECURITY_ID_SOURCE),
+
+
+
+            Box::new(NoPartyListNoRiskLimitsNoRiskInstrumentsNoRiskSecurityAltIDRepeatingGroup::new().0),
+
+
+
+            group_element(tag::RISK_PRODUCT),
+
+
+
+            group_element(tag::RISK_PRODUCT_COMPLEX),
+
+
+
+            group_element(tag::RISK_SECURITY_GROUP),
+
+
+
+            group_element(tag::RISK_CFI_CODE),
+
+
+
+            group_element(tag::RISK_SECURITY_TYPE),
+
+
+
+            group_element(tag::RISK_SECURITY_SUB_TYPE),
+
+
+
+            group_element(tag::RISK_MATURITY_MONTH_YEAR),
+
+
+
+            group_element(tag::RISK_MATURITY_TIME),
+
+
+
+            group_element(tag::RISK_RESTRUCTURING_TYPE),
+
+
+
+            group_element(tag::RISK_SENIORITY),
+
+
+
+            group_element(tag::RISK_PUT_OR_CALL),
+
+
+
+            group_element(tag::RISK_FLEXIBLE_INDICATOR),
+
+
+
+            group_element(tag::RISK_COUPON_RATE),
+
+
+
+            group_element(tag::RISK_SECURITY_EXCHANGE),
+
+
+
+            group_element(tag::RISK_SECURITY_DESC),
+
+
+
+            group_element(tag::RISK_ENCODED_SECURITY_DESC_LEN),
+
+
+
+            group_element(tag::RISK_ENCODED_SECURITY_DESC),
+
+
+
+            group_element(tag::RISK_INSTRUMENT_SETTL_TYPE),
+
+
+
+            group_element(tag::RISK_INSTRUMENT_MULTIPLIER),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_RISK_INSTRUMENTS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoPartyListNoRiskLimitsNoRiskInstruments<&mut Group> {
+        NoPartyListNoRiskLimitsNoRiskInstruments(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoPartyListNoRiskLimitsNoRiskInstruments<&Group> {
+        NoPartyListNoRiskLimitsNoRiskInstruments(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoPartyListNoRiskLimitsNoRiskInstrumentsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoRiskWarningLevels` is an entry in the `NoRiskWarningLevels` repeating group, Tag 1559.
+pub struct NoPartyListNoRiskLimitsNoRiskWarningLevels<G>(pub G);
+
+impl<G: Borrow<Group>> NoPartyListNoRiskLimitsNoRiskWarningLevels<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `RiskWarningLevelPercent`, Tag 1560.
+    pub fn get_risk_warning_level_percent(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::RiskWarningLevelPercentField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::RISK_WARNING_LEVEL_PERCENT, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `RiskWarningLevelPercent` is present, Tag 1560.
+    pub fn has_risk_warning_level_percent(&self) -> bool {
+        self.group().field_map.has(tag::RISK_WARNING_LEVEL_PERCENT)
+    }
+
+
+
+
+    /// Gets `RiskWarningLevelName`, Tag 1561.
+    pub fn get_risk_warning_level_name(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RiskWarningLevelNameField::new(String::new());
+        self.group().field_map.get_field(tag::RISK_WARNING_LEVEL_NAME, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RiskWarningLevelName` is present, Tag 1561.
+    pub fn has_risk_warning_level_name(&self) -> bool {
+        self.group().field_map.has(tag::RISK_WARNING_LEVEL_NAME)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoPartyListNoRiskLimitsNoRiskWarningLevels<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `RiskWarningLevelPercent`, Tag 1560.
+    pub fn set_risk_warning_level_percent(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::RISK_WARNING_LEVEL_PERCENT, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `RiskWarningLevelName`, Tag 1561.
+    pub fn set_risk_warning_level_name(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RISK_WARNING_LEVEL_NAME, FIXString::from(v));
+    }
+
+
+
+}
+
+/// `NoPartyListNoRiskLimitsNoRiskWarningLevelsRepeatingGroup` is the `NoRiskWarningLevels` repeating group, Tag 1559.
+pub struct NoPartyListNoRiskLimitsNoRiskWarningLevelsRepeatingGroup(pub RepeatingGroup);
+
+impl NoPartyListNoRiskLimitsNoRiskWarningLevelsRepeatingGroup {
+    /// Creates an empty `NoRiskWarningLevels` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::RISK_WARNING_LEVEL_PERCENT),
+
+
+
+            group_element(tag::RISK_WARNING_LEVEL_NAME),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_RISK_WARNING_LEVELS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoPartyListNoRiskLimitsNoRiskWarningLevels<&mut Group> {
+        NoPartyListNoRiskLimitsNoRiskWarningLevels(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoPartyListNoRiskLimitsNoRiskWarningLevels<&Group> {
+        NoPartyListNoRiskLimitsNoRiskWarningLevels(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoPartyListNoRiskLimitsNoRiskWarningLevelsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoRiskLimits` is an entry in the `NoRiskLimits` repeating group, Tag 1529.
+pub struct NoPartyListNoRiskLimits<G>(pub G);
+
+impl<G: Borrow<Group>> NoPartyListNoRiskLimits<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `RiskLimitType`, Tag 1530.
+    pub fn get_risk_limit_type(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::RiskLimitTypeField::new(0);
+        self.group().field_map.get_field(tag::RISK_LIMIT_TYPE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `RiskLimitType` is present, Tag 1530.
+    pub fn has_risk_limit_type(&self) -> bool {
+        self.group().field_map.has(tag::RISK_LIMIT_TYPE)
+    }
+
+
+
+
+    /// Gets `RiskLimitAmount`, Tag 1531.
+    pub fn get_risk_limit_amount(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::RiskLimitAmountField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::RISK_LIMIT_AMOUNT, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `RiskLimitAmount` is present, Tag 1531.
+    pub fn has_risk_limit_amount(&self) -> bool {
+        self.group().field_map.has(tag::RISK_LIMIT_AMOUNT)
+    }
+
+
+
+
+    /// Gets `RiskLimitCurrency`, Tag 1532.
+    pub fn get_risk_limit_currency(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RiskLimitCurrencyField::new(String::new());
+        self.group().field_map.get_field(tag::RISK_LIMIT_CURRENCY, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RiskLimitCurrency` is present, Tag 1532.
+    pub fn has_risk_limit_currency(&self) -> bool {
+        self.group().field_map.has(tag::RISK_LIMIT_CURRENCY)
+    }
+
+
+
+
+    /// Gets `RiskLimitPlatform`, Tag 1533.
+    pub fn get_risk_limit_platform(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RiskLimitPlatformField::new(String::new());
+        self.group().field_map.get_field(tag::RISK_LIMIT_PLATFORM, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RiskLimitPlatform` is present, Tag 1533.
+    pub fn has_risk_limit_platform(&self) -> bool {
+        self.group().field_map.has(tag::RISK_LIMIT_PLATFORM)
+    }
+
+
+
+
+    /// Gets `NoRiskInstruments`, Tag 1534.
+    pub fn get_no_risk_instruments(&self) -> Result<NoPartyListNoRiskLimitsNoRiskInstrumentsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoPartyListNoRiskLimitsNoRiskInstrumentsRepeatingGroup::new();
+        Ok(NoPartyListNoRiskLimitsNoRiskInstrumentsRepeatingGroup(self.group().field_map.get_group(g.0)?))
+    }
+
+
+    /// Returns true if `NoRiskInstruments` is present, Tag 1534.
+    pub fn has_no_risk_instruments(&self) -> bool {
+        self.group().field_map.has(tag::NO_RISK_INSTRUMENTS)
+    }
+
+
+
+
+    /// Gets `NoRiskWarningLevels`, Tag 1559.
+    pub fn get_no_risk_warning_levels(&self) -> Result<NoPartyListNoRiskLimitsNoRiskWarningLevelsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoPartyListNoRiskLimitsNoRiskWarningLevelsRepeatingGroup::new();
+        Ok(NoPartyListNoRiskLimitsNoRiskWarningLevelsRepeatingGroup(self.group().field_map.get_group(g.0)?))
+    }
+
+
+    /// Returns true if `NoRiskWarningLevels` is present, Tag 1559.
+    pub fn has_no_risk_warning_levels(&self) -> bool {
+        self.group().field_map.has(tag::NO_RISK_WARNING_LEVELS)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoPartyListNoRiskLimits<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `RiskLimitType`, Tag 1530.
+    pub fn set_risk_limit_type(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::RISK_LIMIT_TYPE, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `RiskLimitAmount`, Tag 1531.
+    pub fn set_risk_limit_amount(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::RISK_LIMIT_AMOUNT, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `RiskLimitCurrency`, Tag 1532.
+    pub fn set_risk_limit_currency(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RISK_LIMIT_CURRENCY, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RiskLimitPlatform`, Tag 1533.
+    pub fn set_risk_limit_platform(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RISK_LIMIT_PLATFORM, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `NoRiskInstruments`, Tag 1534.
+    pub fn set_no_risk_instruments(&mut self, f: NoPartyListNoRiskLimitsNoRiskInstrumentsRepeatingGroup) {
+        self.group_mut().field_map.set_group(f.0);
+    }
+
+
+
+
+
+    /// Sets `NoRiskWarningLevels`, Tag 1559.
+    pub fn set_no_risk_warning_levels(&mut self, f: NoPartyListNoRiskLimitsNoRiskWarningLevelsRepeatingGroup) {
+        self.group_mut().field_map.set_group(f.0);
+    }
+
+
+
+}
+
+/// `NoPartyListNoRiskLimitsRepeatingGroup` is the `NoRiskLimits` repeating group, Tag 1529.
+pub struct NoPartyListNoRiskLimitsRepeatingGroup(pub RepeatingGroup);
+
+impl NoPartyListNoRiskLimitsRepeatingGroup {
+    /// Creates an empty `NoRiskLimits` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::RISK_LIMIT_TYPE),
+
+
+
+            group_element(tag::RISK_LIMIT_AMOUNT),
+
+
+
+            group_element(tag::RISK_LIMIT_CURRENCY),
+
+
+
+            group_element(tag::RISK_LIMIT_PLATFORM),
+
+
+
+            Box::new(NoPartyListNoRiskLimitsNoRiskInstrumentsRepeatingGroup::new().0),
+
+
+
+            Box::new(NoPartyListNoRiskLimitsNoRiskWarningLevelsRepeatingGroup::new().0),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_RISK_LIMITS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoPartyListNoRiskLimits<&mut Group> {
+        NoPartyListNoRiskLimits(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoPartyListNoRiskLimits<&Group> {
+        NoPartyListNoRiskLimits(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoPartyListNoRiskLimitsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoRelatedPartySubIDs` is an entry in the `NoRelatedPartySubIDs` repeating group, Tag 1566.
+pub struct NoPartyListNoRelatedPartyIDsNoRelatedPartySubIDs<G>(pub G);
+
+impl<G: Borrow<Group>> NoPartyListNoRelatedPartyIDsNoRelatedPartySubIDs<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `RelatedPartySubID`, Tag 1567.
+    pub fn get_related_party_sub_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RelatedPartySubIDField::new(String::new());
+        self.group().field_map.get_field(tag::RELATED_PARTY_SUB_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RelatedPartySubID` is present, Tag 1567.
+    pub fn has_related_party_sub_id(&self) -> bool {
+        self.group().field_map.has(tag::RELATED_PARTY_SUB_ID)
+    }
+
+
+
+
+    /// Gets `RelatedPartySubIDType`, Tag 1568.
+    pub fn get_related_party_sub_id_type(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::RelatedPartySubIDTypeField::new(0);
+        self.group().field_map.get_field(tag::RELATED_PARTY_SUB_ID_TYPE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `RelatedPartySubIDType` is present, Tag 1568.
+    pub fn has_related_party_sub_id_type(&self) -> bool {
+        self.group().field_map.has(tag::RELATED_PARTY_SUB_ID_TYPE)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoPartyListNoRelatedPartyIDsNoRelatedPartySubIDs<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `RelatedPartySubID`, Tag 1567.
+    pub fn set_related_party_sub_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RELATED_PARTY_SUB_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RelatedPartySubIDType`, Tag 1568.
+    pub fn set_related_party_sub_id_type(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::RELATED_PARTY_SUB_ID_TYPE, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+}
+
+/// `NoPartyListNoRelatedPartyIDsNoRelatedPartySubIDsRepeatingGroup` is the `NoRelatedPartySubIDs` repeating group, Tag 1566.
+pub struct NoPartyListNoRelatedPartyIDsNoRelatedPartySubIDsRepeatingGroup(pub RepeatingGroup);
+
+impl NoPartyListNoRelatedPartyIDsNoRelatedPartySubIDsRepeatingGroup {
+    /// Creates an empty `NoRelatedPartySubIDs` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::RELATED_PARTY_SUB_ID),
+
+
+
+            group_element(tag::RELATED_PARTY_SUB_ID_TYPE),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_RELATED_PARTY_SUB_I_DS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoPartyListNoRelatedPartyIDsNoRelatedPartySubIDs<&mut Group> {
+        NoPartyListNoRelatedPartyIDsNoRelatedPartySubIDs(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoPartyListNoRelatedPartyIDsNoRelatedPartySubIDs<&Group> {
+        NoPartyListNoRelatedPartyIDsNoRelatedPartySubIDs(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoPartyListNoRelatedPartyIDsNoRelatedPartySubIDsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoRelatedPartyAltSubIDs` is an entry in the `NoRelatedPartyAltSubIDs` repeating group, Tag 1572.
+pub struct NoPartyListNoRelatedPartyIDsNoRelatedPartyAltIDsNoRelatedPartyAltSubIDs<G>(pub G);
+
+impl<G: Borrow<Group>> NoPartyListNoRelatedPartyIDsNoRelatedPartyAltIDsNoRelatedPartyAltSubIDs<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `RelatedPartyAltSubID`, Tag 1573.
+    pub fn get_related_party_alt_sub_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RelatedPartyAltSubIDField::new(String::new());
+        self.group().field_map.get_field(tag::RELATED_PARTY_ALT_SUB_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RelatedPartyAltSubID` is present, Tag 1573.
+    pub fn has_related_party_alt_sub_id(&self) -> bool {
+        self.group().field_map.has(tag::RELATED_PARTY_ALT_SUB_ID)
+    }
+
+
+
+
+    /// Gets `RelatedPartyAltSubIDType`, Tag 1574.
+    pub fn get_related_party_alt_sub_id_type(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::RelatedPartyAltSubIDTypeField::new(0);
+        self.group().field_map.get_field(tag::RELATED_PARTY_ALT_SUB_ID_TYPE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `RelatedPartyAltSubIDType` is present, Tag 1574.
+    pub fn has_related_party_alt_sub_id_type(&self) -> bool {
+        self.group().field_map.has(tag::RELATED_PARTY_ALT_SUB_ID_TYPE)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoPartyListNoRelatedPartyIDsNoRelatedPartyAltIDsNoRelatedPartyAltSubIDs<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `RelatedPartyAltSubID`, Tag 1573.
+    pub fn set_related_party_alt_sub_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RELATED_PARTY_ALT_SUB_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RelatedPartyAltSubIDType`, Tag 1574.
+    pub fn set_related_party_alt_sub_id_type(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::RELATED_PARTY_ALT_SUB_ID_TYPE, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+}
+
+/// `NoPartyListNoRelatedPartyIDsNoRelatedPartyAltIDsNoRelatedPartyAltSubIDsRepeatingGroup` is the `NoRelatedPartyAltSubIDs` repeating group, Tag 1572.
+pub struct NoPartyListNoRelatedPartyIDsNoRelatedPartyAltIDsNoRelatedPartyAltSubIDsRepeatingGroup(pub RepeatingGroup);
+
+impl NoPartyListNoRelatedPartyIDsNoRelatedPartyAltIDsNoRelatedPartyAltSubIDsRepeatingGroup {
+    /// Creates an empty `NoRelatedPartyAltSubIDs` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::RELATED_PARTY_ALT_SUB_ID),
+
+
+
+            group_element(tag::RELATED_PARTY_ALT_SUB_ID_TYPE),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_RELATED_PARTY_ALT_SUB_I_DS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoPartyListNoRelatedPartyIDsNoRelatedPartyAltIDsNoRelatedPartyAltSubIDs<&mut Group> {
+        NoPartyListNoRelatedPartyIDsNoRelatedPartyAltIDsNoRelatedPartyAltSubIDs(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoPartyListNoRelatedPartyIDsNoRelatedPartyAltIDsNoRelatedPartyAltSubIDs<&Group> {
+        NoPartyListNoRelatedPartyIDsNoRelatedPartyAltIDsNoRelatedPartyAltSubIDs(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoPartyListNoRelatedPartyIDsNoRelatedPartyAltIDsNoRelatedPartyAltSubIDsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoRelatedPartyAltIDs` is an entry in the `NoRelatedPartyAltIDs` repeating group, Tag 1569.
+pub struct NoPartyListNoRelatedPartyIDsNoRelatedPartyAltIDs<G>(pub G);
+
+impl<G: Borrow<Group>> NoPartyListNoRelatedPartyIDsNoRelatedPartyAltIDs<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `RelatedPartyAltID`, Tag 1570.
+    pub fn get_related_party_alt_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RelatedPartyAltIDField::new(String::new());
+        self.group().field_map.get_field(tag::RELATED_PARTY_ALT_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RelatedPartyAltID` is present, Tag 1570.
+    pub fn has_related_party_alt_id(&self) -> bool {
+        self.group().field_map.has(tag::RELATED_PARTY_ALT_ID)
+    }
+
+
+
+
+    /// Gets `RelatedPartyAltIDSource`, Tag 1571.
+    pub fn get_related_party_alt_id_source(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RelatedPartyAltIDSourceField::new(String::new());
+        self.group().field_map.get_field(tag::RELATED_PARTY_ALT_ID_SOURCE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RelatedPartyAltIDSource` is present, Tag 1571.
+    pub fn has_related_party_alt_id_source(&self) -> bool {
+        self.group().field_map.has(tag::RELATED_PARTY_ALT_ID_SOURCE)
+    }
+
+
+
+
+    /// Gets `NoRelatedPartyAltSubIDs`, Tag 1572.
+    pub fn get_no_related_party_alt_sub_i_ds(&self) -> Result<NoPartyListNoRelatedPartyIDsNoRelatedPartyAltIDsNoRelatedPartyAltSubIDsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoPartyListNoRelatedPartyIDsNoRelatedPartyAltIDsNoRelatedPartyAltSubIDsRepeatingGroup::new();
+        Ok(NoPartyListNoRelatedPartyIDsNoRelatedPartyAltIDsNoRelatedPartyAltSubIDsRepeatingGroup(self.group().field_map.get_group(g.0)?))
+    }
+
+
+    /// Returns true if `NoRelatedPartyAltSubIDs` is present, Tag 1572.
+    pub fn has_no_related_party_alt_sub_i_ds(&self) -> bool {
+        self.group().field_map.has(tag::NO_RELATED_PARTY_ALT_SUB_I_DS)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoPartyListNoRelatedPartyIDsNoRelatedPartyAltIDs<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `RelatedPartyAltID`, Tag 1570.
+    pub fn set_related_party_alt_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RELATED_PARTY_ALT_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RelatedPartyAltIDSource`, Tag 1571.
+    pub fn set_related_party_alt_id_source(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RELATED_PARTY_ALT_ID_SOURCE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `NoRelatedPartyAltSubIDs`, Tag 1572.
+    pub fn set_no_related_party_alt_sub_i_ds(&mut self, f: NoPartyListNoRelatedPartyIDsNoRelatedPartyAltIDsNoRelatedPartyAltSubIDsRepeatingGroup) {
+        self.group_mut().field_map.set_group(f.0);
+    }
+
+
+
+}
+
+/// `NoPartyListNoRelatedPartyIDsNoRelatedPartyAltIDsRepeatingGroup` is the `NoRelatedPartyAltIDs` repeating group, Tag 1569.
+pub struct NoPartyListNoRelatedPartyIDsNoRelatedPartyAltIDsRepeatingGroup(pub RepeatingGroup);
+
+impl NoPartyListNoRelatedPartyIDsNoRelatedPartyAltIDsRepeatingGroup {
+    /// Creates an empty `NoRelatedPartyAltIDs` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::RELATED_PARTY_ALT_ID),
+
+
+
+            group_element(tag::RELATED_PARTY_ALT_ID_SOURCE),
+
+
+
+            Box::new(NoPartyListNoRelatedPartyIDsNoRelatedPartyAltIDsNoRelatedPartyAltSubIDsRepeatingGroup::new().0),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_RELATED_PARTY_ALT_I_DS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoPartyListNoRelatedPartyIDsNoRelatedPartyAltIDs<&mut Group> {
+        NoPartyListNoRelatedPartyIDsNoRelatedPartyAltIDs(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoPartyListNoRelatedPartyIDsNoRelatedPartyAltIDs<&Group> {
+        NoPartyListNoRelatedPartyIDsNoRelatedPartyAltIDs(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoPartyListNoRelatedPartyIDsNoRelatedPartyAltIDsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoRelatedContextPartySubIDs` is an entry in the `NoRelatedContextPartySubIDs` repeating group, Tag 1579.
+pub struct NoPartyListNoRelatedPartyIDsNoRelatedContextPartyIDsNoRelatedContextPartySubIDs<G>(pub G);
+
+impl<G: Borrow<Group>> NoPartyListNoRelatedPartyIDsNoRelatedContextPartyIDsNoRelatedContextPartySubIDs<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `RelatedContextPartySubID`, Tag 1580.
+    pub fn get_related_context_party_sub_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RelatedContextPartySubIDField::new(String::new());
+        self.group().field_map.get_field(tag::RELATED_CONTEXT_PARTY_SUB_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RelatedContextPartySubID` is present, Tag 1580.
+    pub fn has_related_context_party_sub_id(&self) -> bool {
+        self.group().field_map.has(tag::RELATED_CONTEXT_PARTY_SUB_ID)
+    }
+
+
+
+
+    /// Gets `RelatedContextPartySubIDType`, Tag 1581.
+    pub fn get_related_context_party_sub_id_type(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::RelatedContextPartySubIDTypeField::new(0);
+        self.group().field_map.get_field(tag::RELATED_CONTEXT_PARTY_SUB_ID_TYPE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `RelatedContextPartySubIDType` is present, Tag 1581.
+    pub fn has_related_context_party_sub_id_type(&self) -> bool {
+        self.group().field_map.has(tag::RELATED_CONTEXT_PARTY_SUB_ID_TYPE)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoPartyListNoRelatedPartyIDsNoRelatedContextPartyIDsNoRelatedContextPartySubIDs<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `RelatedContextPartySubID`, Tag 1580.
+    pub fn set_related_context_party_sub_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RELATED_CONTEXT_PARTY_SUB_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RelatedContextPartySubIDType`, Tag 1581.
+    pub fn set_related_context_party_sub_id_type(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::RELATED_CONTEXT_PARTY_SUB_ID_TYPE, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+}
+
+/// `NoPartyListNoRelatedPartyIDsNoRelatedContextPartyIDsNoRelatedContextPartySubIDsRepeatingGroup` is the `NoRelatedContextPartySubIDs` repeating group, Tag 1579.
+pub struct NoPartyListNoRelatedPartyIDsNoRelatedContextPartyIDsNoRelatedContextPartySubIDsRepeatingGroup(pub RepeatingGroup);
+
+impl NoPartyListNoRelatedPartyIDsNoRelatedContextPartyIDsNoRelatedContextPartySubIDsRepeatingGroup {
+    /// Creates an empty `NoRelatedContextPartySubIDs` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::RELATED_CONTEXT_PARTY_SUB_ID),
+
+
+
+            group_element(tag::RELATED_CONTEXT_PARTY_SUB_ID_TYPE),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_RELATED_CONTEXT_PARTY_SUB_I_DS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoPartyListNoRelatedPartyIDsNoRelatedContextPartyIDsNoRelatedContextPartySubIDs<&mut Group> {
+        NoPartyListNoRelatedPartyIDsNoRelatedContextPartyIDsNoRelatedContextPartySubIDs(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoPartyListNoRelatedPartyIDsNoRelatedContextPartyIDsNoRelatedContextPartySubIDs<&Group> {
+        NoPartyListNoRelatedPartyIDsNoRelatedContextPartyIDsNoRelatedContextPartySubIDs(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoPartyListNoRelatedPartyIDsNoRelatedContextPartyIDsNoRelatedContextPartySubIDsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoRelatedContextPartyIDs` is an entry in the `NoRelatedContextPartyIDs` repeating group, Tag 1575.
+pub struct NoPartyListNoRelatedPartyIDsNoRelatedContextPartyIDs<G>(pub G);
+
+impl<G: Borrow<Group>> NoPartyListNoRelatedPartyIDsNoRelatedContextPartyIDs<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `RelatedContextPartyID`, Tag 1576.
+    pub fn get_related_context_party_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RelatedContextPartyIDField::new(String::new());
+        self.group().field_map.get_field(tag::RELATED_CONTEXT_PARTY_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RelatedContextPartyID` is present, Tag 1576.
+    pub fn has_related_context_party_id(&self) -> bool {
+        self.group().field_map.has(tag::RELATED_CONTEXT_PARTY_ID)
+    }
+
+
+
+
+    /// Gets `RelatedContextPartyIDSource`, Tag 1577.
+    pub fn get_related_context_party_id_source(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RelatedContextPartyIDSourceField::new(String::new());
+        self.group().field_map.get_field(tag::RELATED_CONTEXT_PARTY_ID_SOURCE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RelatedContextPartyIDSource` is present, Tag 1577.
+    pub fn has_related_context_party_id_source(&self) -> bool {
+        self.group().field_map.has(tag::RELATED_CONTEXT_PARTY_ID_SOURCE)
+    }
+
+
+
+
+    /// Gets `RelatedContextPartyRole`, Tag 1578.
+    pub fn get_related_context_party_role(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::RelatedContextPartyRoleField::new(0);
+        self.group().field_map.get_field(tag::RELATED_CONTEXT_PARTY_ROLE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `RelatedContextPartyRole` is present, Tag 1578.
+    pub fn has_related_context_party_role(&self) -> bool {
+        self.group().field_map.has(tag::RELATED_CONTEXT_PARTY_ROLE)
+    }
+
+
+
+
+    /// Gets `NoRelatedContextPartySubIDs`, Tag 1579.
+    pub fn get_no_related_context_party_sub_i_ds(&self) -> Result<NoPartyListNoRelatedPartyIDsNoRelatedContextPartyIDsNoRelatedContextPartySubIDsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoPartyListNoRelatedPartyIDsNoRelatedContextPartyIDsNoRelatedContextPartySubIDsRepeatingGroup::new();
+        Ok(NoPartyListNoRelatedPartyIDsNoRelatedContextPartyIDsNoRelatedContextPartySubIDsRepeatingGroup(self.group().field_map.get_group(g.0)?))
+    }
+
+
+    /// Returns true if `NoRelatedContextPartySubIDs` is present, Tag 1579.
+    pub fn has_no_related_context_party_sub_i_ds(&self) -> bool {
+        self.group().field_map.has(tag::NO_RELATED_CONTEXT_PARTY_SUB_I_DS)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoPartyListNoRelatedPartyIDsNoRelatedContextPartyIDs<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `RelatedContextPartyID`, Tag 1576.
+    pub fn set_related_context_party_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RELATED_CONTEXT_PARTY_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RelatedContextPartyIDSource`, Tag 1577.
+    pub fn set_related_context_party_id_source(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RELATED_CONTEXT_PARTY_ID_SOURCE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RelatedContextPartyRole`, Tag 1578.
+    pub fn set_related_context_party_role(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::RELATED_CONTEXT_PARTY_ROLE, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `NoRelatedContextPartySubIDs`, Tag 1579.
+    pub fn set_no_related_context_party_sub_i_ds(&mut self, f: NoPartyListNoRelatedPartyIDsNoRelatedContextPartyIDsNoRelatedContextPartySubIDsRepeatingGroup) {
+        self.group_mut().field_map.set_group(f.0);
+    }
+
+
+
+}
+
+/// `NoPartyListNoRelatedPartyIDsNoRelatedContextPartyIDsRepeatingGroup` is the `NoRelatedContextPartyIDs` repeating group, Tag 1575.
+pub struct NoPartyListNoRelatedPartyIDsNoRelatedContextPartyIDsRepeatingGroup(pub RepeatingGroup);
+
+impl NoPartyListNoRelatedPartyIDsNoRelatedContextPartyIDsRepeatingGroup {
+    /// Creates an empty `NoRelatedContextPartyIDs` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::RELATED_CONTEXT_PARTY_ID),
+
+
+
+            group_element(tag::RELATED_CONTEXT_PARTY_ID_SOURCE),
+
+
+
+            group_element(tag::RELATED_CONTEXT_PARTY_ROLE),
+
+
+
+            Box::new(NoPartyListNoRelatedPartyIDsNoRelatedContextPartyIDsNoRelatedContextPartySubIDsRepeatingGroup::new().0),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_RELATED_CONTEXT_PARTY_I_DS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoPartyListNoRelatedPartyIDsNoRelatedContextPartyIDs<&mut Group> {
+        NoPartyListNoRelatedPartyIDsNoRelatedContextPartyIDs(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoPartyListNoRelatedPartyIDsNoRelatedContextPartyIDs<&Group> {
+        NoPartyListNoRelatedPartyIDsNoRelatedContextPartyIDs(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoPartyListNoRelatedPartyIDsNoRelatedContextPartyIDsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoRelationshipRiskSecurityAltID` is an entry in the `NoRelationshipRiskSecurityAltID` repeating group, Tag 1593.
+pub struct NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskInstrumentsNoRelationshipRiskSecurityAltID<G>(pub G);
+
+impl<G: Borrow<Group>> NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskInstrumentsNoRelationshipRiskSecurityAltID<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `RelationshipRiskSecurityAltID`, Tag 1594.
+    pub fn get_relationship_risk_security_alt_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RelationshipRiskSecurityAltIDField::new(String::new());
+        self.group().field_map.get_field(tag::RELATIONSHIP_RISK_SECURITY_ALT_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RelationshipRiskSecurityAltID` is present, Tag 1594.
+    pub fn has_relationship_risk_security_alt_id(&self) -> bool {
+        self.group().field_map.has(tag::RELATIONSHIP_RISK_SECURITY_ALT_ID)
+    }
+
+
+
+
+    /// Gets `RelationshipRiskSecurityAltIDSource`, Tag 1595.
+    pub fn get_relationship_risk_security_alt_id_source(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RelationshipRiskSecurityAltIDSourceField::new(String::new());
+        self.group().field_map.get_field(tag::RELATIONSHIP_RISK_SECURITY_ALT_ID_SOURCE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RelationshipRiskSecurityAltIDSource` is present, Tag 1595.
+    pub fn has_relationship_risk_security_alt_id_source(&self) -> bool {
+        self.group().field_map.has(tag::RELATIONSHIP_RISK_SECURITY_ALT_ID_SOURCE)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskInstrumentsNoRelationshipRiskSecurityAltID<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `RelationshipRiskSecurityAltID`, Tag 1594.
+    pub fn set_relationship_risk_security_alt_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RELATIONSHIP_RISK_SECURITY_ALT_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RelationshipRiskSecurityAltIDSource`, Tag 1595.
+    pub fn set_relationship_risk_security_alt_id_source(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RELATIONSHIP_RISK_SECURITY_ALT_ID_SOURCE, FIXString::from(v));
+    }
+
+
+
+}
+
+/// `NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskInstrumentsNoRelationshipRiskSecurityAltIDRepeatingGroup` is the `NoRelationshipRiskSecurityAltID` repeating group, Tag 1593.
+pub struct NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskInstrumentsNoRelationshipRiskSecurityAltIDRepeatingGroup(pub RepeatingGroup);
+
+impl NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskInstrumentsNoRelationshipRiskSecurityAltIDRepeatingGroup {
+    /// Creates an empty `NoRelationshipRiskSecurityAltID` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::RELATIONSHIP_RISK_SECURITY_ALT_ID),
+
+
+
+            group_element(tag::RELATIONSHIP_RISK_SECURITY_ALT_ID_SOURCE),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_RELATIONSHIP_RISK_SECURITY_ALT_ID, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskInstrumentsNoRelationshipRiskSecurityAltID<&mut Group> {
+        NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskInstrumentsNoRelationshipRiskSecurityAltID(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskInstrumentsNoRelationshipRiskSecurityAltID<&Group> {
+        NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskInstrumentsNoRelationshipRiskSecurityAltID(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskInstrumentsNoRelationshipRiskSecurityAltIDRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoRelationshipRiskInstruments` is an entry in the `NoRelationshipRiskInstruments` repeating group, Tag 1587.
+pub struct NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskInstruments<G>(pub G);
+
+impl<G: Borrow<Group>> NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskInstruments<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `RelationshipRiskInstrumentOperator`, Tag 1588.
+    pub fn get_relationship_risk_instrument_operator(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::RelationshipRiskInstrumentOperatorField::new(0);
+        self.group().field_map.get_field(tag::RELATIONSHIP_RISK_INSTRUMENT_OPERATOR, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `RelationshipRiskInstrumentOperator` is present, Tag 1588.
+    pub fn has_relationship_risk_instrument_operator(&self) -> bool {
+        self.group().field_map.has(tag::RELATIONSHIP_RISK_INSTRUMENT_OPERATOR)
+    }
+
+
+
+
+    /// Gets `RelationshipRiskSymbol`, Tag 1589.
+    pub fn get_relationship_risk_symbol(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RelationshipRiskSymbolField::new(String::new());
+        self.group().field_map.get_field(tag::RELATIONSHIP_RISK_SYMBOL, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RelationshipRiskSymbol` is present, Tag 1589.
+    pub fn has_relationship_risk_symbol(&self) -> bool {
+        self.group().field_map.has(tag::RELATIONSHIP_RISK_SYMBOL)
+    }
+
+
+
+
+    /// Gets `RelationshipRiskSymbolSfx`, Tag 1590.
+    pub fn get_relationship_risk_symbol_sfx(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RelationshipRiskSymbolSfxField::new(String::new());
+        self.group().field_map.get_field(tag::RELATIONSHIP_RISK_SYMBOL_SFX, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RelationshipRiskSymbolSfx` is present, Tag 1590.
+    pub fn has_relationship_risk_symbol_sfx(&self) -> bool {
+        self.group().field_map.has(tag::RELATIONSHIP_RISK_SYMBOL_SFX)
+    }
+
+
+
+
+    /// Gets `RelationshipRiskSecurityID`, Tag 1591.
+    pub fn get_relationship_risk_security_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RelationshipRiskSecurityIDField::new(String::new());
+        self.group().field_map.get_field(tag::RELATIONSHIP_RISK_SECURITY_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RelationshipRiskSecurityID` is present, Tag 1591.
+    pub fn has_relationship_risk_security_id(&self) -> bool {
+        self.group().field_map.has(tag::RELATIONSHIP_RISK_SECURITY_ID)
+    }
+
+
+
+
+    /// Gets `RelationshipRiskSecurityIDSource`, Tag 1592.
+    pub fn get_relationship_risk_security_id_source(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RelationshipRiskSecurityIDSourceField::new(String::new());
+        self.group().field_map.get_field(tag::RELATIONSHIP_RISK_SECURITY_ID_SOURCE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RelationshipRiskSecurityIDSource` is present, Tag 1592.
+    pub fn has_relationship_risk_security_id_source(&self) -> bool {
+        self.group().field_map.has(tag::RELATIONSHIP_RISK_SECURITY_ID_SOURCE)
+    }
+
+
+
+
+    /// Gets `NoRelationshipRiskSecurityAltID`, Tag 1593.
+    pub fn get_no_relationship_risk_security_alt_id(&self) -> Result<NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskInstrumentsNoRelationshipRiskSecurityAltIDRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskInstrumentsNoRelationshipRiskSecurityAltIDRepeatingGroup::new();
+        Ok(NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskInstrumentsNoRelationshipRiskSecurityAltIDRepeatingGroup(self.group().field_map.get_group(g.0)?))
+    }
+
+
+    /// Returns true if `NoRelationshipRiskSecurityAltID` is present, Tag 1593.
+    pub fn has_no_relationship_risk_security_alt_id(&self) -> bool {
+        self.group().field_map.has(tag::NO_RELATIONSHIP_RISK_SECURITY_ALT_ID)
+    }
+
+
+
+
+    /// Gets `RelationshipRiskProduct`, Tag 1596.
+    pub fn get_relationship_risk_product(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::RelationshipRiskProductField::new(0);
+        self.group().field_map.get_field(tag::RELATIONSHIP_RISK_PRODUCT, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `RelationshipRiskProduct` is present, Tag 1596.
+    pub fn has_relationship_risk_product(&self) -> bool {
+        self.group().field_map.has(tag::RELATIONSHIP_RISK_PRODUCT)
+    }
+
+
+
+
+    /// Gets `RelationshipRiskProductComplex`, Tag 1597.
+    pub fn get_relationship_risk_product_complex(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RelationshipRiskProductComplexField::new(String::new());
+        self.group().field_map.get_field(tag::RELATIONSHIP_RISK_PRODUCT_COMPLEX, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RelationshipRiskProductComplex` is present, Tag 1597.
+    pub fn has_relationship_risk_product_complex(&self) -> bool {
+        self.group().field_map.has(tag::RELATIONSHIP_RISK_PRODUCT_COMPLEX)
+    }
+
+
+
+
+    /// Gets `RelationshipRiskSecurityGroup`, Tag 1598.
+    pub fn get_relationship_risk_security_group(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RelationshipRiskSecurityGroupField::new(String::new());
+        self.group().field_map.get_field(tag::RELATIONSHIP_RISK_SECURITY_GROUP, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RelationshipRiskSecurityGroup` is present, Tag 1598.
+    pub fn has_relationship_risk_security_group(&self) -> bool {
+        self.group().field_map.has(tag::RELATIONSHIP_RISK_SECURITY_GROUP)
+    }
+
+
+
+
+    /// Gets `RelationshipRiskCFICode`, Tag 1599.
+    pub fn get_relationship_risk_cfi_code(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RelationshipRiskCFICodeField::new(String::new());
+        self.group().field_map.get_field(tag::RELATIONSHIP_RISK_CFI_CODE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RelationshipRiskCFICode` is present, Tag 1599.
+    pub fn has_relationship_risk_cfi_code(&self) -> bool {
+        self.group().field_map.has(tag::RELATIONSHIP_RISK_CFI_CODE)
+    }
+
+
+
+
+    /// Gets `RelationshipRiskSecurityType`, Tag 1600.
+    pub fn get_relationship_risk_security_type(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RelationshipRiskSecurityTypeField::new(String::new());
+        self.group().field_map.get_field(tag::RELATIONSHIP_RISK_SECURITY_TYPE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RelationshipRiskSecurityType` is present, Tag 1600.
+    pub fn has_relationship_risk_security_type(&self) -> bool {
+        self.group().field_map.has(tag::RELATIONSHIP_RISK_SECURITY_TYPE)
+    }
+
+
+
+
+    /// Gets `RelationshipRiskSecuritySubType`, Tag 1601.
+    pub fn get_relationship_risk_security_sub_type(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RelationshipRiskSecuritySubTypeField::new(String::new());
+        self.group().field_map.get_field(tag::RELATIONSHIP_RISK_SECURITY_SUB_TYPE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RelationshipRiskSecuritySubType` is present, Tag 1601.
+    pub fn has_relationship_risk_security_sub_type(&self) -> bool {
+        self.group().field_map.has(tag::RELATIONSHIP_RISK_SECURITY_SUB_TYPE)
+    }
+
+
+
+
+    /// Gets `RelationshipRiskMaturityMonthYear`, Tag 1602.
+    pub fn get_relationship_risk_maturity_month_year(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RelationshipRiskMaturityMonthYearField::new(String::new());
+        self.group().field_map.get_field(tag::RELATIONSHIP_RISK_MATURITY_MONTH_YEAR, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RelationshipRiskMaturityMonthYear` is present, Tag 1602.
+    pub fn has_relationship_risk_maturity_month_year(&self) -> bool {
+        self.group().field_map.has(tag::RELATIONSHIP_RISK_MATURITY_MONTH_YEAR)
+    }
+
+
+
+
+    /// Gets `RelationshipRiskMaturityTime`, Tag 1603.
+    pub fn get_relationship_risk_maturity_time(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RelationshipRiskMaturityTimeField::new(String::new());
+        self.group().field_map.get_field(tag::RELATIONSHIP_RISK_MATURITY_TIME, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RelationshipRiskMaturityTime` is present, Tag 1603.
+    pub fn has_relationship_risk_maturity_time(&self) -> bool {
+        self.group().field_map.has(tag::RELATIONSHIP_RISK_MATURITY_TIME)
+    }
+
+
+
+
+    /// Gets `RelationshipRiskRestructuringType`, Tag 1604.
+    pub fn get_relationship_risk_restructuring_type(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RelationshipRiskRestructuringTypeField::new(String::new());
+        self.group().field_map.get_field(tag::RELATIONSHIP_RISK_RESTRUCTURING_TYPE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RelationshipRiskRestructuringType` is present, Tag 1604.
+    pub fn has_relationship_risk_restructuring_type(&self) -> bool {
+        self.group().field_map.has(tag::RELATIONSHIP_RISK_RESTRUCTURING_TYPE)
+    }
+
+
+
+
+    /// Gets `RelationshipRiskSeniority`, Tag 1605.
+    pub fn get_relationship_risk_seniority(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RelationshipRiskSeniorityField::new(String::new());
+        self.group().field_map.get_field(tag::RELATIONSHIP_RISK_SENIORITY, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RelationshipRiskSeniority` is present, Tag 1605.
+    pub fn has_relationship_risk_seniority(&self) -> bool {
+        self.group().field_map.has(tag::RELATIONSHIP_RISK_SENIORITY)
+    }
+
+
+
+
+    /// Gets `RelationshipRiskPutOrCall`, Tag 1606.
+    pub fn get_relationship_risk_put_or_call(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::RelationshipRiskPutOrCallField::new(0);
+        self.group().field_map.get_field(tag::RELATIONSHIP_RISK_PUT_OR_CALL, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `RelationshipRiskPutOrCall` is present, Tag 1606.
+    pub fn has_relationship_risk_put_or_call(&self) -> bool {
+        self.group().field_map.has(tag::RELATIONSHIP_RISK_PUT_OR_CALL)
+    }
+
+
+
+
+    /// Gets `RelationshipRiskFlexibleIndicator`, Tag 1607.
+    pub fn get_relationship_risk_flexible_indicator(&self) -> Result<bool, MessageRejectErrorEnum> {
+        let mut fld = field::RelationshipRiskFlexibleIndicatorField::new(false);
+        self.group().field_map.get_field(tag::RELATIONSHIP_RISK_FLEXIBLE_INDICATOR, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `RelationshipRiskFlexibleIndicator` is present, Tag 1607.
+    pub fn has_relationship_risk_flexible_indicator(&self) -> bool {
+        self.group().field_map.has(tag::RELATIONSHIP_RISK_FLEXIBLE_INDICATOR)
+    }
+
+
+
+
+    /// Gets `RelationshipRiskCouponRate`, Tag 1608.
+    pub fn get_relationship_risk_coupon_rate(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::RelationshipRiskCouponRateField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::RELATIONSHIP_RISK_COUPON_RATE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `RelationshipRiskCouponRate` is present, Tag 1608.
+    pub fn has_relationship_risk_coupon_rate(&self) -> bool {
+        self.group().field_map.has(tag::RELATIONSHIP_RISK_COUPON_RATE)
+    }
+
+
+
+
+    /// Gets `RelationshipRiskSecurityExchange`, Tag 1609.
+    pub fn get_relationship_risk_security_exchange(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RelationshipRiskSecurityExchangeField::new(String::new());
+        self.group().field_map.get_field(tag::RELATIONSHIP_RISK_SECURITY_EXCHANGE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RelationshipRiskSecurityExchange` is present, Tag 1609.
+    pub fn has_relationship_risk_security_exchange(&self) -> bool {
+        self.group().field_map.has(tag::RELATIONSHIP_RISK_SECURITY_EXCHANGE)
+    }
+
+
+
+
+    /// Gets `RelationshipRiskSecurityDesc`, Tag 1610.
+    pub fn get_relationship_risk_security_desc(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RelationshipRiskSecurityDescField::new(String::new());
+        self.group().field_map.get_field(tag::RELATIONSHIP_RISK_SECURITY_DESC, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RelationshipRiskSecurityDesc` is present, Tag 1610.
+    pub fn has_relationship_risk_security_desc(&self) -> bool {
+        self.group().field_map.has(tag::RELATIONSHIP_RISK_SECURITY_DESC)
+    }
+
+
+
+
+    /// Gets `RelationshipRiskEncodedSecurityDescLen`, Tag 1618.
+    pub fn get_relationship_risk_encoded_security_desc_len(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::RelationshipRiskEncodedSecurityDescLenField::new(0);
+        self.group().field_map.get_field(tag::RELATIONSHIP_RISK_ENCODED_SECURITY_DESC_LEN, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `RelationshipRiskEncodedSecurityDescLen` is present, Tag 1618.
+    pub fn has_relationship_risk_encoded_security_desc_len(&self) -> bool {
+        self.group().field_map.has(tag::RELATIONSHIP_RISK_ENCODED_SECURITY_DESC_LEN)
+    }
+
+
+
+
+    /// Gets `RelationshipRiskEncodedSecurityDesc`, Tag 1619.
+    pub fn get_relationship_risk_encoded_security_desc(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RelationshipRiskEncodedSecurityDescField::new(String::new());
+        self.group().field_map.get_field(tag::RELATIONSHIP_RISK_ENCODED_SECURITY_DESC, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RelationshipRiskEncodedSecurityDesc` is present, Tag 1619.
+    pub fn has_relationship_risk_encoded_security_desc(&self) -> bool {
+        self.group().field_map.has(tag::RELATIONSHIP_RISK_ENCODED_SECURITY_DESC)
+    }
+
+
+
+
+    /// Gets `RelationshipRiskInstrumentSettlType`, Tag 1611.
+    pub fn get_relationship_risk_instrument_settl_type(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RelationshipRiskInstrumentSettlTypeField::new(String::new());
+        self.group().field_map.get_field(tag::RELATIONSHIP_RISK_INSTRUMENT_SETTL_TYPE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RelationshipRiskInstrumentSettlType` is present, Tag 1611.
+    pub fn has_relationship_risk_instrument_settl_type(&self) -> bool {
+        self.group().field_map.has(tag::RELATIONSHIP_RISK_INSTRUMENT_SETTL_TYPE)
+    }
+
+
+
+
+    /// Gets `RelationshipRiskInstrumentMultiplier`, Tag 1612.
+    pub fn get_relationship_risk_instrument_multiplier(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::RelationshipRiskInstrumentMultiplierField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::RELATIONSHIP_RISK_INSTRUMENT_MULTIPLIER, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `RelationshipRiskInstrumentMultiplier` is present, Tag 1612.
+    pub fn has_relationship_risk_instrument_multiplier(&self) -> bool {
+        self.group().field_map.has(tag::RELATIONSHIP_RISK_INSTRUMENT_MULTIPLIER)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskInstruments<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `RelationshipRiskInstrumentOperator`, Tag 1588.
+    pub fn set_relationship_risk_instrument_operator(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::RELATIONSHIP_RISK_INSTRUMENT_OPERATOR, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `RelationshipRiskSymbol`, Tag 1589.
+    pub fn set_relationship_risk_symbol(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RELATIONSHIP_RISK_SYMBOL, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RelationshipRiskSymbolSfx`, Tag 1590.
+    pub fn set_relationship_risk_symbol_sfx(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RELATIONSHIP_RISK_SYMBOL_SFX, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RelationshipRiskSecurityID`, Tag 1591.
+    pub fn set_relationship_risk_security_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RELATIONSHIP_RISK_SECURITY_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RelationshipRiskSecurityIDSource`, Tag 1592.
+    pub fn set_relationship_risk_security_id_source(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RELATIONSHIP_RISK_SECURITY_ID_SOURCE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `NoRelationshipRiskSecurityAltID`, Tag 1593.
+    pub fn set_no_relationship_risk_security_alt_id(&mut self, f: NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskInstrumentsNoRelationshipRiskSecurityAltIDRepeatingGroup) {
+        self.group_mut().field_map.set_group(f.0);
+    }
+
+
+
+
+
+    /// Sets `RelationshipRiskProduct`, Tag 1596.
+    pub fn set_relationship_risk_product(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::RELATIONSHIP_RISK_PRODUCT, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `RelationshipRiskProductComplex`, Tag 1597.
+    pub fn set_relationship_risk_product_complex(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RELATIONSHIP_RISK_PRODUCT_COMPLEX, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RelationshipRiskSecurityGroup`, Tag 1598.
+    pub fn set_relationship_risk_security_group(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RELATIONSHIP_RISK_SECURITY_GROUP, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RelationshipRiskCFICode`, Tag 1599.
+    pub fn set_relationship_risk_cfi_code(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RELATIONSHIP_RISK_CFI_CODE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RelationshipRiskSecurityType`, Tag 1600.
+    pub fn set_relationship_risk_security_type(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RELATIONSHIP_RISK_SECURITY_TYPE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RelationshipRiskSecuritySubType`, Tag 1601.
+    pub fn set_relationship_risk_security_sub_type(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RELATIONSHIP_RISK_SECURITY_SUB_TYPE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RelationshipRiskMaturityMonthYear`, Tag 1602.
+    pub fn set_relationship_risk_maturity_month_year(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RELATIONSHIP_RISK_MATURITY_MONTH_YEAR, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RelationshipRiskMaturityTime`, Tag 1603.
+    pub fn set_relationship_risk_maturity_time(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RELATIONSHIP_RISK_MATURITY_TIME, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RelationshipRiskRestructuringType`, Tag 1604.
+    pub fn set_relationship_risk_restructuring_type(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RELATIONSHIP_RISK_RESTRUCTURING_TYPE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RelationshipRiskSeniority`, Tag 1605.
+    pub fn set_relationship_risk_seniority(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RELATIONSHIP_RISK_SENIORITY, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RelationshipRiskPutOrCall`, Tag 1606.
+    pub fn set_relationship_risk_put_or_call(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::RELATIONSHIP_RISK_PUT_OR_CALL, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `RelationshipRiskFlexibleIndicator`, Tag 1607.
+    pub fn set_relationship_risk_flexible_indicator(&mut self, v: bool) {
+        self.group_mut().field_map.set_field(tag::RELATIONSHIP_RISK_FLEXIBLE_INDICATOR, fixer::fix_boolean::FIXBoolean::from(v));
+    }
+
+
+
+
+
+    /// Sets `RelationshipRiskCouponRate`, Tag 1608.
+    pub fn set_relationship_risk_coupon_rate(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::RELATIONSHIP_RISK_COUPON_RATE, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `RelationshipRiskSecurityExchange`, Tag 1609.
+    pub fn set_relationship_risk_security_exchange(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RELATIONSHIP_RISK_SECURITY_EXCHANGE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RelationshipRiskSecurityDesc`, Tag 1610.
+    pub fn set_relationship_risk_security_desc(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RELATIONSHIP_RISK_SECURITY_DESC, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RelationshipRiskEncodedSecurityDescLen`, Tag 1618.
+    pub fn set_relationship_risk_encoded_security_desc_len(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::RELATIONSHIP_RISK_ENCODED_SECURITY_DESC_LEN, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `RelationshipRiskEncodedSecurityDesc`, Tag 1619.
+    pub fn set_relationship_risk_encoded_security_desc(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RELATIONSHIP_RISK_ENCODED_SECURITY_DESC, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RelationshipRiskInstrumentSettlType`, Tag 1611.
+    pub fn set_relationship_risk_instrument_settl_type(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RELATIONSHIP_RISK_INSTRUMENT_SETTL_TYPE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RelationshipRiskInstrumentMultiplier`, Tag 1612.
+    pub fn set_relationship_risk_instrument_multiplier(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::RELATIONSHIP_RISK_INSTRUMENT_MULTIPLIER, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+}
+
+/// `NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskInstrumentsRepeatingGroup` is the `NoRelationshipRiskInstruments` repeating group, Tag 1587.
+pub struct NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskInstrumentsRepeatingGroup(pub RepeatingGroup);
+
+impl NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskInstrumentsRepeatingGroup {
+    /// Creates an empty `NoRelationshipRiskInstruments` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::RELATIONSHIP_RISK_INSTRUMENT_OPERATOR),
+
+
+
+            group_element(tag::RELATIONSHIP_RISK_SYMBOL),
+
+
+
+            group_element(tag::RELATIONSHIP_RISK_SYMBOL_SFX),
+
+
+
+            group_element(tag::RELATIONSHIP_RISK_SECURITY_ID),
+
+
+
+            group_element(tag::RELATIONSHIP_RISK_SECURITY_ID_SOURCE),
+
+
+
+            Box::new(NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskInstrumentsNoRelationshipRiskSecurityAltIDRepeatingGroup::new().0),
+
+
+
+            group_element(tag::RELATIONSHIP_RISK_PRODUCT),
+
+
+
+            group_element(tag::RELATIONSHIP_RISK_PRODUCT_COMPLEX),
+
+
+
+            group_element(tag::RELATIONSHIP_RISK_SECURITY_GROUP),
+
+
+
+            group_element(tag::RELATIONSHIP_RISK_CFI_CODE),
+
+
+
+            group_element(tag::RELATIONSHIP_RISK_SECURITY_TYPE),
+
+
+
+            group_element(tag::RELATIONSHIP_RISK_SECURITY_SUB_TYPE),
+
+
+
+            group_element(tag::RELATIONSHIP_RISK_MATURITY_MONTH_YEAR),
+
+
+
+            group_element(tag::RELATIONSHIP_RISK_MATURITY_TIME),
+
+
+
+            group_element(tag::RELATIONSHIP_RISK_RESTRUCTURING_TYPE),
+
+
+
+            group_element(tag::RELATIONSHIP_RISK_SENIORITY),
+
+
+
+            group_element(tag::RELATIONSHIP_RISK_PUT_OR_CALL),
+
+
+
+            group_element(tag::RELATIONSHIP_RISK_FLEXIBLE_INDICATOR),
+
+
+
+            group_element(tag::RELATIONSHIP_RISK_COUPON_RATE),
+
+
+
+            group_element(tag::RELATIONSHIP_RISK_SECURITY_EXCHANGE),
+
+
+
+            group_element(tag::RELATIONSHIP_RISK_SECURITY_DESC),
+
+
+
+            group_element(tag::RELATIONSHIP_RISK_ENCODED_SECURITY_DESC_LEN),
+
+
+
+            group_element(tag::RELATIONSHIP_RISK_ENCODED_SECURITY_DESC),
+
+
+
+            group_element(tag::RELATIONSHIP_RISK_INSTRUMENT_SETTL_TYPE),
+
+
+
+            group_element(tag::RELATIONSHIP_RISK_INSTRUMENT_MULTIPLIER),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_RELATIONSHIP_RISK_INSTRUMENTS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskInstruments<&mut Group> {
+        NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskInstruments(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskInstruments<&Group> {
+        NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskInstruments(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskInstrumentsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoRelationshipRiskWarningLevels` is an entry in the `NoRelationshipRiskWarningLevels` repeating group, Tag 1613.
+pub struct NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskWarningLevels<G>(pub G);
+
+impl<G: Borrow<Group>> NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskWarningLevels<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `RelationshipRiskWarningLevelPercent`, Tag 1614.
+    pub fn get_relationship_risk_warning_level_percent(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::RelationshipRiskWarningLevelPercentField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::RELATIONSHIP_RISK_WARNING_LEVEL_PERCENT, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `RelationshipRiskWarningLevelPercent` is present, Tag 1614.
+    pub fn has_relationship_risk_warning_level_percent(&self) -> bool {
+        self.group().field_map.has(tag::RELATIONSHIP_RISK_WARNING_LEVEL_PERCENT)
+    }
+
+
+
+
+    /// Gets `RelationshipRiskWarningLevelName`, Tag 1615.
+    pub fn get_relationship_risk_warning_level_name(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RelationshipRiskWarningLevelNameField::new(String::new());
+        self.group().field_map.get_field(tag::RELATIONSHIP_RISK_WARNING_LEVEL_NAME, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RelationshipRiskWarningLevelName` is present, Tag 1615.
+    pub fn has_relationship_risk_warning_level_name(&self) -> bool {
+        self.group().field_map.has(tag::RELATIONSHIP_RISK_WARNING_LEVEL_NAME)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskWarningLevels<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `RelationshipRiskWarningLevelPercent`, Tag 1614.
+    pub fn set_relationship_risk_warning_level_percent(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::RELATIONSHIP_RISK_WARNING_LEVEL_PERCENT, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `RelationshipRiskWarningLevelName`, Tag 1615.
+    pub fn set_relationship_risk_warning_level_name(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RELATIONSHIP_RISK_WARNING_LEVEL_NAME, FIXString::from(v));
+    }
+
+
+
+}
+
+/// `NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskWarningLevelsRepeatingGroup` is the `NoRelationshipRiskWarningLevels` repeating group, Tag 1613.
+pub struct NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskWarningLevelsRepeatingGroup(pub RepeatingGroup);
+
+impl NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskWarningLevelsRepeatingGroup {
+    /// Creates an empty `NoRelationshipRiskWarningLevels` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::RELATIONSHIP_RISK_WARNING_LEVEL_PERCENT),
+
+
+
+            group_element(tag::RELATIONSHIP_RISK_WARNING_LEVEL_NAME),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_RELATIONSHIP_RISK_WARNING_LEVELS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskWarningLevels<&mut Group> {
+        NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskWarningLevels(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskWarningLevels<&Group> {
+        NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskWarningLevels(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskWarningLevelsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoRelationshipRiskLimits` is an entry in the `NoRelationshipRiskLimits` repeating group, Tag 1582.
+pub struct NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimits<G>(pub G);
+
+impl<G: Borrow<Group>> NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimits<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `RelationshipRiskLimitType`, Tag 1583.
+    pub fn get_relationship_risk_limit_type(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::RelationshipRiskLimitTypeField::new(0);
+        self.group().field_map.get_field(tag::RELATIONSHIP_RISK_LIMIT_TYPE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `RelationshipRiskLimitType` is present, Tag 1583.
+    pub fn has_relationship_risk_limit_type(&self) -> bool {
+        self.group().field_map.has(tag::RELATIONSHIP_RISK_LIMIT_TYPE)
+    }
+
+
+
+
+    /// Gets `RelationshipRiskLimitAmount`, Tag 1584.
+    pub fn get_relationship_risk_limit_amount(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::RelationshipRiskLimitAmountField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::RELATIONSHIP_RISK_LIMIT_AMOUNT, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `RelationshipRiskLimitAmount` is present, Tag 1584.
+    pub fn has_relationship_risk_limit_amount(&self) -> bool {
+        self.group().field_map.has(tag::RELATIONSHIP_RISK_LIMIT_AMOUNT)
+    }
+
+
+
+
+    /// Gets `RelationshipRiskLimitCurrency`, Tag 1585.
+    pub fn get_relationship_risk_limit_currency(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RelationshipRiskLimitCurrencyField::new(String::new());
+        self.group().field_map.get_field(tag::RELATIONSHIP_RISK_LIMIT_CURRENCY, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RelationshipRiskLimitCurrency` is present, Tag 1585.
+    pub fn has_relationship_risk_limit_currency(&self) -> bool {
+        self.group().field_map.has(tag::RELATIONSHIP_RISK_LIMIT_CURRENCY)
+    }
+
+
+
+
+    /// Gets `RelationshipRiskLimitPlatform`, Tag 1586.
+    pub fn get_relationship_risk_limit_platform(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RelationshipRiskLimitPlatformField::new(String::new());
+        self.group().field_map.get_field(tag::RELATIONSHIP_RISK_LIMIT_PLATFORM, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RelationshipRiskLimitPlatform` is present, Tag 1586.
+    pub fn has_relationship_risk_limit_platform(&self) -> bool {
+        self.group().field_map.has(tag::RELATIONSHIP_RISK_LIMIT_PLATFORM)
+    }
+
+
+
+
+    /// Gets `NoRelationshipRiskInstruments`, Tag 1587.
+    pub fn get_no_relationship_risk_instruments(&self) -> Result<NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskInstrumentsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskInstrumentsRepeatingGroup::new();
+        Ok(NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskInstrumentsRepeatingGroup(self.group().field_map.get_group(g.0)?))
+    }
+
+
+    /// Returns true if `NoRelationshipRiskInstruments` is present, Tag 1587.
+    pub fn has_no_relationship_risk_instruments(&self) -> bool {
+        self.group().field_map.has(tag::NO_RELATIONSHIP_RISK_INSTRUMENTS)
+    }
+
+
+
+
+    /// Gets `NoRelationshipRiskWarningLevels`, Tag 1613.
+    pub fn get_no_relationship_risk_warning_levels(&self) -> Result<NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskWarningLevelsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskWarningLevelsRepeatingGroup::new();
+        Ok(NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskWarningLevelsRepeatingGroup(self.group().field_map.get_group(g.0)?))
+    }
+
+
+    /// Returns true if `NoRelationshipRiskWarningLevels` is present, Tag 1613.
+    pub fn has_no_relationship_risk_warning_levels(&self) -> bool {
+        self.group().field_map.has(tag::NO_RELATIONSHIP_RISK_WARNING_LEVELS)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimits<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `RelationshipRiskLimitType`, Tag 1583.
+    pub fn set_relationship_risk_limit_type(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::RELATIONSHIP_RISK_LIMIT_TYPE, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `RelationshipRiskLimitAmount`, Tag 1584.
+    pub fn set_relationship_risk_limit_amount(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::RELATIONSHIP_RISK_LIMIT_AMOUNT, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `RelationshipRiskLimitCurrency`, Tag 1585.
+    pub fn set_relationship_risk_limit_currency(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RELATIONSHIP_RISK_LIMIT_CURRENCY, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RelationshipRiskLimitPlatform`, Tag 1586.
+    pub fn set_relationship_risk_limit_platform(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RELATIONSHIP_RISK_LIMIT_PLATFORM, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `NoRelationshipRiskInstruments`, Tag 1587.
+    pub fn set_no_relationship_risk_instruments(&mut self, f: NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskInstrumentsRepeatingGroup) {
+        self.group_mut().field_map.set_group(f.0);
+    }
+
+
+
+
+
+    /// Sets `NoRelationshipRiskWarningLevels`, Tag 1613.
+    pub fn set_no_relationship_risk_warning_levels(&mut self, f: NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskWarningLevelsRepeatingGroup) {
+        self.group_mut().field_map.set_group(f.0);
+    }
+
+
+
+}
+
+/// `NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsRepeatingGroup` is the `NoRelationshipRiskLimits` repeating group, Tag 1582.
+pub struct NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsRepeatingGroup(pub RepeatingGroup);
+
+impl NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsRepeatingGroup {
+    /// Creates an empty `NoRelationshipRiskLimits` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::RELATIONSHIP_RISK_LIMIT_TYPE),
+
+
+
+            group_element(tag::RELATIONSHIP_RISK_LIMIT_AMOUNT),
+
+
+
+            group_element(tag::RELATIONSHIP_RISK_LIMIT_CURRENCY),
+
+
+
+            group_element(tag::RELATIONSHIP_RISK_LIMIT_PLATFORM),
+
+
+
+            Box::new(NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskInstrumentsRepeatingGroup::new().0),
+
+
+
+            Box::new(NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsNoRelationshipRiskWarningLevelsRepeatingGroup::new().0),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_RELATIONSHIP_RISK_LIMITS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimits<&mut Group> {
+        NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimits(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimits<&Group> {
+        NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimits(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoPartyRelationships` is an entry in the `NoPartyRelationships` repeating group, Tag 1514.
+pub struct NoPartyListNoRelatedPartyIDsNoPartyRelationships<G>(pub G);
+
+impl<G: Borrow<Group>> NoPartyListNoRelatedPartyIDsNoPartyRelationships<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `PartyRelationship`, Tag 1515.
+    pub fn get_party_relationship(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::PartyRelationshipField::new(0);
+        self.group().field_map.get_field(tag::PARTY_RELATIONSHIP, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `PartyRelationship` is present, Tag 1515.
+    pub fn has_party_relationship(&self) -> bool {
+        self.group().field_map.has(tag::PARTY_RELATIONSHIP)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoPartyListNoRelatedPartyIDsNoPartyRelationships<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `PartyRelationship`, Tag 1515.
+    pub fn set_party_relationship(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::PARTY_RELATIONSHIP, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+}
+
+/// `NoPartyListNoRelatedPartyIDsNoPartyRelationshipsRepeatingGroup` is the `NoPartyRelationships` repeating group, Tag 1514.
+pub struct NoPartyListNoRelatedPartyIDsNoPartyRelationshipsRepeatingGroup(pub RepeatingGroup);
+
+impl NoPartyListNoRelatedPartyIDsNoPartyRelationshipsRepeatingGroup {
+    /// Creates an empty `NoPartyRelationships` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::PARTY_RELATIONSHIP),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_PARTY_RELATIONSHIPS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoPartyListNoRelatedPartyIDsNoPartyRelationships<&mut Group> {
+        NoPartyListNoRelatedPartyIDsNoPartyRelationships(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoPartyListNoRelatedPartyIDsNoPartyRelationships<&Group> {
+        NoPartyListNoRelatedPartyIDsNoPartyRelationships(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoPartyListNoRelatedPartyIDsNoPartyRelationshipsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoRelatedPartyIDs` is an entry in the `NoRelatedPartyIDs` repeating group, Tag 1562.
+pub struct NoPartyListNoRelatedPartyIDs<G>(pub G);
+
+impl<G: Borrow<Group>> NoPartyListNoRelatedPartyIDs<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `RelatedPartyID`, Tag 1563.
+    pub fn get_related_party_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RelatedPartyIDField::new(String::new());
+        self.group().field_map.get_field(tag::RELATED_PARTY_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RelatedPartyID` is present, Tag 1563.
+    pub fn has_related_party_id(&self) -> bool {
+        self.group().field_map.has(tag::RELATED_PARTY_ID)
+    }
+
+
+
+
+    /// Gets `RelatedPartyIDSource`, Tag 1564.
+    pub fn get_related_party_id_source(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RelatedPartyIDSourceField::new(String::new());
+        self.group().field_map.get_field(tag::RELATED_PARTY_ID_SOURCE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RelatedPartyIDSource` is present, Tag 1564.
+    pub fn has_related_party_id_source(&self) -> bool {
+        self.group().field_map.has(tag::RELATED_PARTY_ID_SOURCE)
+    }
+
+
+
+
+    /// Gets `RelatedPartyRole`, Tag 1565.
+    pub fn get_related_party_role(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::RelatedPartyRoleField::new(0);
+        self.group().field_map.get_field(tag::RELATED_PARTY_ROLE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `RelatedPartyRole` is present, Tag 1565.
+    pub fn has_related_party_role(&self) -> bool {
+        self.group().field_map.has(tag::RELATED_PARTY_ROLE)
+    }
+
+
+
+
+    /// Gets `NoRelatedPartySubIDs`, Tag 1566.
+    pub fn get_no_related_party_sub_i_ds(&self) -> Result<NoPartyListNoRelatedPartyIDsNoRelatedPartySubIDsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoPartyListNoRelatedPartyIDsNoRelatedPartySubIDsRepeatingGroup::new();
+        Ok(NoPartyListNoRelatedPartyIDsNoRelatedPartySubIDsRepeatingGroup(self.group().field_map.get_group(g.0)?))
+    }
+
+
+    /// Returns true if `NoRelatedPartySubIDs` is present, Tag 1566.
+    pub fn has_no_related_party_sub_i_ds(&self) -> bool {
+        self.group().field_map.has(tag::NO_RELATED_PARTY_SUB_I_DS)
+    }
+
+
+
+
+    /// Gets `NoRelatedPartyAltIDs`, Tag 1569.
+    pub fn get_no_related_party_alt_i_ds(&self) -> Result<NoPartyListNoRelatedPartyIDsNoRelatedPartyAltIDsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoPartyListNoRelatedPartyIDsNoRelatedPartyAltIDsRepeatingGroup::new();
+        Ok(NoPartyListNoRelatedPartyIDsNoRelatedPartyAltIDsRepeatingGroup(self.group().field_map.get_group(g.0)?))
+    }
+
+
+    /// Returns true if `NoRelatedPartyAltIDs` is present, Tag 1569.
+    pub fn has_no_related_party_alt_i_ds(&self) -> bool {
+        self.group().field_map.has(tag::NO_RELATED_PARTY_ALT_I_DS)
+    }
+
+
+
+
+    /// Gets `NoRelatedContextPartyIDs`, Tag 1575.
+    pub fn get_no_related_context_party_i_ds(&self) -> Result<NoPartyListNoRelatedPartyIDsNoRelatedContextPartyIDsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoPartyListNoRelatedPartyIDsNoRelatedContextPartyIDsRepeatingGroup::new();
+        Ok(NoPartyListNoRelatedPartyIDsNoRelatedContextPartyIDsRepeatingGroup(self.group().field_map.get_group(g.0)?))
+    }
+
+
+    /// Returns true if `NoRelatedContextPartyIDs` is present, Tag 1575.
+    pub fn has_no_related_context_party_i_ds(&self) -> bool {
+        self.group().field_map.has(tag::NO_RELATED_CONTEXT_PARTY_I_DS)
+    }
+
+
+
+
+    /// Gets `NoRelationshipRiskLimits`, Tag 1582.
+    pub fn get_no_relationship_risk_limits(&self) -> Result<NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsRepeatingGroup::new();
+        Ok(NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsRepeatingGroup(self.group().field_map.get_group(g.0)?))
+    }
+
+
+    /// Returns true if `NoRelationshipRiskLimits` is present, Tag 1582.
+    pub fn has_no_relationship_risk_limits(&self) -> bool {
+        self.group().field_map.has(tag::NO_RELATIONSHIP_RISK_LIMITS)
+    }
+
+
+
+
+    /// Gets `NoPartyRelationships`, Tag 1514.
+    pub fn get_no_party_relationships(&self) -> Result<NoPartyListNoRelatedPartyIDsNoPartyRelationshipsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoPartyListNoRelatedPartyIDsNoPartyRelationshipsRepeatingGroup::new();
+        Ok(NoPartyListNoRelatedPartyIDsNoPartyRelationshipsRepeatingGroup(self.group().field_map.get_group(g.0)?))
+    }
+
+
+    /// Returns true if `NoPartyRelationships` is present, Tag 1514.
+    pub fn has_no_party_relationships(&self) -> bool {
+        self.group().field_map.has(tag::NO_PARTY_RELATIONSHIPS)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoPartyListNoRelatedPartyIDs<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `RelatedPartyID`, Tag 1563.
+    pub fn set_related_party_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RELATED_PARTY_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RelatedPartyIDSource`, Tag 1564.
+    pub fn set_related_party_id_source(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::RELATED_PARTY_ID_SOURCE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RelatedPartyRole`, Tag 1565.
+    pub fn set_related_party_role(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::RELATED_PARTY_ROLE, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `NoRelatedPartySubIDs`, Tag 1566.
+    pub fn set_no_related_party_sub_i_ds(&mut self, f: NoPartyListNoRelatedPartyIDsNoRelatedPartySubIDsRepeatingGroup) {
+        self.group_mut().field_map.set_group(f.0);
+    }
+
+
+
+
+
+    /// Sets `NoRelatedPartyAltIDs`, Tag 1569.
+    pub fn set_no_related_party_alt_i_ds(&mut self, f: NoPartyListNoRelatedPartyIDsNoRelatedPartyAltIDsRepeatingGroup) {
+        self.group_mut().field_map.set_group(f.0);
+    }
+
+
+
+
+
+    /// Sets `NoRelatedContextPartyIDs`, Tag 1575.
+    pub fn set_no_related_context_party_i_ds(&mut self, f: NoPartyListNoRelatedPartyIDsNoRelatedContextPartyIDsRepeatingGroup) {
+        self.group_mut().field_map.set_group(f.0);
+    }
+
+
+
+
+
+    /// Sets `NoRelationshipRiskLimits`, Tag 1582.
+    pub fn set_no_relationship_risk_limits(&mut self, f: NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsRepeatingGroup) {
+        self.group_mut().field_map.set_group(f.0);
+    }
+
+
+
+
+
+    /// Sets `NoPartyRelationships`, Tag 1514.
+    pub fn set_no_party_relationships(&mut self, f: NoPartyListNoRelatedPartyIDsNoPartyRelationshipsRepeatingGroup) {
+        self.group_mut().field_map.set_group(f.0);
+    }
+
+
+
+}
+
+/// `NoPartyListNoRelatedPartyIDsRepeatingGroup` is the `NoRelatedPartyIDs` repeating group, Tag 1562.
+pub struct NoPartyListNoRelatedPartyIDsRepeatingGroup(pub RepeatingGroup);
+
+impl NoPartyListNoRelatedPartyIDsRepeatingGroup {
+    /// Creates an empty `NoRelatedPartyIDs` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::RELATED_PARTY_ID),
+
+
+
+            group_element(tag::RELATED_PARTY_ID_SOURCE),
+
+
+
+            group_element(tag::RELATED_PARTY_ROLE),
+
+
+
+            Box::new(NoPartyListNoRelatedPartyIDsNoRelatedPartySubIDsRepeatingGroup::new().0),
+
+
+
+            Box::new(NoPartyListNoRelatedPartyIDsNoRelatedPartyAltIDsRepeatingGroup::new().0),
+
+
+
+            Box::new(NoPartyListNoRelatedPartyIDsNoRelatedContextPartyIDsRepeatingGroup::new().0),
+
+
+
+            Box::new(NoPartyListNoRelatedPartyIDsNoRelationshipRiskLimitsRepeatingGroup::new().0),
+
+
+
+            Box::new(NoPartyListNoRelatedPartyIDsNoPartyRelationshipsRepeatingGroup::new().0),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_RELATED_PARTY_I_DS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoPartyListNoRelatedPartyIDs<&mut Group> {
+        NoPartyListNoRelatedPartyIDs(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoPartyListNoRelatedPartyIDs<&Group> {
+        NoPartyListNoRelatedPartyIDs(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoPartyListNoRelatedPartyIDsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoPartyList` is an entry in the `NoPartyList` repeating group, Tag 1513.
+pub struct NoPartyList<G>(pub G);
+
+impl<G: Borrow<Group>> NoPartyList<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `PartyID`, Tag 448.
+    pub fn get_party_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::PartyIDField::new(String::new());
+        self.group().field_map.get_field(tag::PARTY_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `PartyID` is present, Tag 448.
+    pub fn has_party_id(&self) -> bool {
+        self.group().field_map.has(tag::PARTY_ID)
+    }
+
+
+
+
+    /// Gets `PartyIDSource`, Tag 447.
+    pub fn get_party_id_source(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::PartyIDSourceField::new(String::new());
+        self.group().field_map.get_field(tag::PARTY_ID_SOURCE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `PartyIDSource` is present, Tag 447.
+    pub fn has_party_id_source(&self) -> bool {
+        self.group().field_map.has(tag::PARTY_ID_SOURCE)
+    }
+
+
+
+
+    /// Gets `PartyRole`, Tag 452.
+    pub fn get_party_role(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::PartyRoleField::new(0);
+        self.group().field_map.get_field(tag::PARTY_ROLE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `PartyRole` is present, Tag 452.
+    pub fn has_party_role(&self) -> bool {
+        self.group().field_map.has(tag::PARTY_ROLE)
+    }
+
+
+
+
+    /// Gets `NoPartySubIDs`, Tag 802.
+    pub fn get_no_party_sub_i_ds(&self) -> Result<NoPartyListNoPartySubIDsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoPartyListNoPartySubIDsRepeatingGroup::new();
+        Ok(NoPartyListNoPartySubIDsRepeatingGroup(self.group().field_map.get_group(g.0)?))
+    }
+
+
+    /// Returns true if `NoPartySubIDs` is present, Tag 802.
+    pub fn has_no_party_sub_i_ds(&self) -> bool {
+        self.group().field_map.has(tag::NO_PARTY_SUB_I_DS)
+    }
+
+
+
+
+    /// Gets `NoPartyAltIDs`, Tag 1516.
+    pub fn get_no_party_alt_i_ds(&self) -> Result<NoPartyListNoPartyAltIDsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoPartyListNoPartyAltIDsRepeatingGroup::new();
+        Ok(NoPartyListNoPartyAltIDsRepeatingGroup(self.group().field_map.get_group(g.0)?))
+    }
+
+
+    /// Returns true if `NoPartyAltIDs` is present, Tag 1516.
+    pub fn has_no_party_alt_i_ds(&self) -> bool {
+        self.group().field_map.has(tag::NO_PARTY_ALT_I_DS)
+    }
+
+
+
+
+    /// Gets `NoContextPartyIDs`, Tag 1522.
+    pub fn get_no_context_party_i_ds(&self) -> Result<NoPartyListNoContextPartyIDsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoPartyListNoContextPartyIDsRepeatingGroup::new();
+        Ok(NoPartyListNoContextPartyIDsRepeatingGroup(self.group().field_map.get_group(g.0)?))
+    }
+
+
+    /// Returns true if `NoContextPartyIDs` is present, Tag 1522.
+    pub fn has_no_context_party_i_ds(&self) -> bool {
+        self.group().field_map.has(tag::NO_CONTEXT_PARTY_I_DS)
+    }
+
+
+
+
+    /// Gets `NoRiskLimits`, Tag 1529.
+    pub fn get_no_risk_limits(&self) -> Result<NoPartyListNoRiskLimitsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoPartyListNoRiskLimitsRepeatingGroup::new();
+        Ok(NoPartyListNoRiskLimitsRepeatingGroup(self.group().field_map.get_group(g.0)?))
+    }
+
+
+    /// Returns true if `NoRiskLimits` is present, Tag 1529.
+    pub fn has_no_risk_limits(&self) -> bool {
+        self.group().field_map.has(tag::NO_RISK_LIMITS)
+    }
+
+
+
+
+    /// Gets `NoRelatedPartyIDs`, Tag 1562.
+    pub fn get_no_related_party_i_ds(&self) -> Result<NoPartyListNoRelatedPartyIDsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoPartyListNoRelatedPartyIDsRepeatingGroup::new();
+        Ok(NoPartyListNoRelatedPartyIDsRepeatingGroup(self.group().field_map.get_group(g.0)?))
+    }
+
+
+    /// Returns true if `NoRelatedPartyIDs` is present, Tag 1562.
+    pub fn has_no_related_party_i_ds(&self) -> bool {
+        self.group().field_map.has(tag::NO_RELATED_PARTY_I_DS)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoPartyList<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `PartyID`, Tag 448.
+    pub fn set_party_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::PARTY_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `PartyIDSource`, Tag 447.
+    pub fn set_party_id_source(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::PARTY_ID_SOURCE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `PartyRole`, Tag 452.
+    pub fn set_party_role(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::PARTY_ROLE, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `NoPartySubIDs`, Tag 802.
+    pub fn set_no_party_sub_i_ds(&mut self, f: NoPartyListNoPartySubIDsRepeatingGroup) {
+        self.group_mut().field_map.set_group(f.0);
+    }
+
+
+
+
+
+    /// Sets `NoPartyAltIDs`, Tag 1516.
+    pub fn set_no_party_alt_i_ds(&mut self, f: NoPartyListNoPartyAltIDsRepeatingGroup) {
+        self.group_mut().field_map.set_group(f.0);
+    }
+
+
+
+
+
+    /// Sets `NoContextPartyIDs`, Tag 1522.
+    pub fn set_no_context_party_i_ds(&mut self, f: NoPartyListNoContextPartyIDsRepeatingGroup) {
+        self.group_mut().field_map.set_group(f.0);
+    }
+
+
+
+
+
+    /// Sets `NoRiskLimits`, Tag 1529.
+    pub fn set_no_risk_limits(&mut self, f: NoPartyListNoRiskLimitsRepeatingGroup) {
+        self.group_mut().field_map.set_group(f.0);
+    }
+
+
+
+
+
+    /// Sets `NoRelatedPartyIDs`, Tag 1562.
+    pub fn set_no_related_party_i_ds(&mut self, f: NoPartyListNoRelatedPartyIDsRepeatingGroup) {
+        self.group_mut().field_map.set_group(f.0);
+    }
+
+
+
+}
+
+/// `NoPartyListRepeatingGroup` is the `NoPartyList` repeating group, Tag 1513.
+pub struct NoPartyListRepeatingGroup(pub RepeatingGroup);
+
+impl NoPartyListRepeatingGroup {
+    /// Creates an empty `NoPartyList` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::PARTY_ID),
+
+
+
+            group_element(tag::PARTY_ID_SOURCE),
+
+
+
+            group_element(tag::PARTY_ROLE),
+
+
+
+            Box::new(NoPartyListNoPartySubIDsRepeatingGroup::new().0),
+
+
+
+            Box::new(NoPartyListNoPartyAltIDsRepeatingGroup::new().0),
+
+
+
+            Box::new(NoPartyListNoContextPartyIDsRepeatingGroup::new().0),
+
+
+
+            Box::new(NoPartyListNoRiskLimitsRepeatingGroup::new().0),
+
+
+
+            Box::new(NoPartyListNoRelatedPartyIDsRepeatingGroup::new().0),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_PARTY_LIST, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoPartyList<&mut Group> {
+        NoPartyList(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoPartyList<&Group> {
+        NoPartyList(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoPartyListRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+

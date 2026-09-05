@@ -8,6 +8,8 @@ use fixer::message::Message;
 use fixer::fix_string::FIXString;
 use fixer::errors::MessageRejectErrorEnum;
 use fixer::session::session_id::SessionID;
+use fixer::repeating_group::{Group, GroupTemplate, RepeatingGroup, group_element};
+use std::borrow::{Borrow, BorrowMut};
 
 
 use crate::field;
@@ -152,15 +154,14 @@ impl Logon {
 
 
     /// Sets `NoMsgTypes`, Tag 384.
-    pub fn set_no_msg_types(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_MSG_TYPES, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_msg_types(&mut self, f: NoMsgTypesRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoMsgTypes`, Tag 384.
-    pub fn get_no_msg_types(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoMsgTypesField::new(0);
-        self.message.body.get_field(tag::NO_MSG_TYPES, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_msg_types(&self) -> Result<NoMsgTypesRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoMsgTypesRepeatingGroup::new();
+        Ok(NoMsgTypesRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -311,3 +312,177 @@ pub fn route(router: RouteOut) -> Route {
     };
     ("FIXT.1.1", "A", Box::new(r))
 }
+
+
+/// `NoMsgTypes` is an entry in the `NoMsgTypes` repeating group, Tag 384.
+pub struct NoMsgTypes<G>(pub G);
+
+impl<G: Borrow<Group>> NoMsgTypes<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `RefMsgType`, Tag 372.
+    pub fn get_ref_msg_type(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RefMsgTypeField::new(String::new());
+        self.group().field_map.get_field(tag::REF_MSG_TYPE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RefMsgType` is present, Tag 372.
+    pub fn has_ref_msg_type(&self) -> bool {
+        self.group().field_map.has(tag::REF_MSG_TYPE)
+    }
+
+
+
+
+    /// Gets `MsgDirection`, Tag 385.
+    pub fn get_msg_direction(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::MsgDirectionField::new(String::new());
+        self.group().field_map.get_field(tag::MSG_DIRECTION, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `MsgDirection` is present, Tag 385.
+    pub fn has_msg_direction(&self) -> bool {
+        self.group().field_map.has(tag::MSG_DIRECTION)
+    }
+
+
+
+
+    /// Gets `RefApplVerID`, Tag 1130.
+    pub fn get_ref_appl_ver_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RefApplVerIDField::new(String::new());
+        self.group().field_map.get_field(tag::REF_APPL_VER_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RefApplVerID` is present, Tag 1130.
+    pub fn has_ref_appl_ver_id(&self) -> bool {
+        self.group().field_map.has(tag::REF_APPL_VER_ID)
+    }
+
+
+
+
+    /// Gets `RefCstmApplVerID`, Tag 1131.
+    pub fn get_ref_cstm_appl_ver_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RefCstmApplVerIDField::new(String::new());
+        self.group().field_map.get_field(tag::REF_CSTM_APPL_VER_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RefCstmApplVerID` is present, Tag 1131.
+    pub fn has_ref_cstm_appl_ver_id(&self) -> bool {
+        self.group().field_map.has(tag::REF_CSTM_APPL_VER_ID)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoMsgTypes<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `RefMsgType`, Tag 372.
+    pub fn set_ref_msg_type(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::REF_MSG_TYPE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `MsgDirection`, Tag 385.
+    pub fn set_msg_direction(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::MSG_DIRECTION, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RefApplVerID`, Tag 1130.
+    pub fn set_ref_appl_ver_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::REF_APPL_VER_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RefCstmApplVerID`, Tag 1131.
+    pub fn set_ref_cstm_appl_ver_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::REF_CSTM_APPL_VER_ID, FIXString::from(v));
+    }
+
+
+
+}
+
+/// `NoMsgTypesRepeatingGroup` is the `NoMsgTypes` repeating group, Tag 384.
+pub struct NoMsgTypesRepeatingGroup(pub RepeatingGroup);
+
+impl NoMsgTypesRepeatingGroup {
+    /// Creates an empty `NoMsgTypes` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::REF_MSG_TYPE),
+
+
+
+            group_element(tag::MSG_DIRECTION),
+
+
+
+            group_element(tag::REF_APPL_VER_ID),
+
+
+
+            group_element(tag::REF_CSTM_APPL_VER_ID),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_MSG_TYPES, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoMsgTypes<&mut Group> {
+        NoMsgTypes(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoMsgTypes<&Group> {
+        NoMsgTypes(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoMsgTypesRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+

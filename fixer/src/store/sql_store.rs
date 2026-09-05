@@ -129,7 +129,7 @@ impl SqlStore {
         let sql = format!(
             "SELECT creation_time, incoming_seqnum, outgoing_seqnum FROM sessions WHERE {SESSION_WHERE}"
         );
-        let query = bind_session_id!(sqlx::query(&sql), s);
+        let query = bind_session_id!(sqlx::query(sqlx::AssertSqlSafe(sql)), s);
         let row = query
             .fetch_optional(&self.pool)
             .await
@@ -223,7 +223,10 @@ impl MessageStoreTrait for SqlStore {
     async fn set_next_sender_msg_seq_num(&mut self, next_seq_num: isize) -> SimpleResult<()> {
         let s = &self.session_id;
         let sql = format!("UPDATE sessions SET outgoing_seqnum = ? WHERE {SESSION_WHERE}");
-        let query = bind_session_id!(sqlx::query(&sql).bind(next_seq_num as i32), s);
+        let query = bind_session_id!(
+            sqlx::query(sqlx::AssertSqlSafe(sql)).bind(next_seq_num as i32),
+            s
+        );
         query
             .execute(&self.pool)
             .await
@@ -235,7 +238,10 @@ impl MessageStoreTrait for SqlStore {
     async fn set_next_target_msg_seq_num(&mut self, next_seq_num: isize) -> SimpleResult<()> {
         let s = &self.session_id;
         let sql = format!("UPDATE sessions SET incoming_seqnum = ? WHERE {SESSION_WHERE}");
-        let query = bind_session_id!(sqlx::query(&sql).bind(next_seq_num as i32), s);
+        let query = bind_session_id!(
+            sqlx::query(sqlx::AssertSqlSafe(sql)).bind(next_seq_num as i32),
+            s
+        );
         query
             .execute(&self.pool)
             .await
@@ -309,7 +315,7 @@ impl MessageStoreTrait for SqlStore {
         let sql = format!(
             "SELECT message FROM messages WHERE {SESSION_WHERE} AND msgseqnum>=? AND msgseqnum<=? ORDER BY msgseqnum"
         );
-        let query = bind_session_id!(sqlx::query(&sql), s)
+        let query = bind_session_id!(sqlx::query(sqlx::AssertSqlSafe(sql)), s)
             .bind(begin_seq_num as i32)
             .bind(end_seq_num as i32);
         let rows = query
@@ -351,7 +357,7 @@ impl MessageStoreTrait for SqlStore {
 
         // Delete messages for this session
         let sql = format!("DELETE FROM messages WHERE {SESSION_WHERE}");
-        let query = bind_session_id!(sqlx::query(&sql), s);
+        let query = bind_session_id!(sqlx::query(sqlx::AssertSqlSafe(sql)), s);
         query
             .execute(&self.pool)
             .await
@@ -366,7 +372,7 @@ impl MessageStoreTrait for SqlStore {
             "UPDATE sessions SET creation_time=?, incoming_seqnum=?, outgoing_seqnum=? WHERE {SESSION_WHERE}"
         );
         let query = bind_session_id!(
-            sqlx::query(&sql)
+            sqlx::query(sqlx::AssertSqlSafe(sql))
                 .bind(&creation_time_str)
                 .bind(self.cache.next_target_msg_seq_num().await as i32)
                 .bind(self.cache.next_sender_msg_seq_num().await as i32),

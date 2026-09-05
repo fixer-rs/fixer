@@ -37,6 +37,7 @@ struct Cli {
 fn build_tera() -> Tera {
     let mut tera = Tera::default();
     tera.add_raw_templates(vec![
+        ("macros.tera", include_str!("../templates/macros.tera")),
         ("tag.rs.tera", include_str!("../templates/tag.rs.tera")),
         ("enums.rs.tera", include_str!("../templates/enums.rs.tera")),
         ("field.rs.tera", include_str!("../templates/field.rs.tera")),
@@ -207,7 +208,14 @@ mod tests {
         assert!(names.contains(&"trailer.rs.tera"));
         assert!(names.contains(&"mod.rs.tera"));
         assert!(names.contains(&"lib.rs.tera"));
-        assert_eq!(names.len(), 8);
+        assert!(names.contains(&"macros.tera"));
+        assert_eq!(names.len(), 9);
+
+        // macros.tera exists only to register these components; if they are
+        // missing, group generation silently emits nothing.
+        for c in ["group_types", "element_getters", "element_setters"] {
+            assert!(tera.contains_component(c), "component {c} not registered");
+        }
     }
 
     #[test]

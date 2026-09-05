@@ -3,7 +3,17 @@
 #![allow(unused_imports)]
 
 use fixer::field_map::FieldMap;
-use fixer::fix_string::FIXString;
+use fixer::fix_string::FIXString;{% if groups %}
+use fixer::errors::MessageRejectErrorEnum;
+use fixer::repeating_group::{Group, GroupTemplate, RepeatingGroup, group_element};
+use std::borrow::{Borrow, BorrowMut};{% endif %}
+{% if needs_decimal %}
+use rust_decimal::Decimal;
+{% endif %}
+{% if needs_timestamp %}
+use jiff::Timestamp;
+{% endif %}
+use crate::field;
 use crate::tag;
 
 /// `Header` is the `{{ package }}` Header type.
@@ -19,10 +29,19 @@ impl Header<'_> {
     }
 
 {% for f in fields %}
+
 {% if f.is_group %}
-    // TODO: group setter/getter for {{ f.name }}
-{% else %}
-{% if f.fixer_type == "FIXString" %}
+    /// Sets `{{ f.name }}`, Tag {{ f.tag }}.
+    pub fn set_{{ f.snake_name }}(&mut self, f: {{ f.group_type }}RepeatingGroup) {
+        self.header.set_group(f.0);
+    }
+
+    /// Gets `{{ f.name }}`, Tag {{ f.tag }}.
+    pub fn get_{{ f.snake_name }}(&self) -> Result<{{ f.group_type }}RepeatingGroup, MessageRejectErrorEnum> {
+        let g = {{ f.group_type }}RepeatingGroup::new();
+        Ok({{ f.group_type }}RepeatingGroup(self.header.get_group(g.0)?))
+    }
+{% elif f.fixer_type == "FIXString" %}
     /// Sets `{{ f.name }}`, Tag {{ f.tag }}.
     pub fn set_{{ f.snake_name }}(&mut self, v: String) {
         self.header.set_field(tag::{{ f.const_name }}, FIXString::from(v));
@@ -51,6 +70,9 @@ impl Header<'_> {
     pub fn has_{{ f.snake_name }}(&self) -> bool {
         self.header.has(tag::{{ f.const_name }})
     }
-{% endif %}
+
 {% endfor %}
 }
+{% for g in groups %}
+{{<group_types g={g}/>}}
+{% endfor %}

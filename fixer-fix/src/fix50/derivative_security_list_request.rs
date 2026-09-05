@@ -8,6 +8,8 @@ use fixer::message::Message;
 use fixer::fix_string::FIXString;
 use fixer::errors::MessageRejectErrorEnum;
 use fixer::session::session_id::SessionID;
+use fixer::repeating_group::{Group, GroupTemplate, RepeatingGroup, group_element};
+use std::borrow::{Borrow, BorrowMut};
 
 use rust_decimal::Decimal;
 
@@ -194,15 +196,14 @@ impl DerivativeSecurityListRequest {
 
 
     /// Sets `NoUnderlyingSecurityAltID`, Tag 457.
-    pub fn set_no_underlying_security_alt_id(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_UNDERLYING_SECURITY_ALT_ID, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_underlying_security_alt_id(&mut self, f: NoUnderlyingSecurityAltIDRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoUnderlyingSecurityAltID`, Tag 457.
-    pub fn get_no_underlying_security_alt_id(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoUnderlyingSecurityAltIDField::new(0);
-        self.message.body.get_field(tag::NO_UNDERLYING_SECURITY_ALT_ID, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_underlying_security_alt_id(&self) -> Result<NoUnderlyingSecurityAltIDRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoUnderlyingSecurityAltIDRepeatingGroup::new();
+        Ok(NoUnderlyingSecurityAltIDRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -215,15 +216,14 @@ impl DerivativeSecurityListRequest {
 
 
     /// Sets `NoUnderlyingStips`, Tag 887.
-    pub fn set_no_underlying_stips(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_UNDERLYING_STIPS, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_underlying_stips(&mut self, f: NoUnderlyingStipsRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoUnderlyingStips`, Tag 887.
-    pub fn get_no_underlying_stips(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoUnderlyingStipsField::new(0);
-        self.message.body.get_field(tag::NO_UNDERLYING_STIPS, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_underlying_stips(&self) -> Result<NoUnderlyingStipsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoUnderlyingStipsRepeatingGroup::new();
+        Ok(NoUnderlyingStipsRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -236,15 +236,14 @@ impl DerivativeSecurityListRequest {
 
 
     /// Sets `NoUndlyInstrumentParties`, Tag 1058.
-    pub fn set_no_undly_instrument_parties(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_UNDLY_INSTRUMENT_PARTIES, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_undly_instrument_parties(&mut self, f: NoUndlyInstrumentPartiesRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoUndlyInstrumentParties`, Tag 1058.
-    pub fn get_no_undly_instrument_parties(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoUndlyInstrumentPartiesField::new(0);
-        self.message.body.get_field(tag::NO_UNDLY_INSTRUMENT_PARTIES, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_undly_instrument_parties(&self) -> Result<NoUndlyInstrumentPartiesRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoUndlyInstrumentPartiesRepeatingGroup::new();
+        Ok(NoUndlyInstrumentPartiesRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -1487,3 +1486,524 @@ pub fn route(router: RouteOut) -> Route {
     };
     ("7", "z", Box::new(r))
 }
+
+
+/// `NoUnderlyingSecurityAltID` is an entry in the `NoUnderlyingSecurityAltID` repeating group, Tag 457.
+pub struct NoUnderlyingSecurityAltID<G>(pub G);
+
+impl<G: Borrow<Group>> NoUnderlyingSecurityAltID<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `UnderlyingSecurityAltID`, Tag 458.
+    pub fn get_underlying_security_alt_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::UnderlyingSecurityAltIDField::new(String::new());
+        self.group().field_map.get_field(tag::UNDERLYING_SECURITY_ALT_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `UnderlyingSecurityAltID` is present, Tag 458.
+    pub fn has_underlying_security_alt_id(&self) -> bool {
+        self.group().field_map.has(tag::UNDERLYING_SECURITY_ALT_ID)
+    }
+
+
+
+
+    /// Gets `UnderlyingSecurityAltIDSource`, Tag 459.
+    pub fn get_underlying_security_alt_id_source(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::UnderlyingSecurityAltIDSourceField::new(String::new());
+        self.group().field_map.get_field(tag::UNDERLYING_SECURITY_ALT_ID_SOURCE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `UnderlyingSecurityAltIDSource` is present, Tag 459.
+    pub fn has_underlying_security_alt_id_source(&self) -> bool {
+        self.group().field_map.has(tag::UNDERLYING_SECURITY_ALT_ID_SOURCE)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoUnderlyingSecurityAltID<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `UnderlyingSecurityAltID`, Tag 458.
+    pub fn set_underlying_security_alt_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::UNDERLYING_SECURITY_ALT_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `UnderlyingSecurityAltIDSource`, Tag 459.
+    pub fn set_underlying_security_alt_id_source(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::UNDERLYING_SECURITY_ALT_ID_SOURCE, FIXString::from(v));
+    }
+
+
+
+}
+
+/// `NoUnderlyingSecurityAltIDRepeatingGroup` is the `NoUnderlyingSecurityAltID` repeating group, Tag 457.
+pub struct NoUnderlyingSecurityAltIDRepeatingGroup(pub RepeatingGroup);
+
+impl NoUnderlyingSecurityAltIDRepeatingGroup {
+    /// Creates an empty `NoUnderlyingSecurityAltID` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::UNDERLYING_SECURITY_ALT_ID),
+
+
+
+            group_element(tag::UNDERLYING_SECURITY_ALT_ID_SOURCE),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_UNDERLYING_SECURITY_ALT_ID, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoUnderlyingSecurityAltID<&mut Group> {
+        NoUnderlyingSecurityAltID(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoUnderlyingSecurityAltID<&Group> {
+        NoUnderlyingSecurityAltID(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoUnderlyingSecurityAltIDRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoUnderlyingStips` is an entry in the `NoUnderlyingStips` repeating group, Tag 887.
+pub struct NoUnderlyingStips<G>(pub G);
+
+impl<G: Borrow<Group>> NoUnderlyingStips<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `UnderlyingStipType`, Tag 888.
+    pub fn get_underlying_stip_type(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::UnderlyingStipTypeField::new(String::new());
+        self.group().field_map.get_field(tag::UNDERLYING_STIP_TYPE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `UnderlyingStipType` is present, Tag 888.
+    pub fn has_underlying_stip_type(&self) -> bool {
+        self.group().field_map.has(tag::UNDERLYING_STIP_TYPE)
+    }
+
+
+
+
+    /// Gets `UnderlyingStipValue`, Tag 889.
+    pub fn get_underlying_stip_value(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::UnderlyingStipValueField::new(String::new());
+        self.group().field_map.get_field(tag::UNDERLYING_STIP_VALUE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `UnderlyingStipValue` is present, Tag 889.
+    pub fn has_underlying_stip_value(&self) -> bool {
+        self.group().field_map.has(tag::UNDERLYING_STIP_VALUE)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoUnderlyingStips<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `UnderlyingStipType`, Tag 888.
+    pub fn set_underlying_stip_type(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::UNDERLYING_STIP_TYPE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `UnderlyingStipValue`, Tag 889.
+    pub fn set_underlying_stip_value(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::UNDERLYING_STIP_VALUE, FIXString::from(v));
+    }
+
+
+
+}
+
+/// `NoUnderlyingStipsRepeatingGroup` is the `NoUnderlyingStips` repeating group, Tag 887.
+pub struct NoUnderlyingStipsRepeatingGroup(pub RepeatingGroup);
+
+impl NoUnderlyingStipsRepeatingGroup {
+    /// Creates an empty `NoUnderlyingStips` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::UNDERLYING_STIP_TYPE),
+
+
+
+            group_element(tag::UNDERLYING_STIP_VALUE),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_UNDERLYING_STIPS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoUnderlyingStips<&mut Group> {
+        NoUnderlyingStips(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoUnderlyingStips<&Group> {
+        NoUnderlyingStips(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoUnderlyingStipsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoUndlyInstrumentPartySubIDs` is an entry in the `NoUndlyInstrumentPartySubIDs` repeating group, Tag 1062.
+pub struct NoUndlyInstrumentPartiesNoUndlyInstrumentPartySubIDs<G>(pub G);
+
+impl<G: Borrow<Group>> NoUndlyInstrumentPartiesNoUndlyInstrumentPartySubIDs<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `UndlyInstrumentPartySubID`, Tag 1063.
+    pub fn get_undly_instrument_party_sub_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::UndlyInstrumentPartySubIDField::new(String::new());
+        self.group().field_map.get_field(tag::UNDLY_INSTRUMENT_PARTY_SUB_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `UndlyInstrumentPartySubID` is present, Tag 1063.
+    pub fn has_undly_instrument_party_sub_id(&self) -> bool {
+        self.group().field_map.has(tag::UNDLY_INSTRUMENT_PARTY_SUB_ID)
+    }
+
+
+
+
+    /// Gets `UndlyInstrumentPartySubIDType`, Tag 1064.
+    pub fn get_undly_instrument_party_sub_id_type(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::UndlyInstrumentPartySubIDTypeField::new(0);
+        self.group().field_map.get_field(tag::UNDLY_INSTRUMENT_PARTY_SUB_ID_TYPE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `UndlyInstrumentPartySubIDType` is present, Tag 1064.
+    pub fn has_undly_instrument_party_sub_id_type(&self) -> bool {
+        self.group().field_map.has(tag::UNDLY_INSTRUMENT_PARTY_SUB_ID_TYPE)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoUndlyInstrumentPartiesNoUndlyInstrumentPartySubIDs<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `UndlyInstrumentPartySubID`, Tag 1063.
+    pub fn set_undly_instrument_party_sub_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::UNDLY_INSTRUMENT_PARTY_SUB_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `UndlyInstrumentPartySubIDType`, Tag 1064.
+    pub fn set_undly_instrument_party_sub_id_type(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::UNDLY_INSTRUMENT_PARTY_SUB_ID_TYPE, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+}
+
+/// `NoUndlyInstrumentPartiesNoUndlyInstrumentPartySubIDsRepeatingGroup` is the `NoUndlyInstrumentPartySubIDs` repeating group, Tag 1062.
+pub struct NoUndlyInstrumentPartiesNoUndlyInstrumentPartySubIDsRepeatingGroup(pub RepeatingGroup);
+
+impl NoUndlyInstrumentPartiesNoUndlyInstrumentPartySubIDsRepeatingGroup {
+    /// Creates an empty `NoUndlyInstrumentPartySubIDs` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::UNDLY_INSTRUMENT_PARTY_SUB_ID),
+
+
+
+            group_element(tag::UNDLY_INSTRUMENT_PARTY_SUB_ID_TYPE),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_UNDLY_INSTRUMENT_PARTY_SUB_I_DS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoUndlyInstrumentPartiesNoUndlyInstrumentPartySubIDs<&mut Group> {
+        NoUndlyInstrumentPartiesNoUndlyInstrumentPartySubIDs(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoUndlyInstrumentPartiesNoUndlyInstrumentPartySubIDs<&Group> {
+        NoUndlyInstrumentPartiesNoUndlyInstrumentPartySubIDs(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoUndlyInstrumentPartiesNoUndlyInstrumentPartySubIDsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoUndlyInstrumentParties` is an entry in the `NoUndlyInstrumentParties` repeating group, Tag 1058.
+pub struct NoUndlyInstrumentParties<G>(pub G);
+
+impl<G: Borrow<Group>> NoUndlyInstrumentParties<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `UndlyInstrumentPartyID`, Tag 1059.
+    pub fn get_undly_instrument_party_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::UndlyInstrumentPartyIDField::new(String::new());
+        self.group().field_map.get_field(tag::UNDLY_INSTRUMENT_PARTY_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `UndlyInstrumentPartyID` is present, Tag 1059.
+    pub fn has_undly_instrument_party_id(&self) -> bool {
+        self.group().field_map.has(tag::UNDLY_INSTRUMENT_PARTY_ID)
+    }
+
+
+
+
+    /// Gets `UndlyInstrumentPartyIDSource`, Tag 1060.
+    pub fn get_undly_instrument_party_id_source(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::UndlyInstrumentPartyIDSourceField::new(String::new());
+        self.group().field_map.get_field(tag::UNDLY_INSTRUMENT_PARTY_ID_SOURCE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `UndlyInstrumentPartyIDSource` is present, Tag 1060.
+    pub fn has_undly_instrument_party_id_source(&self) -> bool {
+        self.group().field_map.has(tag::UNDLY_INSTRUMENT_PARTY_ID_SOURCE)
+    }
+
+
+
+
+    /// Gets `UndlyInstrumentPartyRole`, Tag 1061.
+    pub fn get_undly_instrument_party_role(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::UndlyInstrumentPartyRoleField::new(0);
+        self.group().field_map.get_field(tag::UNDLY_INSTRUMENT_PARTY_ROLE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `UndlyInstrumentPartyRole` is present, Tag 1061.
+    pub fn has_undly_instrument_party_role(&self) -> bool {
+        self.group().field_map.has(tag::UNDLY_INSTRUMENT_PARTY_ROLE)
+    }
+
+
+
+
+    /// Gets `NoUndlyInstrumentPartySubIDs`, Tag 1062.
+    pub fn get_no_undly_instrument_party_sub_i_ds(&self) -> Result<NoUndlyInstrumentPartiesNoUndlyInstrumentPartySubIDsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoUndlyInstrumentPartiesNoUndlyInstrumentPartySubIDsRepeatingGroup::new();
+        Ok(NoUndlyInstrumentPartiesNoUndlyInstrumentPartySubIDsRepeatingGroup(self.group().field_map.get_group(g.0)?))
+    }
+
+
+    /// Returns true if `NoUndlyInstrumentPartySubIDs` is present, Tag 1062.
+    pub fn has_no_undly_instrument_party_sub_i_ds(&self) -> bool {
+        self.group().field_map.has(tag::NO_UNDLY_INSTRUMENT_PARTY_SUB_I_DS)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoUndlyInstrumentParties<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `UndlyInstrumentPartyID`, Tag 1059.
+    pub fn set_undly_instrument_party_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::UNDLY_INSTRUMENT_PARTY_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `UndlyInstrumentPartyIDSource`, Tag 1060.
+    pub fn set_undly_instrument_party_id_source(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::UNDLY_INSTRUMENT_PARTY_ID_SOURCE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `UndlyInstrumentPartyRole`, Tag 1061.
+    pub fn set_undly_instrument_party_role(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::UNDLY_INSTRUMENT_PARTY_ROLE, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `NoUndlyInstrumentPartySubIDs`, Tag 1062.
+    pub fn set_no_undly_instrument_party_sub_i_ds(&mut self, f: NoUndlyInstrumentPartiesNoUndlyInstrumentPartySubIDsRepeatingGroup) {
+        self.group_mut().field_map.set_group(f.0);
+    }
+
+
+
+}
+
+/// `NoUndlyInstrumentPartiesRepeatingGroup` is the `NoUndlyInstrumentParties` repeating group, Tag 1058.
+pub struct NoUndlyInstrumentPartiesRepeatingGroup(pub RepeatingGroup);
+
+impl NoUndlyInstrumentPartiesRepeatingGroup {
+    /// Creates an empty `NoUndlyInstrumentParties` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::UNDLY_INSTRUMENT_PARTY_ID),
+
+
+
+            group_element(tag::UNDLY_INSTRUMENT_PARTY_ID_SOURCE),
+
+
+
+            group_element(tag::UNDLY_INSTRUMENT_PARTY_ROLE),
+
+
+
+            Box::new(NoUndlyInstrumentPartiesNoUndlyInstrumentPartySubIDsRepeatingGroup::new().0),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_UNDLY_INSTRUMENT_PARTIES, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoUndlyInstrumentParties<&mut Group> {
+        NoUndlyInstrumentParties(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoUndlyInstrumentParties<&Group> {
+        NoUndlyInstrumentParties(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoUndlyInstrumentPartiesRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+

@@ -8,6 +8,10 @@ use fixer::message::Message;
 use fixer::fix_string::FIXString;
 use fixer::errors::MessageRejectErrorEnum;
 use fixer::session::session_id::SessionID;
+use fixer::repeating_group::{Group, GroupTemplate, RepeatingGroup, group_element};
+use std::borrow::{Borrow, BorrowMut};
+
+use rust_decimal::Decimal;
 
 
 use crate::field;
@@ -20,7 +24,7 @@ pub struct ListStatus {
 
 impl ListStatus {
     /// Creates a new `ListStatus` with required fields.
-    pub fn new(list_id: field::ListIDField, no_rpts: field::NoRptsField, rpt_seq: field::RptSeqField, no_orders: field::NoOrdersField) -> Self {
+    pub fn new(list_id: field::ListIDField, no_rpts: field::NoRptsField, rpt_seq: field::RptSeqField) -> Self {
         let mut msg = Message::new();
         msg.header.set_field(tag::MSG_TYPE, FIXString::from("N".to_string()));
 
@@ -29,8 +33,6 @@ impl ListStatus {
         msg.body.set_field(tag::NO_RPTS, no_rpts.0);
 
         msg.body.set_field(tag::RPT_SEQ, rpt_seq.0);
-
-        msg.body.set_field(tag::NO_ORDERS, no_orders.0);
 
         Self { message: msg }
     }
@@ -70,15 +72,14 @@ impl ListStatus {
 
 
     /// Sets `NoOrders`, Tag 73.
-    pub fn set_no_orders(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_ORDERS, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_orders(&mut self, f: NoOrdersRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoOrders`, Tag 73.
-    pub fn get_no_orders(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoOrdersField::new(0);
-        self.message.body.get_field(tag::NO_ORDERS, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_orders(&self) -> Result<NoOrdersRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoOrdersRepeatingGroup::new();
+        Ok(NoOrdersRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -166,3 +167,206 @@ pub fn route(router: RouteOut) -> Route {
     };
     ("FIX.4.1", "N", Box::new(r))
 }
+
+
+/// `NoOrders` is an entry in the `NoOrders` repeating group, Tag 73.
+pub struct NoOrders<G>(pub G);
+
+impl<G: Borrow<Group>> NoOrders<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `ClOrdID`, Tag 11.
+    pub fn get_cl_ord_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::ClOrdIDField::new(String::new());
+        self.group().field_map.get_field(tag::CL_ORD_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `ClOrdID` is present, Tag 11.
+    pub fn has_cl_ord_id(&self) -> bool {
+        self.group().field_map.has(tag::CL_ORD_ID)
+    }
+
+
+
+
+    /// Gets `CumQty`, Tag 14.
+    pub fn get_cum_qty(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::CumQtyField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::CUM_QTY, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `CumQty` is present, Tag 14.
+    pub fn has_cum_qty(&self) -> bool {
+        self.group().field_map.has(tag::CUM_QTY)
+    }
+
+
+
+
+    /// Gets `LeavesQty`, Tag 151.
+    pub fn get_leaves_qty(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::LeavesQtyField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::LEAVES_QTY, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `LeavesQty` is present, Tag 151.
+    pub fn has_leaves_qty(&self) -> bool {
+        self.group().field_map.has(tag::LEAVES_QTY)
+    }
+
+
+
+
+    /// Gets `CxlQty`, Tag 84.
+    pub fn get_cxl_qty(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::CxlQtyField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::CXL_QTY, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `CxlQty` is present, Tag 84.
+    pub fn has_cxl_qty(&self) -> bool {
+        self.group().field_map.has(tag::CXL_QTY)
+    }
+
+
+
+
+    /// Gets `AvgPx`, Tag 6.
+    pub fn get_avg_px(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::AvgPxField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::AVG_PX, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `AvgPx` is present, Tag 6.
+    pub fn has_avg_px(&self) -> bool {
+        self.group().field_map.has(tag::AVG_PX)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoOrders<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `ClOrdID`, Tag 11.
+    pub fn set_cl_ord_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::CL_ORD_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `CumQty`, Tag 14.
+    pub fn set_cum_qty(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::CUM_QTY, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `LeavesQty`, Tag 151.
+    pub fn set_leaves_qty(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::LEAVES_QTY, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `CxlQty`, Tag 84.
+    pub fn set_cxl_qty(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::CXL_QTY, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `AvgPx`, Tag 6.
+    pub fn set_avg_px(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::AVG_PX, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+}
+
+/// `NoOrdersRepeatingGroup` is the `NoOrders` repeating group, Tag 73.
+pub struct NoOrdersRepeatingGroup(pub RepeatingGroup);
+
+impl NoOrdersRepeatingGroup {
+    /// Creates an empty `NoOrders` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::CL_ORD_ID),
+
+
+
+            group_element(tag::CUM_QTY),
+
+
+
+            group_element(tag::LEAVES_QTY),
+
+
+
+            group_element(tag::CXL_QTY),
+
+
+
+            group_element(tag::AVG_PX),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_ORDERS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoOrders<&mut Group> {
+        NoOrders(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoOrders<&Group> {
+        NoOrders(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoOrdersRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+

@@ -8,6 +8,10 @@ use fixer::message::Message;
 use fixer::fix_string::FIXString;
 use fixer::errors::MessageRejectErrorEnum;
 use fixer::session::session_id::SessionID;
+use fixer::repeating_group::{Group, GroupTemplate, RepeatingGroup, group_element};
+use std::borrow::{Borrow, BorrowMut};
+
+use rust_decimal::Decimal;
 
 
 use jiff::Timestamp;
@@ -238,15 +242,14 @@ impl ConfirmationRequest {
 
 
     /// Sets `NoOrders`, Tag 73.
-    pub fn set_no_orders(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_ORDERS, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_orders(&mut self, f: NoOrdersRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoOrders`, Tag 73.
-    pub fn get_no_orders(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoOrdersField::new(0);
-        self.message.body.get_field(tag::NO_ORDERS, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_orders(&self) -> Result<NoOrdersRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoOrdersRepeatingGroup::new();
+        Ok(NoOrdersRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -337,3 +340,610 @@ pub fn route(router: RouteOut) -> Route {
     };
     ("9", "BH", Box::new(r))
 }
+
+
+/// `NoNested2PartySubIDs` is an entry in the `NoNested2PartySubIDs` repeating group, Tag 806.
+pub struct NoOrdersNoNested2PartyIDsNoNested2PartySubIDs<G>(pub G);
+
+impl<G: Borrow<Group>> NoOrdersNoNested2PartyIDsNoNested2PartySubIDs<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `Nested2PartySubID`, Tag 760.
+    pub fn get_nested2_party_sub_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::Nested2PartySubIDField::new(String::new());
+        self.group().field_map.get_field(tag::NESTED2_PARTY_SUB_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `Nested2PartySubID` is present, Tag 760.
+    pub fn has_nested2_party_sub_id(&self) -> bool {
+        self.group().field_map.has(tag::NESTED2_PARTY_SUB_ID)
+    }
+
+
+
+
+    /// Gets `Nested2PartySubIDType`, Tag 807.
+    pub fn get_nested2_party_sub_id_type(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::Nested2PartySubIDTypeField::new(0);
+        self.group().field_map.get_field(tag::NESTED2_PARTY_SUB_ID_TYPE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `Nested2PartySubIDType` is present, Tag 807.
+    pub fn has_nested2_party_sub_id_type(&self) -> bool {
+        self.group().field_map.has(tag::NESTED2_PARTY_SUB_ID_TYPE)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoOrdersNoNested2PartyIDsNoNested2PartySubIDs<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `Nested2PartySubID`, Tag 760.
+    pub fn set_nested2_party_sub_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::NESTED2_PARTY_SUB_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `Nested2PartySubIDType`, Tag 807.
+    pub fn set_nested2_party_sub_id_type(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::NESTED2_PARTY_SUB_ID_TYPE, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+}
+
+/// `NoOrdersNoNested2PartyIDsNoNested2PartySubIDsRepeatingGroup` is the `NoNested2PartySubIDs` repeating group, Tag 806.
+pub struct NoOrdersNoNested2PartyIDsNoNested2PartySubIDsRepeatingGroup(pub RepeatingGroup);
+
+impl NoOrdersNoNested2PartyIDsNoNested2PartySubIDsRepeatingGroup {
+    /// Creates an empty `NoNested2PartySubIDs` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::NESTED2_PARTY_SUB_ID),
+
+
+
+            group_element(tag::NESTED2_PARTY_SUB_ID_TYPE),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_NESTED2_PARTY_SUB_I_DS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoOrdersNoNested2PartyIDsNoNested2PartySubIDs<&mut Group> {
+        NoOrdersNoNested2PartyIDsNoNested2PartySubIDs(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoOrdersNoNested2PartyIDsNoNested2PartySubIDs<&Group> {
+        NoOrdersNoNested2PartyIDsNoNested2PartySubIDs(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoOrdersNoNested2PartyIDsNoNested2PartySubIDsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoNested2PartyIDs` is an entry in the `NoNested2PartyIDs` repeating group, Tag 756.
+pub struct NoOrdersNoNested2PartyIDs<G>(pub G);
+
+impl<G: Borrow<Group>> NoOrdersNoNested2PartyIDs<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `Nested2PartyID`, Tag 757.
+    pub fn get_nested2_party_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::Nested2PartyIDField::new(String::new());
+        self.group().field_map.get_field(tag::NESTED2_PARTY_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `Nested2PartyID` is present, Tag 757.
+    pub fn has_nested2_party_id(&self) -> bool {
+        self.group().field_map.has(tag::NESTED2_PARTY_ID)
+    }
+
+
+
+
+    /// Gets `Nested2PartyIDSource`, Tag 758.
+    pub fn get_nested2_party_id_source(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::Nested2PartyIDSourceField::new(String::new());
+        self.group().field_map.get_field(tag::NESTED2_PARTY_ID_SOURCE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `Nested2PartyIDSource` is present, Tag 758.
+    pub fn has_nested2_party_id_source(&self) -> bool {
+        self.group().field_map.has(tag::NESTED2_PARTY_ID_SOURCE)
+    }
+
+
+
+
+    /// Gets `Nested2PartyRole`, Tag 759.
+    pub fn get_nested2_party_role(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::Nested2PartyRoleField::new(0);
+        self.group().field_map.get_field(tag::NESTED2_PARTY_ROLE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `Nested2PartyRole` is present, Tag 759.
+    pub fn has_nested2_party_role(&self) -> bool {
+        self.group().field_map.has(tag::NESTED2_PARTY_ROLE)
+    }
+
+
+
+
+    /// Gets `NoNested2PartySubIDs`, Tag 806.
+    pub fn get_no_nested2_party_sub_i_ds(&self) -> Result<NoOrdersNoNested2PartyIDsNoNested2PartySubIDsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoOrdersNoNested2PartyIDsNoNested2PartySubIDsRepeatingGroup::new();
+        Ok(NoOrdersNoNested2PartyIDsNoNested2PartySubIDsRepeatingGroup(self.group().field_map.get_group(g.0)?))
+    }
+
+
+    /// Returns true if `NoNested2PartySubIDs` is present, Tag 806.
+    pub fn has_no_nested2_party_sub_i_ds(&self) -> bool {
+        self.group().field_map.has(tag::NO_NESTED2_PARTY_SUB_I_DS)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoOrdersNoNested2PartyIDs<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `Nested2PartyID`, Tag 757.
+    pub fn set_nested2_party_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::NESTED2_PARTY_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `Nested2PartyIDSource`, Tag 758.
+    pub fn set_nested2_party_id_source(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::NESTED2_PARTY_ID_SOURCE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `Nested2PartyRole`, Tag 759.
+    pub fn set_nested2_party_role(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::NESTED2_PARTY_ROLE, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `NoNested2PartySubIDs`, Tag 806.
+    pub fn set_no_nested2_party_sub_i_ds(&mut self, f: NoOrdersNoNested2PartyIDsNoNested2PartySubIDsRepeatingGroup) {
+        self.group_mut().field_map.set_group(f.0);
+    }
+
+
+
+}
+
+/// `NoOrdersNoNested2PartyIDsRepeatingGroup` is the `NoNested2PartyIDs` repeating group, Tag 756.
+pub struct NoOrdersNoNested2PartyIDsRepeatingGroup(pub RepeatingGroup);
+
+impl NoOrdersNoNested2PartyIDsRepeatingGroup {
+    /// Creates an empty `NoNested2PartyIDs` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::NESTED2_PARTY_ID),
+
+
+
+            group_element(tag::NESTED2_PARTY_ID_SOURCE),
+
+
+
+            group_element(tag::NESTED2_PARTY_ROLE),
+
+
+
+            Box::new(NoOrdersNoNested2PartyIDsNoNested2PartySubIDsRepeatingGroup::new().0),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_NESTED2_PARTY_I_DS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoOrdersNoNested2PartyIDs<&mut Group> {
+        NoOrdersNoNested2PartyIDs(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoOrdersNoNested2PartyIDs<&Group> {
+        NoOrdersNoNested2PartyIDs(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoOrdersNoNested2PartyIDsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoOrders` is an entry in the `NoOrders` repeating group, Tag 73.
+pub struct NoOrders<G>(pub G);
+
+impl<G: Borrow<Group>> NoOrders<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `ClOrdID`, Tag 11.
+    pub fn get_cl_ord_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::ClOrdIDField::new(String::new());
+        self.group().field_map.get_field(tag::CL_ORD_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `ClOrdID` is present, Tag 11.
+    pub fn has_cl_ord_id(&self) -> bool {
+        self.group().field_map.has(tag::CL_ORD_ID)
+    }
+
+
+
+
+    /// Gets `OrderID`, Tag 37.
+    pub fn get_order_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::OrderIDField::new(String::new());
+        self.group().field_map.get_field(tag::ORDER_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `OrderID` is present, Tag 37.
+    pub fn has_order_id(&self) -> bool {
+        self.group().field_map.has(tag::ORDER_ID)
+    }
+
+
+
+
+    /// Gets `SecondaryOrderID`, Tag 198.
+    pub fn get_secondary_order_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::SecondaryOrderIDField::new(String::new());
+        self.group().field_map.get_field(tag::SECONDARY_ORDER_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `SecondaryOrderID` is present, Tag 198.
+    pub fn has_secondary_order_id(&self) -> bool {
+        self.group().field_map.has(tag::SECONDARY_ORDER_ID)
+    }
+
+
+
+
+    /// Gets `SecondaryClOrdID`, Tag 526.
+    pub fn get_secondary_cl_ord_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::SecondaryClOrdIDField::new(String::new());
+        self.group().field_map.get_field(tag::SECONDARY_CL_ORD_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `SecondaryClOrdID` is present, Tag 526.
+    pub fn has_secondary_cl_ord_id(&self) -> bool {
+        self.group().field_map.has(tag::SECONDARY_CL_ORD_ID)
+    }
+
+
+
+
+    /// Gets `ListID`, Tag 66.
+    pub fn get_list_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::ListIDField::new(String::new());
+        self.group().field_map.get_field(tag::LIST_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `ListID` is present, Tag 66.
+    pub fn has_list_id(&self) -> bool {
+        self.group().field_map.has(tag::LIST_ID)
+    }
+
+
+
+
+    /// Gets `NoNested2PartyIDs`, Tag 756.
+    pub fn get_no_nested2_party_i_ds(&self) -> Result<NoOrdersNoNested2PartyIDsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoOrdersNoNested2PartyIDsRepeatingGroup::new();
+        Ok(NoOrdersNoNested2PartyIDsRepeatingGroup(self.group().field_map.get_group(g.0)?))
+    }
+
+
+    /// Returns true if `NoNested2PartyIDs` is present, Tag 756.
+    pub fn has_no_nested2_party_i_ds(&self) -> bool {
+        self.group().field_map.has(tag::NO_NESTED2_PARTY_I_DS)
+    }
+
+
+
+
+    /// Gets `OrderQty`, Tag 38.
+    pub fn get_order_qty(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::OrderQtyField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::ORDER_QTY, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `OrderQty` is present, Tag 38.
+    pub fn has_order_qty(&self) -> bool {
+        self.group().field_map.has(tag::ORDER_QTY)
+    }
+
+
+
+
+    /// Gets `OrderAvgPx`, Tag 799.
+    pub fn get_order_avg_px(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::OrderAvgPxField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::ORDER_AVG_PX, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `OrderAvgPx` is present, Tag 799.
+    pub fn has_order_avg_px(&self) -> bool {
+        self.group().field_map.has(tag::ORDER_AVG_PX)
+    }
+
+
+
+
+    /// Gets `OrderBookingQty`, Tag 800.
+    pub fn get_order_booking_qty(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::OrderBookingQtyField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::ORDER_BOOKING_QTY, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `OrderBookingQty` is present, Tag 800.
+    pub fn has_order_booking_qty(&self) -> bool {
+        self.group().field_map.has(tag::ORDER_BOOKING_QTY)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoOrders<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `ClOrdID`, Tag 11.
+    pub fn set_cl_ord_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::CL_ORD_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `OrderID`, Tag 37.
+    pub fn set_order_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::ORDER_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `SecondaryOrderID`, Tag 198.
+    pub fn set_secondary_order_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::SECONDARY_ORDER_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `SecondaryClOrdID`, Tag 526.
+    pub fn set_secondary_cl_ord_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::SECONDARY_CL_ORD_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `ListID`, Tag 66.
+    pub fn set_list_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::LIST_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `NoNested2PartyIDs`, Tag 756.
+    pub fn set_no_nested2_party_i_ds(&mut self, f: NoOrdersNoNested2PartyIDsRepeatingGroup) {
+        self.group_mut().field_map.set_group(f.0);
+    }
+
+
+
+
+
+    /// Sets `OrderQty`, Tag 38.
+    pub fn set_order_qty(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::ORDER_QTY, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `OrderAvgPx`, Tag 799.
+    pub fn set_order_avg_px(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::ORDER_AVG_PX, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `OrderBookingQty`, Tag 800.
+    pub fn set_order_booking_qty(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::ORDER_BOOKING_QTY, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+}
+
+/// `NoOrdersRepeatingGroup` is the `NoOrders` repeating group, Tag 73.
+pub struct NoOrdersRepeatingGroup(pub RepeatingGroup);
+
+impl NoOrdersRepeatingGroup {
+    /// Creates an empty `NoOrders` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::CL_ORD_ID),
+
+
+
+            group_element(tag::ORDER_ID),
+
+
+
+            group_element(tag::SECONDARY_ORDER_ID),
+
+
+
+            group_element(tag::SECONDARY_CL_ORD_ID),
+
+
+
+            group_element(tag::LIST_ID),
+
+
+
+            Box::new(NoOrdersNoNested2PartyIDsRepeatingGroup::new().0),
+
+
+
+            group_element(tag::ORDER_QTY),
+
+
+
+            group_element(tag::ORDER_AVG_PX),
+
+
+
+            group_element(tag::ORDER_BOOKING_QTY),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_ORDERS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoOrders<&mut Group> {
+        NoOrders(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoOrders<&Group> {
+        NoOrders(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoOrdersRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
