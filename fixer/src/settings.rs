@@ -280,10 +280,14 @@ impl Settings {
                 let key = parts.get(1).map(|m| m.as_str()).unwrap();
                 let val = parts.get(2).map(|m| m.as_str()).unwrap();
 
-                settings
-                    .as_mut()
-                    .unwrap()
-                    .set(key.to_string(), val.to_string());
+                let Some(current) = settings.as_mut() else {
+                    return Err(simple_error!(
+                        "error parsing line {}: setting '{}' appears before any [DEFAULT] or [SESSION] section",
+                        line_number,
+                        key
+                    ));
+                };
+                current.set(key.to_string(), val.to_string());
             } else {
                 return Err(simple_error!("error parsing line: {}", line_number));
             }
@@ -607,6 +611,21 @@ HeartBtInt=45
             .map(|e| e.value().setting("HeartBtInt").unwrap())
             .unwrap();
         assert_eq!("45", overridden, "session should override the default");
+    }
+
+    #[tokio::test]
+    async fn test_parse_setting_before_any_section() {
+        // A key=value line before any [DEFAULT]/[SESSION] header used to hit
+        // `settings.as_mut().unwrap()` and panic.
+        let cfg = "ConnectionType=initiator\n\n[SESSION]\nBeginString=FIX.4.2\n";
+        let err = Settings::parse(tokio::io::BufReader::new(cfg.as_bytes()))
+            .await
+            .expect_err("a setting outside any section should be a parse error");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("ConnectionType") && msg.contains('1'),
+            "error should name the offending setting and line, got: {msg}"
+        );
     }
 
     #[tokio::test]
