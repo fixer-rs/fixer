@@ -2,7 +2,7 @@ use criterion::Criterion;
 use fixer::datadictionary::{DataDictionary, FieldType};
 use fixer::encoding::Codec;
 use fixer::encoding::fixml::FixmlCodec;
-use fixer::encoding::fixml::abbr::{ContentEntry, FixmlAbbreviations};
+use fixer::encoding::fixml::abbr::FixmlAbbreviations;
 use fixer::encoding::json::JsonCodec;
 use fixer::fix_string::FIXString;
 use fixer::message::Message;
@@ -117,50 +117,10 @@ pub fn parse_message_json(c: &mut Criterion) {
     });
 }
 
+/// Real FIX.4.4 abbreviations, so the benchmark reflects the lookup cost of a
+/// full schema (912 field abbreviations) rather than a dozen hand-written ones.
 fn bench_fixml_abbr() -> Arc<FixmlAbbreviations> {
-    let mut abbr = FixmlAbbreviations::new();
-    abbr.fix_version = "FIX.4.4".to_string();
-    abbr.add_field(TAG_BEGIN_STRING, "BgnStr");
-    abbr.add_field(TAG_MSG_TYPE, "MsgTyp");
-    abbr.add_field(TAG_SENDER_COMP_ID, "SID");
-    abbr.add_field(TAG_TARGET_COMP_ID, "TID");
-    abbr.add_field(TAG_MSG_SEQ_NUM, "SeqNum");
-    abbr.add_field(TAG_SENDING_TIME, "Snt");
-    abbr.add_field(11, "ClOrdID");
-    abbr.add_field(21, "HandlInst");
-    abbr.add_field(38, "OrdQty");
-    abbr.add_field(40, "OrdTyp");
-    abbr.add_field(54, "Side");
-    abbr.add_field(55, "Sym");
-    abbr.add_field(60, "TxnTm");
-    abbr.add_message("D", "Order");
-    abbr.add_component("Instrument", "Instrmt");
-    abbr.add_component("OrderQtyData", "OrdQty");
-    abbr.component_tags
-        .insert("Instrument".to_string(), [55].into_iter().collect());
-    abbr.component_tags
-        .insert("OrderQtyData".to_string(), [38].into_iter().collect());
-    abbr.msg_type_to_component_id
-        .insert("D".to_string(), "14".to_string());
-    abbr.component_name_to_id
-        .insert("Instrument".to_string(), "1003".to_string());
-    abbr.component_name_to_id
-        .insert("OrderQtyData".to_string(), "1011".to_string());
-    abbr.contents.insert(
-        "14".to_string(),
-        vec![
-            ContentEntry { tag_text: "StandardHeader".into(), is_field: false, indent: 0, position: 1, required: true },
-            ContentEntry { tag_text: "11".into(), is_field: true, indent: 0, position: 2, required: true },
-            ContentEntry { tag_text: "21".into(), is_field: true, indent: 0, position: 3, required: false },
-            ContentEntry { tag_text: "54".into(), is_field: true, indent: 0, position: 4, required: true },
-            ContentEntry { tag_text: "40".into(), is_field: true, indent: 0, position: 5, required: true },
-            ContentEntry { tag_text: "60".into(), is_field: true, indent: 0, position: 6, required: false },
-            ContentEntry { tag_text: "Instrument".into(), is_field: false, indent: 0, position: 7, required: true },
-            ContentEntry { tag_text: "OrderQtyData".into(), is_field: false, indent: 0, position: 8, required: true },
-            ContentEntry { tag_text: "StandardTrailer".into(), is_field: false, indent: 0, position: 99, required: true },
-        ],
-    );
-    Arc::new(abbr)
+    Arc::new(FixmlAbbreviations::bundled("FIX.4.4").expect("bundled FIX.4.4"))
 }
 
 pub fn parse_message_fixml(c: &mut Criterion) {
@@ -168,7 +128,7 @@ pub fn parse_message_fixml(c: &mut Criterion) {
     let abbr = bench_fixml_abbr();
     let codec = FixmlCodec::new(Arc::clone(&dd), Arc::clone(&abbr));
 
-    const FIXML_MSG: &str = r#"<FIXML v="FIX.4.4"><Order ClOrdID="100" HandlInst="1" Side="1" OrdTyp="1" TxnTm="00010101-00:00:00.000"><Instrmt Sym="TSLA"/><OrdQty OrdQty="100"/><Hdr SID="TW" TID="ISLD" SeqNum="2" Snt="20140515-19:49:56.659"/></Order></FIXML>"#;
+    const FIXML_MSG: &str = r#"<FIXML v="FIX.4.4"><Order ClOrdID="100" HandlInst="1" Side="1" OrdTyp="1" TxnTm="00010101-00:00:00.000"><Instrmt Sym="TSLA"/><OrdQty Qty="100"/><Hdr SID="TW" TID="ISLD" SeqNum="2" Snt="20140515-19:49:56.659"/></Order></FIXML>"#;
     let fixml_bytes = bytes::Bytes::from(FIXML_MSG);
 
     c.bench_function("parse_message_fixml", |b| {

@@ -676,7 +676,7 @@ fn write_element(
     let sub_components: Vec<String> = abbr
         .member_components(component_name)
         .into_iter()
-        .filter(|sub| component_has_data(abbr, sub, scope, counters))
+        .filter(|sub| component_has_data(abbr, sub, scope, &scalars))
         .collect();
 
     if attrs.is_empty() && sub_components.is_empty() {
@@ -703,11 +703,15 @@ fn write_element(
 }
 
 /// Whether any tag belonging to `component` is present in `scope`.
+///
+/// `scalars` is the caller's already-computed view of the fields in `scope`
+/// that sit outside any group; recomputing it per candidate component made
+/// encoding quadratic in the number of components a message declares.
 fn component_has_data(
     abbr: &FixmlAbbreviations,
     component: &str,
     scope: &[(Tag, Vec<u8>)],
-    counters: &rustc_hash::FxHashMap<Tag, String>,
+    scalars: &rustc_hash::FxHashMap<Tag, &[u8]>,
 ) -> bool {
     let Some(all) = abbr.component_all_tags.get(component) else {
         return false;
@@ -719,7 +723,6 @@ fn component_has_data(
             .group_counter_tag(component)
             .is_some_and(|counter| scope.iter().any(|(tag, _)| *tag == counter));
     }
-    let scalars = scope_scalars(scope, abbr, counters);
     all.iter().any(|tag| scalars.contains_key(tag))
 }
 
