@@ -1,0 +1,5470 @@
+V	FIX.5.0
+F	1	Acct
+F	2	AdvId
+F	3	AdvRefID
+F	4	AdvSide
+F	5	AdvTransTyp
+F	6	AvgPx
+F	7	BeginSeqNo
+F	8	BeginString
+F	9	BodyLength
+F	10	CheckSum
+F	11	ClOrdID
+F	12	Comm
+F	13	CommTyp
+F	14	CumQty
+F	15	Ccy
+F	16	EndSeqNo
+F	17	ExecID
+F	18	ExecInst
+F	19	ExecRefID
+F	21	HandlInst
+F	22	Src
+F	23	IOIID
+F	25	QltyInd
+F	26	RefID
+F	27	Qty
+F	28	TransTyp
+F	29	LastCpcty
+F	30	LastMkt
+F	31	LastPx
+F	32	LastQty
+F	33	NoLinesOfText
+F	34	SeqNum
+F	35	MsgTyp
+F	36	NewSeqNo
+F	37	OrdID
+F	38	Qty
+F	39	OrdStat
+F	40	OrdTyp
+F	41	OrigClOrdID
+F	42	OrigTm
+F	43	PosDup
+F	44	Px
+F	45	RefSeqNum
+F	48	ID
+F	49	SID
+F	50	SSub
+F	52	Snt
+F	53	Qty
+F	54	Side
+F	55	Sym
+F	56	TID
+F	57	TSub
+F	58	Txt
+F	59	TmInForce
+F	60	TxnTm
+F	61	Urgency
+F	62	ValidUntilTm
+F	63	SettlTyp
+F	64	SettlDt
+F	65	Sfx
+F	66	ListID
+F	67	ListSeqNo
+F	68	TotNoOrds
+F	69	ListExecInst
+F	70	AllocID
+F	71	TransTyp
+F	72	RefAllocID
+F	73	NoOrds
+F	74	AvgPxPrcsn
+F	75	TrdDt
+F	77	PosEfct
+F	78	NoAllocs
+F	79	Acct
+F	80	Qty
+F	81	ProcCode
+F	82	NoRpts
+F	83	RptSeq
+F	84	CxlQty
+F	85	NoDlvyInst
+F	87	Stat
+F	88	RejCode
+F	89	Signature
+F	90	SecureDataLen
+F	91	SecureData
+F	93	SignatureLength
+F	94	EmailTyp
+F	95	RawDataLength
+F	96	RawData
+F	97	PosRsnd
+F	98	EncryptMethod
+F	99	StopPx
+F	100	ExDest
+F	102	CxlRejRsn
+F	103	RejRsn
+F	104	Qual
+F	106	Issr
+F	107	Desc
+F	108	HeartBtInt
+F	110	MinQty
+F	111	MaxFloor
+F	112	TestReqID
+F	113	RptToExch
+F	114	LocReqd
+F	115	OBID
+F	116	OBSub
+F	117	QID
+F	118	NetMny
+F	119	SettlCurrAmt
+F	120	SettlCcy
+F	121	ForexReq
+F	122	OrigSnt
+F	123	GapFillFlag
+F	124	NoExecs
+F	126	ExpireTm
+F	127	DkRsn
+F	128	D2ID
+F	129	D2Sub
+F	130	NatFlag
+F	131	ReqID
+F	132	BidPx
+F	133	OfrPx
+F	134	BidSz
+F	135	OfrSz
+F	136	NoMiscFees
+F	137	Amt
+F	138	Curr
+F	139	Typ
+F	140	PrevClsPx
+F	141	ResetSeqNumFlag
+F	142	SLoc
+F	143	TLoc
+F	144	OBLoc
+F	145	D2Loc
+F	146	NoReltdSym
+F	147	Subject
+F	148	Headline
+F	149	URL
+F	150	ExecTyp
+F	151	LeavesQty
+F	152	Cash
+F	153	AvgPx
+F	154	NetMny
+F	155	SettlCurrFxRt
+F	156	SettlCurrFxRtCalc
+F	157	NumDaysInt
+F	158	AcrdIntRt
+F	159	AcrdIntAmt
+F	160	SettlInstMode
+F	161	Txt
+F	162	SettlInstID
+F	163	SettlInstTransTyp
+F	164	EmailThreadID
+F	165	InstSrc
+F	167	SecTyp
+F	168	EfctvTm
+F	169	StandInstDbTyp
+F	170	StandInstDbName
+F	171	StandInstDbID
+F	172	DlvryTyp
+F	188	BidSpotRt
+F	189	BidFwdPnts
+F	190	OfrSpotRt
+F	191	OfrFwdPnts
+F	192	Qty2
+F	193	SettlDt2
+F	194	LastSpotRt
+F	195	LastFwdPnts
+F	196	LinkID
+F	197	LinkTyp
+F	198	OrdID2
+F	199	NoIOIQuals
+F	200	MMY
+F	201	PutCall
+F	202	StrkPx
+F	203	Covered
+F	206	OptAt
+F	207	Exch
+F	208	NotifyBrkrOfCredit
+F	209	HandlInst
+F	210	MaxShow
+F	211	OfstVal
+F	212	XmlDataLen
+F	213	XmlData
+F	214	SettlInstRefID
+F	215	NoRtgIDs
+F	216	RtgTyp
+F	217	RtgID
+F	218	Spread
+F	220	Ccy
+F	221	Name
+F	222	Point
+F	223	CpnRt
+F	224	CpnPmt
+F	225	Issued
+F	226	RepoTrm
+F	227	RepoRt
+F	228	Fctr
+F	229	OrignDt
+F	230	ExDt
+F	231	Mult
+F	232	NoStips
+F	233	Typ
+F	234	Val
+F	235	Typ
+F	236	Yld
+F	237	TotTakedown
+F	238	Concession
+F	239	RepoCollSecTyp
+F	240	Redeem
+F	241	CpnPmt
+F	242	Issued
+F	243	RepoCollSecTyp
+F	244	RepoTrm
+F	245	RepoRt
+F	246	Fctr
+F	247	Redeem
+F	248	CpnPmt
+F	249	Issued
+F	250	RepoCollSecTyp
+F	251	RepoTrm
+F	252	RepoRt
+F	253	Fctr
+F	254	Redeem
+F	255	CrdRtg
+F	256	CrdRtg
+F	257	CrdRtg
+F	258	TrddFlatSwitch
+F	259	BasisFeatureDt
+F	260	BasisFeaturePx
+F	262	ReqID
+F	263	SubReqTyp
+F	264	MktDepth
+F	265	UpdtTyp
+F	266	AggBook
+F	267	NoMDEntryTyps
+F	268	NoMDEntries
+F	269	Typ
+F	270	Px
+F	271	Sz
+F	272	Dt
+F	273	Tm
+F	274	TickDirctn
+F	275	Mkt
+F	276	QCond
+F	277	TrdCond
+F	278	ID
+F	279	UpdtAct
+F	280	RefID
+F	281	ReqRejResn
+F	282	Orig
+F	283	LctnID
+F	284	DeskID
+F	285	DelRsn
+F	286	OpenClsSettlFlag
+F	287	SellerDays
+F	288	Buyer
+F	289	Seller
+F	290	PosNo
+F	291	FinclStat
+F	292	CorpActn
+F	293	DefBidSz
+F	294	DefOfrSz
+F	295	NoQuotEntries
+F	296	NoQuotSets
+F	297	Stat
+F	298	CxlTyp
+F	299	EntryID
+F	300	RejRsn
+F	301	RspLvl
+F	302	SetID
+F	303	ReqTyp
+F	304	TotNoQuotEntries
+F	305	Src
+F	306	Issr
+F	307	Desc
+F	308	Exch
+F	309	ID
+F	310	Typ
+F	311	Sym
+F	312	Sfx
+F	313	MMY
+F	315	UndPutOrCall
+F	316	StrkPx
+F	317	OptA
+F	318	Ccy
+F	320	ReqID
+F	321	ReqTyp
+F	322	RspID
+F	323	RspTyp
+F	324	StatReqID
+F	325	Unsol
+F	326	TrdgStat
+F	327	HaltRsn
+F	328	InViewOfCmn
+F	329	DueToReltd
+F	330	BuyVol
+F	331	SellVol
+F	332	HighPx
+F	333	LowPx
+F	334	Adjmt
+F	335	ReqID
+F	336	SesID
+F	337	CntraTrdr
+F	338	Method
+F	339	Mode
+F	340	Stat
+F	341	StartTm
+F	342	OpenTm
+F	343	PreClsTm
+F	344	ClsTm
+F	345	EndTm
+F	346	NumOfOrds
+F	347	MsgEncd
+F	348	EncIssrLen
+F	349	EncIssr
+F	350	EncSecDescLen
+F	351	EncSecDesc
+F	352	EncListExecInstLen
+F	353	EncListExecInst
+F	354	EncTxtLen
+F	355	EncTxt
+F	356	EncSubjectLen
+F	357	EncSubject
+F	358	EncHeadlineLen
+F	359	EncHeadline
+F	360	EncAllocTextLen
+F	361	EncAllocText
+F	362	EncUndIssrLen
+F	363	EncUndIssr
+F	364	EncUndSecDescLen
+F	365	EncUndSecDesc
+F	366	Px
+F	367	ValidTil
+F	368	EntryRejRsn
+F	369	LastMsgSeqNumProced
+F	371	RefTagID
+F	372	RefMsgTyp
+F	373	SessRejRsn
+F	374	BidReqTransTyp
+F	375	CntraBrkr
+F	376	ComplianceID
+F	377	SolFlag
+F	378	ExecRstmtRsn
+F	379	BizRejRefID
+F	380	BizRejRsn
+F	381	GrossTrdAmt
+F	382	NoCntraBrkrs
+F	383	MaxMsgSz
+F	384	NoMsgTyps
+F	385	MsgDirctn
+F	386	NoTrdgSesss
+F	387	TotVolTrdd
+F	388	DsctnInst
+F	389	OfstValu
+F	390	BidID
+F	391	ClBidID
+F	392	ListName
+F	393	TotNoReltdSym
+F	394	BidTyp
+F	395	NumTkts
+F	396	SideValu1
+F	397	SideValu2
+F	398	NoBidDescptrs
+F	399	BidDescptrTyp
+F	400	BidDescptr
+F	401	SideValuInd
+F	402	LqdtyPctLow
+F	403	LqdtyPctHigh
+F	404	LqdtyValu
+F	405	EFPTrkngErr
+F	406	FairValu
+F	407	OutsideNdxPct
+F	408	ValuOfFuts
+F	409	LqdtyIndTyp
+F	410	WtAvgLqdty
+F	411	EFP
+F	412	OutMainCntryUNdx
+F	413	CrssPct
+F	414	ProgRptReqs
+F	415	ProgPeriodIntvl
+F	416	IncTaxInd
+F	417	NumBidders
+F	418	BidTrdTyp
+F	419	BasisPxTyp
+F	420	NoBidComponents
+F	421	Ctry
+F	422	TotNoStrks
+F	423	PxTyp
+F	424	DayOrdQty
+F	425	DayCumQty
+F	426	DayAvgPx
+F	427	GTBkngInst
+F	428	NoStrks
+F	429	ListStatTyp
+F	430	NetGrossInd
+F	431	ListOrdStat
+F	432	ExpireDt
+F	433	ListExecInstTyp
+F	434	CxlRejRspTo
+F	435	CpnRt
+F	436	Mult
+F	437	CntraTrdQty
+F	438	CntraTrdTm
+F	441	LqdtyNumSecurities
+F	442	MLegRptTyp
+F	443	StrkTm
+F	444	ListStatText
+F	445	EncListStatTextLen
+F	446	EncListStatText
+F	447	Src
+F	448	ID
+F	451	NetChgPrevDay
+F	452	R
+F	453	NoPtyIDs
+F	454	NoSecAltID
+F	455	AltID
+F	456	AltIDSrc
+F	457	NoUndSecAltID
+F	458	AltID
+F	459	AltIDSrc
+F	460	Prod
+F	461	CFI
+F	462	Prod
+F	463	CFI
+F	464	TestMsgInd
+F	466	BkngRefID
+F	467	IndAllocID
+F	468	RndDir
+F	469	RndMod
+F	470	IssuCtry
+F	471	StPrv
+F	472	Lcl
+F	473	NoRegistDtls
+F	474	MailingDtls
+F	475	InvestorCtryOfResidence
+F	476	PmtRef
+F	477	DistribPmtMethod
+F	478	CshDistribCurr
+F	479	Ccy
+F	480	CxllationRights
+F	481	MnyLaunderingStat
+F	482	MailingInst
+F	483	TransBkdTm
+F	484	ExecPxTyp
+F	485	ExecPxAdjment
+F	486	DtOfBirth
+F	487	TransTyp
+F	488	CardHolderName
+F	489	CardNum
+F	490	CardExpDt
+F	491	CardIssNum
+F	492	PmtMethod
+F	493	AcctTyp
+F	494	Designation
+F	495	TaxAdvantageTyp
+F	496	RejRsnTxt
+F	497	FundRenewWaiv
+F	498	CshDistribAgentName
+F	499	CshDistribAgentCode
+F	500	CshDistribAgentAcctNum
+F	501	CshDistribPayRef
+F	502	CshDistribAgentAcctName
+F	503	CardStartDt
+F	504	PmtDt
+F	505	PmtRemtrID
+F	506	RegStat
+F	507	RejRsnCd
+F	508	RefID
+F	509	Dtls
+F	510	NoDistribInsts
+F	511	Email
+F	512	DistribPctage
+F	513	RegistID
+F	514	TransTyp
+F	515	ExecValuationPoint
+F	516	Pct
+F	517	OwnershipTyp
+F	518	NoContAmts
+F	519	ContAmtTyp
+F	520	ContAmtValu
+F	521	ContAmtCurr
+F	522	OwnerTyp
+F	523	ID
+F	524	ID
+F	525	Src
+F	526	ClOrdID2
+F	527	ExecID2
+F	528	Cpcty
+F	529	Rstctions
+F	530	MassCxlReqTyp
+F	531	MassCxlRsp
+F	532	MassCxlRejRsn
+F	533	TotAffctdOrds
+F	534	NoAffctdOrds
+F	535	AffctdOrdID
+F	536	AffctdScndOrdID
+F	537	Typ
+F	538	R
+F	539	NoNstPtyIDs
+F	540	TotAcrdIntAmt
+F	541	MatDt
+F	542	Mat
+F	543	Rgstry
+F	544	CshMgn
+F	545	ID
+F	546	Scope
+F	547	ImplctDel
+F	548	CrssID
+F	549	CrssTyp
+F	550	CrssPriortstn
+F	551	OrigCrssID
+F	552	NoSides
+F	553	Username
+F	554	Password
+F	555	NoLegs
+F	556	Ccy
+F	557	TotNoSecTyps
+F	558	NoSecTyps
+F	559	ListReqTyp
+F	560	ReqRslt
+F	561	RndLot
+F	562	MinTrdVol
+F	563	MLEGRptTypReq
+F	564	PosEfct
+F	565	Cover
+F	566	Px
+F	567	StatRejRsn
+F	568	ReqID
+F	569	ReqTyp
+F	570	PrevlyRpted
+F	571	RptID
+F	572	RptRefID
+F	573	MtchStat
+F	574	MtchTyp
+F	575	OddLot
+F	576	NoClrngInstrctns
+F	577	ClrngInstrctn
+F	578	InptSrc
+F	579	InptDev
+F	580	NoDts
+F	581	AcctTyp
+F	582	CustCpcty
+F	583	ClOrdLinkID
+F	584	MassStatReqID
+F	585	MassStatReqTyp
+F	586	OrigOrdModTm
+F	587	SettlTyp
+F	588	SettlDt
+F	589	DayBkngInst
+F	590	BkngUnit
+F	591	PreallocMeth
+F	592	Ctry
+F	593	StOrProvnc
+F	594	Lcl
+F	595	Rgstry
+F	596	Ctry
+F	597	StOrProvnc
+F	598	Lcl
+F	599	Rgstry
+F	600	Sym
+F	601	Sfx
+F	602	ID
+F	603	Src
+F	604	NoLegSecAltID
+F	605	SecAltID
+F	606	SecAltIDSrc
+F	607	Prod
+F	608	CFI
+F	609	SecTyp
+F	610	MMY
+F	611	Mat
+F	612	Strk
+F	613	OptA
+F	614	Cmult
+F	615	CpnRt
+F	616	Exch
+F	617	Issr
+F	618	EncLegIssrLen
+F	619	EncLegIssr
+F	620	Desc
+F	621	EncLegSecDescLen
+F	622	EncLegSecDesc
+F	623	RatioQty
+F	624	Side
+F	625	SesSub
+F	626	AllocType
+F	627	NoHops
+F	628	ID
+F	629	Snt
+F	630	Ref
+F	631	MidPx
+F	632	BidYld
+F	633	MidYld
+F	634	OfrYld
+F	635	ClrFeeInd
+F	636	WorkingInd
+F	637	LastPx
+F	638	PriInd
+F	639	PxImprvmnt
+F	640	Px2
+F	641	LastFwdPnts2
+F	642	BidFwdPnts2
+F	643	OfrFwdPnts2
+F	644	RFQReqID
+F	645	MktBidPx
+F	646	MktOfrPx
+F	647	MinBidSz
+F	648	MinOfrSz
+F	649	StatReqID
+F	650	LegalCnfm
+F	651	UndLastPx
+F	652	UndLastQty
+F	654	RefID
+F	655	CntraLegRefID
+F	656	SettlCurrBidFxRt
+F	657	SettlCurrOfrFxRt
+F	658	ReqRejRsn
+F	659	SideComplianceID
+F	660	AcctIDSrc
+F	661	ActIDSrc
+F	662	Px
+F	663	PxTyp
+F	664	CnfmID
+F	665	CnfmStat
+F	666	CnfmTransTyp
+F	667	CSetMo
+F	668	DlvryForm
+F	669	LastParPx
+F	670	NoLegAllocs
+F	671	AllocAcct
+F	672	IndAllocID
+F	673	AllocQty
+F	674	AllocAcctIDSrc
+F	675	SettlCcy
+F	676	Ccy
+F	677	Name
+F	678	Point
+F	679	Px
+F	680	PxTyp
+F	681	BidPx
+F	682	IOIQty
+F	683	NoLegStips
+F	684	OfrPx
+F	685	OrdQty
+F	686	PxTyp
+F	687	Qty
+F	688	StipTyp
+F	689	StipVal
+F	690	SwapTyp
+F	691	Pool
+F	692	QuotPxTyp
+F	693	RspID
+F	694	RspTyp
+F	695	Qual
+F	696	RedDt
+F	697	RedPx
+F	698	RedPxTyp
+F	699	SecID
+F	700	ReversalInd
+F	701	CalcDt
+F	702	NoPoss
+F	703	Typ
+F	704	Long
+F	705	Short
+F	706	Stat
+F	707	Typ
+F	708	Amt
+F	709	TxnTyp
+F	710	ReqID
+F	711	NoUnds
+F	712	Actn
+F	713	OrigPosReqRefID
+F	714	RptRefID
+F	715	BizDt
+F	716	SetSesID
+F	717	SetSubID
+F	718	AdjTyp
+F	719	CntraryInstrctnInd
+F	720	PriorSpreadInd
+F	721	RptID
+F	722	Stat
+F	723	Rslt
+F	724	ReqTyp
+F	725	RspTransportTyp
+F	726	RspDest
+F	727	TotRpts
+F	728	Rslt
+F	729	Stat
+F	730	SetPx
+F	731	SetPxTyp
+F	732	UndSetPx
+F	733	UndSetPxTyp
+F	734	PriSetPx
+F	735	NoQuotQuals
+F	736	AllocSettlCcy
+F	737	AllocSettlCurrAmt
+F	738	IntAtMat
+F	739	Dated
+F	740	Pool
+F	741	IntAtMat
+F	742	AcrdIntAmt
+F	743	DlvDt
+F	744	AsgnMeth
+F	745	Unit
+F	746	OpenInt
+F	747	ExrMethod
+F	748	TotNumTrdRpts
+F	749	ReqRslt
+F	750	ReqStat
+F	751	RptRejRsn
+F	752	MLegRptTyp
+F	753	NoPosAmt
+F	754	AutoAcceptInd
+F	755	RptID
+F	756	NoNst2PtyIDs
+F	757	ID
+F	758	Src
+F	759	R
+F	760	ID
+F	761	SecIDSrc
+F	762	SubTyp
+F	763	SubTyp
+F	764	SecSubTyp
+F	765	AOSPct
+F	766	AOSValu
+F	767	AOSCurr
+F	768	NoTrdRegTmstamps
+F	769	TS
+F	770	Typ
+F	771	Src
+F	772	CnfmRefID
+F	773	CnfmTyp
+F	774	CnfmRejRsn
+F	775	BkngTyp
+F	776	IndAllocRejCode
+F	777	SettlInstMsgID
+F	778	NoSettlInst
+F	779	LastUpdateTm
+F	780	SettlInstTyp
+F	781	NoSettlPtyIDs
+F	782	ID
+F	783	Src
+F	784	R
+F	785	ID
+F	786	Typ
+F	787	InstTyp
+F	788	TrmTyp
+F	789	NextExpectedMsgSeqNum
+F	790	StatReqID
+F	791	SettlInstReqID
+F	792	SettlInstReqRejCode
+F	793	AllocID2
+F	794	RptTyp
+F	795	RptRefID
+F	796	CxlRplcRsn
+F	797	CopyMsgInd
+F	798	AcctTyp
+F	799	AvgPx
+F	800	BkngQty
+F	801	NoSettlPtySubIDs
+F	802	NoPtySubIDs
+F	803	Typ
+F	804	NoNstPtySubIDs
+F	805	Typ
+F	806	NoNst2PtySubIDs
+F	807	Typ
+F	808	IntermedReqTyp
+F	810	Px
+F	811	PxDelta
+F	812	ApplQuMax
+F	813	ApplQuDepth
+F	814	ApplQuResolution
+F	815	ApplQuActn
+F	816	NoAltMDSrc
+F	817	AltMDSrcID
+F	818	TrdRptID2
+F	819	AvgPxInd
+F	820	LinkID
+F	821	OrdInptDev
+F	822	UndSesID
+F	823	UndSesSub
+F	824	TrdLegRefID
+F	825	ExchRule
+F	826	AllocInd
+F	827	ExpirationCycle
+F	828	TrdTyp
+F	829	TrdSubTyp
+F	830	TrnsfrRsn
+F	832	TotNumAsgnRpts
+F	833	RptID
+F	834	ThresholdAmt
+F	835	MoveTyp
+F	836	OfstTyp
+F	837	LmtTyp
+F	838	RndDir
+F	839	PeggedPx
+F	840	Scope
+F	841	MoveTyp
+F	842	OfstTyp
+F	843	LimitTyp
+F	844	RndDir
+F	845	DsctnPx
+F	846	Scope
+F	847	TgtStrategy
+F	848	TgtStrategyParameters
+F	849	ParticipationRt
+F	850	TgtStrategyPerformance
+F	851	LastLqdtyInd
+F	852	PubTrdInd
+F	853	ShrtSaleRsn
+F	854	QtyTyp
+F	855	TrdTyp2
+F	856	RptTyp
+F	857	NoOrdsTyp
+F	858	SharedComm
+F	859	CnfmReqID
+F	860	AvgParPx
+F	861	RptedPx
+F	862	NoCapacities
+F	863	CpctyQty
+F	864	NoEvents
+F	865	EventTyp
+F	866	Dt
+F	867	Px
+F	868	Txt
+F	869	PctAtRisk
+F	870	NoInstrAttrib
+F	871	Typ
+F	872	Val
+F	873	Dated
+F	874	IntAcrl
+F	875	CPPgm
+F	876	CPRegT
+F	877	CPPgm
+F	878	CPRegTyp
+F	879	Qty
+F	880	MtchID
+F	881	TrdRptRefID2
+F	882	DirtPx
+F	883	EndPx
+F	884	StartVal
+F	885	CurVal
+F	886	EndVal
+F	887	NoUndStips
+F	888	Typ
+F	889	Val
+F	890	MatNetMny
+F	891	Basis
+F	892	TotNoAllocs
+F	893	LastFragment
+F	894	ReqID
+F	895	AsgnRsn
+F	896	Qual
+F	897	NoTrds
+F	898	MgnRatio
+F	899	MgnExcess
+F	900	TotNetValu
+F	901	CshOutstanding
+F	902	ID
+F	903	TransTyp
+F	904	RespID
+F	905	RespTyp
+F	906	RejRsn
+F	907	RefID
+F	908	RptID
+F	909	ID
+F	910	Stat
+F	911	TotNumRpts
+F	912	LastRptReqed
+F	913	AgmtDesc
+F	914	AgmtID
+F	915	AgmtDt
+F	916	StartDt
+F	917	EndDt
+F	918	AgmtCcy
+F	919	DlvryTyp
+F	920	EndAcrdIntAmt
+F	921	StartCsh
+F	922	EndCsh
+F	923	UserReqID
+F	924	UserReqTyp
+F	925	NewPassword
+F	926	UserStat
+F	927	UserStatText
+F	928	StatValu
+F	929	StatText
+F	930	RefCompID
+F	931	RefSubID
+F	932	NtwkRspID
+F	933	NtwkReqID
+F	934	LastNtwkRspID
+F	935	NtwkReqTyp
+F	936	NoCompIDs
+F	937	NtwkStatRspTyp
+F	938	NoCollInqQual
+F	939	TrdRptStat
+F	940	AffirmStat
+F	941	StrkCcy
+F	942	StrkCcy
+F	943	TmBkt
+F	944	Actn
+F	945	Stat
+F	946	Rslt
+F	947	StrkCcy
+F	948	NoNst3PtyIDs
+F	949	ID
+F	950	Src
+F	951	R
+F	952	NoNst3PtySubIDs
+F	953	ID
+F	954	Typ
+F	955	CSetMo
+F	956	IntAcrl
+F	957	NoStrtPrm
+F	958	StrtPrmNme
+F	959	StrtPrmTyp
+F	960	StrtPrmVal
+F	961	HstCxID
+F	962	SideTmFrc
+F	963	RptID
+F	964	RptID
+F	965	Status
+F	966	SettlOnOpenFlag
+F	967	StrkMult
+F	968	StrkValu
+F	969	MinPxIncr
+F	970	PosLmt
+F	971	NTPosLmt
+F	972	AllocPct
+F	973	CashAmt
+F	974	CashTyp
+F	975	SettlTyp
+F	976	QtyDt
+F	977	RptID
+F	978	LateInd
+F	979	InptSrc
+F	980	UpdActn
+F	981	NoExpiration
+F	982	ExpType
+F	983	ExpQty
+F	984	NoUnderlyingAmounts
+F	985	PayAmt
+F	986	ColAmt
+F	987	StlDt
+F	988	SetStat
+F	989	IndAllocID2
+F	990	RptID
+F	991	RndPx
+F	992	Typ
+F	993	CustCpcty
+F	994	TierCD
+F	996	UOM
+F	997	TmUnit
+F	998	UOM
+F	999	UOM
+F	1000	TmUnit
+F	1001	TmUnit
+F	1002	Meth
+F	1003	TrdID
+F	1005	RptID
+F	1006	FillStationCd
+F	1007	RsnCD
+F	1008	TrdSubTyp
+F	1009	SideQty
+F	1011	MsgEvtSrc
+F	1012	TS
+F	1013	Typ
+F	1014	Src
+F	1015	AsOfInd
+F	1016	NoSideTrdRegTS
+F	1017	LegOptionRatio
+F	1018	NoInstrmntPty
+F	1019	ID
+F	1020	TrdVol
+F	1021	MDBkTyp
+F	1022	MDFeedTyp
+F	1023	MDPxLvl
+F	1024	MDOrigTyp
+F	1025	FirstPx
+F	1026	MDEntrySpotRt
+F	1027	MDEntryFwdPnts
+F	1028	ManOrdInd
+F	1029	CustDrctdOrd
+F	1030	RcvdDptID
+F	1031	CustOrdHdlInst
+F	1032	OrdHndlInstSrc
+F	1033	DskTyp
+F	1034	DskTypSrc
+F	1035	DskOrdHndlInst
+F	1036	ExecAckStat
+F	1037	UndlyDlvAmt
+F	1038	CapValu
+F	1039	SetMeth
+F	1040	TrdID2
+F	1041	FirmTrdID
+F	1042	FirmTrdID2
+F	1043	ApplTyp
+F	1044	AdjQty
+F	1045	FXRate
+F	1046	FXRateCalc
+F	1047	AllocPosEfct
+F	1048	DealingCpcty
+F	1049	AsgnMeth
+F	1050	Src
+F	1051	R
+F	1052	NoInstrmntPtySubIDs
+F	1053	ID
+F	1054	Typ
+F	1055	Ccy
+F	1056	CalcCcyLastQty
+F	1057	AgrsrInd
+F	1058	NoInstrmntPty
+F	1059	ID
+F	1060	Src
+F	1061	R
+F	1062	NoInstrmntPtySubIDs
+F	1063	ID
+F	1064	Typ
+F	1065	BidSwapPnts
+F	1066	OfrSwapPnts
+F	1067	LegBidFwdPnts
+F	1068	LegOfrFwdPnts
+F	1069	SwapPnts
+F	1070	MDQteTyp
+F	1071	LastSwapPnts
+F	1072	SideGrossTradeAmt
+F	1073	LegLastFwdPnts
+F	1074	LegCalcCcyLastQty
+F	1075	LegGrossTrdAmt
+F	1079	MatTm
+F	1080	RefOrdID
+F	1081	RefOrdIDSrc
+F	1082	SecDspQty
+F	1083	DspWhn
+F	1084	DspMthd
+F	1085	DsplLwQty
+F	1086	DisplayHighQty
+F	1087	DspMinIncr
+F	1088	RfrshQty
+F	1089	MtchInc
+F	1090	MxPxLvls
+F	1091	PrTrdAnon
+F	1092	PxPrtScp
+F	1093	LtTyp
+F	1094	PegPxTyp
+F	1095	PggdRefPx
+F	1096	PegSecurityIDSource
+F	1097	PegSecID
+F	1098	PgSymbl
+F	1099	PegSecDesc
+F	1100	TrgrTyp
+F	1101	TrgrActn
+F	1102	TrgrPx
+F	1103	TrgrSym
+F	1104	TrgrSecID
+F	1105	TrgrSecIDSrc
+F	1106	TrgrSecDesc
+F	1107	TrgrPxTyp
+F	1108	TrgrPxTypScp
+F	1109	TrgrPxDir
+F	1110	TrgrNewPx
+F	1111	TrgrOrdTyp
+F	1112	TrgrNewQty
+F	1113	TrgrTrdSessID
+F	1114	TrgrTrdSessSubID
+F	1115	OrdCat
+F	1116	NoRootPartyIDs
+F	1117	RtPrtyID
+F	1118	RtPtyIDSrc
+F	1119	RtPtyRl
+F	1120	NoRootPartySubIDs
+F	1121	RtPtySubID
+F	1122	RtPtySubIDTyp
+F	1123	TrdHandlInst
+F	1124	OrigTrdHandlInst
+F	1125	OrigTrdDt
+F	1126	OrigTrdID
+F	1127	OrignTrdID2
+F	1128	ApplVerID
+F	1129	CstmApplVerID
+F	1130	RefApplVerID
+F	1131	RefCstmApplVerID
+F	1132	TZTransactTime
+F	1133	ExDestIDSrc
+F	1134	ReportedPxDiff
+F	1135	RptSys
+F	1136	ClrFeeInd
+F	1137	DefApplVerID
+F	1138	DisplayQty
+F	1139	ExchSpeclInstr
+M	0	Heartbeat	1	1
+M	1	TestRequest	2	1
+M	2	ResendRequest	3	1
+M	3	Reject	4	1
+M	4	SequenceReset	5	1
+M	5	Logout	6	1
+M	6	IOI	7	0
+M	7	Adv	8	0
+M	8	ExecRpt	9	0
+M	9	OrdCxlRej	10	0
+M	A	Logon	11	1
+M	AA	DerivSecList	60	0
+M	AB	NewOrdMleg	61	0
+M	AC	MlegOrdCxlRplc	62	0
+M	AD	TrdCaptRptReq	63	0
+M	AE	TrdCaptRpt	64	0
+M	AF	OrdMassStatReq	65	0
+M	AG	QuotReqRej	66	0
+M	AH	RFQReq	67	0
+M	AI	QuotStatRpt	68	0
+M	AJ	QuotRsp	69	0
+M	AK	Cnfm	70	0
+M	AL	PosMntReq	71	0
+M	AM	PosMntRpt	72	0
+M	AN	ReqForPoss	73	0
+M	AO	ReqForPossAck	74	0
+M	AP	PosRpt	75	0
+M	AQ	TrdCaptRptReqAck	76	0
+M	AR	TrdCaptRptAck	77	0
+M	AS	AllocRpt	78	0
+M	AT	AllocRptAck	79	0
+M	AU	CnfmAck	80	0
+M	AV	SettlInstrctnReq	81	0
+M	AW	AsgnRpt	82	0
+M	AX	CollReq	83	0
+M	AY	CollAsgn	84	0
+M	AZ	CollRsp	85	0
+M	B	News	12	0
+M	BA	CollRpt	86	0
+M	BB	CollInq	87	0
+M	BC	NtwkSysStatReq	88	0
+M	BD	NtwkSysStatRsp	89	0
+M	BE	UserReq	90	0
+M	BF	UserRsp	91	0
+M	BG	CollInqAck	92	0
+M	BH	CnfmReq	93	0
+M	BI	TradSessListReq	101	0
+M	BJ	TradSessList	100	0
+M	BK	SecListUpd	96	0
+M	BL	AdjPosRep	97	0
+M	BM	AllocInstrAlert	98	0
+M	BN	ExecAck	99	0
+M	BO	ContraryIntentionReport	94	0
+M	BP	SecDefUpd	95	0
+M	C	Email	13	0
+M	D	Order	14	0
+M	E	NewOrdList	15	0
+M	F	OrdCxlReq	16	0
+M	G	OrdCxlRplcReq	17	0
+M	H	OrdStatReq	18	0
+M	J	AllocInstrctn	19	0
+M	K	ListCxlReq	20	0
+M	L	ListExct	21	0
+M	M	ListStatReq	22	0
+M	N	ListStat	23	0
+M	P	AllocInstrctnAck	24	0
+M	Q	DkTrd	25	0
+M	R	QuotReq	26	0
+M	S	Quot	27	0
+M	T	SettlInstrctns	28	0
+M	V	MktDataReq	29	0
+M	W	MktDataFull	30	0
+M	X	MktDataInc	31	0
+M	Y	MktDataReqRej	32	0
+M	Z	QuotCxl	33	0
+M	a	QuotStatReq	34	0
+M	b	MassQuotAck	35	0
+M	c	SecDefReq	36	0
+M	d	SecDef	37	0
+M	e	SecStatReq	38	0
+M	f	SecStat	39	0
+M	g	TrdgSesStatReq	40	0
+M	h	TrdgSesStat	41	0
+M	i	MassQuot	42	0
+M	j	BizMsgRej	43	0
+M	k	BidReq	44	0
+M	l	BidRsp	45	0
+M	m	ListStrkPx	46	0
+M	n	XMLnonFIX	47	1
+M	o	RgstInstrctns	48	0
+M	p	RgstInstrctnsRsp	49	0
+M	q	OrdMassCxlReq	50	0
+M	r	OrdMassCxlRpt	51	0
+M	s	NewOrdCrss	52	0
+M	t	CrssOrdCxlRplcReq	53	0
+M	u	CrssOrdCxlReq	54	0
+M	v	SecTypReq	55	0
+M	w	SecTyps	56	0
+M	x	SecListReq	57	0
+M	y	SecList	58	0
+M	z	DerivSecListReq	59	0
+C	AffectedOrdGrp	AffectOrd	2001	ImplicitBlockRepeating
+C	AllocAckGrp	AllocAck	2002	ImplicitBlockRepeating
+C	AllocGrp	Alloc	2003	ImplicitBlockRepeating
+C	AttrbGrp	Attrb	2074	ImplicitBlockRepeating
+C	BidCompReqGrp	CompReq	2004	ImplicitBlockRepeating
+C	BidCompRspGrp	CompRsp	2005	ImplicitBlockRepeating
+C	BidDescReqGrp	DescReq	2006	ImplicitBlockRepeating
+C	ClrInstGrp	ClrInst	2007	ImplicitBlockRepeating
+C	CollInqQualGrp	Qual	2008	ImplicitBlockRepeating
+C	CommissionData	Comm	1000	Block
+C	CompIDReqGrp	CIDReq	2009	ImplicitBlockRepeating
+C	CompIDStatGrp	CIDStat	2010	ImplicitBlockRepeating
+C	ContAmtGrp	ContAmt	2011	ImplicitBlockRepeating
+C	ContraGrp	Contra	2012	ImplicitBlockRepeating
+C	CpctyConfGrp	Cpcty	2013	ImplicitBlockRepeating
+C	DiscretionInstructions	DiscInstr	1001	Block
+C	DisplayInstruction	DsplyInstr	1029	Block
+C	DlvyInstGrp	DlvInst	2075	ImplicitBlockRepeating
+C	EvntGrp	Evnt	2070	ImplicitBlockRepeating
+C	ExecAllocGrp	AllExc	2014	ImplicitBlockRepeating
+C	ExecCollGrp	CollExc	2015	ImplicitBlockRepeating
+C	ExecsGrp	Exec	2016	ImplicitBlockRepeating
+C	ExpirationQty	Qty	1027	BlockRepeating
+C	FinancingDetails	FinDetls	1002	Block
+C	HopGrp	HopGrp	2085	ImplicitBlock
+C	IOIQualGrp	Qual	2024	ImplicitBlockRepeating
+C	InstrmtGrp	Inst	2017	ImplicitBlockRepeating
+C	InstrmtLegExecGrp	Exec	2018	ImplicitBlockRepeating
+C	InstrmtLegGrp	Leg	2019	OptimisedImplicitBlockRepeating
+C	InstrmtLegIOIGrp	IOI	2020	ImplicitBlockRepeating
+C	InstrmtLegSecListGrp	SecL	2021	ImplicitBlockRepeating
+C	InstrmtMDReqGrp	InstReq	2022	ImplicitBlockRepeating
+C	InstrmtStrkPxGrp	StrkPX	2023	ImplicitBlockRepeating
+C	Instrument	Instrmt	1003	Block
+C	InstrumentExtension	InstrmtExt	1004	Block
+C	InstrumentLeg	Leg	1005	Block
+C	InstrumentParties	Pty	1032	BlockRepeating
+C	InstrumentPtysSubGrp	Sub	2093	ImplicitBlockRepeating
+C	LegBenchmarkCurveData	BnchmkCurve	1006	Block
+C	LegOrdGrp	Ord	2025	ImplicitBlockRepeating
+C	LegPreAllocGrp	PreAll	2026	ImplicitBlockRepeating
+C	LegQuotGrp	Quot	2027	ImplicitBlockRepeating
+C	LegQuotStatGrp	QuoteStat	2028	ImplicitBlockRepeating
+C	LegSecAltIDGrp	LegAID	2072	ImplicitBlockRepeating
+C	LegStipulations	Stip	1007	BlockRepeating
+C	LinesOfTextGrp	TxtLn	2029	ImplicitBlockRepeating
+C	ListOrdGrp	Ord	2030	ImplicitBlockRepeating
+C	MDFullGrp	Full	2031	ImplicitBlockRepeating
+C	MDIncGrp	Inc	2032	ImplicitBlockRepeating
+C	MDReqGrp	Req	2033	ImplicitBlockRepeating
+C	MDRjctGrp	Rjct	2034	ImplicitBlockRepeating
+C	MiscFeesGrp	MiscFees	2035	ImplicitBlockRepeating
+C	MsgTypeGrp	MsgTypeGrp	2098	ImplicitBlockRepeating
+C	NestedParties	Pty	1008	BlockRepeating
+C	NestedParties2	Pty	1009	BlockRepeating
+C	NestedParties3	Pty	1010	BlockRepeating
+C	NstdPtys2SubGrp	Sub	2079	ImplicitBlockRepeating
+C	NstdPtys3SubGrp	Sub	2080	ImplicitBlockRepeating
+C	NstdPtysSubGrp	Sub	2078	ImplicitBlockRepeating
+C	OrdAllocGrp	OrdAlloc	2036	ImplicitBlockRepeating
+C	OrdListStatGrp	ListStat	2037	ImplicitBlockRepeating
+C	OrderQtyData	OrdQty	1011	Block
+C	Parties	Pty	1012	BlockRepeating
+C	PegInstructions	PegInstr	1013	Block
+C	PosUndInstrmtGrp	PosUnd	2038	ImplicitBlockRepeating
+C	PositionAmountData	Amt	1014	BlockRepeating
+C	PositionQty	Qty	1015	BlockRepeating
+C	PreAllocGrp	PreAll	2039	ImplicitBlockRepeating
+C	PreAllocMlegGrp	PreAllocMleg	2040	ImplicitBlockRepeating
+C	PtysSubGrp	Sub	2077	ImplicitBlockRepeating
+C	QuotCxlEntriesGrp	QuotCxlEntry	2041	ImplicitBlockRepeating
+C	QuotEntryAckGrp	QuotEntryAck	2042	ImplicitBlockRepeating
+C	QuotEntryGrp	QuotEntry	2043	ImplicitBlockRepeating
+C	QuotQualGrp	QuotQual	2044	ImplicitBlockRepeating
+C	QuotReqGrp	QuotReq	2045	ImplicitBlockRepeating
+C	QuotReqLegsGrp	Leg	2046	ImplicitBlockRepeating
+C	QuotReqRjctGrp	QuotReqRej	2047	ImplicitBlockRepeating
+C	QuotSetAckGrp	QuotSetAck	2048	ImplicitBlockRepeating
+C	QuotSetGrp	QuotSet	2049	ImplicitBlockRepeating
+C	RFQReqGrp	RFQReq	2051	ImplicitBlockRepeating
+C	RelSymDerivSecGrp	RelSym	2050	ImplicitBlockRepeating
+C	RgstDistInstGrp	RgDtlInst	2052	ImplicitBlockRepeating
+C	RgstDtlsGrp	RgDtl	2053	ImplicitBlockRepeating
+C	RootParties	RtPrtys	1031	BlockRepeating
+C	RootSubParties	RtSubPrtys	2097	ImplicitBlockRepeating
+C	RoutingGrp	Rtg	2054	ImplicitBlockRepeating
+C	SecAltIDGrp	AID	2071	ImplicitBlockRepeating
+C	SecListGrp	SecL	2055	ImplicitBlockRepeating
+C	SecLstUpdRelSymGrp	SecL	2087	ImplicitBlockRepeating
+C	SecLstUpdRelSymsLegGrp	SecLstUpdRelSymsLegGrp	2088	ImplicitBlockRepeating
+C	SecTypesGrp	SecT	2056	ImplicitBlockRepeating
+C	SettlInstGrp	SetInst	2057	ImplicitBlockRepeating
+C	SettlInstructionsData	SetInstr	1016	Block
+C	SettlParties	Pty	1017	BlockRepeating
+C	SettlPtysSubGrp	Sub	2076	ImplicitBlockRepeating
+C	SideCrossOrdCxlGrp	SideCrossCxl	2058	ImplicitBlockRepeating
+C	SideCrossOrdModGrp	SideCrossMod	2059	ImplicitBlockRepeating
+C	SideTrdRegTS	TrdRegTS	1028	BlockRepeating
+C	SpreadOrBenchmarkCurveData	SprdBnchmkCurve	1018	Block
+C	StandardHeader	Hdr	1024	Block
+C	StandardTrailer	Trlr	1025	Block
+C	Stipulations	Stip	1019	BlockRepeating
+C	StrategyParametersGrp	StrtPrmGrp	2086	ImplicitBlockRepeating
+C	TrdAllocGrp	Alloc	2060	ImplicitBlockRepeating
+C	TrdCapDtGrp	TrdCapDt	2069	ImplicitBlockRepeating
+C	TrdCapRptAckSideGrp	RptSide	2094	ImplicitBlockRepeating
+C	TrdCapRptSideGrp	RptSide	2061	ImplicitBlockRepeating
+C	TrdCollGrp	TrdColl	2062	ImplicitBlockRepeating
+C	TrdInstrmtLegGrp	TrdLeg	2063	ImplicitBlockRepeating
+C	TrdRegTimestamps	TrdRegTS	1020	BlockRepeating
+C	TrdSessLstGrp	TrdSessLstGrp	2099	ImplicitBlockRepeating
+C	TrdgSesGrp	TrdSes	2064	ImplicitBlockRepeating
+C	TriggeringInstruction	TrgrInstr	1030	Block
+C	UndInstrmtCollGrp	UndColl	2065	ImplicitBlockRepeating
+C	UndInstrmtGrp	Undly	2066	OptimisedImplicitBlockRepeating
+C	UndInstrmtStrkPxGrp	UndStrkPx	2067	ImplicitBlockRepeating
+C	UndSecAltIDGrp	UndAID	2073	ImplicitBlockRepeating
+C	UnderlyingAmount	UndDlvAmt	1026	BlockRepeating
+C	UnderlyingInstrument	Undly	1021	Block
+C	UnderlyingStipulations	Stip	1023	BlockRepeating
+C	UndlyInstrumentParties	Pty	1033	BlockRepeating
+C	UndlyInstrumentPtysSubGrp	Sub	2096	ImplicitBlockRepeating
+C	YieldData	Yield	1022	Block
+X	1	StandardHeader	0	1	1
+X	1	112	0	2	0
+X	1	StandardTrailer	0	3	1
+X	10	StandardHeader	0	1	1
+X	10	37	0	2	1
+X	10	198	0	3	0
+X	10	526	0	4	0
+X	10	11	0	5	1
+X	10	583	0	6	0
+X	10	41	0	7	1
+X	10	39	0	8	1
+X	10	636	0	9	0
+X	10	586	0	10	0
+X	10	66	0	11	0
+X	10	1	0	12	0
+X	10	660	0	13	0
+X	10	581	0	14	0
+X	10	229	0	15	0
+X	10	75	0	16	0
+X	10	60	0	17	0
+X	10	434	0	18	1
+X	10	102	0	19	0
+X	10	58	0	20	0
+X	10	354	0	21	0
+X	10	355	0	22	0
+X	10	StandardTrailer	0	23	1
+X	100	StandardHeader	0	1	1
+X	100	335	0	2	0
+X	100	TrdSessLstGrp	0	3	1
+X	100	StandardTrailer	0	100	1
+X	1000	12	0	1	0
+X	1000	13	0	2	0
+X	1000	479	0	3	0
+X	1000	497	0	4	0
+X	1001	388	0	1	0
+X	1001	389	0	2	0
+X	1001	841	0	3	0
+X	1001	842	0	4	0
+X	1001	843	0	5	0
+X	1001	844	0	6	0
+X	1001	846	0	7	0
+X	1002	913	0	1	0
+X	1002	914	0	2	0
+X	1002	915	0	3	0
+X	1002	918	0	4	0
+X	1002	788	0	5	0
+X	1002	916	0	6	0
+X	1002	917	0	7	0
+X	1002	919	0	8	0
+X	1002	898	0	9	0
+X	1003	1079	0	0	0
+X	1003	201	0	0	0
+X	1003	966	0	0	0
+X	1003	1049	0	0	0
+X	1003	965	0	0	0
+X	1003	967	0	0	0
+X	1003	968	0	0	0
+X	1003	969	0	0	0
+X	1003	996	0	0	0
+X	1003	997	0	0	0
+X	1003	970	0	0	0
+X	1003	971	0	0	0
+X	1003	InstrumentParties	0	0	0
+X	1003	55	0	1	0
+X	1003	65	0	2	0
+X	1003	48	0	3	0
+X	1003	22	0	4	0
+X	1003	SecAltIDGrp	0	5	0
+X	1003	460	0	8	0
+X	1003	461	0	9	0
+X	1003	167	0	10	0
+X	1003	762	0	11	0
+X	1003	200	0	12	0
+X	1003	541	0	13	0
+X	1003	224	0	14	0
+X	1003	225	0	15	0
+X	1003	239	0	16	0
+X	1003	226	0	17	0
+X	1003	227	0	18	0
+X	1003	228	0	19	0
+X	1003	255	0	20	0
+X	1003	543	0	21	0
+X	1003	470	0	22	0
+X	1003	471	0	23	0
+X	1003	472	0	24	0
+X	1003	240	0	25	0
+X	1003	202	0	26	0
+X	1003	947	0	27	0
+X	1003	206	0	28	0
+X	1003	231	0	29	0
+X	1003	223	0	30	0
+X	1003	207	0	31	0
+X	1003	106	0	32	0
+X	1003	348	0	33	0
+X	1003	349	0	34	0
+X	1003	107	0	35	0
+X	1003	350	0	36	0
+X	1003	351	0	37	0
+X	1003	691	0	38	0
+X	1003	667	0	39	0
+X	1003	875	0	40	0
+X	1003	876	0	41	0
+X	1003	EvntGrp	0	42	0
+X	1003	873	0	47	0
+X	1003	874	0	48	0
+X	1004	668	0	1	0
+X	1004	869	0	2	0
+X	1004	AttrbGrp	0	3	0
+X	1005	999	0	0	0
+X	1005	1001	0	0	0
+X	1005	600	0	1	0
+X	1005	601	0	2	0
+X	1005	602	0	3	0
+X	1005	603	0	4	0
+X	1005	LegSecAltIDGrp	0	5	0
+X	1005	607	0	8	0
+X	1005	608	0	9	0
+X	1005	609	0	10	0
+X	1005	764	0	11	0
+X	1005	610	0	12	0
+X	1005	611	0	13	0
+X	1005	248	0	14	0
+X	1005	249	0	15	0
+X	1005	250	0	16	0
+X	1005	251	0	17	0
+X	1005	252	0	18	0
+X	1005	253	0	19	0
+X	1005	257	0	20	0
+X	1005	599	0	21	0
+X	1005	596	0	22	0
+X	1005	597	0	23	0
+X	1005	598	0	24	0
+X	1005	254	0	25	0
+X	1005	612	0	26	0
+X	1005	942	0	27	0
+X	1005	613	0	28	0
+X	1005	614	0	29	0
+X	1005	615	0	30	0
+X	1005	616	0	31	0
+X	1005	617	0	32	0
+X	1005	618	0	33	0
+X	1005	619	0	34	0
+X	1005	620	0	35	0
+X	1005	621	0	36	0
+X	1005	622	0	37	0
+X	1005	623	0	38	0
+X	1005	624	0	39	0
+X	1005	556	0	40	0
+X	1005	740	0	41	0
+X	1005	739	0	42	0
+X	1005	955	0	43	0
+X	1005	956	0	44	0
+X	1005	1017	0	45	0
+X	1005	566	0	46	0
+X	1006	676	0	1	0
+X	1006	677	0	2	0
+X	1006	678	0	3	0
+X	1006	679	0	4	0
+X	1006	680	0	5	0
+X	1007	683	0	1	0
+X	1007	688	1	2	0
+X	1007	689	1	3	0
+X	1008	539	0	1	0
+X	1008	524	1	2	0
+X	1008	525	1	3	0
+X	1008	538	1	4	0
+X	1008	NstdPtysSubGrp	1	5	0
+X	1009	756	0	1	0
+X	1009	757	1	2	0
+X	1009	758	1	3	0
+X	1009	759	1	4	0
+X	1009	NstdPtys2SubGrp	1	5	0
+X	101	StandardHeader	0	1	1
+X	101	335	0	2	1
+X	101	336	0	3	0
+X	101	625	0	4	0
+X	101	207	0	5	0
+X	101	338	0	6	0
+X	101	339	0	7	0
+X	101	263	0	8	1
+X	101	StandardTrailer	0	100	1
+X	1010	948	0	1	0
+X	1010	949	1	2	0
+X	1010	950	1	3	0
+X	1010	951	1	4	0
+X	1010	NstdPtys3SubGrp	1	5	0
+X	1011	38	0	1	0
+X	1011	152	0	2	0
+X	1011	516	0	3	0
+X	1011	468	0	4	0
+X	1011	469	0	5	0
+X	1012	453	0	1	0
+X	1012	448	1	2	0
+X	1012	447	1	3	0
+X	1012	452	1	4	0
+X	1012	PtysSubGrp	1	5	0
+X	1013	1094	0	0	0
+X	1013	1096	0	0	0
+X	1013	1097	0	0	0
+X	1013	1098	0	0	0
+X	1013	1099	0	0	0
+X	1013	211	0	1	0
+X	1013	835	0	2	0
+X	1013	836	0	3	0
+X	1013	837	0	4	0
+X	1013	838	0	5	0
+X	1013	840	0	6	0
+X	1014	1055	1	0	0
+X	1014	753	0	1	0
+X	1014	707	1	2	0
+X	1014	708	1	3	0
+X	1015	976	1	0	0
+X	1015	702	0	1	0
+X	1015	703	1	2	0
+X	1015	704	1	3	0
+X	1015	705	1	4	0
+X	1015	706	1	5	0
+X	1015	NestedParties	1	6	0
+X	1016	172	0	1	0
+X	1016	169	0	2	0
+X	1016	170	0	3	0
+X	1016	171	0	4	0
+X	1016	DlvyInstGrp	0	5	0
+X	1017	781	0	1	0
+X	1017	782	1	2	0
+X	1017	783	1	3	0
+X	1017	784	1	4	0
+X	1017	SettlPtysSubGrp	1	5	0
+X	1018	218	0	1	0
+X	1018	220	0	2	0
+X	1018	221	0	3	0
+X	1018	222	0	4	0
+X	1018	662	0	5	0
+X	1018	663	0	6	0
+X	1018	699	0	7	0
+X	1018	761	0	8	0
+X	1019	232	0	1	0
+X	1019	233	1	2	0
+X	1019	234	1	3	0
+X	1020	1033	1	0	0
+X	1020	1034	1	0	0
+X	1020	1035	1	0	0
+X	1020	768	0	1	0
+X	1020	769	1	2	0
+X	1020	770	1	3	0
+X	1020	771	1	4	0
+X	1021	315	0	0	0
+X	1021	998	0	0	0
+X	1021	1000	0	0	0
+X	1021	972	0	0	0
+X	1021	975	0	0	0
+X	1021	973	0	0	0
+X	1021	974	0	0	0
+X	1021	1044	0	0	0
+X	1021	1045	0	0	0
+X	1021	1046	0	0	0
+X	1021	1039	0	0	0
+X	1021	311	0	1	0
+X	1021	312	0	2	0
+X	1021	309	0	3	0
+X	1021	305	0	4	0
+X	1021	UndSecAltIDGrp	0	5	0
+X	1021	462	0	8	0
+X	1021	463	0	9	0
+X	1021	310	0	10	0
+X	1021	763	0	11	0
+X	1021	313	0	12	0
+X	1021	542	0	13	0
+X	1021	241	0	14	0
+X	1021	242	0	15	0
+X	1021	243	0	16	0
+X	1021	244	0	17	0
+X	1021	245	0	18	0
+X	1021	246	0	19	0
+X	1021	256	0	20	0
+X	1021	595	0	21	0
+X	1021	592	0	22	0
+X	1021	593	0	23	0
+X	1021	594	0	24	0
+X	1021	247	0	25	0
+X	1021	316	0	27	0
+X	1021	941	0	28	0
+X	1021	317	0	29	0
+X	1021	436	0	30	0
+X	1021	435	0	31	0
+X	1021	308	0	32	0
+X	1021	306	0	33	0
+X	1021	362	0	34	0
+X	1021	363	0	35	0
+X	1021	307	0	36	0
+X	1021	364	0	37	0
+X	1021	365	0	38	0
+X	1021	877	0	39	0
+X	1021	878	0	40	0
+X	1021	318	0	41	0
+X	1021	879	0	42	0
+X	1021	810	0	43	0
+X	1021	882	0	44	0
+X	1021	883	0	45	0
+X	1021	884	0	46	0
+X	1021	885	0	47	0
+X	1021	886	0	48	0
+X	1021	UnderlyingStipulations	0	49	0
+X	1021	1038	0	50	0
+X	1021	UndlyInstrumentParties	0	51	0
+X	1022	235	0	1	0
+X	1022	236	0	2	0
+X	1022	701	0	3	0
+X	1022	696	0	4	0
+X	1022	697	0	5	0
+X	1022	698	0	6	0
+X	1023	887	0	1	0
+X	1023	888	1	2	0
+X	1023	889	1	3	0
+X	1024	1128	0	0	0
+X	1024	1129	0	0	0
+X	1024	8	0	1	1
+X	1024	9	0	2	1
+X	1024	35	0	3	1
+X	1024	49	0	4	1
+X	1024	56	0	5	1
+X	1024	115	0	6	0
+X	1024	128	0	7	0
+X	1024	90	0	8	0
+X	1024	91	0	9	0
+X	1024	34	0	10	1
+X	1024	50	0	11	0
+X	1024	142	0	12	0
+X	1024	57	0	13	0
+X	1024	143	0	14	0
+X	1024	116	0	15	0
+X	1024	144	0	16	0
+X	1024	129	0	17	0
+X	1024	145	0	18	0
+X	1024	43	0	19	0
+X	1024	97	0	20	0
+X	1024	52	0	21	1
+X	1024	122	0	22	0
+X	1024	212	0	23	0
+X	1024	213	0	24	0
+X	1024	347	0	25	0
+X	1024	369	0	26	0
+X	1024	HopGrp	0	27	0
+X	1025	93	0	1	0
+X	1025	89	0	2	0
+X	1025	10	0	3	1
+X	1026	985	1	0	0
+X	1026	986	1	0	0
+X	1026	987	1	0	0
+X	1026	988	1	0	0
+X	1026	984	0	1	0
+X	1027	982	1	0	0
+X	1027	983	1	0	0
+X	1027	981	0	1	0
+X	1028	1012	1	0	0
+X	1028	1013	1	0	0
+X	1028	1014	1	0	0
+X	1028	1016	0	1	0
+X	1029	1138	0	1	0
+X	1029	1082	0	2	0
+X	1029	1083	0	3	0
+X	1029	1084	0	4	0
+X	1029	1085	0	5	0
+X	1029	1086	0	6	0
+X	1029	1087	0	7	0
+X	1029	1088	0	8	0
+X	1030	1101	0	0	0
+X	1030	1102	0	0	0
+X	1030	1103	0	0	0
+X	1030	1104	0	0	0
+X	1030	1105	0	0	0
+X	1030	1106	0	0	0
+X	1030	1107	0	0	0
+X	1030	1108	0	0	0
+X	1030	1109	0	0	0
+X	1030	1111	0	0	0
+X	1030	1112	0	0	0
+X	1030	1113	0	0	0
+X	1030	1114	0	0	0
+X	1030	1100	0	1	0
+X	1030	1110	0	2	0
+X	1031	1117	1	0	0
+X	1031	1118	1	0	0
+X	1031	1119	1	0	0
+X	1031	RootSubParties	1	0	0
+X	1031	1116	0	1	0
+X	1032	1018	0	1	0
+X	1032	1019	1	2	0
+X	1032	1050	1	3	0
+X	1032	1051	1	4	0
+X	1032	InstrumentPtysSubGrp	1	5	0
+X	1033	1058	0	1	0
+X	1033	1059	1	2	0
+X	1033	1060	1	3	0
+X	1033	1061	1	4	0
+X	1033	UndlyInstrumentPtysSubGrp	1	5	0
+X	11	MsgTypeGrp	0	0	0
+X	11	1137	0	0	1
+X	11	StandardHeader	0	1	1
+X	11	98	0	2	1
+X	11	108	0	3	1
+X	11	95	0	4	0
+X	11	96	0	5	0
+X	11	141	0	6	0
+X	11	789	0	7	0
+X	11	383	0	8	0
+X	11	464	0	12	0
+X	11	553	0	13	0
+X	11	554	0	14	0
+X	11	StandardTrailer	0	15	1
+X	12	StandardHeader	0	1	1
+X	12	42	0	2	0
+X	12	61	0	3	0
+X	12	148	0	4	1
+X	12	358	0	5	0
+X	12	359	0	6	0
+X	12	RoutingGrp	0	7	0
+X	12	InstrmtGrp	0	10	0
+X	12	InstrmtLegGrp	0	12	0
+X	12	UndInstrmtGrp	0	14	0
+X	12	LinesOfTextGrp	0	16	1
+X	12	149	0	20	0
+X	12	95	0	21	0
+X	12	96	0	22	0
+X	12	StandardTrailer	0	23	1
+X	13	StandardHeader	0	1	1
+X	13	164	0	2	1
+X	13	94	0	3	1
+X	13	42	0	4	0
+X	13	147	0	5	1
+X	13	356	0	6	0
+X	13	357	0	7	0
+X	13	RoutingGrp	0	11	0
+X	13	InstrmtGrp	0	14	0
+X	13	UndInstrmtGrp	0	16	0
+X	13	InstrmtLegGrp	0	18	0
+X	13	37	0	20	0
+X	13	11	0	21	0
+X	13	LinesOfTextGrp	0	22	1
+X	13	95	0	26	0
+X	13	96	0	27	0
+X	13	StandardTrailer	0	28	1
+X	14	1089	0	0	0
+X	14	1090	0	0	0
+X	14	DisplayInstruction	0	0	0
+X	14	1133	0	0	0
+X	14	1092	0	0	0
+X	14	TriggeringInstruction	0	0	0
+X	14	1091	0	0	0
+X	14	StrategyParametersGrp	0	0	0
+X	14	1028	0	0	0
+X	14	1029	0	0	0
+X	14	1030	0	0	0
+X	14	1031	0	0	0
+X	14	1032	0	0	0
+X	14	TrdRegTimestamps	0	0	0
+X	14	1080	0	0	0
+X	14	1081	0	0	0
+X	14	StandardHeader	0	1	1
+X	14	11	0	2	1
+X	14	526	0	3	0
+X	14	583	0	4	0
+X	14	Parties	0	5	0
+X	14	229	0	6	0
+X	14	75	0	7	0
+X	14	1	0	8	0
+X	14	660	0	9	0
+X	14	581	0	10	0
+X	14	589	0	11	0
+X	14	590	0	12	0
+X	14	591	0	13	0
+X	14	70	0	14	0
+X	14	PreAllocGrp	0	15	0
+X	14	63	0	22	0
+X	14	64	0	23	0
+X	14	544	0	24	0
+X	14	635	0	25	0
+X	14	21	0	26	0
+X	14	18	0	27	0
+X	14	110	0	28	0
+X	14	111	0	29	0
+X	14	100	0	30	0
+X	14	TrdgSesGrp	0	31	0
+X	14	81	0	34	0
+X	14	Instrument	0	35	1
+X	14	FinancingDetails	0	36	0
+X	14	UndInstrmtGrp	0	37	0
+X	14	140	0	39	0
+X	14	54	0	40	1
+X	14	114	0	41	0
+X	14	60	0	42	1
+X	14	Stipulations	0	43	0
+X	14	854	0	44	0
+X	14	OrderQtyData	0	45	1
+X	14	40	0	46	1
+X	14	423	0	47	0
+X	14	44	0	48	0
+X	14	99	0	49	0
+X	14	SpreadOrBenchmarkCurveData	0	50	0
+X	14	YieldData	0	51	0
+X	14	15	0	52	0
+X	14	376	0	53	0
+X	14	377	0	54	0
+X	14	23	0	55	0
+X	14	117	0	56	0
+X	14	59	0	57	0
+X	14	168	0	58	0
+X	14	432	0	59	0
+X	14	126	0	60	0
+X	14	427	0	61	0
+X	14	CommissionData	0	62	0
+X	14	528	0	63	0
+X	14	529	0	64	0
+X	14	582	0	65	0
+X	14	121	0	66	0
+X	14	120	0	67	0
+X	14	775	0	68	0
+X	14	58	0	69	0
+X	14	354	0	70	0
+X	14	355	0	71	0
+X	14	193	0	72	0
+X	14	192	0	73	0
+X	14	640	0	74	0
+X	14	77	0	75	0
+X	14	203	0	76	0
+X	14	210	0	77	0
+X	14	PegInstructions	0	78	0
+X	14	DiscretionInstructions	0	79	0
+X	14	847	0	80	0
+X	14	848	0	81	0
+X	14	849	0	82	0
+X	14	480	0	83	0
+X	14	481	0	84	0
+X	14	513	0	85	0
+X	14	494	0	86	0
+X	14	StandardTrailer	0	87	1
+X	15	RootParties	0	0	0
+X	15	StandardHeader	0	1	1
+X	15	66	0	2	1
+X	15	390	0	3	0
+X	15	391	0	4	0
+X	15	414	0	5	0
+X	15	394	0	6	1
+X	15	415	0	7	0
+X	15	480	0	8	0
+X	15	481	0	9	0
+X	15	513	0	10	0
+X	15	433	0	11	0
+X	15	69	0	12	0
+X	15	352	0	13	0
+X	15	353	0	14	0
+X	15	765	0	15	0
+X	15	766	0	16	0
+X	15	767	0	17	0
+X	15	68	0	18	1
+X	15	893	0	19	0
+X	15	ListOrdGrp	0	20	1
+X	15	StandardTrailer	0	105	1
+X	16	StandardHeader	0	1	1
+X	16	41	0	2	1
+X	16	37	0	3	0
+X	16	11	0	4	1
+X	16	526	0	5	0
+X	16	583	0	6	0
+X	16	66	0	7	0
+X	16	586	0	8	0
+X	16	1	0	9	0
+X	16	660	0	10	0
+X	16	581	0	11	0
+X	16	Parties	0	12	0
+X	16	Instrument	0	13	1
+X	16	FinancingDetails	0	14	0
+X	16	UndInstrmtGrp	0	15	0
+X	16	54	0	17	1
+X	16	60	0	18	1
+X	16	OrderQtyData	0	19	1
+X	16	376	0	20	0
+X	16	58	0	21	0
+X	16	354	0	22	0
+X	16	355	0	23	0
+X	16	StandardTrailer	0	24	1
+X	17	1089	0	0	0
+X	17	1090	0	0	0
+X	17	DisplayInstruction	0	0	0
+X	17	1133	0	0	0
+X	17	1092	0	0	0
+X	17	TriggeringInstruction	0	0	0
+X	17	StrategyParametersGrp	0	0	0
+X	17	1091	0	0	0
+X	17	1028	0	0	0
+X	17	1029	0	0	0
+X	17	1030	0	0	0
+X	17	1031	0	0	0
+X	17	1032	0	0	0
+X	17	TrdRegTimestamps	0	0	0
+X	17	StandardHeader	0	1	1
+X	17	37	0	2	0
+X	17	Parties	0	3	0
+X	17	229	0	4	0
+X	17	75	0	5	0
+X	17	41	0	6	1
+X	17	11	0	7	1
+X	17	526	0	8	0
+X	17	583	0	9	0
+X	17	66	0	10	0
+X	17	586	0	11	0
+X	17	1	0	12	0
+X	17	660	0	13	0
+X	17	581	0	14	0
+X	17	589	0	15	0
+X	17	590	0	16	0
+X	17	591	0	17	0
+X	17	70	0	18	0
+X	17	PreAllocGrp	0	19	0
+X	17	63	0	26	0
+X	17	64	0	27	0
+X	17	544	0	28	0
+X	17	635	0	29	0
+X	17	21	0	30	0
+X	17	18	0	31	0
+X	17	110	0	32	0
+X	17	111	0	33	0
+X	17	100	0	34	0
+X	17	TrdgSesGrp	0	35	0
+X	17	Instrument	0	38	1
+X	17	FinancingDetails	0	39	0
+X	17	UndInstrmtGrp	0	40	0
+X	17	54	0	44	1
+X	17	60	0	45	1
+X	17	854	0	46	0
+X	17	OrderQtyData	0	47	1
+X	17	40	0	48	1
+X	17	423	0	49	0
+X	17	44	0	50	0
+X	17	99	0	51	0
+X	17	SpreadOrBenchmarkCurveData	0	52	0
+X	17	YieldData	0	53	0
+X	17	PegInstructions	0	54	0
+X	17	DiscretionInstructions	0	55	0
+X	17	847	0	56	0
+X	17	848	0	57	0
+X	17	849	0	58	0
+X	17	376	0	59	0
+X	17	377	0	60	0
+X	17	15	0	61	0
+X	17	59	0	62	0
+X	17	168	0	63	0
+X	17	432	0	64	0
+X	17	126	0	65	0
+X	17	427	0	66	0
+X	17	CommissionData	0	67	0
+X	17	528	0	68	0
+X	17	529	0	69	0
+X	17	582	0	70	0
+X	17	121	0	71	0
+X	17	120	0	72	0
+X	17	775	0	73	0
+X	17	58	0	74	0
+X	17	354	0	75	0
+X	17	355	0	76	0
+X	17	193	0	77	0
+X	17	192	0	78	0
+X	17	640	0	79	0
+X	17	77	0	80	0
+X	17	203	0	81	0
+X	17	210	0	82	0
+X	17	114	0	83	0
+X	17	480	0	84	0
+X	17	481	0	85	0
+X	17	513	0	86	0
+X	17	494	0	87	0
+X	17	StandardTrailer	0	88	1
+X	18	StandardHeader	0	1	1
+X	18	37	0	2	0
+X	18	11	0	3	1
+X	18	526	0	4	0
+X	18	583	0	5	0
+X	18	Parties	0	6	0
+X	18	790	0	7	0
+X	18	1	0	8	0
+X	18	660	0	9	0
+X	18	Instrument	0	10	1
+X	18	FinancingDetails	0	11	0
+X	18	UndInstrmtGrp	0	12	0
+X	18	54	0	14	1
+X	18	StandardTrailer	0	15	1
+X	19	PositionAmountData	0	0	0
+X	19	819	0	0	0
+X	19	715	0	0	0
+X	19	828	0	0	0
+X	19	829	0	0	0
+X	19	582	0	0	0
+X	19	578	0	0	0
+X	19	442	0	0	0
+X	19	1011	0	0	0
+X	19	991	0	0	0
+X	19	StandardHeader	0	1	1
+X	19	70	0	2	1
+X	19	71	0	3	1
+X	19	626	0	4	1
+X	19	793	0	5	0
+X	19	72	0	6	0
+X	19	796	0	7	0
+X	19	808	0	8	0
+X	19	196	0	9	0
+X	19	197	0	10	0
+X	19	466	0	11	0
+X	19	857	0	12	0
+X	19	OrdAllocGrp	0	13	0
+X	19	ExecAllocGrp	0	23	0
+X	19	570	0	30	0
+X	19	700	0	31	0
+X	19	574	0	32	0
+X	19	54	0	33	1
+X	19	Instrument	0	34	1
+X	19	InstrumentExtension	0	35	0
+X	19	FinancingDetails	0	36	0
+X	19	UndInstrmtGrp	0	37	0
+X	19	InstrmtLegGrp	0	39	0
+X	19	53	0	41	1
+X	19	854	0	42	0
+X	19	30	0	43	0
+X	19	229	0	44	0
+X	19	336	0	45	0
+X	19	625	0	46	0
+X	19	423	0	47	0
+X	19	6	0	48	0
+X	19	860	0	49	0
+X	19	SpreadOrBenchmarkCurveData	0	50	0
+X	19	15	0	51	0
+X	19	74	0	52	0
+X	19	Parties	0	53	0
+X	19	75	0	54	1
+X	19	60	0	55	0
+X	19	63	0	56	0
+X	19	64	0	57	0
+X	19	775	0	58	0
+X	19	381	0	59	0
+X	19	238	0	60	0
+X	19	237	0	61	0
+X	19	118	0	62	0
+X	19	77	0	63	0
+X	19	754	0	64	0
+X	19	58	0	65	0
+X	19	354	0	66	0
+X	19	355	0	67	0
+X	19	157	0	68	0
+X	19	158	0	69	0
+X	19	159	0	70	0
+X	19	540	0	71	0
+X	19	738	0	72	0
+X	19	920	0	73	0
+X	19	921	0	74	0
+X	19	922	0	75	0
+X	19	650	0	76	0
+X	19	Stipulations	0	77	0
+X	19	YieldData	0	78	0
+X	19	892	0	79	0
+X	19	893	0	80	0
+X	19	AllocGrp	0	81	0
+X	19	StandardTrailer	0	117	1
+X	2	StandardHeader	0	1	1
+X	2	112	0	2	1
+X	2	StandardTrailer	0	3	1
+X	20	Parties	0	0	0
+X	20	StandardHeader	0	1	1
+X	20	66	0	2	1
+X	20	60	0	3	1
+X	20	229	0	4	0
+X	20	75	0	5	0
+X	20	58	0	6	0
+X	20	354	0	7	0
+X	20	355	0	8	0
+X	20	StandardTrailer	0	9	1
+X	2001	534	0	1	0
+X	2001	41	1	2	0
+X	2001	535	1	3	0
+X	2001	536	1	4	0
+X	2002	1047	1	0	0
+X	2002	NestedParties	1	0	0
+X	2002	989	1	0	0
+X	2002	993	1	0	0
+X	2002	992	1	0	0
+X	2002	80	1	0	0
+X	2002	78	0	1	0
+X	2002	79	1	2	0
+X	2002	661	1	3	0
+X	2002	366	1	4	0
+X	2002	467	1	5	0
+X	2002	776	1	6	0
+X	2002	161	1	7	0
+X	2002	360	1	8	0
+X	2002	361	1	9	0
+X	2003	989	1	0	0
+X	2003	1002	1	0	0
+X	2003	993	1	0	0
+X	2003	1047	1	0	0
+X	2003	992	1	0	0
+X	2003	635	1	0	0
+X	2003	78	0	1	0
+X	2003	79	1	2	0
+X	2003	661	1	3	0
+X	2003	573	1	4	0
+X	2003	366	1	5	0
+X	2003	80	1	6	0
+X	2003	467	1	7	0
+X	2003	81	1	8	0
+X	2003	NestedParties	1	9	0
+X	2003	208	1	10	0
+X	2003	209	1	11	0
+X	2003	161	1	12	0
+X	2003	360	1	13	0
+X	2003	361	1	14	0
+X	2003	CommissionData	1	15	0
+X	2003	153	1	16	0
+X	2003	154	1	17	0
+X	2003	119	1	18	0
+X	2003	737	1	19	0
+X	2003	120	1	20	0
+X	2003	736	1	21	0
+X	2003	155	1	22	0
+X	2003	156	1	23	0
+X	2003	742	1	24	0
+X	2003	741	1	25	0
+X	2003	MiscFeesGrp	1	26	0
+X	2003	ClrInstGrp	1	31	0
+X	2003	780	1	34	0
+X	2003	SettlInstructionsData	1	35	0
+X	2004	420	0	1	0
+X	2004	66	1	2	0
+X	2004	54	1	3	0
+X	2004	336	1	4	0
+X	2004	625	1	5	0
+X	2004	430	1	6	0
+X	2004	63	1	7	0
+X	2004	64	1	8	0
+X	2004	1	1	9	0
+X	2004	660	1	10	0
+X	2005	420	0	1	1
+X	2005	CommissionData	1	2	1
+X	2005	66	1	3	0
+X	2005	421	1	4	0
+X	2005	54	1	5	0
+X	2005	44	1	6	0
+X	2005	423	1	7	0
+X	2005	406	1	8	0
+X	2005	430	1	9	0
+X	2005	63	1	10	0
+X	2005	64	1	11	0
+X	2005	336	1	12	0
+X	2005	625	1	13	0
+X	2005	58	1	14	0
+X	2005	354	1	15	0
+X	2005	355	1	16	0
+X	2006	398	0	1	0
+X	2006	399	1	2	0
+X	2006	400	1	3	0
+X	2006	401	1	4	0
+X	2006	404	1	5	0
+X	2006	441	1	6	0
+X	2006	402	1	7	0
+X	2006	403	1	8	0
+X	2006	405	1	9	0
+X	2006	406	1	10	0
+X	2006	407	1	11	0
+X	2006	408	1	12	0
+X	2007	576	0	1	0
+X	2007	577	1	2	0
+X	2008	938	0	1	0
+X	2008	896	1	2	0
+X	2009	936	0	1	0
+X	2009	930	1	2	0
+X	2009	931	1	3	0
+X	2009	283	1	4	0
+X	2009	284	1	5	0
+X	2010	936	0	1	1
+X	2010	930	1	2	1
+X	2010	931	1	3	0
+X	2010	283	1	4	0
+X	2010	284	1	5	0
+X	2010	928	1	6	1
+X	2010	929	1	7	0
+X	2011	518	0	1	0
+X	2011	519	1	2	0
+X	2011	520	1	3	0
+X	2011	521	1	4	0
+X	2012	382	0	1	0
+X	2012	375	1	2	0
+X	2012	337	1	3	0
+X	2012	437	1	4	0
+X	2012	438	1	5	0
+X	2012	655	1	6	0
+X	2013	862	0	1	1
+X	2013	528	1	2	1
+X	2013	529	1	3	0
+X	2013	863	1	4	1
+X	2014	1003	1	0	0
+X	2014	1041	1	0	0
+X	2014	124	0	1	0
+X	2014	32	1	2	0
+X	2014	17	1	3	0
+X	2014	527	1	4	0
+X	2014	31	1	5	0
+X	2014	669	1	6	0
+X	2014	29	1	7	0
+X	2015	124	0	1	0
+X	2015	17	1	2	0
+X	2016	124	0	1	0
+X	2016	17	1	2	0
+X	2017	146	0	1	0
+X	2017	Instrument	1	2	0
+X	2018	685	1	0	0
+X	2018	675	1	0	0
+X	2018	1073	1	0	0
+X	2018	1074	1	0	0
+X	2018	1075	1	0	0
+X	2018	555	0	1	0
+X	2018	InstrumentLeg	1	2	0
+X	2018	687	1	3	0
+X	2018	690	1	4	0
+X	2018	LegStipulations	1	5	0
+X	2018	564	1	6	0
+X	2018	565	1	7	0
+X	2018	NestedParties	1	8	0
+X	2018	654	1	9	0
+X	2018	566	1	10	0
+X	2018	587	1	11	0
+X	2018	588	1	12	0
+X	2018	637	1	13	0
+X	2019	555	0	1	0
+X	2019	InstrumentLeg	1	2	0
+X	2020	555	0	1	0
+X	2020	InstrumentLeg	1	2	0
+X	2020	682	1	3	0
+X	2020	LegStipulations	1	4	0
+X	2021	555	0	1	0
+X	2021	InstrumentLeg	1	2	0
+X	2021	690	1	3	0
+X	2021	587	1	4	0
+X	2021	LegStipulations	1	5	0
+X	2021	LegBenchmarkCurveData	1	6	0
+X	2022	15	1	0	0
+X	2022	537	1	0	0
+X	2022	63	1	0	0
+X	2022	64	1	0	0
+X	2022	271	1	0	0
+X	2022	146	0	1	1
+X	2022	Instrument	1	2	1
+X	2022	UndInstrmtGrp	1	3	0
+X	2022	InstrmtLegGrp	1	5	0
+X	2023	428	0	1	1
+X	2023	Instrument	1	2	1
+X	2024	199	0	1	0
+X	2024	104	1	2	0
+X	2025	1017	1	0	0
+X	2025	685	1	0	0
+X	2025	555	0	1	1
+X	2025	InstrumentLeg	1	2	0
+X	2025	687	1	3	0
+X	2025	690	1	4	0
+X	2025	LegStipulations	1	5	0
+X	2025	LegPreAllocGrp	1	6	0
+X	2025	564	1	13	0
+X	2025	565	1	14	0
+X	2025	NestedParties	1	15	0
+X	2025	654	1	16	0
+X	2025	566	1	17	0
+X	2025	587	1	18	0
+X	2025	588	1	19	0
+X	2026	670	0	1	0
+X	2026	671	1	2	0
+X	2026	672	1	3	0
+X	2026	NestedParties2	1	4	0
+X	2026	673	1	5	0
+X	2026	674	1	6	0
+X	2026	675	1	7	0
+X	2027	685	1	0	0
+X	2027	654	1	0	0
+X	2027	1067	1	0	0
+X	2027	1068	1	0	0
+X	2027	555	0	1	0
+X	2027	InstrumentLeg	1	2	0
+X	2027	687	1	3	0
+X	2027	690	1	4	0
+X	2027	587	1	5	0
+X	2027	588	1	6	0
+X	2027	LegStipulations	1	7	0
+X	2027	NestedParties	1	8	0
+X	2027	686	1	9	0
+X	2027	681	1	10	0
+X	2027	684	1	11	0
+X	2027	LegBenchmarkCurveData	1	12	0
+X	2028	685	1	0	0
+X	2028	555	0	1	0
+X	2028	InstrumentLeg	1	2	0
+X	2028	687	1	3	0
+X	2028	690	1	4	0
+X	2028	587	1	5	0
+X	2028	588	1	6	0
+X	2028	LegStipulations	1	7	0
+X	2028	NestedParties	1	8	0
+X	2029	33	0	1	1
+X	2029	58	1	2	1
+X	2029	354	1	3	0
+X	2029	355	1	4	0
+X	2030	1089	1	0	0
+X	2030	1090	1	0	0
+X	2030	DisplayInstruction	1	0	0
+X	2030	1133	1	0	0
+X	2030	1092	1	0	0
+X	2030	TriggeringInstruction	1	0	0
+X	2030	1080	1	0	0
+X	2030	1081	1	0	0
+X	2030	1091	1	0	0
+X	2030	StrategyParametersGrp	1	0	0
+X	2030	73	0	1	1
+X	2030	11	1	2	1
+X	2030	526	1	3	0
+X	2030	67	1	4	1
+X	2030	583	1	5	0
+X	2030	160	1	6	0
+X	2030	Parties	1	7	0
+X	2030	229	1	8	0
+X	2030	75	1	9	0
+X	2030	1	1	10	0
+X	2030	660	1	11	0
+X	2030	581	1	12	0
+X	2030	589	1	13	0
+X	2030	590	1	14	0
+X	2030	70	1	15	0
+X	2030	591	1	16	0
+X	2030	PreAllocGrp	1	17	0
+X	2030	63	1	24	0
+X	2030	64	1	25	0
+X	2030	544	1	26	0
+X	2030	635	1	27	0
+X	2030	21	1	28	0
+X	2030	18	1	29	0
+X	2030	110	1	30	0
+X	2030	111	1	31	0
+X	2030	100	1	32	0
+X	2030	TrdgSesGrp	1	33	0
+X	2030	81	1	36	0
+X	2030	Instrument	1	37	1
+X	2030	UndInstrmtGrp	1	38	0
+X	2030	140	1	40	0
+X	2030	54	1	41	1
+X	2030	401	1	42	0
+X	2030	114	1	43	0
+X	2030	60	1	44	0
+X	2030	Stipulations	1	45	0
+X	2030	854	1	46	0
+X	2030	OrderQtyData	1	47	1
+X	2030	40	1	48	0
+X	2030	423	1	49	0
+X	2030	44	1	50	0
+X	2030	99	1	51	0
+X	2030	SpreadOrBenchmarkCurveData	1	52	0
+X	2030	YieldData	1	53	0
+X	2030	15	1	54	0
+X	2030	376	1	55	0
+X	2030	377	1	56	0
+X	2030	23	1	57	0
+X	2030	117	1	58	0
+X	2030	59	1	59	0
+X	2030	168	1	60	0
+X	2030	432	1	61	0
+X	2030	126	1	62	0
+X	2030	427	1	63	0
+X	2030	CommissionData	1	64	0
+X	2030	528	1	65	0
+X	2030	529	1	66	0
+X	2030	582	1	67	0
+X	2030	121	1	68	0
+X	2030	120	1	69	0
+X	2030	775	1	70	0
+X	2030	58	1	71	0
+X	2030	354	1	72	0
+X	2030	355	1	73	0
+X	2030	193	1	74	0
+X	2030	192	1	75	0
+X	2030	640	1	76	0
+X	2030	77	1	77	0
+X	2030	203	1	78	0
+X	2030	210	1	79	0
+X	2030	PegInstructions	1	80	0
+X	2030	DiscretionInstructions	1	81	0
+X	2030	847	1	82	0
+X	2030	848	1	83	0
+X	2030	849	1	84	0
+X	2030	494	1	85	0
+X	2031	278	1	0	0
+X	2031	40	1	0	0
+X	2031	198	1	0	0
+X	2031	1023	1	0	0
+X	2031	528	1	0	0
+X	2031	1024	1	0	0
+X	2031	332	1	0	0
+X	2031	333	1	0	0
+X	2031	1020	1	0	0
+X	2031	63	1	0	0
+X	2031	64	1	0	0
+X	2031	1070	1	0	0
+X	2031	1048	1	0	0
+X	2031	1026	1	0	0
+X	2031	1027	1	0	0
+X	2031	Parties	1	0	0
+X	2031	268	0	1	1
+X	2031	269	1	2	1
+X	2031	270	1	3	0
+X	2031	15	1	4	0
+X	2031	271	1	5	0
+X	2031	272	1	6	0
+X	2031	273	1	7	0
+X	2031	274	1	8	0
+X	2031	275	1	9	0
+X	2031	336	1	10	0
+X	2031	625	1	11	0
+X	2031	276	1	12	0
+X	2031	277	1	13	0
+X	2031	282	1	14	0
+X	2031	283	1	15	0
+X	2031	284	1	16	0
+X	2031	286	1	17	0
+X	2031	59	1	18	0
+X	2031	432	1	19	0
+X	2031	126	1	20	0
+X	2031	110	1	21	0
+X	2031	18	1	22	0
+X	2031	287	1	23	0
+X	2031	37	1	24	0
+X	2031	299	1	25	0
+X	2031	288	1	26	0
+X	2031	289	1	27	0
+X	2031	346	1	28	0
+X	2031	290	1	29	0
+X	2031	546	1	30	0
+X	2031	811	1	31	0
+X	2031	58	1	32	0
+X	2031	354	1	33	0
+X	2031	355	1	34	0
+X	2031	83	1	35	0
+X	2032	40	1	0	0
+X	2032	198	1	0	0
+X	2032	1023	1	0	0
+X	2032	528	1	0	0
+X	2032	1024	1	0	0
+X	2032	332	1	0	0
+X	2032	333	1	0	0
+X	2032	1020	1	0	0
+X	2032	63	1	0	0
+X	2032	64	1	0	0
+X	2032	1070	1	0	0
+X	2032	83	1	0	0
+X	2032	1048	1	0	0
+X	2032	1026	1	0	0
+X	2032	1027	1	0	0
+X	2032	Parties	1	0	0
+X	2032	268	0	1	1
+X	2032	279	1	2	1
+X	2032	285	1	3	0
+X	2032	269	1	4	0
+X	2032	278	1	5	0
+X	2032	280	1	6	0
+X	2032	Instrument	1	7	0
+X	2032	UndInstrmtGrp	1	8	0
+X	2032	InstrmtLegGrp	1	10	0
+X	2032	291	1	12	0
+X	2032	292	1	13	0
+X	2032	270	1	14	0
+X	2032	15	1	15	0
+X	2032	271	1	16	0
+X	2032	272	1	17	0
+X	2032	273	1	18	0
+X	2032	274	1	19	0
+X	2032	275	1	20	0
+X	2032	336	1	21	0
+X	2032	625	1	22	0
+X	2032	276	1	23	0
+X	2032	277	1	24	0
+X	2032	282	1	25	0
+X	2032	283	1	26	0
+X	2032	284	1	27	0
+X	2032	286	1	28	0
+X	2032	59	1	29	0
+X	2032	432	1	30	0
+X	2032	126	1	31	0
+X	2032	110	1	32	0
+X	2032	18	1	33	0
+X	2032	287	1	34	0
+X	2032	37	1	35	0
+X	2032	299	1	36	0
+X	2032	288	1	37	0
+X	2032	289	1	38	0
+X	2032	346	1	39	0
+X	2032	290	1	40	0
+X	2032	546	1	41	0
+X	2032	811	1	42	0
+X	2032	451	1	43	0
+X	2032	58	1	44	0
+X	2032	354	1	45	0
+X	2032	355	1	46	0
+X	2033	267	0	1	1
+X	2033	269	1	2	1
+X	2034	816	0	1	0
+X	2034	817	1	2	0
+X	2035	136	0	1	0
+X	2035	137	1	2	0
+X	2035	138	1	3	0
+X	2035	139	1	4	0
+X	2035	891	1	5	0
+X	2036	73	0	1	0
+X	2036	11	1	2	0
+X	2036	37	1	3	0
+X	2036	198	1	4	0
+X	2036	526	1	5	0
+X	2036	66	1	6	0
+X	2036	NestedParties2	1	7	0
+X	2036	38	1	8	0
+X	2036	799	1	9	0
+X	2036	800	1	10	0
+X	2037	73	0	1	1
+X	2037	11	1	2	1
+X	2037	526	1	3	0
+X	2037	14	1	4	1
+X	2037	39	1	5	1
+X	2037	636	1	6	0
+X	2037	151	1	7	1
+X	2037	84	1	8	1
+X	2037	6	1	9	1
+X	2037	103	1	10	0
+X	2037	58	1	11	0
+X	2037	354	1	12	0
+X	2037	355	1	13	0
+X	2038	1037	1	0	0
+X	2038	UnderlyingAmount	1	0	0
+X	2038	711	0	1	0
+X	2038	UnderlyingInstrument	1	2	0
+X	2038	732	1	3	0
+X	2038	733	1	4	0
+X	2039	78	0	1	0
+X	2039	79	1	2	0
+X	2039	661	1	3	0
+X	2039	736	1	4	0
+X	2039	467	1	5	0
+X	2039	NestedParties	1	6	0
+X	2039	80	1	7	0
+X	2040	78	0	1	0
+X	2040	79	1	2	0
+X	2040	661	1	3	0
+X	2040	736	1	4	0
+X	2040	467	1	5	0
+X	2040	NestedParties3	1	6	0
+X	2040	80	1	7	0
+X	2041	295	0	1	0
+X	2041	Instrument	1	2	0
+X	2041	FinancingDetails	1	3	0
+X	2041	UndInstrmtGrp	1	4	0
+X	2041	InstrmtLegGrp	1	6	0
+X	2042	295	0	1	0
+X	2042	299	1	2	0
+X	2042	Instrument	1	3	0
+X	2042	InstrmtLegGrp	1	4	0
+X	2042	132	1	6	0
+X	2042	133	1	7	0
+X	2042	134	1	8	0
+X	2042	135	1	9	0
+X	2042	62	1	10	0
+X	2042	188	1	11	0
+X	2042	190	1	12	0
+X	2042	189	1	13	0
+X	2042	191	1	14	0
+X	2042	631	1	15	0
+X	2042	632	1	16	0
+X	2042	633	1	17	0
+X	2042	634	1	18	0
+X	2042	60	1	19	0
+X	2042	336	1	20	0
+X	2042	625	1	21	0
+X	2042	64	1	22	0
+X	2042	40	1	23	0
+X	2042	193	1	24	0
+X	2042	192	1	25	0
+X	2042	642	1	26	0
+X	2042	643	1	27	0
+X	2042	15	1	28	0
+X	2042	368	1	29	0
+X	2043	295	0	1	1
+X	2043	299	1	2	1
+X	2043	Instrument	1	3	0
+X	2043	InstrmtLegGrp	1	4	0
+X	2043	132	1	6	0
+X	2043	133	1	7	0
+X	2043	134	1	8	0
+X	2043	135	1	9	0
+X	2043	62	1	10	0
+X	2043	188	1	11	0
+X	2043	190	1	12	0
+X	2043	189	1	13	0
+X	2043	191	1	14	0
+X	2043	631	1	15	0
+X	2043	632	1	16	0
+X	2043	633	1	17	0
+X	2043	634	1	18	0
+X	2043	60	1	19	0
+X	2043	336	1	20	0
+X	2043	625	1	21	0
+X	2043	64	1	22	0
+X	2043	40	1	23	0
+X	2043	193	1	24	0
+X	2043	192	1	25	0
+X	2043	642	1	26	0
+X	2043	643	1	27	0
+X	2043	15	1	28	0
+X	2044	735	0	1	0
+X	2044	695	1	2	0
+X	2045	146	0	1	1
+X	2045	Instrument	1	2	1
+X	2045	FinancingDetails	1	3	0
+X	2045	UndInstrmtGrp	1	4	0
+X	2045	140	1	6	0
+X	2045	303	1	7	0
+X	2045	537	1	8	0
+X	2045	336	1	9	0
+X	2045	625	1	10	0
+X	2045	229	1	11	0
+X	2045	54	1	12	0
+X	2045	854	1	13	0
+X	2045	OrderQtyData	1	14	0
+X	2045	63	1	15	0
+X	2045	64	1	16	0
+X	2045	193	1	17	0
+X	2045	192	1	18	0
+X	2045	15	1	19	0
+X	2045	Stipulations	1	20	0
+X	2045	1	1	21	0
+X	2045	660	1	22	0
+X	2045	581	1	23	0
+X	2045	QuotReqLegsGrp	1	24	0
+X	2045	QuotQualGrp	1	33	0
+X	2045	692	1	35	0
+X	2045	40	1	36	0
+X	2045	62	1	37	0
+X	2045	126	1	38	0
+X	2045	60	1	39	0
+X	2045	SpreadOrBenchmarkCurveData	1	40	0
+X	2045	423	1	41	0
+X	2045	44	1	42	0
+X	2045	640	1	43	0
+X	2045	YieldData	1	44	0
+X	2045	Parties	1	45	0
+X	2046	1017	1	0	0
+X	2046	566	1	0	0
+X	2046	685	1	0	0
+X	2046	654	1	0	0
+X	2046	555	0	1	0
+X	2046	InstrumentLeg	1	2	0
+X	2046	687	1	3	0
+X	2046	690	1	4	0
+X	2046	587	1	5	0
+X	2046	588	1	6	0
+X	2046	LegStipulations	1	7	0
+X	2046	NestedParties	1	8	0
+X	2046	LegBenchmarkCurveData	1	9	0
+X	2047	146	0	1	1
+X	2047	Instrument	1	2	1
+X	2047	FinancingDetails	1	3	0
+X	2047	UndInstrmtGrp	1	4	0
+X	2047	140	1	6	0
+X	2047	303	1	7	0
+X	2047	537	1	8	0
+X	2047	336	1	9	0
+X	2047	625	1	10	0
+X	2047	229	1	11	0
+X	2047	54	1	12	0
+X	2047	854	1	13	0
+X	2047	OrderQtyData	1	14	0
+X	2047	63	1	15	0
+X	2047	64	1	16	0
+X	2047	193	1	17	0
+X	2047	192	1	18	0
+X	2047	15	1	19	0
+X	2047	Stipulations	1	20	0
+X	2047	1	1	21	0
+X	2047	660	1	22	0
+X	2047	581	1	23	0
+X	2047	QuotReqLegsGrp	1	24	0
+X	2047	QuotQualGrp	1	33	0
+X	2047	692	1	35	0
+X	2047	40	1	36	0
+X	2047	126	1	37	0
+X	2047	60	1	38	0
+X	2047	SpreadOrBenchmarkCurveData	1	39	0
+X	2047	423	1	40	0
+X	2047	44	1	41	0
+X	2047	640	1	42	0
+X	2047	YieldData	1	43	0
+X	2047	Parties	1	44	0
+X	2048	296	0	1	0
+X	2048	302	1	2	0
+X	2048	UnderlyingInstrument	1	3	0
+X	2048	304	1	4	0
+X	2048	893	1	5	0
+X	2048	QuotEntryAckGrp	1	6	0
+X	2049	296	0	1	1
+X	2049	302	1	2	1
+X	2049	UnderlyingInstrument	1	3	0
+X	2049	367	1	4	0
+X	2049	304	1	5	1
+X	2049	893	1	6	0
+X	2049	QuotEntryGrp	1	7	1
+X	2050	146	0	1	0
+X	2050	Instrument	1	2	0
+X	2050	15	1	3	0
+X	2050	827	1	4	0
+X	2050	InstrumentExtension	1	5	0
+X	2050	InstrmtLegGrp	1	6	0
+X	2050	336	1	8	0
+X	2050	625	1	9	0
+X	2050	58	1	10	0
+X	2050	354	1	11	0
+X	2050	355	1	12	0
+X	2051	146	0	1	1
+X	2051	Instrument	1	2	1
+X	2051	UndInstrmtGrp	1	3	0
+X	2051	InstrmtLegGrp	1	5	0
+X	2051	140	1	7	0
+X	2051	303	1	8	0
+X	2051	537	1	9	0
+X	2051	336	1	10	0
+X	2051	625	1	11	0
+X	2052	510	0	1	0
+X	2052	477	1	2	0
+X	2052	512	1	3	0
+X	2052	478	1	4	0
+X	2052	498	1	5	0
+X	2052	499	1	6	0
+X	2052	500	1	7	0
+X	2052	501	1	8	0
+X	2052	502	1	9	0
+X	2053	473	0	1	0
+X	2053	509	1	2	0
+X	2053	511	1	3	0
+X	2053	474	1	4	0
+X	2053	482	1	5	0
+X	2053	NestedParties	1	6	0
+X	2053	522	1	7	0
+X	2053	486	1	8	0
+X	2053	475	1	9	0
+X	2054	215	0	1	0
+X	2054	216	1	2	0
+X	2054	217	1	3	0
+X	2055	146	0	1	0
+X	2055	Instrument	1	2	0
+X	2055	InstrumentExtension	1	3	0
+X	2055	FinancingDetails	1	4	0
+X	2055	UndInstrmtGrp	1	5	0
+X	2055	15	1	7	0
+X	2055	Stipulations	1	8	0
+X	2055	InstrmtLegSecListGrp	1	9	0
+X	2055	SpreadOrBenchmarkCurveData	1	15	0
+X	2055	YieldData	1	16	0
+X	2055	561	1	17	0
+X	2055	562	1	18	0
+X	2055	336	1	19	0
+X	2055	625	1	20	0
+X	2055	827	1	21	0
+X	2055	58	1	22	0
+X	2055	354	1	23	0
+X	2055	355	1	24	0
+X	2056	558	0	1	0
+X	2056	167	1	2	0
+X	2056	762	1	3	0
+X	2056	460	1	4	0
+X	2056	461	1	5	0
+X	2057	120	1	0	0
+X	2057	778	0	1	0
+X	2057	162	1	2	0
+X	2057	163	1	3	0
+X	2057	214	1	4	0
+X	2057	Parties	1	5	0
+X	2057	54	1	6	0
+X	2057	460	1	7	0
+X	2057	167	1	8	0
+X	2057	461	1	9	0
+X	2057	168	1	10	0
+X	2057	126	1	11	0
+X	2057	779	1	12	0
+X	2057	SettlInstructionsData	1	13	0
+X	2057	492	1	14	0
+X	2057	476	1	15	0
+X	2057	488	1	16	0
+X	2057	489	1	17	0
+X	2057	503	1	18	0
+X	2057	490	1	19	0
+X	2057	491	1	20	0
+X	2057	504	1	21	0
+X	2057	505	1	22	0
+X	2058	552	0	1	1
+X	2058	54	1	2	1
+X	2058	41	1	3	1
+X	2058	11	1	4	1
+X	2058	526	1	5	0
+X	2058	583	1	6	0
+X	2058	586	1	7	0
+X	2058	Parties	1	8	0
+X	2058	229	1	9	0
+X	2058	75	1	10	0
+X	2058	OrderQtyData	1	11	1
+X	2058	376	1	12	0
+X	2058	58	1	13	0
+X	2058	354	1	14	0
+X	2058	355	1	15	0
+X	2059	1091	1	0	0
+X	2059	962	1	0	0
+X	2059	552	0	1	1
+X	2059	54	1	2	1
+X	2059	11	1	3	1
+X	2059	526	1	4	0
+X	2059	583	1	5	0
+X	2059	Parties	1	6	0
+X	2059	229	1	7	0
+X	2059	75	1	8	0
+X	2059	1	1	9	0
+X	2059	660	1	10	0
+X	2059	581	1	11	0
+X	2059	589	1	12	0
+X	2059	590	1	13	0
+X	2059	591	1	14	0
+X	2059	70	1	15	0
+X	2059	PreAllocGrp	1	16	0
+X	2059	854	1	23	0
+X	2059	OrderQtyData	1	24	1
+X	2059	CommissionData	1	25	0
+X	2059	528	1	26	0
+X	2059	529	1	27	0
+X	2059	582	1	28	0
+X	2059	121	1	29	0
+X	2059	120	1	30	0
+X	2059	775	1	31	0
+X	2059	58	1	32	0
+X	2059	354	1	33	0
+X	2059	355	1	34	0
+X	2059	77	1	35	0
+X	2059	203	1	36	0
+X	2059	544	1	37	0
+X	2059	635	1	38	0
+X	2059	377	1	39	0
+X	2059	659	1	40	0
+X	2060	993	1	0	0
+X	2060	1002	1	0	0
+X	2060	989	1	0	0
+X	2060	1136	1	0	0
+X	2060	78	0	1	0
+X	2060	79	1	2	0
+X	2060	661	1	3	0
+X	2060	736	1	4	0
+X	2060	467	1	5	0
+X	2060	NestedParties2	1	6	0
+X	2060	80	1	7	0
+X	2061	19	1	0	0
+X	2061	1009	1	0	0
+X	2061	1005	1	0	0
+X	2061	1006	1	0	0
+X	2061	1007	1	0	0
+X	2061	83	1	0	0
+X	2061	1008	1	0	0
+X	2061	1093	1	0	0
+X	2061	1072	1	0	0
+X	2061	1057	1	0	0
+X	2061	1139	1	0	0
+X	2061	552	0	1	1
+X	2061	54	1	2	1
+X	2061	37	1	3	0
+X	2061	198	1	4	0
+X	2061	11	1	5	0
+X	2061	526	1	6	0
+X	2061	66	1	7	0
+X	2061	Parties	1	8	0
+X	2061	1	1	9	0
+X	2061	660	1	10	0
+X	2061	581	1	11	0
+X	2061	81	1	12	0
+X	2061	575	1	13	0
+X	2061	ClrInstGrp	1	14	0
+X	2061	578	1	17	0
+X	2061	579	1	18	0
+X	2061	821	1	19	0
+X	2061	15	1	20	0
+X	2061	376	1	21	0
+X	2061	377	1	22	0
+X	2061	528	1	23	0
+X	2061	529	1	24	0
+X	2061	582	1	25	0
+X	2061	40	1	26	0
+X	2061	18	1	27	0
+X	2061	483	1	28	0
+X	2061	336	1	29	0
+X	2061	625	1	30	0
+X	2061	943	1	31	0
+X	2061	CommissionData	1	32	0
+X	2061	157	1	34	0
+X	2061	230	1	35	0
+X	2061	158	1	36	0
+X	2061	159	1	37	0
+X	2061	738	1	38	0
+X	2061	920	1	39	0
+X	2061	921	1	40	0
+X	2061	922	1	41	0
+X	2061	238	1	42	0
+X	2061	237	1	43	0
+X	2061	118	1	44	0
+X	2061	119	1	45	0
+X	2061	120	1	46	0
+X	2061	155	1	47	0
+X	2061	156	1	48	0
+X	2061	77	1	49	0
+X	2061	58	1	50	0
+X	2061	354	1	51	0
+X	2061	355	1	52	0
+X	2061	752	1	53	0
+X	2061	ContAmtGrp	1	54	0
+X	2061	Stipulations	1	58	0
+X	2061	MiscFeesGrp	1	59	0
+X	2061	825	1	64	0
+X	2061	826	1	65	0
+X	2061	591	1	66	0
+X	2061	70	1	67	0
+X	2061	TrdAllocGrp	1	68	0
+X	2061	SideTrdRegTS	1	69	0
+X	2062	897	0	1	0
+X	2062	571	1	2	0
+X	2062	818	1	3	0
+X	2063	990	1	0	0
+X	2063	675	1	0	0
+X	2063	1073	1	0	0
+X	2063	1074	1	0	0
+X	2063	1075	1	0	0
+X	2063	555	0	1	0
+X	2063	InstrumentLeg	1	2	0
+X	2063	687	1	3	0
+X	2063	690	1	4	0
+X	2063	LegStipulations	1	5	0
+X	2063	564	1	6	0
+X	2063	565	1	7	0
+X	2063	NestedParties	1	8	0
+X	2063	654	1	9	0
+X	2063	566	1	10	0
+X	2063	587	1	11	0
+X	2063	588	1	12	0
+X	2063	637	1	13	0
+X	2064	386	0	1	0
+X	2064	336	1	2	0
+X	2064	625	1	3	0
+X	2065	711	0	1	0
+X	2065	UnderlyingInstrument	1	2	0
+X	2065	944	1	3	0
+X	2066	711	0	1	0
+X	2066	UnderlyingInstrument	1	2	0
+X	2067	711	0	1	0
+X	2067	UnderlyingInstrument	1	2	0
+X	2067	140	1	3	0
+X	2067	11	1	4	0
+X	2067	526	1	5	0
+X	2067	54	1	6	0
+X	2067	44	1	7	1
+X	2067	15	1	8	0
+X	2067	58	1	9	0
+X	2067	354	1	10	0
+X	2067	355	1	11	0
+X	2069	779	1	0	0
+X	2069	580	0	1	0
+X	2069	75	1	2	0
+X	2069	60	1	3	0
+X	2070	864	0	1	0
+X	2070	865	1	2	0
+X	2070	866	1	3	0
+X	2070	867	1	4	0
+X	2070	868	1	5	0
+X	2071	454	0	1	0
+X	2071	455	1	2	0
+X	2071	456	1	3	0
+X	2072	604	0	1	0
+X	2072	605	1	2	0
+X	2072	606	1	3	0
+X	2073	457	0	1	0
+X	2073	458	1	2	0
+X	2073	459	1	3	0
+X	2074	870	0	1	0
+X	2074	871	1	2	0
+X	2074	872	1	3	0
+X	2075	85	0	1	0
+X	2075	165	1	2	0
+X	2075	787	1	3	0
+X	2075	SettlParties	1	4	0
+X	2076	801	0	1	0
+X	2076	785	1	2	0
+X	2076	786	1	3	0
+X	2077	802	0	1	0
+X	2077	523	1	2	0
+X	2077	803	1	3	0
+X	2078	804	0	1	0
+X	2078	545	1	2	0
+X	2078	805	1	3	0
+X	2079	806	0	1	0
+X	2079	760	1	2	0
+X	2079	807	1	3	0
+X	2080	952	0	1	0
+X	2080	953	1	2	0
+X	2080	954	1	3	0
+X	2085	627	0	1	0
+X	2085	628	1	2	0
+X	2085	629	1	3	0
+X	2085	630	1	4	0
+X	2086	957	0	1	0
+X	2086	958	1	2	0
+X	2086	959	1	3	0
+X	2086	960	1	4	0
+X	2087	Instrument	1	0	0
+X	2087	InstrumentExtension	1	0	0
+X	2087	FinancingDetails	1	0	0
+X	2087	UnderlyingInstrument	1	0	0
+X	2087	15	1	0	0
+X	2087	Stipulations	1	0	0
+X	2087	SecLstUpdRelSymsLegGrp	1	0	0
+X	2087	SpreadOrBenchmarkCurveData	1	0	0
+X	2087	561	1	0	0
+X	2087	562	1	0	0
+X	2087	336	1	0	0
+X	2087	625	1	0	0
+X	2087	827	1	0	0
+X	2087	58	1	0	0
+X	2087	354	1	0	0
+X	2087	355	1	0	0
+X	2087	146	0	1	0
+X	2087	YieldData	1	2	0
+X	2088	InstrumentLeg	1	0	0
+X	2088	690	1	0	0
+X	2088	587	1	0	0
+X	2088	LegStipulations	1	0	0
+X	2088	LegBenchmarkCurveData	1	0	0
+X	2088	555	0	1	0
+X	2093	1052	0	1	0
+X	2093	1053	1	2	0
+X	2093	1054	1	3	0
+X	2094	1093	1	0	0
+X	2094	1072	1	0	0
+X	2094	1057	1	0	0
+X	2094	1009	1	0	0
+X	2094	1005	1	0	0
+X	2094	1006	1	0	0
+X	2094	1007	1	0	0
+X	2094	83	1	0	0
+X	2094	SideTrdRegTS	1	0	0
+X	2094	552	0	1	1
+X	2094	54	1	2	1
+X	2094	37	1	3	0
+X	2094	198	1	4	0
+X	2094	11	1	5	0
+X	2094	526	1	6	0
+X	2094	66	1	7	0
+X	2094	Parties	1	8	0
+X	2094	1	1	9	0
+X	2094	660	1	10	0
+X	2094	581	1	11	0
+X	2094	81	1	12	0
+X	2094	575	1	13	0
+X	2094	ClrInstGrp	1	14	0
+X	2094	578	1	17	0
+X	2094	579	1	18	0
+X	2094	821	1	19	0
+X	2094	15	1	20	0
+X	2094	376	1	21	0
+X	2094	377	1	22	0
+X	2094	528	1	23	0
+X	2094	529	1	24	0
+X	2094	582	1	25	0
+X	2094	40	1	26	0
+X	2094	18	1	27	0
+X	2094	483	1	28	0
+X	2094	336	1	29	0
+X	2094	625	1	30	0
+X	2094	943	1	31	0
+X	2094	CommissionData	1	32	0
+X	2094	157	1	34	0
+X	2094	230	1	35	0
+X	2094	158	1	36	0
+X	2094	159	1	37	0
+X	2094	738	1	38	0
+X	2094	920	1	39	0
+X	2094	921	1	40	0
+X	2094	922	1	41	0
+X	2094	238	1	42	0
+X	2094	237	1	43	0
+X	2094	118	1	44	0
+X	2094	119	1	45	0
+X	2094	120	1	46	0
+X	2094	155	1	47	0
+X	2094	156	1	48	0
+X	2094	77	1	49	0
+X	2094	752	1	53	0
+X	2094	ContAmtGrp	1	54	0
+X	2094	Stipulations	1	58	0
+X	2094	MiscFeesGrp	1	59	0
+X	2094	825	1	64	0
+X	2094	826	1	65	0
+X	2094	591	1	66	0
+X	2094	70	1	67	0
+X	2094	TrdAllocGrp	1	68	0
+X	2094	1008	1	69	0
+X	2096	1062	0	1	0
+X	2096	1063	1	2	0
+X	2096	1064	1	3	0
+X	2097	1121	1	0	0
+X	2097	1122	1	0	0
+X	2097	1120	0	1	0
+X	2098	1130	1	0	0
+X	2098	1131	1	0	0
+X	2098	384	0	9	0
+X	2098	372	1	10	0
+X	2098	385	1	11	0
+X	2099	336	1	0	1
+X	2099	625	1	0	0
+X	2099	207	1	0	0
+X	2099	338	1	0	0
+X	2099	339	1	0	0
+X	2099	325	1	0	0
+X	2099	340	1	0	1
+X	2099	567	1	0	0
+X	2099	341	1	0	0
+X	2099	343	1	0	0
+X	2099	344	1	0	0
+X	2099	345	1	0	0
+X	2099	387	1	0	0
+X	2099	58	1	0	0
+X	2099	354	1	0	0
+X	2099	355	1	0	0
+X	2099	386	0	1	1
+X	2099	342	1	2	0
+X	21	StandardHeader	0	1	1
+X	21	66	0	2	1
+X	21	391	0	3	0
+X	21	390	0	4	0
+X	21	60	0	5	1
+X	21	58	0	6	0
+X	21	354	0	7	0
+X	21	355	0	8	0
+X	21	StandardTrailer	0	9	1
+X	22	StandardHeader	0	1	1
+X	22	66	0	2	1
+X	22	58	0	3	0
+X	22	354	0	4	0
+X	22	355	0	5	0
+X	22	StandardTrailer	0	6	1
+X	23	StandardHeader	0	1	1
+X	23	66	0	2	1
+X	23	429	0	3	1
+X	23	82	0	4	1
+X	23	431	0	5	1
+X	23	83	0	6	1
+X	23	444	0	7	0
+X	23	445	0	8	0
+X	23	446	0	9	0
+X	23	60	0	10	0
+X	23	68	0	11	1
+X	23	893	0	12	0
+X	23	OrdListStatGrp	0	13	1
+X	23	StandardTrailer	0	26	1
+X	24	StandardHeader	0	1	1
+X	24	70	0	2	1
+X	24	Parties	0	3	0
+X	24	793	0	4	0
+X	24	75	0	5	0
+X	24	60	0	6	0
+X	24	87	0	7	1
+X	24	88	0	8	0
+X	24	626	0	9	0
+X	24	808	0	10	0
+X	24	573	0	11	0
+X	24	460	0	12	0
+X	24	167	0	13	0
+X	24	58	0	14	0
+X	24	354	0	15	0
+X	24	355	0	16	0
+X	24	AllocAckGrp	0	17	0
+X	24	StandardTrailer	0	26	1
+X	25	StandardHeader	0	1	1
+X	25	37	0	2	1
+X	25	198	0	3	0
+X	25	17	0	4	1
+X	25	127	0	5	1
+X	25	Instrument	0	6	1
+X	25	UndInstrmtGrp	0	7	0
+X	25	InstrmtLegGrp	0	9	0
+X	25	54	0	11	1
+X	25	OrderQtyData	0	12	1
+X	25	32	0	13	0
+X	25	31	0	14	0
+X	25	58	0	15	0
+X	25	354	0	16	0
+X	25	355	0	17	0
+X	25	StandardTrailer	0	18	1
+X	26	StandardHeader	0	1	1
+X	26	131	0	2	1
+X	26	644	0	3	0
+X	26	11	0	4	0
+X	26	528	0	5	0
+X	26	QuotReqGrp	0	6	1
+X	26	58	0	51	0
+X	26	354	0	52	0
+X	26	355	0	53	0
+X	26	StandardTrailer	0	54	1
+X	27	1065	0	0	0
+X	27	1066	0	0	0
+X	27	1133	0	0	0
+X	27	StandardHeader	0	1	1
+X	27	131	0	2	0
+X	27	117	0	3	1
+X	27	693	0	4	0
+X	27	537	0	5	0
+X	27	QuotQualGrp	0	6	0
+X	27	301	0	8	0
+X	27	Parties	0	9	0
+X	27	336	0	10	0
+X	27	625	0	11	0
+X	27	Instrument	0	12	1
+X	27	FinancingDetails	0	13	0
+X	27	UndInstrmtGrp	0	14	0
+X	27	54	0	16	0
+X	27	OrderQtyData	0	17	0
+X	27	63	0	18	0
+X	27	64	0	19	0
+X	27	193	0	20	0
+X	27	192	0	21	0
+X	27	15	0	22	0
+X	27	Stipulations	0	23	0
+X	27	1	0	24	0
+X	27	660	0	25	0
+X	27	581	0	26	0
+X	27	LegQuotGrp	0	27	0
+X	27	132	0	39	0
+X	27	133	0	40	0
+X	27	645	0	41	0
+X	27	646	0	42	0
+X	27	647	0	43	0
+X	27	134	0	44	0
+X	27	648	0	45	0
+X	27	135	0	46	0
+X	27	62	0	47	0
+X	27	188	0	48	0
+X	27	190	0	49	0
+X	27	189	0	50	0
+X	27	191	0	51	0
+X	27	631	0	52	0
+X	27	632	0	53	0
+X	27	633	0	54	0
+X	27	634	0	55	0
+X	27	60	0	56	0
+X	27	40	0	57	0
+X	27	642	0	58	0
+X	27	643	0	59	0
+X	27	656	0	60	0
+X	27	657	0	61	0
+X	27	156	0	62	0
+X	27	13	0	63	0
+X	27	12	0	64	0
+X	27	582	0	65	0
+X	27	100	0	66	0
+X	27	528	0	67	0
+X	27	423	0	68	0
+X	27	SpreadOrBenchmarkCurveData	0	69	0
+X	27	YieldData	0	70	0
+X	27	58	0	71	0
+X	27	354	0	72	0
+X	27	355	0	73	0
+X	27	StandardTrailer	0	74	1
+X	28	StandardHeader	0	1	1
+X	28	777	0	2	1
+X	28	791	0	3	0
+X	28	160	0	4	1
+X	28	792	0	5	0
+X	28	58	0	6	0
+X	28	354	0	7	0
+X	28	355	0	8	0
+X	28	11	0	9	0
+X	28	60	0	10	1
+X	28	SettlInstGrp	0	11	0
+X	28	StandardTrailer	0	33	1
+X	29	1070	0	0	0
+X	29	StandardHeader	0	1	1
+X	29	262	0	2	1
+X	29	263	0	3	1
+X	29	264	0	4	1
+X	29	265	0	5	0
+X	29	266	0	6	0
+X	29	286	0	7	0
+X	29	546	0	8	0
+X	29	547	0	9	0
+X	29	MDReqGrp	0	10	1
+X	29	InstrmtMDReqGrp	0	12	1
+X	29	TrdgSesGrp	0	18	0
+X	29	815	0	21	0
+X	29	812	0	22	0
+X	29	StandardTrailer	0	23	1
+X	3	StandardHeader	0	1	1
+X	3	7	0	2	1
+X	3	16	0	3	1
+X	3	StandardTrailer	0	4	1
+X	30	963	0	0	0
+X	30	715	0	0	0
+X	30	1021	0	0	0
+X	30	1022	0	0	0
+X	30	75	0	0	0
+X	30	RoutingGrp	0	0	0
+X	30	StandardHeader	0	1	1
+X	30	262	0	2	0
+X	30	Instrument	0	3	1
+X	30	UndInstrmtGrp	0	4	0
+X	30	InstrmtLegGrp	0	6	0
+X	30	291	0	8	0
+X	30	292	0	9	0
+X	30	451	0	10	0
+X	30	MDFullGrp	0	11	1
+X	30	813	0	46	0
+X	30	814	0	47	0
+X	30	StandardTrailer	0	48	1
+X	31	1021	0	0	0
+X	31	1022	0	0	0
+X	31	75	0	0	0
+X	31	RoutingGrp	0	0	0
+X	31	StandardHeader	0	1	1
+X	31	262	0	2	0
+X	31	MDIncGrp	0	3	1
+X	31	813	0	50	0
+X	31	814	0	51	0
+X	31	StandardTrailer	0	52	1
+X	32	StandardHeader	0	1	1
+X	32	262	0	2	1
+X	32	281	0	3	0
+X	32	MDRjctGrp	0	4	0
+X	32	58	0	6	0
+X	32	354	0	7	0
+X	32	355	0	8	0
+X	32	StandardTrailer	0	9	1
+X	33	StandardHeader	0	1	1
+X	33	131	0	2	0
+X	33	117	0	3	0
+X	33	298	0	4	1
+X	33	301	0	5	0
+X	33	Parties	0	6	0
+X	33	1	0	7	0
+X	33	660	0	8	0
+X	33	581	0	9	0
+X	33	336	0	10	0
+X	33	625	0	11	0
+X	33	QuotCxlEntriesGrp	0	12	0
+X	33	StandardTrailer	0	19	1
+X	34	StandardHeader	0	1	1
+X	34	649	0	2	0
+X	34	117	0	3	0
+X	34	Instrument	0	4	1
+X	34	FinancingDetails	0	5	0
+X	34	UndInstrmtGrp	0	6	0
+X	34	InstrmtLegGrp	0	8	0
+X	34	Parties	0	10	0
+X	34	1	0	11	0
+X	34	660	0	12	0
+X	34	581	0	13	0
+X	34	336	0	14	0
+X	34	625	0	15	0
+X	34	263	0	16	0
+X	34	StandardTrailer	0	17	1
+X	35	StandardHeader	0	1	1
+X	35	131	0	2	0
+X	35	117	0	3	0
+X	35	297	0	4	1
+X	35	300	0	5	0
+X	35	301	0	6	0
+X	35	537	0	7	0
+X	35	Parties	0	8	0
+X	35	1	0	9	0
+X	35	660	0	10	0
+X	35	581	0	11	0
+X	35	58	0	12	0
+X	35	354	0	13	0
+X	35	355	0	14	0
+X	35	QuotSetAckGrp	0	15	0
+X	35	StandardTrailer	0	49	1
+X	36	StandardHeader	0	1	1
+X	36	320	0	2	1
+X	36	321	0	3	1
+X	36	Instrument	0	4	0
+X	36	InstrumentExtension	0	5	0
+X	36	UndInstrmtGrp	0	6	0
+X	36	15	0	8	0
+X	36	58	0	9	0
+X	36	354	0	10	0
+X	36	355	0	11	0
+X	36	336	0	12	0
+X	36	625	0	13	0
+X	36	InstrmtLegGrp	0	14	0
+X	36	827	0	16	0
+X	36	263	0	17	0
+X	36	StandardTrailer	0	18	1
+X	37	964	0	0	0
+X	37	715	0	0	0
+X	37	StandardHeader	0	1	1
+X	37	320	0	2	0
+X	37	322	0	3	0
+X	37	323	0	4	0
+X	37	Instrument	0	5	0
+X	37	InstrumentExtension	0	6	0
+X	37	UndInstrmtGrp	0	7	0
+X	37	15	0	9	0
+X	37	336	0	10	0
+X	37	625	0	11	0
+X	37	58	0	12	0
+X	37	354	0	13	0
+X	37	355	0	14	0
+X	37	InstrmtLegGrp	0	15	0
+X	37	827	0	17	0
+X	37	561	0	18	0
+X	37	562	0	19	0
+X	37	StandardTrailer	0	20	1
+X	38	StandardHeader	0	1	1
+X	38	324	0	2	1
+X	38	Instrument	0	3	1
+X	38	InstrumentExtension	0	4	0
+X	38	UndInstrmtGrp	0	5	0
+X	38	InstrmtLegGrp	0	7	0
+X	38	15	0	9	0
+X	38	263	0	10	1
+X	38	336	0	11	0
+X	38	625	0	12	0
+X	38	StandardTrailer	0	13	1
+X	39	1025	0	0	0
+X	39	StandardHeader	0	1	1
+X	39	324	0	2	0
+X	39	Instrument	0	3	1
+X	39	InstrumentExtension	0	4	0
+X	39	UndInstrmtGrp	0	5	0
+X	39	InstrmtLegGrp	0	7	0
+X	39	15	0	9	0
+X	39	336	0	10	0
+X	39	625	0	11	0
+X	39	325	0	12	0
+X	39	326	0	13	0
+X	39	291	0	14	0
+X	39	292	0	15	0
+X	39	327	0	16	0
+X	39	328	0	17	0
+X	39	329	0	18	0
+X	39	330	0	19	0
+X	39	331	0	20	0
+X	39	332	0	21	0
+X	39	333	0	22	0
+X	39	31	0	23	0
+X	39	60	0	24	0
+X	39	334	0	25	0
+X	39	58	0	26	0
+X	39	354	0	27	0
+X	39	355	0	28	0
+X	39	StandardTrailer	0	29	1
+X	4	StandardHeader	0	1	1
+X	4	45	0	2	1
+X	4	371	0	3	0
+X	4	372	0	4	0
+X	4	373	0	5	0
+X	4	58	0	6	0
+X	4	354	0	7	0
+X	4	355	0	8	0
+X	4	StandardTrailer	0	9	1
+X	40	207	0	0	0
+X	40	StandardHeader	0	1	1
+X	40	335	0	2	1
+X	40	336	0	3	0
+X	40	625	0	4	0
+X	40	338	0	5	0
+X	40	339	0	6	0
+X	40	263	0	7	1
+X	40	StandardTrailer	0	8	1
+X	41	Instrument	0	0	0
+X	41	StandardHeader	0	1	1
+X	41	335	0	2	0
+X	41	336	0	3	1
+X	41	625	0	4	0
+X	41	338	0	5	0
+X	41	339	0	6	0
+X	41	325	0	7	0
+X	41	340	0	8	1
+X	41	567	0	9	0
+X	41	341	0	10	0
+X	41	342	0	11	0
+X	41	343	0	12	0
+X	41	344	0	13	0
+X	41	345	0	14	0
+X	41	387	0	15	0
+X	41	58	0	16	0
+X	41	354	0	17	0
+X	41	355	0	18	0
+X	41	StandardTrailer	0	19	1
+X	42	StandardHeader	0	1	1
+X	42	131	0	2	0
+X	42	117	0	3	1
+X	42	537	0	4	0
+X	42	301	0	5	0
+X	42	Parties	0	6	0
+X	42	1	0	7	0
+X	42	660	0	8	0
+X	42	581	0	9	0
+X	42	293	0	10	0
+X	42	294	0	11	0
+X	42	QuotSetGrp	0	12	1
+X	42	StandardTrailer	0	46	1
+X	43	StandardHeader	0	1	1
+X	43	45	0	2	0
+X	43	372	0	3	1
+X	43	379	0	4	0
+X	43	380	0	5	1
+X	43	58	0	6	0
+X	43	354	0	7	0
+X	43	355	0	8	0
+X	43	StandardTrailer	0	9	1
+X	44	StandardHeader	0	1	1
+X	44	390	0	2	0
+X	44	391	0	3	1
+X	44	374	0	4	1
+X	44	392	0	5	0
+X	44	393	0	6	1
+X	44	394	0	7	1
+X	44	395	0	8	0
+X	44	15	0	9	0
+X	44	396	0	10	0
+X	44	397	0	11	0
+X	44	BidDescReqGrp	0	12	0
+X	44	BidCompReqGrp	0	24	0
+X	44	409	0	34	0
+X	44	410	0	35	0
+X	44	411	0	36	0
+X	44	412	0	37	0
+X	44	413	0	38	0
+X	44	414	0	39	0
+X	44	415	0	40	0
+X	44	416	0	41	0
+X	44	121	0	42	0
+X	44	417	0	43	0
+X	44	75	0	44	0
+X	44	418	0	45	1
+X	44	419	0	46	1
+X	44	443	0	47	0
+X	44	58	0	48	0
+X	44	354	0	49	0
+X	44	355	0	50	0
+X	44	StandardTrailer	0	51	1
+X	45	StandardHeader	0	1	1
+X	45	390	0	2	0
+X	45	391	0	3	0
+X	45	BidCompRspGrp	0	4	1
+X	45	StandardTrailer	0	20	1
+X	46	StandardHeader	0	1	1
+X	46	66	0	2	1
+X	46	422	0	3	1
+X	46	893	0	4	0
+X	46	InstrmtStrkPxGrp	0	5	1
+X	46	UndInstrmtStrkPxGrp	0	7	0
+X	46	StandardTrailer	0	18	1
+X	47	StandardHeader	0	1	1
+X	47	StandardTrailer	0	100	1
+X	48	StandardHeader	0	1	1
+X	48	513	0	2	1
+X	48	514	0	3	1
+X	48	508	0	4	1
+X	48	11	0	5	0
+X	48	Parties	0	6	0
+X	48	1	0	7	0
+X	48	660	0	8	0
+X	48	493	0	9	0
+X	48	495	0	10	0
+X	48	517	0	11	0
+X	48	RgstDtlsGrp	0	12	0
+X	48	RgstDistInstGrp	0	21	0
+X	48	StandardTrailer	0	30	1
+X	49	StandardHeader	0	1	1
+X	49	513	0	2	1
+X	49	514	0	3	1
+X	49	508	0	4	1
+X	49	11	0	5	0
+X	49	Parties	0	6	0
+X	49	1	0	7	0
+X	49	660	0	8	0
+X	49	506	0	9	1
+X	49	507	0	10	0
+X	49	496	0	11	0
+X	49	StandardTrailer	0	12	1
+X	5	StandardHeader	0	1	1
+X	5	123	0	2	0
+X	5	36	0	3	1
+X	5	StandardTrailer	0	4	1
+X	50	Parties	0	0	0
+X	50	StandardHeader	0	1	1
+X	50	11	0	2	1
+X	50	526	0	3	0
+X	50	530	0	4	1
+X	50	336	0	5	0
+X	50	625	0	6	0
+X	50	Instrument	0	7	0
+X	50	UnderlyingInstrument	0	8	0
+X	50	54	0	9	0
+X	50	60	0	10	1
+X	50	58	0	11	0
+X	50	354	0	12	0
+X	50	355	0	13	0
+X	50	StandardTrailer	0	14	1
+X	51	Parties	0	0	0
+X	51	StandardHeader	0	1	1
+X	51	11	0	2	0
+X	51	526	0	3	0
+X	51	37	0	4	1
+X	51	198	0	5	0
+X	51	530	0	6	1
+X	51	531	0	7	1
+X	51	532	0	8	0
+X	51	533	0	9	0
+X	51	AffectedOrdGrp	0	10	0
+X	51	336	0	14	0
+X	51	625	0	15	0
+X	51	Instrument	0	16	0
+X	51	UnderlyingInstrument	0	17	0
+X	51	54	0	18	0
+X	51	60	0	19	0
+X	51	58	0	20	0
+X	51	354	0	21	0
+X	51	355	0	22	0
+X	51	StandardTrailer	0	23	1
+X	52	RootParties	0	0	0
+X	52	1089	0	0	0
+X	52	1090	0	0	0
+X	52	DisplayInstruction	0	0	0
+X	52	1133	0	0	0
+X	52	483	0	0	0
+X	52	1092	0	0	0
+X	52	TriggeringInstruction	0	0	0
+X	52	StrategyParametersGrp	0	0	0
+X	52	StandardHeader	0	1	1
+X	52	548	0	2	1
+X	52	549	0	3	1
+X	52	550	0	4	1
+X	52	SideCrossOrdModGrp	0	5	1
+X	52	Instrument	0	45	1
+X	52	UndInstrmtGrp	0	46	0
+X	52	InstrmtLegGrp	0	48	0
+X	52	63	0	50	0
+X	52	64	0	51	0
+X	52	21	0	52	0
+X	52	18	0	53	0
+X	52	110	0	54	0
+X	52	111	0	55	0
+X	52	100	0	56	0
+X	52	TrdgSesGrp	0	57	0
+X	52	81	0	60	0
+X	52	140	0	61	0
+X	52	114	0	62	0
+X	52	60	0	63	1
+X	52	Stipulations	0	64	0
+X	52	40	0	65	1
+X	52	423	0	66	0
+X	52	44	0	67	0
+X	52	99	0	68	0
+X	52	SpreadOrBenchmarkCurveData	0	69	0
+X	52	YieldData	0	70	0
+X	52	15	0	71	0
+X	52	376	0	72	0
+X	52	23	0	73	0
+X	52	117	0	74	0
+X	52	59	0	75	0
+X	52	168	0	76	0
+X	52	432	0	77	0
+X	52	126	0	78	0
+X	52	427	0	79	0
+X	52	210	0	80	0
+X	52	PegInstructions	0	81	0
+X	52	DiscretionInstructions	0	82	0
+X	52	847	0	83	0
+X	52	848	0	84	0
+X	52	849	0	85	0
+X	52	480	0	86	0
+X	52	481	0	87	0
+X	52	513	0	88	0
+X	52	494	0	89	0
+X	52	StandardTrailer	0	90	1
+X	53	961	0	0	0
+X	53	RootParties	0	0	0
+X	53	1089	0	0	0
+X	53	1090	0	0	0
+X	53	DisplayInstruction	0	0	0
+X	53	1133	0	0	0
+X	53	483	0	0	0
+X	53	1092	0	0	0
+X	53	TriggeringInstruction	0	0	0
+X	53	StrategyParametersGrp	0	0	0
+X	53	StandardHeader	0	1	1
+X	53	37	0	2	0
+X	53	548	0	3	1
+X	53	551	0	4	1
+X	53	549	0	5	1
+X	53	550	0	6	1
+X	53	SideCrossOrdModGrp	0	7	1
+X	53	Instrument	0	49	1
+X	53	UndInstrmtGrp	0	50	0
+X	53	InstrmtLegGrp	0	52	0
+X	53	63	0	54	0
+X	53	64	0	55	0
+X	53	21	0	56	0
+X	53	18	0	57	0
+X	53	110	0	58	0
+X	53	111	0	59	0
+X	53	100	0	60	0
+X	53	TrdgSesGrp	0	61	0
+X	53	81	0	64	0
+X	53	140	0	65	0
+X	53	114	0	66	0
+X	53	60	0	67	1
+X	53	Stipulations	0	68	0
+X	53	40	0	69	1
+X	53	423	0	70	0
+X	53	44	0	71	0
+X	53	99	0	72	0
+X	53	SpreadOrBenchmarkCurveData	0	73	0
+X	53	YieldData	0	74	0
+X	53	15	0	75	0
+X	53	376	0	76	0
+X	53	23	0	77	0
+X	53	117	0	78	0
+X	53	59	0	79	0
+X	53	168	0	80	0
+X	53	432	0	81	0
+X	53	126	0	82	0
+X	53	427	0	83	0
+X	53	210	0	84	0
+X	53	PegInstructions	0	85	0
+X	53	DiscretionInstructions	0	86	0
+X	53	847	0	87	0
+X	53	848	0	88	0
+X	53	849	0	89	0
+X	53	480	0	90	0
+X	53	481	0	91	0
+X	53	513	0	92	0
+X	53	494	0	93	0
+X	53	StandardTrailer	0	94	1
+X	54	961	0	0	0
+X	54	RootParties	0	0	0
+X	54	StandardHeader	0	1	1
+X	54	37	0	2	0
+X	54	548	0	3	1
+X	54	551	0	4	1
+X	54	549	0	5	1
+X	54	550	0	6	1
+X	54	SideCrossOrdCxlGrp	0	7	1
+X	54	Instrument	0	22	1
+X	54	UndInstrmtGrp	0	23	0
+X	54	InstrmtLegGrp	0	25	0
+X	54	60	0	27	1
+X	54	StandardTrailer	0	28	1
+X	55	StandardHeader	0	1	1
+X	55	320	0	2	1
+X	55	58	0	3	0
+X	55	354	0	4	0
+X	55	355	0	5	0
+X	55	336	0	6	0
+X	55	625	0	7	0
+X	55	460	0	8	0
+X	55	167	0	9	0
+X	55	762	0	10	0
+X	55	StandardTrailer	0	11	1
+X	56	StandardHeader	0	1	1
+X	56	320	0	2	1
+X	56	322	0	3	1
+X	56	323	0	4	1
+X	56	557	0	5	0
+X	56	893	0	6	0
+X	56	SecTypesGrp	0	7	0
+X	56	58	0	12	0
+X	56	354	0	13	0
+X	56	355	0	14	0
+X	56	336	0	15	0
+X	56	625	0	16	0
+X	56	263	0	17	0
+X	56	StandardTrailer	0	18	1
+X	57	StandardHeader	0	1	1
+X	57	320	0	2	1
+X	57	559	0	3	1
+X	57	Instrument	0	4	0
+X	57	InstrumentExtension	0	5	0
+X	57	FinancingDetails	0	6	0
+X	57	UndInstrmtGrp	0	7	0
+X	57	InstrmtLegGrp	0	9	0
+X	57	15	0	11	0
+X	57	58	0	12	0
+X	57	354	0	13	0
+X	57	355	0	14	0
+X	57	336	0	15	0
+X	57	625	0	16	0
+X	57	263	0	17	0
+X	57	StandardTrailer	0	18	1
+X	58	964	0	0	0
+X	58	715	0	0	0
+X	58	StandardHeader	0	1	1
+X	58	320	0	2	0
+X	58	322	0	3	0
+X	58	560	0	4	0
+X	58	393	0	5	0
+X	58	893	0	6	0
+X	58	SecListGrp	0	7	0
+X	58	StandardTrailer	0	31	1
+X	59	StandardHeader	0	1	1
+X	59	320	0	2	1
+X	59	559	0	3	1
+X	59	UnderlyingInstrument	0	4	0
+X	59	762	0	5	0
+X	59	15	0	6	0
+X	59	58	0	7	0
+X	59	354	0	8	0
+X	59	355	0	9	0
+X	59	336	0	10	0
+X	59	625	0	11	0
+X	59	263	0	12	0
+X	59	StandardTrailer	0	13	1
+X	6	StandardHeader	0	1	1
+X	6	58	0	2	0
+X	6	354	0	3	0
+X	6	355	0	4	0
+X	6	StandardTrailer	0	5	1
+X	60	StandardHeader	0	1	1
+X	60	320	0	2	1
+X	60	322	0	3	1
+X	60	560	0	4	1
+X	60	UnderlyingInstrument	0	5	0
+X	60	393	0	6	0
+X	60	893	0	7	0
+X	60	RelSymDerivSecGrp	0	8	0
+X	60	StandardTrailer	0	20	1
+X	61	1089	0	0	0
+X	61	1090	0	0	0
+X	61	DisplayInstruction	0	0	0
+X	61	1133	0	0	0
+X	61	1069	0	0	0
+X	61	1092	0	0	0
+X	61	TriggeringInstruction	0	0	0
+X	61	1080	0	0	0
+X	61	1081	0	0	0
+X	61	1091	0	0	0
+X	61	StrategyParametersGrp	0	0	0
+X	61	StandardHeader	0	1	1
+X	61	11	0	2	1
+X	61	526	0	3	0
+X	61	583	0	4	0
+X	61	Parties	0	5	0
+X	61	229	0	6	0
+X	61	75	0	7	0
+X	61	1	0	8	0
+X	61	660	0	9	0
+X	61	581	0	10	0
+X	61	589	0	11	0
+X	61	590	0	12	0
+X	61	591	0	13	0
+X	61	70	0	14	0
+X	61	PreAllocMlegGrp	0	15	0
+X	61	63	0	22	0
+X	61	64	0	23	0
+X	61	544	0	24	0
+X	61	635	0	25	0
+X	61	21	0	26	0
+X	61	18	0	27	0
+X	61	110	0	28	0
+X	61	111	0	29	0
+X	61	100	0	30	0
+X	61	TrdgSesGrp	0	31	0
+X	61	81	0	34	0
+X	61	54	0	35	1
+X	61	Instrument	0	36	1
+X	61	UndInstrmtGrp	0	37	0
+X	61	140	0	39	0
+X	61	LegOrdGrp	0	40	1
+X	61	114	0	59	0
+X	61	60	0	60	1
+X	61	854	0	61	0
+X	61	OrderQtyData	0	62	0
+X	61	40	0	63	1
+X	61	423	0	64	0
+X	61	44	0	65	0
+X	61	99	0	66	0
+X	61	15	0	67	0
+X	61	376	0	68	0
+X	61	377	0	69	0
+X	61	23	0	70	0
+X	61	117	0	71	0
+X	61	59	0	72	0
+X	61	168	0	73	0
+X	61	432	0	74	0
+X	61	126	0	75	0
+X	61	427	0	76	0
+X	61	CommissionData	0	77	0
+X	61	528	0	78	0
+X	61	529	0	79	0
+X	61	582	0	80	0
+X	61	121	0	81	0
+X	61	120	0	82	0
+X	61	775	0	83	0
+X	61	58	0	84	0
+X	61	354	0	85	0
+X	61	355	0	86	0
+X	61	77	0	87	0
+X	61	203	0	88	0
+X	61	210	0	89	0
+X	61	PegInstructions	0	90	0
+X	61	DiscretionInstructions	0	91	0
+X	61	847	0	92	0
+X	61	848	0	93	0
+X	61	849	0	94	0
+X	61	480	0	95	0
+X	61	481	0	96	0
+X	61	513	0	97	0
+X	61	494	0	98	0
+X	61	563	0	99	0
+X	61	StandardTrailer	0	100	1
+X	62	1089	0	0	0
+X	62	1090	0	0	0
+X	62	DisplayInstruction	0	0	0
+X	62	1133	0	0	0
+X	62	1069	0	0	0
+X	62	1092	0	0	0
+X	62	TriggeringInstruction	0	0	0
+X	62	1091	0	0	0
+X	62	StrategyParametersGrp	0	0	0
+X	62	StandardHeader	0	1	1
+X	62	37	0	2	0
+X	62	41	0	3	1
+X	62	11	0	4	1
+X	62	526	0	5	0
+X	62	583	0	6	0
+X	62	586	0	7	0
+X	62	Parties	0	8	0
+X	62	229	0	9	0
+X	62	75	0	10	0
+X	62	1	0	11	0
+X	62	660	0	12	0
+X	62	581	0	13	0
+X	62	589	0	14	0
+X	62	590	0	15	0
+X	62	591	0	16	0
+X	62	70	0	17	0
+X	62	PreAllocMlegGrp	0	18	0
+X	62	63	0	25	0
+X	62	64	0	26	0
+X	62	544	0	27	0
+X	62	635	0	28	0
+X	62	21	0	29	0
+X	62	18	0	30	0
+X	62	110	0	31	0
+X	62	111	0	32	0
+X	62	100	0	33	0
+X	62	TrdgSesGrp	0	34	0
+X	62	81	0	37	0
+X	62	54	0	38	1
+X	62	Instrument	0	39	1
+X	62	UndInstrmtGrp	0	40	0
+X	62	140	0	42	0
+X	62	LegOrdGrp	0	43	1
+X	62	114	0	62	0
+X	62	60	0	63	1
+X	62	854	0	64	0
+X	62	OrderQtyData	0	65	1
+X	62	40	0	66	1
+X	62	423	0	67	0
+X	62	44	0	68	0
+X	62	99	0	69	0
+X	62	15	0	70	0
+X	62	376	0	71	0
+X	62	377	0	72	0
+X	62	23	0	73	0
+X	62	117	0	74	0
+X	62	59	0	75	0
+X	62	168	0	76	0
+X	62	432	0	77	0
+X	62	126	0	78	0
+X	62	427	0	79	0
+X	62	CommissionData	0	80	0
+X	62	528	0	81	0
+X	62	529	0	82	0
+X	62	582	0	83	0
+X	62	121	0	84	0
+X	62	120	0	85	0
+X	62	775	0	86	0
+X	62	58	0	87	0
+X	62	354	0	88	0
+X	62	355	0	89	0
+X	62	77	0	90	0
+X	62	203	0	91	0
+X	62	210	0	92	0
+X	62	PegInstructions	0	93	0
+X	62	DiscretionInstructions	0	94	0
+X	62	847	0	95	0
+X	62	848	0	96	0
+X	62	849	0	97	0
+X	62	480	0	98	0
+X	62	481	0	99	0
+X	62	513	0	100	0
+X	62	494	0	101	0
+X	62	563	0	102	0
+X	62	StandardTrailer	0	103	1
+X	63	1003	0	0	0
+X	63	1040	0	0	0
+X	63	1041	0	0	0
+X	63	1042	0	0	0
+X	63	1123	0	0	0
+X	63	1011	0	0	0
+X	63	StandardHeader	0	1	1
+X	63	568	0	2	1
+X	63	569	0	3	1
+X	63	263	0	4	0
+X	63	571	0	5	0
+X	63	818	0	6	0
+X	63	17	0	7	0
+X	63	150	0	8	0
+X	63	37	0	9	0
+X	63	11	0	10	0
+X	63	573	0	11	0
+X	63	828	0	12	0
+X	63	829	0	13	0
+X	63	830	0	14	0
+X	63	855	0	15	0
+X	63	820	0	16	0
+X	63	880	0	17	0
+X	63	Parties	0	18	0
+X	63	Instrument	0	19	0
+X	63	InstrumentExtension	0	20	0
+X	63	FinancingDetails	0	21	0
+X	63	UndInstrmtGrp	0	22	0
+X	63	InstrmtLegGrp	0	24	0
+X	63	TrdCapDtGrp	0	26	0
+X	63	715	0	29	0
+X	63	336	0	30	0
+X	63	625	0	31	0
+X	63	943	0	32	0
+X	63	54	0	33	0
+X	63	442	0	34	0
+X	63	578	0	35	0
+X	63	579	0	36	0
+X	63	725	0	37	0
+X	63	726	0	38	0
+X	63	58	0	39	0
+X	63	354	0	40	0
+X	63	355	0	41	0
+X	63	StandardTrailer	0	42	1
+X	64	1003	0	0	0
+X	64	1040	0	0	0
+X	64	1041	0	0	0
+X	64	1042	0	0	0
+X	64	939	0	0	0
+X	64	1123	0	0	0
+X	64	1124	0	0	0
+X	64	1125	0	0	0
+X	64	1126	0	0	0
+X	64	1127	0	0	0
+X	64	RootParties	0	0	0
+X	64	1015	0	0	0
+X	64	716	0	0	0
+X	64	717	0	0	0
+X	64	1056	0	0	0
+X	64	1071	0	0	0
+X	64	987	0	0	0
+X	64	1115	0	0	0
+X	64	994	0	0	0
+X	64	1011	0	0	0
+X	64	779	0	0	0
+X	64	991	0	0	0
+X	64	1132	0	0	0
+X	64	1134	0	0	0
+X	64	381	0	0	0
+X	64	StandardHeader	0	1	1
+X	64	571	0	2	0
+X	64	487	0	3	0
+X	64	856	0	4	0
+X	64	568	0	5	0
+X	64	828	0	6	0
+X	64	829	0	7	0
+X	64	855	0	8	0
+X	64	830	0	9	0
+X	64	150	0	10	0
+X	64	748	0	11	0
+X	64	912	0	12	0
+X	64	325	0	13	0
+X	64	263	0	14	0
+X	64	572	0	15	0
+X	64	881	0	16	0
+X	64	818	0	17	0
+X	64	820	0	18	0
+X	64	880	0	19	0
+X	64	17	0	20	0
+X	64	39	0	21	0
+X	64	527	0	22	0
+X	64	378	0	23	0
+X	64	570	0	24	0
+X	64	423	0	25	0
+X	64	Instrument	0	26	1
+X	64	FinancingDetails	0	27	0
+X	64	OrderQtyData	0	28	0
+X	64	854	0	29	0
+X	64	YieldData	0	30	0
+X	64	UndInstrmtGrp	0	31	0
+X	64	822	0	33	0
+X	64	823	0	34	0
+X	64	32	0	35	1
+X	64	31	0	36	1
+X	64	669	0	37	0
+X	64	194	0	38	0
+X	64	195	0	39	0
+X	64	30	0	40	0
+X	64	75	0	41	1
+X	64	715	0	42	0
+X	64	6	0	43	0
+X	64	SpreadOrBenchmarkCurveData	0	44	0
+X	64	819	0	45	0
+X	64	PositionAmountData	0	46	0
+X	64	442	0	47	0
+X	64	824	0	48	0
+X	64	TrdInstrmtLegGrp	0	49	0
+X	64	60	0	62	0
+X	64	TrdRegTimestamps	0	63	0
+X	64	63	0	64	0
+X	64	64	0	65	0
+X	64	573	0	66	0
+X	64	574	0	67	0
+X	64	TrdCapRptSideGrp	0	68	1
+X	64	797	0	142	0
+X	64	852	0	143	0
+X	64	853	0	144	0
+X	64	StandardTrailer	0	145	1
+X	65	StandardHeader	0	1	1
+X	65	584	0	2	1
+X	65	585	0	3	1
+X	65	Parties	0	4	0
+X	65	1	0	5	0
+X	65	660	0	6	0
+X	65	336	0	7	0
+X	65	625	0	8	0
+X	65	Instrument	0	9	0
+X	65	UnderlyingInstrument	0	10	0
+X	65	54	0	11	0
+X	65	StandardTrailer	0	12	1
+X	66	StandardHeader	0	1	1
+X	66	131	0	2	1
+X	66	644	0	3	0
+X	66	658	0	4	1
+X	66	QuotReqRjctGrp	0	5	1
+X	66	58	0	49	0
+X	66	354	0	50	0
+X	66	355	0	51	0
+X	66	StandardTrailer	0	52	1
+X	67	StandardHeader	0	1	1
+X	67	644	0	2	1
+X	67	RFQReqGrp	0	3	1
+X	67	263	0	14	0
+X	67	StandardTrailer	0	15	1
+X	68	1133	0	0	0
+X	68	StandardHeader	0	1	1
+X	68	649	0	2	0
+X	68	131	0	3	0
+X	68	117	0	4	1
+X	68	693	0	5	0
+X	68	537	0	6	0
+X	68	Parties	0	7	0
+X	68	336	0	8	0
+X	68	625	0	9	0
+X	68	Instrument	0	10	1
+X	68	FinancingDetails	0	11	0
+X	68	UndInstrmtGrp	0	12	0
+X	68	54	0	14	0
+X	68	OrderQtyData	0	15	0
+X	68	63	0	16	0
+X	68	64	0	17	0
+X	68	193	0	18	0
+X	68	192	0	19	0
+X	68	15	0	20	0
+X	68	Stipulations	0	21	0
+X	68	1	0	22	0
+X	68	660	0	23	0
+X	68	581	0	24	0
+X	68	LegQuotStatGrp	0	25	0
+X	68	QuotQualGrp	0	33	0
+X	68	126	0	35	0
+X	68	44	0	36	0
+X	68	423	0	37	0
+X	68	SpreadOrBenchmarkCurveData	0	38	0
+X	68	YieldData	0	39	0
+X	68	132	0	40	0
+X	68	133	0	41	0
+X	68	645	0	42	0
+X	68	646	0	43	0
+X	68	647	0	44	0
+X	68	134	0	45	0
+X	68	648	0	46	0
+X	68	135	0	47	0
+X	68	62	0	48	0
+X	68	188	0	49	0
+X	68	190	0	50	0
+X	68	189	0	51	0
+X	68	191	0	52	0
+X	68	631	0	53	0
+X	68	632	0	54	0
+X	68	633	0	55	0
+X	68	634	0	56	0
+X	68	60	0	57	0
+X	68	40	0	58	0
+X	68	642	0	59	0
+X	68	643	0	60	0
+X	68	656	0	61	0
+X	68	657	0	62	0
+X	68	156	0	63	0
+X	68	13	0	64	0
+X	68	12	0	65	0
+X	68	582	0	66	0
+X	68	100	0	67	0
+X	68	297	0	68	0
+X	68	58	0	69	0
+X	68	354	0	70	0
+X	68	355	0	71	0
+X	68	StandardTrailer	0	72	1
+X	69	1133	0	0	0
+X	69	StandardHeader	0	1	1
+X	69	693	0	2	1
+X	69	117	0	3	0
+X	69	694	0	4	1
+X	69	11	0	5	0
+X	69	528	0	6	0
+X	69	23	0	7	0
+X	69	537	0	8	0
+X	69	QuotQualGrp	0	9	0
+X	69	Parties	0	11	0
+X	69	336	0	12	0
+X	69	625	0	13	0
+X	69	Instrument	0	14	1
+X	69	FinancingDetails	0	15	0
+X	69	UndInstrmtGrp	0	16	0
+X	69	54	0	18	0
+X	69	OrderQtyData	0	19	0
+X	69	63	0	20	0
+X	69	64	0	21	0
+X	69	193	0	22	0
+X	69	192	0	23	0
+X	69	15	0	24	0
+X	69	Stipulations	0	25	0
+X	69	1	0	26	0
+X	69	660	0	27	0
+X	69	581	0	28	0
+X	69	LegQuotGrp	0	29	0
+X	69	132	0	41	0
+X	69	133	0	42	0
+X	69	645	0	43	0
+X	69	646	0	44	0
+X	69	647	0	45	0
+X	69	134	0	46	0
+X	69	648	0	47	0
+X	69	135	0	48	0
+X	69	62	0	49	0
+X	69	188	0	50	0
+X	69	190	0	51	0
+X	69	189	0	52	0
+X	69	191	0	53	0
+X	69	631	0	54	0
+X	69	632	0	55	0
+X	69	633	0	56	0
+X	69	634	0	57	0
+X	69	60	0	58	0
+X	69	40	0	59	0
+X	69	642	0	60	0
+X	69	643	0	61	0
+X	69	656	0	62	0
+X	69	657	0	63	0
+X	69	156	0	64	0
+X	69	12	0	65	0
+X	69	13	0	66	0
+X	69	582	0	67	0
+X	69	100	0	68	0
+X	69	58	0	69	0
+X	69	354	0	70	0
+X	69	355	0	71	0
+X	69	44	0	72	0
+X	69	423	0	73	0
+X	69	SpreadOrBenchmarkCurveData	0	74	0
+X	69	YieldData	0	75	0
+X	69	StandardTrailer	0	76	1
+X	7	Parties	0	0	0
+X	7	StandardHeader	0	1	1
+X	7	23	0	2	1
+X	7	28	0	3	1
+X	7	26	0	4	0
+X	7	Instrument	0	5	1
+X	7	FinancingDetails	0	6	0
+X	7	UndInstrmtGrp	0	7	0
+X	7	54	0	9	1
+X	7	854	0	10	0
+X	7	OrderQtyData	0	11	0
+X	7	27	0	12	1
+X	7	15	0	13	0
+X	7	Stipulations	0	14	0
+X	7	InstrmtLegIOIGrp	0	15	0
+X	7	423	0	19	0
+X	7	44	0	20	0
+X	7	62	0	21	0
+X	7	25	0	22	0
+X	7	130	0	23	0
+X	7	IOIQualGrp	0	24	0
+X	7	58	0	26	0
+X	7	354	0	27	0
+X	7	355	0	28	0
+X	7	60	0	29	0
+X	7	149	0	30	0
+X	7	RoutingGrp	0	31	0
+X	7	SpreadOrBenchmarkCurveData	0	34	0
+X	7	YieldData	0	35	0
+X	7	StandardTrailer	0	36	1
+X	70	StandardHeader	0	1	1
+X	70	664	0	2	1
+X	70	772	0	3	0
+X	70	859	0	4	0
+X	70	666	0	5	1
+X	70	773	0	6	1
+X	70	797	0	7	0
+X	70	650	0	8	0
+X	70	665	0	9	1
+X	70	Parties	0	10	0
+X	70	OrdAllocGrp	0	11	0
+X	70	70	0	21	0
+X	70	793	0	22	0
+X	70	467	0	23	0
+X	70	60	0	24	1
+X	70	75	0	25	1
+X	70	TrdRegTimestamps	0	26	0
+X	70	Instrument	0	27	1
+X	70	InstrumentExtension	0	28	0
+X	70	FinancingDetails	0	29	0
+X	70	UndInstrmtGrp	0	30	1
+X	70	InstrmtLegGrp	0	32	1
+X	70	YieldData	0	34	0
+X	70	80	0	35	1
+X	70	854	0	36	0
+X	70	54	0	37	1
+X	70	15	0	38	0
+X	70	30	0	39	0
+X	70	CpctyConfGrp	0	40	1
+X	70	79	0	44	1
+X	70	661	0	45	0
+X	70	798	0	46	0
+X	70	6	0	47	1
+X	70	74	0	48	0
+X	70	423	0	49	0
+X	70	860	0	50	0
+X	70	SpreadOrBenchmarkCurveData	0	51	0
+X	70	861	0	52	0
+X	70	58	0	53	0
+X	70	354	0	54	0
+X	70	355	0	55	0
+X	70	81	0	56	0
+X	70	381	0	57	1
+X	70	157	0	58	0
+X	70	230	0	59	0
+X	70	158	0	60	0
+X	70	159	0	61	0
+X	70	738	0	62	0
+X	70	920	0	63	0
+X	70	921	0	64	0
+X	70	922	0	65	0
+X	70	238	0	66	0
+X	70	237	0	67	0
+X	70	118	0	68	1
+X	70	890	0	69	0
+X	70	119	0	70	0
+X	70	120	0	71	0
+X	70	155	0	72	0
+X	70	156	0	73	0
+X	70	63	0	74	0
+X	70	64	0	75	0
+X	70	SettlInstructionsData	0	76	0
+X	70	CommissionData	0	77	0
+X	70	858	0	78	0
+X	70	Stipulations	0	79	0
+X	70	MiscFeesGrp	0	80	0
+X	70	StandardTrailer	0	85	1
+X	71	PositionAmountData	0	0	0
+X	71	120	0	0	0
+X	71	StandardHeader	0	1	1
+X	71	710	0	2	0
+X	71	709	0	3	1
+X	71	712	0	4	1
+X	71	713	0	5	0
+X	71	714	0	6	0
+X	71	715	0	7	1
+X	71	716	0	8	0
+X	71	717	0	9	0
+X	71	Parties	0	10	1
+X	71	1	0	11	0
+X	71	660	0	12	0
+X	71	581	0	13	0
+X	71	Instrument	0	14	1
+X	71	15	0	15	0
+X	71	InstrmtLegGrp	0	16	0
+X	71	UndInstrmtGrp	0	18	0
+X	71	TrdgSesGrp	0	20	0
+X	71	60	0	23	0
+X	71	PositionQty	0	24	1
+X	71	718	0	25	0
+X	71	719	0	26	0
+X	71	720	0	27	0
+X	71	834	0	28	0
+X	71	58	0	29	0
+X	71	354	0	30	0
+X	71	355	0	31	0
+X	71	StandardTrailer	0	32	1
+X	72	714	0	0	0
+X	72	120	0	0	0
+X	72	719	0	0	0
+X	72	720	0	0	0
+X	72	StandardHeader	0	1	1
+X	72	721	0	2	1
+X	72	709	0	3	1
+X	72	710	0	4	0
+X	72	712	0	5	1
+X	72	713	0	6	0
+X	72	722	0	7	1
+X	72	723	0	8	0
+X	72	715	0	9	1
+X	72	716	0	10	0
+X	72	717	0	11	0
+X	72	Parties	0	12	0
+X	72	1	0	13	0
+X	72	660	0	14	0
+X	72	581	0	15	0
+X	72	Instrument	0	16	1
+X	72	15	0	17	0
+X	72	InstrmtLegGrp	0	18	0
+X	72	UndInstrmtGrp	0	20	0
+X	72	TrdgSesGrp	0	22	0
+X	72	60	0	25	0
+X	72	PositionQty	0	26	1
+X	72	PositionAmountData	0	27	0
+X	72	718	0	28	0
+X	72	834	0	29	0
+X	72	58	0	30	0
+X	72	354	0	31	0
+X	72	355	0	32	0
+X	72	StandardTrailer	0	33	1
+X	73	120	0	0	0
+X	73	StandardHeader	0	1	1
+X	73	710	0	2	1
+X	73	724	0	3	1
+X	73	573	0	4	0
+X	73	263	0	5	0
+X	73	Parties	0	6	1
+X	73	1	0	7	0
+X	73	660	0	8	0
+X	73	581	0	9	0
+X	73	Instrument	0	10	0
+X	73	15	0	11	0
+X	73	InstrmtLegGrp	0	12	0
+X	73	UndInstrmtGrp	0	14	0
+X	73	715	0	16	1
+X	73	716	0	17	0
+X	73	717	0	18	0
+X	73	TrdgSesGrp	0	19	0
+X	73	60	0	22	1
+X	73	725	0	23	0
+X	73	726	0	24	0
+X	73	58	0	25	0
+X	73	354	0	26	0
+X	73	355	0	27	0
+X	73	StandardTrailer	0	28	1
+X	74	724	0	0	0
+X	74	573	0	0	0
+X	74	715	0	0	0
+X	74	263	0	0	0
+X	74	716	0	0	0
+X	74	717	0	0	0
+X	74	120	0	0	0
+X	74	StandardHeader	0	1	1
+X	74	721	0	2	1
+X	74	710	0	3	0
+X	74	727	0	4	0
+X	74	325	0	5	0
+X	74	728	0	6	1
+X	74	729	0	7	1
+X	74	Parties	0	8	1
+X	74	1	0	9	0
+X	74	660	0	10	0
+X	74	581	0	11	0
+X	74	Instrument	0	12	0
+X	74	15	0	13	0
+X	74	InstrmtLegGrp	0	14	0
+X	74	UndInstrmtGrp	0	16	0
+X	74	725	0	18	0
+X	74	726	0	19	0
+X	74	58	0	20	0
+X	74	354	0	21	0
+X	74	355	0	22	0
+X	74	StandardTrailer	0	23	1
+X	75	423	0	0	0
+X	75	120	0	0	0
+X	75	1011	0	0	0
+X	75	573	0	0	0
+X	75	StandardHeader	0	1	1
+X	75	721	0	2	1
+X	75	710	0	3	0
+X	75	724	0	4	0
+X	75	263	0	5	0
+X	75	727	0	6	0
+X	75	728	0	6	0
+X	75	325	0	7	0
+X	75	715	0	9	1
+X	75	716	0	10	0
+X	75	717	0	11	0
+X	75	Parties	0	12	1
+X	75	1	0	13	0
+X	75	660	0	14	0
+X	75	581	0	15	0
+X	75	Instrument	0	16	0
+X	75	15	0	17	0
+X	75	730	0	18	0
+X	75	731	0	19	0
+X	75	734	0	20	0
+X	75	InstrmtLegGrp	0	21	0
+X	75	PosUndInstrmtGrp	0	23	0
+X	75	PositionQty	0	27	0
+X	75	PositionAmountData	0	28	0
+X	75	506	0	29	0
+X	75	743	0	30	0
+X	75	58	0	31	0
+X	75	354	0	32	0
+X	75	355	0	33	0
+X	75	StandardTrailer	0	34	1
+X	76	1003	0	0	0
+X	76	1040	0	0	0
+X	76	1041	0	0	0
+X	76	1042	0	0	0
+X	76	1011	0	0	0
+X	76	StandardHeader	0	1	1
+X	76	568	0	2	1
+X	76	569	0	3	1
+X	76	263	0	4	0
+X	76	748	0	5	0
+X	76	749	0	6	1
+X	76	750	0	7	1
+X	76	Instrument	0	8	1
+X	76	UndInstrmtGrp	0	9	0
+X	76	InstrmtLegGrp	0	11	0
+X	76	442	0	13	0
+X	76	725	0	14	0
+X	76	726	0	15	0
+X	76	58	0	16	0
+X	76	354	0	17	0
+X	76	355	0	18	0
+X	76	StandardTrailer	0	19	1
+X	77	1003	0	0	0
+X	77	1040	0	0	0
+X	77	1041	0	0	0
+X	77	1042	0	0	0
+X	77	1123	0	0	0
+X	77	1124	0	0	0
+X	77	1125	0	0	0
+X	77	1126	0	0	0
+X	77	1127	0	0	0
+X	77	RootParties	0	0	0
+X	77	39	0	0	0
+X	77	378	0	0	0
+X	77	570	0	0	0
+X	77	423	0	0	0
+X	77	822	0	0	0
+X	77	823	0	0	0
+X	77	716	0	0	0
+X	77	717	0	0	0
+X	77	854	0	0	0
+X	77	32	0	0	0
+X	77	31	0	0	0
+X	77	1056	0	0	0
+X	77	1071	0	0	0
+X	77	194	0	0	0
+X	77	195	0	0	0
+X	77	30	0	0	0
+X	77	75	0	0	0
+X	77	715	0	0	0
+X	77	6	0	0	0
+X	77	819	0	0	0
+X	77	442	0	0	0
+X	77	824	0	0	0
+X	77	UndInstrmtGrp	0	0	0
+X	77	573	0	0	0
+X	77	574	0	0	0
+X	77	797	0	0	0
+X	77	852	0	0	0
+X	77	853	0	0	0
+X	77	TrdInstrmtLegGrp	0	0	0
+X	77	1015	0	0	0
+X	77	PositionAmountData	0	0	0
+X	77	994	0	0	0
+X	77	1011	0	0	0
+X	77	779	0	0	0
+X	77	991	0	0	0
+X	77	TrdCapRptAckSideGrp	0	0	0
+X	77	1135	0	0	0
+X	77	381	0	0	0
+X	77	64	0	0	0
+X	77	StandardHeader	0	1	1
+X	77	571	0	2	0
+X	77	487	0	3	0
+X	77	856	0	4	0
+X	77	828	0	5	0
+X	77	829	0	6	0
+X	77	855	0	7	0
+X	77	830	0	8	0
+X	77	150	0	9	0
+X	77	572	0	10	0
+X	77	881	0	11	0
+X	77	939	0	12	0
+X	77	751	0	13	0
+X	77	818	0	14	0
+X	77	263	0	15	0
+X	77	820	0	16	0
+X	77	880	0	17	0
+X	77	17	0	18	0
+X	77	527	0	19	0
+X	77	Instrument	0	20	1
+X	77	669	0	20	0
+X	77	60	0	21	0
+X	77	63	0	21	0
+X	77	TrdRegTimestamps	0	22	0
+X	77	725	0	23	0
+X	77	726	0	24	0
+X	77	58	0	25	0
+X	77	354	0	26	0
+X	77	355	0	27	0
+X	77	635	0	41	0
+X	77	StandardTrailer	0	57	1
+X	78	715	0	0	0
+X	78	828	0	0	0
+X	78	829	0	0	0
+X	78	442	0	0	0
+X	78	582	0	0	0
+X	78	578	0	0	0
+X	78	991	0	0	0
+X	78	1011	0	0	0
+X	78	579	0	0	0
+X	78	819	0	0	0
+X	78	PositionAmountData	0	0	0
+X	78	StandardHeader	0	1	1
+X	78	755	0	2	1
+X	78	70	0	3	0
+X	78	71	0	4	1
+X	78	795	0	5	0
+X	78	796	0	6	0
+X	78	793	0	7	0
+X	78	794	0	8	1
+X	78	87	0	9	1
+X	78	88	0	10	0
+X	78	72	0	11	0
+X	78	808	0	12	0
+X	78	196	0	13	0
+X	78	197	0	14	0
+X	78	466	0	15	0
+X	78	857	0	16	0
+X	78	OrdAllocGrp	0	17	0
+X	78	ExecAllocGrp	0	27	0
+X	78	570	0	34	0
+X	78	700	0	35	0
+X	78	574	0	36	0
+X	78	54	0	37	1
+X	78	Instrument	0	38	1
+X	78	InstrumentExtension	0	39	0
+X	78	FinancingDetails	0	40	0
+X	78	UndInstrmtGrp	0	41	0
+X	78	InstrmtLegGrp	0	43	0
+X	78	53	0	45	1
+X	78	854	0	46	0
+X	78	30	0	47	0
+X	78	229	0	48	0
+X	78	336	0	49	0
+X	78	625	0	50	0
+X	78	423	0	51	0
+X	78	6	0	52	1
+X	78	860	0	53	0
+X	78	SpreadOrBenchmarkCurveData	0	54	0
+X	78	15	0	55	0
+X	78	74	0	56	0
+X	78	Parties	0	57	0
+X	78	75	0	58	1
+X	78	60	0	59	0
+X	78	63	0	60	0
+X	78	64	0	61	0
+X	78	775	0	62	0
+X	78	381	0	63	0
+X	78	238	0	64	0
+X	78	237	0	65	0
+X	78	118	0	66	0
+X	78	77	0	67	0
+X	78	754	0	68	0
+X	78	58	0	69	0
+X	78	354	0	70	0
+X	78	355	0	71	0
+X	78	157	0	72	0
+X	78	158	0	73	0
+X	78	159	0	74	0
+X	78	540	0	75	0
+X	78	738	0	76	0
+X	78	920	0	77	0
+X	78	921	0	78	0
+X	78	922	0	79	0
+X	78	650	0	80	0
+X	78	Stipulations	0	81	0
+X	78	YieldData	0	82	0
+X	78	892	0	83	0
+X	78	893	0	84	0
+X	78	AllocGrp	0	85	0
+X	78	StandardTrailer	0	120	1
+X	79	715	0	0	0
+X	79	819	0	0	0
+X	79	53	0	0	0
+X	79	71	0	0	0
+X	79	StandardHeader	0	1	1
+X	79	755	0	2	1
+X	79	70	0	3	1
+X	79	Parties	0	4	0
+X	79	793	0	5	0
+X	79	75	0	6	0
+X	79	60	0	7	0
+X	79	87	0	8	0
+X	79	88	0	9	0
+X	79	794	0	10	0
+X	79	808	0	11	0
+X	79	573	0	12	0
+X	79	460	0	13	0
+X	79	167	0	14	0
+X	79	58	0	15	0
+X	79	354	0	16	0
+X	79	355	0	17	0
+X	79	AllocAckGrp	0	18	0
+X	79	StandardTrailer	0	27	1
+X	8	StandardHeader	0	1	1
+X	8	2	0	2	1
+X	8	5	0	3	1
+X	8	3	0	4	0
+X	8	Instrument	0	5	1
+X	8	InstrmtLegGrp	0	6	0
+X	8	UndInstrmtGrp	0	8	0
+X	8	4	0	10	1
+X	8	53	0	11	1
+X	8	854	0	12	0
+X	8	44	0	13	0
+X	8	15	0	14	0
+X	8	75	0	15	0
+X	8	60	0	16	0
+X	8	58	0	17	0
+X	8	354	0	18	0
+X	8	355	0	19	0
+X	8	149	0	20	0
+X	8	30	0	21	0
+X	8	336	0	22	0
+X	8	625	0	23	0
+X	8	StandardTrailer	0	24	1
+X	80	StandardHeader	0	1	1
+X	80	664	0	2	1
+X	80	75	0	3	1
+X	80	60	0	4	1
+X	80	940	0	5	1
+X	80	774	0	6	0
+X	80	573	0	7	0
+X	80	58	0	8	0
+X	80	354	0	9	0
+X	80	355	0	10	0
+X	80	StandardTrailer	0	11	1
+X	81	120	0	0	0
+X	81	StandardHeader	0	1	1
+X	81	791	0	2	1
+X	81	60	0	3	1
+X	81	Parties	0	4	0
+X	81	79	0	5	0
+X	81	661	0	6	0
+X	81	54	0	7	0
+X	81	460	0	8	0
+X	81	167	0	9	0
+X	81	461	0	10	0
+X	81	168	0	11	0
+X	81	126	0	12	0
+X	81	779	0	13	0
+X	81	169	0	14	0
+X	81	170	0	15	0
+X	81	171	0	16	0
+X	81	StandardTrailer	0	17	1
+X	82	734	0	0	0
+X	82	StandardHeader	0	1	1
+X	82	833	0	2	1
+X	82	832	0	3	0
+X	82	912	0	4	0
+X	82	Parties	0	5	1
+X	82	1	0	6	0
+X	82	581	0	7	0
+X	82	Instrument	0	8	0
+X	82	15	0	9	0
+X	82	InstrmtLegGrp	0	10	0
+X	82	UndInstrmtGrp	0	12	0
+X	82	PositionQty	0	14	0
+X	82	PositionAmountData	0	15	0
+X	82	834	0	16	0
+X	82	730	0	17	0
+X	82	731	0	18	0
+X	82	732	0	19	0
+X	82	432	0	20	0
+X	82	744	0	21	0
+X	82	745	0	22	0
+X	82	746	0	23	0
+X	82	747	0	24	0
+X	82	716	0	25	0
+X	82	717	0	26	0
+X	82	715	0	27	1
+X	82	58	0	28	0
+X	82	354	0	29	0
+X	82	355	0	30	0
+X	82	StandardTrailer	0	31	1
+X	83	StandardHeader	0	1	1
+X	83	894	0	2	1
+X	83	895	0	3	1
+X	83	60	0	4	1
+X	83	126	0	5	0
+X	83	Parties	0	6	0
+X	83	1	0	7	0
+X	83	581	0	8	0
+X	83	11	0	9	0
+X	83	37	0	10	0
+X	83	198	0	11	0
+X	83	526	0	12	0
+X	83	ExecCollGrp	0	13	0
+X	83	TrdCollGrp	0	15	0
+X	83	Instrument	0	18	0
+X	83	FinancingDetails	0	19	0
+X	83	64	0	20	0
+X	83	53	0	21	0
+X	83	854	0	22	0
+X	83	15	0	23	0
+X	83	InstrmtLegGrp	0	24	0
+X	83	UndInstrmtCollGrp	0	26	0
+X	83	899	0	29	0
+X	83	900	0	30	0
+X	83	901	0	31	0
+X	83	TrdRegTimestamps	0	32	0
+X	83	54	0	33	0
+X	83	MiscFeesGrp	0	34	0
+X	83	44	0	39	0
+X	83	423	0	40	0
+X	83	159	0	41	0
+X	83	920	0	42	0
+X	83	921	0	43	0
+X	83	922	0	44	0
+X	83	SpreadOrBenchmarkCurveData	0	45	0
+X	83	Stipulations	0	46	0
+X	83	336	0	47	0
+X	83	625	0	48	0
+X	83	716	0	49	0
+X	83	717	0	50	0
+X	83	715	0	51	0
+X	83	58	0	52	0
+X	83	354	0	53	0
+X	83	355	0	54	0
+X	83	StandardTrailer	0	55	1
+X	84	StandardHeader	0	1	1
+X	84	902	0	2	1
+X	84	894	0	3	0
+X	84	895	0	4	1
+X	84	903	0	5	1
+X	84	907	0	6	0
+X	84	60	0	7	1
+X	84	126	0	8	0
+X	84	Parties	0	9	0
+X	84	1	0	10	0
+X	84	581	0	11	0
+X	84	11	0	12	0
+X	84	37	0	13	0
+X	84	198	0	14	0
+X	84	526	0	15	0
+X	84	ExecCollGrp	0	16	0
+X	84	TrdCollGrp	0	18	0
+X	84	Instrument	0	21	0
+X	84	FinancingDetails	0	22	0
+X	84	64	0	23	0
+X	84	53	0	24	0
+X	84	854	0	25	0
+X	84	15	0	26	0
+X	84	InstrmtLegGrp	0	27	0
+X	84	UndInstrmtCollGrp	0	29	0
+X	84	899	0	32	0
+X	84	900	0	33	0
+X	84	901	0	34	0
+X	84	TrdRegTimestamps	0	35	0
+X	84	54	0	36	0
+X	84	MiscFeesGrp	0	37	0
+X	84	44	0	42	0
+X	84	423	0	43	0
+X	84	159	0	44	0
+X	84	920	0	45	0
+X	84	921	0	46	0
+X	84	922	0	47	0
+X	84	SpreadOrBenchmarkCurveData	0	48	0
+X	84	Stipulations	0	49	0
+X	84	SettlInstructionsData	0	50	0
+X	84	336	0	51	0
+X	84	625	0	52	0
+X	84	716	0	53	0
+X	84	717	0	54	0
+X	84	715	0	55	0
+X	84	58	0	56	0
+X	84	354	0	57	0
+X	84	355	0	58	0
+X	84	StandardTrailer	0	59	1
+X	85	1043	0	0	0
+X	85	291	0	0	0
+X	85	715	0	0	0
+X	85	StandardHeader	0	1	1
+X	85	904	0	2	1
+X	85	902	0	3	0
+X	85	894	0	4	0
+X	85	895	0	5	0
+X	85	903	0	6	0
+X	85	905	0	7	1
+X	85	906	0	8	0
+X	85	60	0	9	1
+X	85	Parties	0	10	0
+X	85	1	0	11	0
+X	85	581	0	12	0
+X	85	11	0	13	0
+X	85	37	0	14	0
+X	85	198	0	15	0
+X	85	526	0	16	0
+X	85	ExecCollGrp	0	17	0
+X	85	TrdCollGrp	0	19	0
+X	85	Instrument	0	22	0
+X	85	FinancingDetails	0	23	0
+X	85	64	0	24	0
+X	85	53	0	25	0
+X	85	854	0	26	0
+X	85	15	0	27	0
+X	85	InstrmtLegGrp	0	28	0
+X	85	UndInstrmtCollGrp	0	30	0
+X	85	899	0	33	0
+X	85	900	0	34	0
+X	85	901	0	35	0
+X	85	TrdRegTimestamps	0	36	0
+X	85	54	0	37	0
+X	85	MiscFeesGrp	0	38	0
+X	85	44	0	43	0
+X	85	423	0	44	0
+X	85	159	0	45	0
+X	85	920	0	46	0
+X	85	921	0	47	0
+X	85	922	0	48	0
+X	85	SpreadOrBenchmarkCurveData	0	49	0
+X	85	Stipulations	0	50	0
+X	85	58	0	51	0
+X	85	354	0	52	0
+X	85	355	0	53	0
+X	85	StandardTrailer	0	54	1
+X	86	60	0	0	0
+X	86	1043	0	0	0
+X	86	291	0	0	0
+X	86	StandardHeader	0	1	1
+X	86	908	0	2	1
+X	86	909	0	3	0
+X	86	910	0	4	1
+X	86	911	0	5	0
+X	86	912	0	6	0
+X	86	Parties	0	7	0
+X	86	1	0	8	0
+X	86	581	0	9	0
+X	86	11	0	10	0
+X	86	37	0	11	0
+X	86	198	0	12	0
+X	86	526	0	13	0
+X	86	ExecCollGrp	0	14	0
+X	86	TrdCollGrp	0	16	0
+X	86	Instrument	0	19	0
+X	86	FinancingDetails	0	20	0
+X	86	64	0	21	0
+X	86	53	0	22	0
+X	86	854	0	23	0
+X	86	15	0	24	0
+X	86	InstrmtLegGrp	0	25	0
+X	86	UndInstrmtGrp	0	27	0
+X	86	899	0	29	0
+X	86	900	0	30	0
+X	86	901	0	31	0
+X	86	TrdRegTimestamps	0	32	0
+X	86	54	0	33	0
+X	86	MiscFeesGrp	0	34	0
+X	86	44	0	39	0
+X	86	423	0	40	0
+X	86	159	0	41	0
+X	86	920	0	42	0
+X	86	921	0	43	0
+X	86	922	0	44	0
+X	86	SpreadOrBenchmarkCurveData	0	45	0
+X	86	Stipulations	0	46	0
+X	86	SettlInstructionsData	0	47	0
+X	86	336	0	48	0
+X	86	625	0	49	0
+X	86	716	0	50	0
+X	86	717	0	51	0
+X	86	715	0	52	0
+X	86	58	0	53	0
+X	86	354	0	54	0
+X	86	355	0	55	0
+X	86	StandardTrailer	0	56	1
+X	87	StandardHeader	0	1	1
+X	87	909	0	2	0
+X	87	CollInqQualGrp	0	3	0
+X	87	263	0	5	0
+X	87	725	0	6	0
+X	87	726	0	7	0
+X	87	Parties	0	8	0
+X	87	1	0	9	0
+X	87	581	0	10	0
+X	87	11	0	11	0
+X	87	37	0	12	0
+X	87	198	0	13	0
+X	87	526	0	14	0
+X	87	ExecCollGrp	0	15	0
+X	87	TrdCollGrp	0	17	0
+X	87	Instrument	0	20	0
+X	87	FinancingDetails	0	21	0
+X	87	64	0	22	0
+X	87	53	0	23	0
+X	87	854	0	24	0
+X	87	15	0	25	0
+X	87	InstrmtLegGrp	0	26	0
+X	87	UndInstrmtGrp	0	28	0
+X	87	899	0	30	0
+X	87	900	0	31	0
+X	87	901	0	32	0
+X	87	TrdRegTimestamps	0	33	0
+X	87	54	0	34	0
+X	87	44	0	35	0
+X	87	423	0	36	0
+X	87	159	0	37	0
+X	87	920	0	38	0
+X	87	921	0	39	0
+X	87	922	0	40	0
+X	87	SpreadOrBenchmarkCurveData	0	41	0
+X	87	Stipulations	0	42	0
+X	87	SettlInstructionsData	0	43	0
+X	87	336	0	44	0
+X	87	625	0	45	0
+X	87	716	0	46	0
+X	87	717	0	47	0
+X	87	715	0	48	0
+X	87	58	0	49	0
+X	87	354	0	50	0
+X	87	355	0	51	0
+X	87	StandardTrailer	0	52	1
+X	88	StandardHeader	0	1	1
+X	88	935	0	2	1
+X	88	933	0	3	1
+X	88	CompIDReqGrp	0	4	0
+X	88	StandardTrailer	0	9	1
+X	89	StandardHeader	0	1	1
+X	89	937	0	2	1
+X	89	933	0	3	0
+X	89	932	0	4	1
+X	89	934	0	5	0
+X	89	CompIDStatGrp	0	6	1
+X	89	StandardTrailer	0	13	1
+X	9	961	0	0	0
+X	9	574	0	0	0
+X	9	1115	0	0	0
+X	9	1093	0	0	0
+X	9	1092	0	0	0
+X	9	TriggeringInstruction	0	0	0
+X	9	1095	0	0	0
+X	9	StrategyParametersGrp	0	0	0
+X	9	1057	0	0	0
+X	9	1091	0	0	0
+X	9	1056	0	0	0
+X	9	1071	0	0	0
+X	9	1089	0	0	0
+X	9	1090	0	0	0
+X	9	DisplayInstruction	0	0	0
+X	9	1028	0	0	0
+X	9	1029	0	0	0
+X	9	1030	0	0	0
+X	9	1031	0	0	0
+X	9	1032	0	0	0
+X	9	TrdRegTimestamps	0	0	0
+X	9	StandardHeader	0	1	1
+X	9	37	0	2	1
+X	9	198	0	3	0
+X	9	526	0	4	0
+X	9	527	0	5	0
+X	9	11	0	6	0
+X	9	41	0	7	0
+X	9	583	0	8	0
+X	9	693	0	9	0
+X	9	790	0	10	0
+X	9	584	0	11	0
+X	9	911	0	12	0
+X	9	912	0	13	0
+X	9	Parties	0	14	0
+X	9	229	0	15	0
+X	9	ContraGrp	0	16	0
+X	9	66	0	22	0
+X	9	548	0	23	0
+X	9	551	0	24	0
+X	9	549	0	25	0
+X	9	17	0	26	1
+X	9	19	0	27	0
+X	9	150	0	28	1
+X	9	39	0	29	1
+X	9	636	0	30	0
+X	9	103	0	31	0
+X	9	378	0	32	0
+X	9	1	0	33	0
+X	9	660	0	34	0
+X	9	581	0	35	0
+X	9	589	0	36	0
+X	9	590	0	37	0
+X	9	591	0	38	0
+X	9	63	0	39	0
+X	9	64	0	40	0
+X	9	544	0	41	0
+X	9	635	0	42	0
+X	9	Instrument	0	43	1
+X	9	FinancingDetails	0	44	0
+X	9	UndInstrmtGrp	0	45	0
+X	9	54	0	47	1
+X	9	Stipulations	0	48	0
+X	9	854	0	49	0
+X	9	OrderQtyData	0	50	0
+X	9	40	0	51	0
+X	9	423	0	52	0
+X	9	44	0	53	0
+X	9	99	0	54	0
+X	9	PegInstructions	0	55	0
+X	9	DiscretionInstructions	0	56	0
+X	9	839	0	57	0
+X	9	845	0	58	0
+X	9	847	0	59	0
+X	9	848	0	60	0
+X	9	849	0	61	0
+X	9	850	0	62	0
+X	9	15	0	63	0
+X	9	376	0	64	0
+X	9	377	0	65	0
+X	9	59	0	66	0
+X	9	168	0	67	0
+X	9	432	0	68	0
+X	9	126	0	69	0
+X	9	18	0	70	0
+X	9	528	0	71	0
+X	9	529	0	72	0
+X	9	582	0	73	0
+X	9	32	0	74	0
+X	9	652	0	75	0
+X	9	31	0	76	0
+X	9	651	0	77	0
+X	9	669	0	78	0
+X	9	194	0	79	0
+X	9	195	0	80	0
+X	9	30	0	81	0
+X	9	336	0	82	0
+X	9	625	0	83	0
+X	9	943	0	84	0
+X	9	29	0	85	0
+X	9	151	0	86	1
+X	9	14	0	87	1
+X	9	6	0	88	0
+X	9	424	0	89	0
+X	9	425	0	90	0
+X	9	426	0	91	0
+X	9	427	0	92	0
+X	9	75	0	93	0
+X	9	60	0	94	0
+X	9	113	0	95	0
+X	9	CommissionData	0	96	0
+X	9	SpreadOrBenchmarkCurveData	0	97	0
+X	9	YieldData	0	98	0
+X	9	381	0	99	0
+X	9	157	0	100	0
+X	9	230	0	101	0
+X	9	158	0	102	0
+X	9	159	0	103	0
+X	9	738	0	104	0
+X	9	920	0	105	0
+X	9	921	0	106	0
+X	9	922	0	107	0
+X	9	258	0	108	0
+X	9	259	0	109	0
+X	9	260	0	110	0
+X	9	238	0	111	0
+X	9	237	0	112	0
+X	9	118	0	113	0
+X	9	119	0	114	0
+X	9	120	0	115	0
+X	9	155	0	116	0
+X	9	156	0	117	0
+X	9	21	0	118	0
+X	9	110	0	119	0
+X	9	111	0	120	0
+X	9	77	0	121	0
+X	9	210	0	122	0
+X	9	775	0	123	0
+X	9	58	0	124	0
+X	9	354	0	125	0
+X	9	355	0	126	0
+X	9	193	0	127	0
+X	9	192	0	128	0
+X	9	641	0	129	0
+X	9	442	0	130	0
+X	9	480	0	131	0
+X	9	481	0	132	0
+X	9	513	0	133	0
+X	9	494	0	134	0
+X	9	483	0	135	0
+X	9	515	0	136	0
+X	9	484	0	137	0
+X	9	485	0	138	0
+X	9	638	0	139	0
+X	9	639	0	140	0
+X	9	851	0	141	0
+X	9	ContAmtGrp	0	142	0
+X	9	InstrmtLegExecGrp	0	146	0
+X	9	797	0	159	0
+X	9	MiscFeesGrp	0	160	0
+X	9	StandardTrailer	0	165	1
+X	90	StandardHeader	0	1	1
+X	90	923	0	2	1
+X	90	924	0	3	1
+X	90	553	0	4	1
+X	90	554	0	5	0
+X	90	925	0	6	0
+X	90	95	0	7	0
+X	90	96	0	8	0
+X	90	StandardTrailer	0	9	1
+X	91	StandardHeader	0	1	1
+X	91	923	0	2	1
+X	91	553	0	3	1
+X	91	926	0	4	0
+X	91	927	0	5	0
+X	91	StandardTrailer	0	6	1
+X	92	StandardHeader	0	1	1
+X	92	909	0	2	1
+X	92	945	0	3	1
+X	92	946	0	4	0
+X	92	CollInqQualGrp	0	5	0
+X	92	911	0	7	0
+X	92	Parties	0	8	0
+X	92	1	0	9	0
+X	92	581	0	10	0
+X	92	11	0	11	0
+X	92	37	0	12	0
+X	92	198	0	13	0
+X	92	526	0	14	0
+X	92	ExecCollGrp	0	15	0
+X	92	TrdCollGrp	0	17	0
+X	92	Instrument	0	20	0
+X	92	FinancingDetails	0	21	0
+X	92	64	0	22	0
+X	92	53	0	23	0
+X	92	854	0	24	0
+X	92	15	0	25	0
+X	92	InstrmtLegGrp	0	26	0
+X	92	UndInstrmtGrp	0	28	0
+X	92	336	0	30	0
+X	92	625	0	31	0
+X	92	716	0	32	0
+X	92	717	0	33	0
+X	92	715	0	34	0
+X	92	725	0	35	0
+X	92	726	0	36	0
+X	92	58	0	37	0
+X	92	354	0	38	0
+X	92	355	0	39	0
+X	92	StandardTrailer	0	40	1
+X	93	StandardHeader	0	1	1
+X	93	859	0	2	1
+X	93	773	0	3	1
+X	93	OrdAllocGrp	0	4	0
+X	93	70	0	14	0
+X	93	793	0	15	0
+X	93	467	0	16	0
+X	93	60	0	17	1
+X	93	79	0	18	0
+X	93	661	0	19	0
+X	93	798	0	20	0
+X	93	58	0	21	0
+X	93	354	0	22	0
+X	93	355	0	23	0
+X	93	StandardTrailer	0	24	1
+X	94	977	0	0	1
+X	94	60	0	0	0
+X	94	978	0	0	0
+X	94	979	0	0	0
+X	94	715	0	0	1
+X	94	Parties	0	0	1
+X	94	ExpirationQty	0	0	1
+X	94	Instrument	0	0	1
+X	94	UndInstrmtGrp	0	0	0
+X	94	354	0	0	0
+X	94	355	0	0	0
+X	94	StandardHeader	0	1	1
+X	94	58	0	2	0
+X	94	StandardTrailer	0	10	1
+X	95	964	0	0	0
+X	95	320	0	0	0
+X	95	322	0	0	0
+X	95	323	0	0	0
+X	95	715	0	0	0
+X	95	980	0	0	0
+X	95	292	0	0	0
+X	95	Instrument	0	0	0
+X	95	UnderlyingInstrument	0	0	0
+X	95	15	0	0	0
+X	95	625	0	0	0
+X	95	58	0	0	0
+X	95	354	0	0	0
+X	95	355	0	0	0
+X	95	InstrmtLegGrp	0	0	0
+X	95	827	0	0	0
+X	95	561	0	0	0
+X	95	562	0	0	0
+X	95	StandardHeader	0	1	1
+X	95	336	0	2	0
+X	95	StandardTrailer	0	10	1
+X	96	964	0	0	0
+X	96	320	0	0	0
+X	96	322	0	0	0
+X	96	560	0	0	0
+X	96	393	0	0	0
+X	96	715	0	0	0
+X	96	980	0	0	0
+X	96	292	0	0	0
+X	96	893	0	0	0
+X	96	StandardHeader	0	1	1
+X	96	SecLstUpdRelSymGrp	0	2	0
+X	96	StandardTrailer	0	10	1
+X	97	721	0	0	1
+X	97	724	0	0	0
+X	97	715	0	0	1
+X	97	716	0	0	0
+X	97	714	0	0	0
+X	97	Parties	0	0	1
+X	97	PositionQty	0	0	1
+X	97	Instrument	0	0	0
+X	97	730	0	0	0
+X	97	StandardHeader	0	1	1
+X	97	734	0	2	0
+X	97	StandardTrailer	0	10	1
+X	98	PositionAmountData	0	0	0
+X	98	819	0	0	0
+X	98	715	0	0	0
+X	98	828	0	0	0
+X	98	829	0	0	0
+X	98	582	0	0	0
+X	98	578	0	0	0
+X	98	442	0	0	0
+X	98	1011	0	0	0
+X	98	991	0	0	0
+X	98	StandardHeader	0	1	1
+X	98	70	0	2	1
+X	98	71	0	3	1
+X	98	626	0	4	1
+X	98	793	0	5	0
+X	98	72	0	6	0
+X	98	796	0	7	0
+X	98	808	0	8	0
+X	98	196	0	9	0
+X	98	197	0	10	0
+X	98	466	0	11	0
+X	98	857	0	12	0
+X	98	OrdAllocGrp	0	13	0
+X	98	ExecAllocGrp	0	23	0
+X	98	570	0	30	0
+X	98	700	0	31	0
+X	98	574	0	32	0
+X	98	54	0	33	1
+X	98	Instrument	0	34	1
+X	98	InstrumentExtension	0	35	0
+X	98	FinancingDetails	0	36	0
+X	98	UndInstrmtGrp	0	37	0
+X	98	InstrmtLegGrp	0	39	0
+X	98	53	0	41	1
+X	98	854	0	42	0
+X	98	30	0	43	0
+X	98	229	0	44	0
+X	98	336	0	45	0
+X	98	625	0	46	0
+X	98	423	0	47	0
+X	98	6	0	48	0
+X	98	860	0	49	0
+X	98	SpreadOrBenchmarkCurveData	0	50	0
+X	98	15	0	51	0
+X	98	74	0	52	0
+X	98	Parties	0	53	0
+X	98	75	0	54	1
+X	98	60	0	55	0
+X	98	63	0	56	0
+X	98	64	0	57	0
+X	98	775	0	58	0
+X	98	381	0	59	0
+X	98	238	0	60	0
+X	98	237	0	61	0
+X	98	118	0	62	0
+X	98	77	0	63	0
+X	98	754	0	64	0
+X	98	58	0	65	0
+X	98	354	0	66	0
+X	98	355	0	67	0
+X	98	157	0	68	0
+X	98	158	0	69	0
+X	98	159	0	70	0
+X	98	540	0	71	0
+X	98	738	0	72	0
+X	98	920	0	73	0
+X	98	921	0	74	0
+X	98	922	0	75	0
+X	98	650	0	76	0
+X	98	Stipulations	0	77	0
+X	98	YieldData	0	78	0
+X	98	892	0	79	0
+X	98	893	0	80	0
+X	98	AllocGrp	0	81	0
+X	98	StandardTrailer	0	117	1
+X	99	StandardHeader	0	1	1
+X	99	37	0	2	1
+X	99	198	0	3	0
+X	99	11	0	4	0
+X	99	1036	0	5	1
+X	99	17	0	6	1
+X	99	127	0	7	0
+X	99	Instrument	0	8	1
+X	99	UndInstrmtGrp	0	9	0
+X	99	InstrmtLegGrp	0	10	0
+X	99	54	0	11	1
+X	99	OrderQtyData	0	12	1
+X	99	32	0	13	0
+X	99	31	0	14	0
+X	99	423	0	15	0
+X	99	669	0	16	0
+X	99	14	0	17	0
+X	99	6	0	18	0
+X	99	58	0	19	0
+X	99	354	0	20	0
+X	99	355	0	21	0
+X	99	StandardTrailer	0	22	1

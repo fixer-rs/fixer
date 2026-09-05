@@ -1,6 +1,7 @@
 use crate::tag::Tag;
 use rustc_hash::FxHashMap;
 use std::collections::HashSet;
+use std::fmt::Write as _;
 
 /// Bidirectional abbreviation maps and message structure for FIXML encoding.
 ///
@@ -66,6 +67,164 @@ impl FixmlAbbreviations {
         load_msg_contents(&format!("{base_path}/MsgContents.xml"), &mut abbr)?;
         build_component_tags(&mut abbr);
 
+        Ok(abbr)
+    }
+
+    /// Loads the abbreviations bundled with the crate for a FIX version.
+    ///
+    /// Supported versions are `FIX.4.4`, `FIX.5.0`, `FIX.5.0SP1`,
+    /// `FIX.5.0SP2` and `FIXT.1.1` — the FIX repository defines the
+    /// `AbbrName` values FIXML is built on only from FIX.4.4 onward.
+    ///
+    /// The FIX repository these are derived from is not redistributable in
+    /// full and is ~7 MB of XML per edition, so the fields FIXML actually
+    /// needs are extracted into a compact table under `spec/fixml/` and
+    /// embedded here. Use [`from_fix_repository`](Self::from_fix_repository)
+    /// to load a repository edition this crate does not bundle.
+    pub fn bundled(version: &str) -> Result<Self, String> {
+        let raw = match version {
+            "FIX.4.4" => include_str!("../../../../spec/fixml/FIX.4.4.tsv"),
+            "FIX.5.0" => include_str!("../../../../spec/fixml/FIX.5.0.tsv"),
+            "FIX.5.0SP1" => include_str!("../../../../spec/fixml/FIX.5.0SP1.tsv"),
+            "FIX.5.0SP2" => include_str!("../../../../spec/fixml/FIX.5.0SP2.tsv"),
+            "FIXT.1.1" => include_str!("../../../../spec/fixml/FIXT.1.1.tsv"),
+            "FIX.4.0" | "FIX.4.1" | "FIX.4.2" | "FIX.4.3" => {
+                return Err(format!(
+                    "{version} has no FIXML abbreviations: the FIX repository \
+                     only defines AbbrName from FIX.4.4 onward"
+                ));
+            }
+            other => return Err(format!("no bundled FIXML abbreviations for {other}")),
+        };
+        Self::from_compact(raw)
+    }
+
+    /// Serializes the primary data to the compact table format read by
+    /// [`from_compact`](Self::from_compact).
+    ///
+    /// Only the data loaded from the repository is written; the reverse
+    /// lookups and `component_tags` are rebuilt on load.
+    pub fn to_compact(&self) -> String {
+        let mut out = String::new();
+        out.push_str("V\t");
+        out.push_str(&self.fix_version);
+        out.push('\n');
+
+        let mut fields: Vec<(&Tag, &String)> = self.tag_to_abbr.iter().collect();
+        fields.sort_by_key(|(t, _)| **t);
+        for (tag, abbr) in fields {
+            let _ = writeln!(out, "F\t{tag}\t{abbr}");
+        }
+
+        let mut msg_types: Vec<&String> = self
+            .msg_not_req_xml
+            .keys()
+            .chain(self.msg_type_to_abbr.keys())
+            .chain(self.msg_type_to_component_id.keys())
+            .collect();
+        msg_types.sort();
+        msg_types.dedup();
+        for mt in msg_types {
+            let abbr = self.msg_type_to_abbr.get(mt).cloned().unwrap_or_default();
+            let cid = self
+                .msg_type_to_component_id
+                .get(mt)
+                .cloned()
+                .unwrap_or_default();
+            let nr = u8::from(*self.msg_not_req_xml.get(mt).unwrap_or(&false));
+            let _ = writeln!(out, "M\t{mt}\t{abbr}\t{cid}\t{nr}");
+        }
+
+        let mut comps: Vec<&String> = self
+            .component_name_to_id
+            .keys()
+            .chain(self.component_to_abbr.keys())
+            .chain(self.component_type.keys())
+            .collect();
+        comps.sort();
+        comps.dedup();
+        for name in comps {
+            let abbr = self.component_to_abbr.get(name).cloned().unwrap_or_default();
+            let cid = self
+                .component_name_to_id
+                .get(name)
+                .cloned()
+                .unwrap_or_default();
+            let ct = self.component_type.get(name).cloned().unwrap_or_default();
+            let _ = writeln!(out, "C\t{name}\t{abbr}\t{cid}\t{ct}");
+        }
+
+        let mut cids: Vec<&String> = self.contents.keys().collect();
+        cids.sort();
+        for cid in cids {
+            for e in &self.contents[cid] {
+                let reqd = u8::from(e.required);
+                let _ = writeln!(
+                    out,
+                    "X\t{cid}\t{}\t{}\t{}\t{reqd}",
+                    e.tag_text, e.indent, e.position
+                );
+            }
+        }
+
+        out
+    }
+
+    /// Parses the compact table format written by
+    /// [`to_compact`](Self::to_compact).
+    pub fn from_compact(raw: &str) -> Result<Self, String> {
+        let mut abbr = Self::default();
+
+        for (n, line) in raw.lines().enumerate() {
+            if line.is_empty() {
+                continue;
+            }
+            let f: Vec<&str> = line.split('\t').collect();
+            let bad = || format!("malformed FIXML abbreviation table at line {}", n + 1);
+            match f[0] {
+                "V" if f.len() == 2 => abbr.fix_version = f[1].to_string(),
+                "F" if f.len() == 3 => {
+                    let tag: Tag = f[1].parse().map_err(|_| bad())?;
+                    abbr.add_field(tag, f[2]);
+                }
+                "M" if f.len() == 5 => {
+                    if !f[2].is_empty() {
+                        abbr.add_message(f[1], f[2]);
+                    }
+                    if !f[3].is_empty() {
+                        abbr.msg_type_to_component_id
+                            .insert(f[1].to_string(), f[3].to_string());
+                    }
+                    abbr.msg_not_req_xml.insert(f[1].to_string(), f[4] == "1");
+                }
+                "C" if f.len() == 5 => {
+                    if !f[2].is_empty() {
+                        abbr.add_component(f[1], f[2]);
+                    }
+                    if !f[3].is_empty() {
+                        abbr.component_name_to_id
+                            .insert(f[1].to_string(), f[3].to_string());
+                    }
+                    if !f[4].is_empty() {
+                        abbr.component_type
+                            .insert(f[1].to_string(), f[4].to_string());
+                    }
+                }
+                "X" if f.len() == 6 => {
+                    let entry = ContentEntry {
+                        tag_text: f[2].to_string(),
+                        is_field: f[2].parse::<Tag>().is_ok(),
+                        indent: f[3].parse().map_err(|_| bad())?,
+                        position: f[4].parse().map_err(|_| bad())?,
+                        required: f[5] == "1",
+                    };
+                    abbr.contents.entry(f[1].to_string()).or_default().push(entry);
+                }
+                _ => return Err(bad()),
+            }
+        }
+
+        build_component_tags(&mut abbr);
         Ok(abbr)
     }
 
@@ -302,56 +461,105 @@ mod tests {
         assert_eq!(abbr.abbr_to_component.get("Instrmt").unwrap(), "Instrument");
     }
 
+    /// The bundled tables are the only abbreviation source most users have, so
+    /// this must exercise them directly rather than skipping when the FIX
+    /// repository is absent.
     #[test]
-    fn test_load_from_fix_repository() {
-        let base = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../karunatmp/fix_repository_2010_edition_20200402/FIX.4.4/Base"
-        );
-        if !std::path::Path::new(&format!("{base}/Fields.xml")).exists() {
-            return;
-        }
+    fn test_bundled_fix44() {
+        let abbr = FixmlAbbreviations::bundled("FIX.4.4").unwrap();
 
-        let abbr = FixmlAbbreviations::from_fix_repository(base).unwrap();
-
-        // Field abbreviations
         assert_eq!(abbr.tag_to_abbr.get(&55).unwrap(), "Sym");
         assert_eq!(abbr.tag_to_abbr.get(&44).unwrap(), "Px");
         assert_eq!(abbr.tag_to_abbr.get(&1).unwrap(), "Acct");
         assert_eq!(abbr.abbr_to_tag.get("Sym").unwrap(), &55);
 
-        // Message abbreviations
         assert_eq!(abbr.msg_type_to_abbr.get("D").unwrap(), "Order");
         assert_eq!(abbr.msg_type_to_abbr.get("8").unwrap(), "ExecRpt");
 
-        // Component abbreviations
-        assert_eq!(
-            abbr.component_to_abbr.get("Instrument").unwrap(),
-            "Instrmt"
-        );
+        assert_eq!(abbr.component_to_abbr.get("Instrument").unwrap(), "Instrmt");
         assert_eq!(abbr.component_to_abbr.get("Parties").unwrap(), "Pty");
 
-        // MsgContents structure
         let contents = abbr.msg_contents("D").unwrap();
         assert!(!contents.is_empty());
-        // First entry should be StandardHeader
         assert_eq!(contents[0].tag_text, "StandardHeader");
         assert!(!contents[0].is_field);
 
-        // Instrument component should have tag 55
         let instrmt_tags = abbr.component_tags.get("Instrument").unwrap();
         assert!(instrmt_tags.contains(&55));
-        assert!(instrmt_tags.contains(&48)); // SecurityID
+        assert!(instrmt_tags.contains(&48));
 
-        // Parties should be repeating
         assert!(abbr.is_repeating("Parties"));
         assert!(!abbr.is_repeating("Instrument"));
 
-        // NotReqXML
-        assert!(abbr.msg_not_req_xml.get("0") == Some(&true)); // Heartbeat
-        assert!(abbr.msg_not_req_xml.get("D") == Some(&false)); // NewOrderSingle
+        assert_eq!(abbr.msg_not_req_xml.get("0"), Some(&true)); // Heartbeat
+        assert_eq!(abbr.msg_not_req_xml.get("D"), Some(&false)); // NewOrderSingle
 
-        // Version
         assert_eq!(abbr.fix_version, "FIX.4.4");
+    }
+
+    #[test]
+    fn test_bundled_all_versions() {
+        for version in [
+            "FIX.4.4",
+            "FIX.5.0",
+            "FIX.5.0SP1",
+            "FIX.5.0SP2",
+            "FIXT.1.1",
+        ] {
+            let abbr = FixmlAbbreviations::bundled(version)
+                .unwrap_or_else(|e| panic!("{version}: {e}"));
+            assert_eq!(abbr.fix_version, version);
+            assert!(!abbr.tag_to_abbr.is_empty(), "{version} has no fields");
+            assert!(!abbr.contents.is_empty(), "{version} has no contents");
+        }
+    }
+
+    #[test]
+    fn test_bundled_rejects_versions_without_abbreviations() {
+        // The repository defines AbbrName only from FIX.4.4 onward; bundling a
+        // table for these would silently fall back to numeric attribute names.
+        for version in ["FIX.4.0", "FIX.4.1", "FIX.4.2", "FIX.4.3"] {
+            let err = FixmlAbbreviations::bundled(version).unwrap_err();
+            assert!(err.contains("FIX.4.4"), "unexpected error: {err}");
+        }
+        assert!(FixmlAbbreviations::bundled("FIX.9.9").is_err());
+    }
+
+    #[test]
+    fn test_compact_round_trip() {
+        let abbr = FixmlAbbreviations::bundled("FIX.4.4").unwrap();
+        let once = abbr.to_compact();
+        let reparsed = FixmlAbbreviations::from_compact(&once).unwrap();
+        assert_eq!(once, reparsed.to_compact());
+    }
+
+    /// Keeps the vendored tables honest: when the repository is available they
+    /// must reproduce exactly what is checked in. Regenerate with
+    /// `make fixml-abbr FIX_REPOSITORY=...`.
+    #[test]
+    fn test_bundled_matches_fix_repository() {
+        let repo = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../karunatmp/fix_repository_2010_edition_20200402"
+        );
+        for version in [
+            "FIX.4.4",
+            "FIX.5.0",
+            "FIX.5.0SP1",
+            "FIX.5.0SP2",
+            "FIXT.1.1",
+        ] {
+            let base = format!("{repo}/{version}/Base");
+            if !std::path::Path::new(&format!("{base}/Fields.xml")).exists() {
+                continue;
+            }
+            let from_repo = FixmlAbbreviations::from_fix_repository(&base).unwrap();
+            let bundled = FixmlAbbreviations::bundled(version).unwrap();
+            assert_eq!(
+                from_repo.to_compact(),
+                bundled.to_compact(),
+                "{version}: spec/fixml is stale, regenerate it"
+            );
+        }
     }
 }

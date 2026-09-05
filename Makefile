@@ -11,6 +11,14 @@ generate: clean
 generate-float: clean
 	cargo run -p fixer-gen -- --use-float spec/FIX40.xml spec/FIX41.xml spec/FIX42.xml spec/FIX43.xml spec/FIX44.xml spec/FIX50.xml spec/FIX50SP1.xml spec/FIX50SP2.xml -o fixer-fix/src
 
+# Regenerate the bundled FIXML abbreviation tables from a FIX repository
+# checkout. The repository is not redistributable, so spec/fixml is checked in
+# and this only needs re-running for a new repository edition.
+#   make fixml-abbr FIX_REPOSITORY=/path/to/fix_repository
+FIX_REPOSITORY ?= karunatmp/fix_repository_2010_edition_20200402
+fixml-abbr:
+	cargo run -p fixer-gen --bin fixml-abbr -- $(FIX_REPOSITORY) -o spec/fixml
+
 fmt:
 	cargo fmt --all
 

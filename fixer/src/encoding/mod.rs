@@ -8,7 +8,7 @@ pub mod json;
 pub mod tagvalue;
 
 /// Decodes raw wire bytes into a [`Message`] and encodes a [`Message`] back
-/// into wire bytes. Each FIX encoding (TagValue, JSON, FIXML, SBE, FAST, GPB)
+/// into wire bytes. Each FIX encoding (`TagValue`, JSON, FIXML, SBE, FAST, GPB)
 /// implements this trait.
 #[allow(async_fn_in_trait)] // dispatched via enum_dispatch, not used as trait object
 #[enum_dispatch]

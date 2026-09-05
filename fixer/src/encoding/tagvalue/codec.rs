@@ -3,8 +3,8 @@ use crate::encoding::Codec;
 use crate::message::{Message, ParseError};
 use std::sync::Arc;
 
-/// TagValue (classic FIX) codec — encodes/decodes the `tag=value\x01` wire
-/// format defined in ISO 11568-1 / FIX TagValue encoding.
+/// `TagValue` (classic FIX) codec — encodes/decodes the `tag=value\x01` wire
+/// format defined in ISO 11568-1 / FIX `TagValue` encoding.
 pub struct TagValueCodec;
 
 impl Codec for TagValueCodec {
