@@ -13,10 +13,15 @@ generate-float: clean
 
 # Regenerate the bundled FIXML abbreviation tables from a FIX repository
 # checkout. The repository is not redistributable, so spec/fixml is checked in
-# and this only needs re-running for a new repository edition.
-#   make fixml-abbr FIX_REPOSITORY=/path/to/fix_repository
-FIX_REPOSITORY ?= karunatmp/fix_repository_2010_edition_20200402
+# and this only needs re-running for a new repository edition. There is no
+# default path — point FIX_REPOSITORY at your own copy:
+#   make fixml-abbr FIX_REPOSITORY=/path/to/fix_repository_2010_edition_20200402
 fixml-abbr:
+	@test -n "$(FIX_REPOSITORY)" || { \
+	  echo "FIX_REPOSITORY is not set."; \
+	  echo "usage: make fixml-abbr FIX_REPOSITORY=/path/to/fix_repository"; \
+	  exit 1; \
+	}
 	cargo run -p fixer-gen --bin fixml-abbr -- $(FIX_REPOSITORY) -o spec/fixml
 
 fmt:
