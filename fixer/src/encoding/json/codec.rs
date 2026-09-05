@@ -161,39 +161,50 @@ fn encode_group(
     group_def: &FieldDef,
     dd: &DataDictionary,
 ) -> (Value, usize) {
-    // fields[0] is the counter field — parse the count.
-    let count_str = String::from_utf8_lossy(&fields[0].1);
-    let count: usize = count_str.parse().unwrap_or(0);
-
-    // Collect the set of tags that belong to this group.
+    // Every tag reachable from this group, so the run of members can be found.
     let child_tags: std::collections::HashSet<Tag> =
         group_def.child_tags().into_iter().collect();
 
-    // Determine the delimiter tag (first field in group definition).
-    let delimiter_tag = group_def
-        .fields
-        .first()
-        .map(FieldDef::tag);
+    // The delimiter is the group's first member; each occurrence starts an entry.
+    let delimiter_tag = group_def.fields.first().map(FieldDef::tag);
 
-    let mut arr = Array::with_capacity(count);
+    let mut arr = Array::new();
     let mut consumed = 1; // counter field
     let mut current_entry = Object::new();
     let mut entry_has_fields = false;
 
-    for &(tag, ref value) in &fields[1..] {
+    let mut i = 1;
+    while i < fields.len() {
+        let (tag, ref value) = fields[i];
         if !child_tags.contains(&tag) {
             break;
         }
 
         // Start a new group entry when we see the delimiter tag again.
         if Some(tag) == delimiter_tag && entry_has_fields {
-            arr.push(Value::from(current_entry));
-            current_entry = Object::new();
+            arr.push(Value::from(std::mem::replace(&mut current_entry, Object::new())));
         }
 
-        let name = field_name(dd, tag);
-        current_entry.insert(&name, encode_value(dd, tag, value));
+        // A nested group becomes a nested array. Encoding it as a plain field
+        // would write its counter and then flatten its members into this
+        // entry, where the unique-key rule drops all but the last.
+        if let Some(nested_def) = group_def
+            .fields
+            .iter()
+            .find(|fd| fd.tag() == tag)
+            .filter(|fd| fd.is_group())
+        {
+            let (nested, nested_consumed) = encode_group(&fields[i..], nested_def, dd);
+            current_entry.insert(&field_name(dd, tag), nested);
+            entry_has_fields = true;
+            i += nested_consumed;
+            consumed += nested_consumed;
+            continue;
+        }
+
+        current_entry.insert(&field_name(dd, tag), encode_value(dd, tag, value));
         entry_has_fields = true;
+        i += 1;
         consumed += 1;
     }
 
@@ -393,6 +404,7 @@ mod tests {
     use super::*;
     use crate::datadictionary::FieldType;
     use crate::fix_string::FIXString;
+    use crate::repeating_group::{RepeatingGroup, group_element};
     use crate::tag::*;
 
     /// Build a minimal DataDictionary for testing.
@@ -530,6 +542,182 @@ mod tests {
         assert_eq!(msg.body.get_string(55).unwrap(), "AAPL");
         assert_eq!(msg.body.get_int(38).unwrap(), 100);
         assert_eq!(msg.body.get_string(44).unwrap(), "150.25");
+    }
+
+    /// Real FIX 4.4 structure — the hand-built fixture has no nested groups.
+    async fn fix44_dd() -> Arc<DataDictionary> {
+        Arc::new(
+            DataDictionary::parse("../spec/FIX44.xml")
+                .await
+                .expect("FIX44.xml"),
+        )
+    }
+
+    /// Builds NewOrderList with one NoOrders entry carrying two NoPartyIDs.
+    fn new_order_list_with_nested_group() -> Message {
+        let mut msg = Message::new();
+        msg.header.set_field(TAG_MSG_TYPE, FIXString::from("E"));
+        msg.body.set_string(66, "LIST-1");
+
+        let mut orders = RepeatingGroup::new(
+            73,
+            vec![
+                group_element(11),
+                group_element(67),
+                Box::new(RepeatingGroup::new(
+                    453,
+                    vec![group_element(448), group_element(452)],
+                )),
+            ],
+        );
+        {
+            let entry = orders.add();
+            entry.field_map.set_string(11, "ORDER-1");
+            entry.field_map.set_int(67, 1);
+
+            let mut parties =
+                RepeatingGroup::new(453, vec![group_element(448), group_element(452)]);
+            for (id, role) in [("BROKER-A", 1), ("BROKER-B", 2)] {
+                let p = parties.add();
+                p.field_map.set_string(448, id);
+                p.field_map.set_int(452, role);
+            }
+            entry.field_map.set_group(parties);
+        }
+        msg.body.set_group(orders);
+        msg
+    }
+
+    /// A group nested in a group must become a nested array. It used to be
+    /// flattened into the parent entry object, where the unique-key rule
+    /// silently dropped every entry but the last.
+    #[tokio::test]
+    async fn test_json_encode_nested_group() {
+        let codec = JsonCodec::new(fix44_dd().await);
+        let mut msg = new_order_list_with_nested_group();
+
+        let encoded = codec.encode(&mut msg);
+        let json = String::from_utf8(encoded).unwrap();
+
+        assert!(json.contains("BROKER-A"), "first entry was dropped: {json}");
+        assert!(json.contains("BROKER-B"), "second entry was dropped: {json}");
+
+        let value: Value = sonic_rs::from_str(&json).unwrap();
+        let orders = value["Body"]["NoOrders"].as_array().unwrap();
+        assert_eq!(1, orders.len());
+
+        let parties = orders[0]["NoPartyIDs"]
+            .as_array()
+            .expect("NoPartyIDs must be a nested array, not flattened");
+        assert_eq!(2, parties.len());
+        assert_eq!("BROKER-A", parties[0]["PartyID"].as_str().unwrap());
+        assert_eq!("BROKER-B", parties[1]["PartyID"].as_str().unwrap());
+        assert_eq!(1, parties[0]["PartyRole"].as_i64().unwrap());
+        assert_eq!(2, parties[1]["PartyRole"].as_i64().unwrap());
+    }
+
+    /// The array length carries the count, so the NumInGroup counter is not
+    /// written — including for a nested group.
+    #[tokio::test]
+    async fn test_json_omits_group_counters() {
+        let codec = JsonCodec::new(fix44_dd().await);
+        let mut msg = new_order_list_with_nested_group();
+
+        let json = String::from_utf8(codec.encode(&mut msg)).unwrap();
+        let value: Value = sonic_rs::from_str(&json).unwrap();
+
+        assert!(value["Body"]["NoOrders"].is_array());
+        let entry = &value["Body"]["NoOrders"].as_array().unwrap()[0];
+        assert!(
+            entry["NoPartyIDs"].is_array(),
+            "NoPartyIDs must be the group itself, not its count: {json}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_json_nested_group_round_trip() {
+        let codec = JsonCodec::new(fix44_dd().await);
+        let mut msg = new_order_list_with_nested_group();
+
+        let encoded = codec.encode(&mut msg);
+        let decoded = codec
+            .decode(&bytes::Bytes::from(encoded), &None, &None)
+            .unwrap();
+
+        assert_eq!("LIST-1", decoded.body.get_string(66).unwrap());
+
+        let orders = decoded
+            .body
+            .get_group(RepeatingGroup::new(
+                73,
+                vec![
+                    group_element(11),
+                    group_element(67),
+                    Box::new(RepeatingGroup::new(
+                        453,
+                        vec![group_element(448), group_element(452)],
+                    )),
+                ],
+            ))
+            .expect("NoOrders should decode");
+        assert_eq!(1, orders.len());
+
+        let entry = orders.get(0);
+        assert_eq!(b"ORDER-1", entry.field_map.get_bytes(11).unwrap());
+
+        let parties = entry
+            .field_map
+            .get_group(RepeatingGroup::new(
+                453,
+                vec![group_element(448), group_element(452)],
+            ))
+            .expect("nested NoPartyIDs should survive the round trip");
+        assert_eq!(2, parties.len());
+        assert_eq!(b"BROKER-A", parties.get(0).field_map.get_bytes(448).unwrap());
+        assert_eq!(b"BROKER-B", parties.get(1).field_map.get_bytes(448).unwrap());
+    }
+
+    /// FIX 4.4 nests three deep: NoOrders > NoPartyIDs > NoPartySubIDs.
+    #[tokio::test]
+    async fn test_json_three_level_nested_group() {
+        let codec = JsonCodec::new(fix44_dd().await);
+
+        let mut msg = Message::new();
+        msg.header.set_field(TAG_MSG_TYPE, FIXString::from("E"));
+        msg.body.set_string(66, "LIST-1");
+
+        let mut orders = RepeatingGroup::new(73, vec![group_element(11)]);
+        {
+            let entry = orders.add();
+            entry.field_map.set_string(11, "ORDER-1");
+
+            let mut parties = RepeatingGroup::new(453, vec![group_element(448)]);
+            {
+                let party = parties.add();
+                party.field_map.set_string(448, "BROKER-A");
+
+                let mut subs =
+                    RepeatingGroup::new(802, vec![group_element(523), group_element(803)]);
+                for (id, kind) in [("SUB-1", 1), ("SUB-2", 2)] {
+                    let sub = subs.add();
+                    sub.field_map.set_string(523, id);
+                    sub.field_map.set_int(803, kind);
+                }
+                party.field_map.set_group(subs);
+            }
+            entry.field_map.set_group(parties);
+        }
+        msg.body.set_group(orders);
+
+        let json = String::from_utf8(codec.encode(&mut msg)).unwrap();
+        let value: Value = sonic_rs::from_str(&json).unwrap();
+
+        let subs = value["Body"]["NoOrders"][0]["NoPartyIDs"][0]["NoPartySubIDs"]
+            .as_array()
+            .unwrap_or_else(|| panic!("three levels should nest: {json}"));
+        assert_eq!(2, subs.len());
+        assert_eq!("SUB-1", subs[0]["PartySubID"].as_str().unwrap());
+        assert_eq!("SUB-2", subs[1]["PartySubID"].as_str().unwrap());
     }
 
     #[test]
