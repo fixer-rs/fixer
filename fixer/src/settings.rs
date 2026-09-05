@@ -250,15 +250,22 @@ impl Settings {
             }
 
             if DEFAULT_REGEX.is_match(&line) {
-                settings = s.global_settings().await;
+                // Accumulate into a fresh bag and install it when the section
+                // ends. This used to take a handle to the live global settings
+                // and write through it, which only worked because cloning a
+                // `SessionSettings` used to alias its map.
+                settings = Some(SessionSettings::new());
                 is_global_settings = true;
             } else if SESSION_REGEX.is_match(&line) {
-                if let Some(s_inner) = settings
-                    && !is_global_settings {
+                if let Some(s_inner) = settings.take() {
+                    if is_global_settings {
+                        s.overlay_global_settings(&s_inner).await;
+                    } else {
                         s.add_session(s_inner)
                             .await
                             .map_err(SimpleError::from)?;
                     }
+                }
                 settings = Some(SessionSettings::new());
                 is_global_settings = false;
             } else if SETTING_REGEX.is_match(&line) {
@@ -293,8 +300,23 @@ impl Settings {
         Ok(s)
     }
 
-    /// Returns a clone of the global (default) settings. These values are
+    /// Merges `overlay` into the global (default) settings, overwriting keys
+    /// that are already set. These values are inherited by every session
+    /// unless overridden in a `[SESSION]` block.
+    ///
+    /// Use this to configure defaults programmatically.
+    /// [`global_settings`](Self::global_settings) hands back an independent
+    /// copy, so adjusting that copy has no effect on this `Settings`.
+    pub async fn overlay_global_settings(&mut self, overlay: &SessionSettings) {
+        self.lazy_init().await;
+        self.global_settings.as_mut().unwrap().overlay(overlay);
+    }
+
+    /// Returns a copy of the global (default) settings. These values are
     /// inherited by every session unless overridden in a `[SESSION]` block.
+    ///
+    /// The copy is independent: adjusting it does not change the settings held
+    /// by this `Settings`.
     pub async fn global_settings(&mut self) -> Option<SessionSettings> {
         self.lazy_init().await;
         Some(self.global_settings.as_ref().unwrap().clone())
@@ -458,12 +480,10 @@ mod tests {
         ss2.set(TARGET_COMP_ID.to_string(), "TARGET2".to_string());
 
         let mut s = Settings::new();
-        {
-            let mut global = s.global_settings().await.unwrap();
-            global.set("HeartBtInt".to_string(), "30".to_string());
-            global.set("ResetOnLogon".to_string(), "Y".to_string());
-            s.global_settings = Some(global);
-        }
+        let mut global = SessionSettings::new();
+        global.set("HeartBtInt".to_string(), "30".to_string());
+        global.set("ResetOnLogon".to_string(), "Y".to_string());
+        s.overlay_global_settings(&global).await;
         let id1 = s.add_session(ss1).await.unwrap();
         let id2 = s.add_session(ss2).await.unwrap();
 
@@ -500,6 +520,93 @@ mod tests {
             ..Default::default()
         };
         assert!(s.session_settings_for(&unknown).is_none());
+    }
+
+    #[tokio::test]
+    async fn test_global_settings_copy_is_independent() {
+        let mut s = Settings::new();
+        let mut defaults = SessionSettings::new();
+        defaults.set("HeartBtInt".to_string(), "30".to_string());
+        s.overlay_global_settings(&defaults).await;
+
+        // Adjusting the returned copy must not edit the engine's defaults.
+        let mut copy = s.global_settings().await.unwrap();
+        copy.set("HeartBtInt".to_string(), "60".to_string());
+        copy.set("ResetOnLogon".to_string(), "Y".to_string());
+
+        let after = s.global_settings().await.unwrap();
+        assert_eq!("30", after.setting("HeartBtInt").unwrap());
+        assert!(!after.has_setting("ResetOnLogon"));
+    }
+
+    #[tokio::test]
+    async fn test_added_session_is_detached_from_caller() {
+        let mut ss = SessionSettings::new();
+        ss.set(BEGIN_STRING.to_string(), BEGIN_STRING_FIX42.to_string());
+        ss.set(SENDER_COMP_ID.to_string(), "CB".to_string());
+        ss.set(TARGET_COMP_ID.to_string(), "SS".to_string());
+        ss.set("HeartBtInt".to_string(), "30".to_string());
+
+        let mut s = Settings::new();
+        let session_id = s.add_session(ss.clone()).await.unwrap();
+
+        // Mutating the caller's copy afterwards must not reconfigure the
+        // session already registered with the engine.
+        ss.set("HeartBtInt".to_string(), "60".to_string());
+
+        let stored = s.session_settings().await;
+        let stored = stored.get(&session_id).unwrap();
+        assert_eq!("30", stored.setting("HeartBtInt").unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_parse_applies_default_section() {
+        let cfg = r"
+[DEFAULT]
+SocketAcceptPort=5001
+HeartBtInt=30
+
+[SESSION]
+BeginString=FIX.4.2
+SenderCompID=TW
+TargetCompID=ISLD
+
+[SESSION]
+BeginString=FIX.4.2
+SenderCompID=TW
+TargetCompID=ARCA
+HeartBtInt=45
+";
+        let mut s = Settings::parse(tokio::io::BufReader::new(cfg.as_bytes()))
+            .await
+            .unwrap();
+
+        // The [DEFAULT] block has to reach both the global settings and every
+        // session; parsing used to depend on SessionSettings::clone aliasing
+        // for this to happen at all.
+        let global = s.global_settings().await.unwrap();
+        assert_eq!("5001", global.setting("SocketAcceptPort").unwrap());
+        assert_eq!("30", global.setting("HeartBtInt").unwrap());
+
+        let sessions = s.session_settings().await;
+        assert_eq!(2, sessions.len());
+        for entry in &sessions {
+            assert_eq!("5001", entry.value().setting("SocketAcceptPort").unwrap());
+        }
+
+        let inherited = sessions
+            .iter()
+            .find(|e| e.key().target_comp_id == "ISLD")
+            .map(|e| e.value().setting("HeartBtInt").unwrap())
+            .unwrap();
+        assert_eq!("30", inherited, "session should inherit the default");
+
+        let overridden = sessions
+            .iter()
+            .find(|e| e.key().target_comp_id == "ARCA")
+            .map(|e| e.value().setting("HeartBtInt").unwrap())
+            .unwrap();
+        assert_eq!("45", overridden, "session should override the default");
     }
 
     #[tokio::test]
@@ -555,15 +662,10 @@ mod tests {
     #[tokio::test]
     async fn test_global_overlay() {
         let mut s = setup_test();
-        let mut global_settings = s.settings.global_settings().await;
-        global_settings
-            .as_mut()
-            .unwrap()
-            .set(BEGIN_STRING.to_string(), "FIX.4.0".to_string());
-        global_settings
-            .as_mut()
-            .unwrap()
-            .set(SOCKET_ACCEPT_PORT.to_string(), "1000".to_string());
+        let mut global_settings = SessionSettings::new();
+        global_settings.set(BEGIN_STRING.to_string(), "FIX.4.0".to_string());
+        global_settings.set(SOCKET_ACCEPT_PORT.to_string(), "1000".to_string());
+        s.settings.overlay_global_settings(&global_settings).await;
 
         let mut s1 = SessionSettings::new();
         s1.set(BEGIN_STRING.to_string(), "FIX.4.1".to_string());
