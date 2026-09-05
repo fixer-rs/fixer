@@ -531,6 +531,66 @@ impl FieldMap {
         self.content.tag_sort.tags.clone()
     }
 
+    /// Returns this map's fields in wire order, including repeating-group
+    /// members as a flat sequence.
+    ///
+    /// Works the same whether the message was parsed off the wire or built in
+    /// memory, which is the point: [`parsed_fields`](FieldMapContent::parsed_fields)
+    /// is a parse cache and is dropped on the first mutation, so code that
+    /// reads it directly sees nothing for a message the caller constructed.
+    /// Use this to walk an arbitrary `Message` generically — to serialize it
+    /// to another encoding, log it, or audit it — without caring how it was
+    /// produced.
+    ///
+    /// Takes `&mut self` because ordering is applied lazily: a built map is
+    /// sorted on demand. Nothing observable changes.
+    ///
+    /// ```
+    /// use fixer::field_map::FieldMap;
+    ///
+    /// let mut fm = FieldMap::default().init();
+    /// fm.set_string(11, "order-1");
+    /// fm.set_int(38, 100);
+    ///
+    /// let fields: Vec<_> = fm
+    ///     .ordered_fields()
+    ///     .into_iter()
+    ///     .map(|(tag, value)| (tag, String::from_utf8_lossy(value).into_owned()))
+    ///     .collect();
+    /// assert_eq!(
+    ///     vec![(11, "order-1".to_string()), (38, "100".to_string())],
+    ///     fields
+    /// );
+    /// ```
+    pub fn ordered_fields(&mut self) -> Vec<(Tag, &[u8])> {
+        // Parsed messages keep the wire sequence, which already has group
+        // members inline and in order.
+        if let Some(indices) = self.content.field_indices.as_ref() {
+            let Some(parsed) = self.content.parsed_fields.as_ref() else {
+                return Vec::new();
+            };
+            return indices
+                .iter()
+                .map(|&i| {
+                    let tv = &parsed[i as usize];
+                    (tv.tag, tv.value())
+                })
+                .collect();
+        }
+
+        // Built maps sort on demand. A group is stored as one LocalField under
+        // its counter tag holding the counter and every member, so flattening
+        // each entry restores the same sequence.
+        let tags = self.sorted_tags();
+        let mut out = Vec::with_capacity(tags.len());
+        for tag in tags {
+            if let Some(lf) = self.content.tag_lookup.get(&tag) {
+                out.extend(lf.data.iter().map(|tv| (tv.tag, tv.value())));
+            }
+        }
+        out
+    }
+
     pub fn write(&mut self, buffer: &mut Vec<u8>) {
         self.ensure_mutable();
         Self::sort_tags_in_place(&mut self.content);
@@ -598,6 +658,72 @@ impl FieldMap {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The case from issue #95: a message built in memory has no
+    /// `parsed_fields`, so anything reading that directly saw nothing. This
+    /// must work regardless of how the map was produced.
+    #[test]
+    fn test_ordered_fields_on_built_map() {
+        let mut fm = FieldMap::default().init();
+        fm.set_string(11, "order-1");
+        fm.set_string(55, "AAPL");
+        fm.set_int(38, 100);
+
+        assert!(
+            fm.content.parsed_fields.is_none(),
+            "a built map has no parse cache"
+        );
+
+        let got: Vec<(Tag, String)> = fm
+            .ordered_fields()
+            .into_iter()
+            .map(|(t, v)| (t, String::from_utf8_lossy(v).into_owned()))
+            .collect();
+        assert_eq!(
+            vec![
+                (11, "order-1".to_string()),
+                (38, "100".to_string()),
+                (55, "AAPL".to_string()),
+            ],
+            got
+        );
+    }
+
+    /// A group is stored as one entry under its counter tag; the flattened
+    /// view has to expand it back to counter followed by members.
+    #[test]
+    fn test_ordered_fields_expands_groups() {
+        use crate::repeating_group::{RepeatingGroup, group_element};
+
+        let mut fm = FieldMap::default().init();
+        fm.set_string(11, "order-1");
+
+        let mut parties = RepeatingGroup::new(453, vec![group_element(448), group_element(452)]);
+        for (id, role) in [("BROKER-A", "1"), ("BROKER-B", "2")] {
+            let e = parties.add();
+            e.field_map.set_string(448, id);
+            e.field_map.set_string(452, role);
+        }
+        fm.set_group(parties);
+
+        let got: Vec<(Tag, String)> = fm
+            .ordered_fields()
+            .into_iter()
+            .map(|(t, v)| (t, String::from_utf8_lossy(v).into_owned()))
+            .collect();
+
+        assert_eq!(
+            vec![
+                (11, "order-1".to_string()),
+                (453, "2".to_string()),
+                (448, "BROKER-A".to_string()),
+                (452, "1".to_string()),
+                (448, "BROKER-B".to_string()),
+                (452, "2".to_string()),
+            ],
+            got
+        );
+    }
 
     #[test]
     fn test_field_map_clear() {

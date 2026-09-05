@@ -171,7 +171,7 @@ impl Codec for FixmlCodec {
         xml.push('>');
 
         // Collect all body fields into a lookup for efficient access.
-        let body = collect_fields(&mut msg.body.field_map);
+        let body = msg.body.field_map.ordered_fields();
 
         // Which repeating components this message can contain, keyed by the
         // NumInGroup tag that introduces each one on the wire.
@@ -239,7 +239,7 @@ impl Codec for FixmlCodec {
             ("StandardHeader", &mut msg.header.field_map),
             ("StandardTrailer", &mut msg.trailer.field_map),
         ] {
-            let fields = collect_fields(field_map);
+            let fields = field_map.ordered_fields();
             if fields.is_empty() {
                 continue;
             }
@@ -544,7 +544,7 @@ fn collect_repeating(
 /// The counter is followed by the group's entries, which run until a tag that
 /// does not belong to the group.
 fn group_extent(
-    scope: &[(Tag, Vec<u8>)],
+    scope: &[(Tag, &[u8])],
     start: usize,
     abbr: &FixmlAbbreviations,
     component: &str,
@@ -564,7 +564,7 @@ fn group_extent(
 /// Group members repeat, so a plain map would keep only the last one and let
 /// it masquerade as a scalar field of the enclosing message or block.
 fn scope_scalars<'a>(
-    scope: &'a [(Tag, Vec<u8>)],
+    scope: &'a [(Tag, &'a [u8])],
     abbr: &FixmlAbbreviations,
     counters: &rustc_hash::FxHashMap<Tag, String>,
 ) -> rustc_hash::FxHashMap<Tag, &'a [u8]> {
@@ -575,7 +575,7 @@ fn scope_scalars<'a>(
         if let Some(component) = counters.get(&tag) {
             i = group_extent(scope, i, abbr, component);
         } else {
-            out.entry(tag).or_insert_with(|| scope[i].1.as_slice());
+            out.entry(tag).or_insert(scope[i].1);
             i += 1;
         }
     }
@@ -586,10 +586,10 @@ fn scope_scalars<'a>(
 ///
 /// `span` starts at the `NumInGroup` counter. Entries begin at each occurrence
 /// of the group's delimiter, which the FIX spec fixes as its first member.
-fn split_group_entries(
-    span: &[(Tag, Vec<u8>)],
+fn split_group_entries<'a>(
+    span: &'a [(Tag, &'a [u8])],
     delimiter: Option<Tag>,
-) -> Vec<&[(Tag, Vec<u8>)]> {
+) -> Vec<&'a [(Tag, &'a [u8])]> {
     let members = &span[1..];
     let Some(delimiter) = delimiter else {
         return if members.is_empty() {
@@ -624,7 +624,7 @@ fn encode_component(
     component_name: &str,
     xml: &mut String,
     abbr: &FixmlAbbreviations,
-    scope: &[(Tag, Vec<u8>)],
+    scope: &[(Tag, &[u8])],
     counters: &rustc_hash::FxHashMap<Tag, String>,
 ) {
     let elem_name = abbr
@@ -659,7 +659,7 @@ fn write_element(
     xml: &mut String,
     abbr: &FixmlAbbreviations,
     component_name: &str,
-    scope: &[(Tag, Vec<u8>)],
+    scope: &[(Tag, &[u8])],
     counters: &rustc_hash::FxHashMap<Tag, String>,
 ) {
     let scalars = scope_scalars(scope, abbr, counters);
@@ -710,7 +710,7 @@ fn write_element(
 fn component_has_data(
     abbr: &FixmlAbbreviations,
     component: &str,
-    scope: &[(Tag, Vec<u8>)],
+    scope: &[(Tag, &[u8])],
     scalars: &rustc_hash::FxHashMap<Tag, &[u8]>,
 ) -> bool {
     let Some(all) = abbr.component_all_tags.get(component) else {
@@ -739,31 +739,6 @@ fn write_attr(xml: &mut String, abbr: &FixmlAbbreviations, tag: Tag, value: &[u8
     xml.push_str("=\"");
     xml_escape_into(xml, &val_str);
     xml.push('"');
-}
-
-/// Collect all (tag, value bytes) pairs from a `FieldMap`, preserving order.
-fn collect_fields(fm: &mut FieldMap) -> Vec<(Tag, Vec<u8>)> {
-    if let Some(ref indices) = fm.content.field_indices {
-        let pf = fm.content.parsed_fields.as_ref().unwrap();
-        return indices
-            .iter()
-            .map(|&i| {
-                let tv = &pf[i as usize];
-                (tv.tag, tv.value().to_vec())
-            })
-            .collect();
-    }
-
-    let tags = fm.sorted_tags();
-    let mut result = Vec::new();
-    for tag in tags {
-        if let Some(lf) = fm.content.tag_lookup.get(&tag) {
-            for tv in &lf.data {
-                result.push((tv.tag, tv.value().to_vec()));
-            }
-        }
-    }
-    result
 }
 
 /// Escape special XML characters in attribute values.
