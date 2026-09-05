@@ -110,22 +110,28 @@ impl Codec for FixmlCodec {
         let mut body_children: Vec<Node> = Vec::new();
         for child in &msg_node.children {
             match child.name.as_str() {
-                "Hdr" => decode_into(
-                    &self.abbr,
-                    &child.attrs,
-                    &[],
-                    &[],
-                    &[],
-                    &mut msg.header.field_map,
-                ),
-                "Trlr" => decode_into(
-                    &self.abbr,
-                    &child.attrs,
-                    &[],
-                    &[],
-                    &[],
-                    &mut msg.trailer.field_map,
-                ),
+                "Hdr" => {
+                    let (f, c) = section_context(&self.abbr, "StandardHeader");
+                    decode_into(
+                        &self.abbr,
+                        &child.attrs,
+                        &child.children,
+                        &f,
+                        &c,
+                        &mut msg.header.field_map,
+                    );
+                }
+                "Trlr" => {
+                    let (f, c) = section_context(&self.abbr, "StandardTrailer");
+                    decode_into(
+                        &self.abbr,
+                        &child.attrs,
+                        &child.children,
+                        &f,
+                        &c,
+                        &mut msg.trailer.field_map,
+                    );
+                }
                 // Collected rather than handled one at a time: sibling elements
                 // of the same repeating component are a single group.
                 _ => body_children.push(child.clone()),
@@ -225,18 +231,29 @@ impl Codec for FixmlCodec {
             xml.push('>');
         }
 
-        // Encode header as <Hdr> sub-element.
-        let header_fields = collect_fields(&mut msg.header.field_map);
-        let header_fields: Vec<_> = header_fields
-            .into_iter()
-            .filter(|(tag, _)| !SKIP_TAGS.contains(tag))
-            .collect();
-        if !header_fields.is_empty() {
-            xml.push_str("<Hdr");
-            for (tag, value) in &header_fields {
-                write_attr(&mut xml, &self.abbr, *tag, value);
+        // Header and trailer are ordinary components (StandardHeader -> <Hdr>,
+        // StandardTrailer -> <Trlr>), so they go through the same path as the
+        // body. That matters because the header carries a repeating group of
+        // its own: Hop, for third-party routing.
+        for (component, field_map) in [
+            ("StandardHeader", &mut msg.header.field_map),
+            ("StandardTrailer", &mut msg.trailer.field_map),
+        ] {
+            let fields = collect_fields(field_map);
+            if fields.is_empty() {
+                continue;
             }
-            xml.push_str("/>");
+            let mut section_counters = rustc_hash::FxHashMap::default();
+            if let Some(contents) = self.abbr.component_contents(component) {
+                collect_repeating(
+                    &self.abbr,
+                    contents,
+                    self.abbr.member_indent(component),
+                    &mut section_counters,
+                    &mut HashSet::new(),
+                );
+            }
+            encode_component(component, &mut xml, &self.abbr, &fields, &section_counters);
         }
 
         // Close message and root.
@@ -320,6 +337,14 @@ impl XmlEventHandler for FixmlHandler {
     fn as_any(self: Box<Self>) -> Box<dyn std::any::Any> {
         self
     }
+}
+
+/// The fields and components a section allows, for name resolution.
+fn section_context(abbr: &FixmlAbbreviations, component: &str) -> (Vec<Tag>, Vec<String>) {
+    (
+        abbr.member_fields(component),
+        abbr.member_components(component),
+    )
 }
 
 /// Resolve an XML attribute name to a tag within `candidates`.
@@ -1035,6 +1060,77 @@ mod tests {
                 "Qty must not also land on tag {other}"
             );
         }
+    }
+
+    /// `Snt` is FIX.4.4's abbreviation for both SendingTime (52) and tag 629,
+    /// so header attributes need the same context-aware resolution as the body.
+    #[test]
+    fn test_fixml_decode_header_resolves_in_context() {
+        let codec = FixmlCodec::new(test_dd(), test_abbr());
+
+        let xml = r#"<FIXML v="FIX.4.4"><Order ClOrdID="ORDER-1"><Hdr SID="BUY" TID="SELL" SeqNum="4" Snt="20230912-10:30:00"/></Order></FIXML>"#;
+        let msg = codec
+            .decode(&bytes::Bytes::from(xml), &None, &None)
+            .unwrap();
+
+        assert_eq!(b"BUY", msg.header.get_bytes(TAG_SENDER_COMP_ID).unwrap());
+        assert_eq!(b"4", msg.header.get_bytes(TAG_MSG_SEQ_NUM).unwrap());
+        assert_eq!(
+            b"20230912-10:30:00",
+            msg.header.get_bytes(TAG_SENDING_TIME).unwrap(),
+            "Snt in a header is SendingTime (52), not tag 629"
+        );
+        assert!(msg.header.get_bytes(629).is_err(), "must not land on 629");
+    }
+
+    /// The header carries a repeating group of its own (Hop, for third-party
+    /// routing). `<Hdr>` used to be written as flat attributes and decoded
+    /// with its children ignored, so hops were dropped in both directions.
+    ///
+    /// `Hop` is also typed `ImplicitBlock` in the repository despite
+    /// repeating, which is why `is_repeating` goes by structure.
+    #[test]
+    fn test_fixml_header_repeating_group_round_trip() {
+        let codec = FixmlCodec::new(test_dd(), test_abbr());
+
+        let mut msg = Message::new();
+        msg.header.set_field(TAG_MSG_TYPE, FIXString::from("D"));
+        msg.header
+            .set_field(TAG_SENDER_COMP_ID, FIXString::from("BUY"));
+        msg.body.set_field(11, FIXString::from("ORDER-1"));
+
+        let template = || vec![group_element(628), group_element(629), group_element(630)];
+        let mut hops = RepeatingGroup::new(627, template());
+        for (id, reference) in [("HOP-1", "REF-1"), ("HOP-2", "REF-2")] {
+            let hop = hops.add();
+            hop.field_map.set_field(628, FIXString::from(id));
+            hop.field_map.set_field(630, FIXString::from(reference));
+        }
+        msg.header.set_group(hops);
+
+        let xml = String::from_utf8(codec.encode(&mut msg)).unwrap();
+        assert_eq!(2, xml.matches("<Hop ").count(), "expected two hops: {xml}");
+        assert!(xml.contains("HOP-1") && xml.contains("HOP-2"), "{xml}");
+        assert!(
+            !xml.contains("NoHops"),
+            "the counter is implied by the element count: {xml}"
+        );
+
+        let decoded = codec
+            .decode(&bytes::Bytes::from(xml.clone()), &None, &None)
+            .unwrap();
+        assert_eq!(
+            b"BUY",
+            decoded.header.get_bytes(TAG_SENDER_COMP_ID).unwrap()
+        );
+
+        let hops = decoded
+            .header
+            .get_group(RepeatingGroup::new(627, template()))
+            .expect("header group should survive the round trip");
+        assert_eq!(2, hops.len());
+        assert_eq!(b"HOP-1", hops.get(0).field_map.get_bytes(628).unwrap());
+        assert_eq!(b"REF-2", hops.get(1).field_map.get_bytes(630).unwrap());
     }
 
     #[test]

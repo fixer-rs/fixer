@@ -321,10 +321,21 @@ impl FixmlAbbreviations {
             .unwrap_or_default()
     }
 
+    /// Whether a component repeats, i.e. is a FIX repeating group.
+    ///
+    /// Decided by structure, not by `ComponentType`. The repository is not
+    /// consistent about the type: `Hop` is an `ImplicitBlock` yet repeats, FIX
+    /// 5.0 adds `OptimisedImplicitBlockRepeating`, and FIXT.1.1 has an
+    /// `ImplicitBlockRepeating` that does not. What every repeating component
+    /// does share is the layout — the `NumInGroup` counter at indent 0 and the
+    /// members below it.
     pub fn is_repeating(&self, component_name: &str) -> bool {
+        if let Some(entries) = self.component_contents(component_name) {
+            return entries.iter().any(|e| e.indent > 0);
+        }
         self.component_type
             .get(component_name)
-            .is_some_and(|t| t == "BlockRepeating" || t == "ImplicitBlockRepeating")
+            .is_some_and(|t| t.contains("Repeating"))
     }
 }
 
