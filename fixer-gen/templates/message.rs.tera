@@ -44,9 +44,7 @@ impl {{ name }} {
     }
 
 {% for f in fields %}
-{% if f.is_group %}
-    // TODO: group setter/getter for {{ f.name }}
-{% else %}
+
 {% if f.fixer_type == "FIXString" %}
     /// Sets `{{ f.name }}`, Tag {{ f.tag }}.
     pub fn set_{{ f.snake_name }}(&mut self, v: String) {
@@ -128,7 +126,7 @@ impl {{ name }} {
     pub fn has_{{ f.snake_name }}(&self) -> bool {
         self.message.body.has(tag::{{ f.const_name }})
     }
-{% endif %}
+
 {% endfor %}
 }
 

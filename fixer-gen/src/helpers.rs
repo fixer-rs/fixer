@@ -70,10 +70,14 @@ pub fn fixer_type(fix_xml_type: &str, use_float: bool) -> Result<FixerType, Stri
     }
 }
 
-/// Extracts the non-group required fields from a message definition.
+/// Extracts the required fields from a message definition.
 ///
 /// Ports Go's `requiredFields()`. Walks `required_parts`, pulling out
-/// non-group `FieldDef`s directly, and non-group fields from required `Component`s.
+/// `FieldDef`s directly and the required fields of required `Component`s.
+///
+/// Repeating-group counter fields (`NumInGroup`) are included: they are
+/// generated as plain integer fields, so a required group still contributes
+/// its counter to the message constructor.
 pub fn required_fields(msg_def: &MessageDef) -> Vec<&FieldDef> {
     let mut required = Vec::new();
 
@@ -82,18 +86,8 @@ pub fn required_fields(msg_def: &MessageDef) -> Vec<&FieldDef> {
             continue;
         }
         match part {
-            MessagePart::FieldDef(fd) => {
-                if !fd.is_group() {
-                    required.push(fd);
-                }
-            }
-            MessagePart::Component(c) => {
-                for f in c.required_fields() {
-                    if !f.is_group() {
-                        required.push(f);
-                    }
-                }
-            }
+            MessagePart::FieldDef(fd) => required.push(fd),
+            MessagePart::Component(c) => required.extend(c.required_fields()),
             _ => {}
         }
     }
@@ -399,10 +393,14 @@ mod tests {
         assert!(names.contains(&"Side"), "Side should be required");
         assert!(names.contains(&"OrdType"), "OrdType should be required");
 
-        // None should be groups
-        for f in &req {
-            assert!(!f.is_group(), "{} should not be a group", f.name());
-        }
+        // Required repeating-group counters are included: they are generated as
+        // plain NumInGroup integer fields and so appear in the constructor.
+        let nol = fix44.messages.get("E").expect("NewOrderList not found");
+        let names: Vec<&str> = required_fields(nol).iter().map(|f| f.name()).collect();
+        assert!(
+            names.contains(&"NoOrders"),
+            "required group counter NoOrders should be included, got {names:?}"
+        );
     }
 
     #[test]
