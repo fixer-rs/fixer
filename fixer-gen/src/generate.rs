@@ -3,6 +3,7 @@ use std::path::Path;
 
 use fixer::datadictionary::{DataDictionary, FieldDef};
 use heck::{ToSnakeCase, ToShoutySnakeCase};
+use rustc_hash::FxHashSet;
 use serde::Serialize;
 use tera::{Context, Tera};
 
@@ -181,6 +182,25 @@ struct MessageFieldInfo {
     tag: isize,
     fixer_type: String,
     is_group: bool,
+    /// For group fields, the generated element type name (e.g. `NoOrders`).
+    /// Empty for ordinary fields.
+    group_type: String,
+}
+
+/// A repeating group to generate types for.
+///
+/// One is emitted per group occurrence, including nested groups, so the member
+/// set always matches the position the group appears in.
+#[derive(Serialize)]
+struct GroupInfo {
+    name: String,
+    /// Element type name, unique within the generated module.
+    type_name: String,
+    const_name: String,
+    tag: isize,
+    /// Members in FIX declaration order. The first is the group delimiter, so
+    /// this order is load-bearing and must not be sorted.
+    fields: Vec<MessageFieldInfo>,
 }
 
 /// Info about a message for the mod.rs template.
@@ -199,7 +219,75 @@ fn build_field_info(fd: &FieldDef, global_types: &GlobalFieldTypes, use_float: b
         tag: fd.tag(),
         fixer_type: ft.as_str().to_string(),
         is_group: fd.is_group(),
+        group_type: String::new(),
     })
+}
+
+/// Walks `fds`, collecting a `GroupInfo` for every repeating group reachable
+/// from them, and returns the field infos with `group_type` filled in.
+///
+/// Nested group type names are qualified by their enclosing group
+/// (`NoOrders` -> `NoOrdersNoAllocs`) so every type is unique within the
+/// module; `used` guards against a collision between two distinct paths.
+fn collect_fields_and_groups<'a, I>(
+    fds: I,
+    prefix: &str,
+    global_types: &GlobalFieldTypes,
+    use_float: bool,
+    groups: &mut Vec<GroupInfo>,
+    used: &mut FxHashSet<String>,
+) -> Vec<MessageFieldInfo>
+where
+    I: IntoIterator<Item = &'a FieldDef>,
+{
+    let mut infos = Vec::new();
+
+    for fd in fds {
+        let Some(mut info) = build_field_info(fd, global_types, use_float) else {
+            continue;
+        };
+
+        if fd.is_group() {
+            let mut type_name = format!("{prefix}{}", fd.name());
+            let mut n = 2;
+            while !used.insert(type_name.clone()) {
+                type_name = format!("{prefix}{}{n}", fd.name());
+                n += 1;
+            }
+
+            // Declaration order matters: the first member is the delimiter.
+            let members = collect_fields_and_groups(
+                &fd.fields,
+                &type_name,
+                global_types,
+                use_float,
+                groups,
+                used,
+            );
+
+            groups.push(GroupInfo {
+                name: fd.name().to_string(),
+                const_name: fd.name().to_shouty_snake_case(),
+                tag: fd.tag(),
+                fields: members,
+                type_name: type_name.clone(),
+            });
+
+            info.group_type = type_name;
+        }
+
+        infos.push(info);
+    }
+
+    infos
+}
+
+/// True if any field in `fields` or in `groups`' members needs the given type.
+fn any_fixer_type(fields: &[MessageFieldInfo], groups: &[GroupInfo], want: &str) -> bool {
+    fields.iter().any(|f| f.fixer_type == want)
+        || groups
+            .iter()
+            .any(|g| g.fields.iter().any(|f| f.fixer_type == want))
 }
 
 /// Generate `header.rs` for a FIX version package.
@@ -210,20 +298,33 @@ pub fn generate_header(
     use_float: bool,
     output_dir: &Path,
 ) {
-    let fields: Vec<MessageFieldInfo> = spec
-        .header
-        .fields
-        .values()
-        .filter_map(|fd| build_field_info(fd, global_types, use_float))
-        .collect();
-
-    let mut sorted = fields;
+    let mut groups = Vec::new();
+    let mut used = FxHashSet::default();
+    let mut by_name: Vec<&FieldDef> = spec.header.fields.values().collect();
+    by_name.sort_by_key(|fd| fd.name());
+    let mut sorted = collect_fields_and_groups(
+        by_name,
+        "",
+        global_types,
+        use_float,
+        &mut groups,
+        &mut used,
+    );
     sorted.sort_by(|a, b| a.name.cmp(&b.name));
 
     let mut context = Context::new();
     context.insert("package", &package_name(spec));
     context.insert("begin_string", &begin_string(spec));
     context.insert("fields", &sorted);
+    context.insert("groups", &groups);
+    context.insert(
+        "needs_decimal",
+        &any_fixer_type(&sorted, &groups, "FIXDecimal"),
+    );
+    context.insert(
+        "needs_timestamp",
+        &any_fixer_type(&sorted, &groups, "FIXUTCTimestamp"),
+    );
 
     let rendered = tera
         .render("header.rs.tera", &context)
@@ -279,13 +380,20 @@ pub fn generate_message(
         .get(msg_type)
         .unwrap_or_else(|| panic!("Message type '{msg_type}' not found in spec"));
 
-    let fields: Vec<MessageFieldInfo> = msg_def
-        .fields
-        .values()
-        .filter_map(|fd| build_field_info(fd, global_types, use_float))
-        .collect();
-
-    let mut sorted = fields;
+    let mut groups = Vec::new();
+    let mut used = FxHashSet::default();
+    // Sort by name first so the generated accessors, and the group type names
+    // derived from them, are stable across runs (msg_def.fields is a hash map).
+    let mut by_name: Vec<&FieldDef> = msg_def.fields.values().collect();
+    by_name.sort_by_key(|fd| fd.name());
+    let mut sorted = collect_fields_and_groups(
+        by_name,
+        "",
+        global_types,
+        use_float,
+        &mut groups,
+        &mut used,
+    );
     sorted.sort_by(|a, b| a.name.cmp(&b.name));
 
     let req = required_fields(msg_def);
@@ -294,15 +402,8 @@ pub fn generate_message(
         .filter_map(|fd| build_field_info(fd, global_types, use_float))
         .collect();
 
-    let mut has_decimal = false;
-    let mut has_timestamp = false;
-    for f in &sorted {
-        match f.fixer_type.as_str() {
-            "FIXDecimal" => has_decimal = true,
-            "FIXUTCTimestamp" => has_timestamp = true,
-            _ => {}
-        }
-    }
+    let has_decimal = any_fixer_type(&sorted, &groups, "FIXDecimal");
+    let has_timestamp = any_fixer_type(&sorted, &groups, "FIXUTCTimestamp");
 
     let mut context = Context::new();
     context.insert("name", &msg_def.name);
@@ -310,6 +411,7 @@ pub fn generate_message(
     context.insert("msg_type", msg_type);
     context.insert("router_begin_string", &router_begin_string(spec));
     context.insert("fields", &sorted);
+    context.insert("groups", &groups);
     context.insert("required_fields", &required);
     context.insert("needs_decimal", &has_decimal);
     context.insert("needs_timestamp", &has_timestamp);

@@ -7,7 +7,9 @@
 use fixer::message::Message;
 use fixer::fix_string::FIXString;
 use fixer::errors::MessageRejectErrorEnum;
-use fixer::session::session_id::SessionID;
+use fixer::session::session_id::SessionID;{% if groups %}
+use fixer::repeating_group::{Group, GroupTemplate, RepeatingGroup, group_element};
+use std::borrow::{Borrow, BorrowMut};{% endif %}
 {% if needs_decimal %}
 use rust_decimal::Decimal;
 {% endif %}
@@ -45,7 +47,18 @@ impl {{ name }} {
 
 {% for f in fields %}
 
-{% if f.fixer_type == "FIXString" %}
+{% if f.is_group %}
+    /// Sets `{{ f.name }}`, Tag {{ f.tag }}.
+    pub fn set_{{ f.snake_name }}(&mut self, f: {{ f.group_type }}RepeatingGroup) {
+        self.message.body.set_group(f.0);
+    }
+
+    /// Gets `{{ f.name }}`, Tag {{ f.tag }}.
+    pub fn get_{{ f.snake_name }}(&self) -> Result<{{ f.group_type }}RepeatingGroup, MessageRejectErrorEnum> {
+        let g = {{ f.group_type }}RepeatingGroup::new();
+        Ok({{ f.group_type }}RepeatingGroup(self.message.body.get_group(g.0)?))
+    }
+{% elif f.fixer_type == "FIXString" %}
     /// Sets `{{ f.name }}`, Tag {{ f.tag }}.
     pub fn set_{{ f.snake_name }}(&mut self, v: String) {
         self.message.body.set_field(tag::{{ f.const_name }}, FIXString::from(v));
@@ -143,3 +156,6 @@ pub fn route(router: RouteOut) -> Route {
     };
     ("{{ router_begin_string }}", "{{ msg_type }}", Box::new(r))
 }
+{% for g in groups %}
+{{<group_types g={g}/>}}
+{% endfor %}

@@ -1,0 +1,177 @@
+{# Accessors for the members of a repeating group element.
+
+   Group members live in the element's own FieldMap rather than the message
+   body, so these mirror the message-level accessors but go through
+   `self.group()` / `self.group_mut()`. Nested groups recurse into the type
+   generated for them. #}
+{% component element_getters(f) %}
+{% if f.is_group %}
+    /// Gets `{{ f.name }}`, Tag {{ f.tag }}.
+    pub fn get_{{ f.snake_name }}(&self) -> Result<{{ f.group_type }}RepeatingGroup, MessageRejectErrorEnum> {
+        let g = {{ f.group_type }}RepeatingGroup::new();
+        Ok({{ f.group_type }}RepeatingGroup(self.group().field_map.get_group(g.0)?))
+    }
+{% elif f.fixer_type == "FIXString" %}
+    /// Gets `{{ f.name }}`, Tag {{ f.tag }}.
+    pub fn get_{{ f.snake_name }}(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::{{ f.name }}Field::new(String::new());
+        self.group().field_map.get_field(tag::{{ f.const_name }}, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+{% elif f.fixer_type == "FIXBoolean" %}
+    /// Gets `{{ f.name }}`, Tag {{ f.tag }}.
+    pub fn get_{{ f.snake_name }}(&self) -> Result<bool, MessageRejectErrorEnum> {
+        let mut fld = field::{{ f.name }}Field::new(false);
+        self.group().field_map.get_field(tag::{{ f.const_name }}, &mut fld.0)?;
+        Ok(fld.value())
+    }
+{% elif f.fixer_type == "FIXInt" %}
+    /// Gets `{{ f.name }}`, Tag {{ f.tag }}.
+    pub fn get_{{ f.snake_name }}(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::{{ f.name }}Field::new(0);
+        self.group().field_map.get_field(tag::{{ f.const_name }}, &mut fld.0)?;
+        Ok(fld.value())
+    }
+{% elif f.fixer_type == "FIXFloat" %}
+    /// Gets `{{ f.name }}`, Tag {{ f.tag }}.
+    pub fn get_{{ f.snake_name }}(&self) -> Result<f64, MessageRejectErrorEnum> {
+        let mut fld = field::{{ f.name }}Field::new(0.0);
+        self.group().field_map.get_field(tag::{{ f.const_name }}, &mut fld.0)?;
+        Ok(fld.value())
+    }
+{% elif f.fixer_type == "FIXDecimal" %}
+    /// Gets `{{ f.name }}`, Tag {{ f.tag }}.
+    pub fn get_{{ f.snake_name }}(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::{{ f.name }}Field::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::{{ f.const_name }}, &mut fld.0)?;
+        Ok(fld.value())
+    }
+{% elif f.fixer_type == "FIXUTCTimestamp" %}
+    /// Gets `{{ f.name }}`, Tag {{ f.tag }}.
+    pub fn get_{{ f.snake_name }}(&self) -> Result<Timestamp, MessageRejectErrorEnum> {
+        let mut fld = field::{{ f.name }}Field::new(Timestamp::UNIX_EPOCH);
+        self.group().field_map.get_field(tag::{{ f.const_name }}, &mut fld.0)?;
+        Ok(fld.value())
+    }
+{% endif %}
+
+    /// Returns true if `{{ f.name }}` is present, Tag {{ f.tag }}.
+    pub fn has_{{ f.snake_name }}(&self) -> bool {
+        self.group().field_map.has(tag::{{ f.const_name }})
+    }
+{% endcomponent element_getters %}
+
+{% component element_setters(f) %}
+{% if f.is_group %}
+    /// Sets `{{ f.name }}`, Tag {{ f.tag }}.
+    pub fn set_{{ f.snake_name }}(&mut self, f: {{ f.group_type }}RepeatingGroup) {
+        self.group_mut().field_map.set_group(f.0);
+    }
+{% elif f.fixer_type == "FIXString" %}
+    /// Sets `{{ f.name }}`, Tag {{ f.tag }}.
+    pub fn set_{{ f.snake_name }}(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::{{ f.const_name }}, FIXString::from(v));
+    }
+{% elif f.fixer_type == "FIXBoolean" %}
+    /// Sets `{{ f.name }}`, Tag {{ f.tag }}.
+    pub fn set_{{ f.snake_name }}(&mut self, v: bool) {
+        self.group_mut().field_map.set_field(tag::{{ f.const_name }}, fixer::fix_boolean::FIXBoolean::from(v));
+    }
+{% elif f.fixer_type == "FIXInt" %}
+    /// Sets `{{ f.name }}`, Tag {{ f.tag }}.
+    pub fn set_{{ f.snake_name }}(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::{{ f.const_name }}, fixer::fix_int::FIXInt::from(v));
+    }
+{% elif f.fixer_type == "FIXFloat" %}
+    /// Sets `{{ f.name }}`, Tag {{ f.tag }}.
+    pub fn set_{{ f.snake_name }}(&mut self, v: f64) {
+        self.group_mut().field_map.set_field(tag::{{ f.const_name }}, fixer::fix_float::FIXFloat::from(v));
+    }
+{% elif f.fixer_type == "FIXDecimal" %}
+    /// Sets `{{ f.name }}`, Tag {{ f.tag }}.
+    pub fn set_{{ f.snake_name }}(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::{{ f.const_name }}, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+{% elif f.fixer_type == "FIXUTCTimestamp" %}
+    /// Sets `{{ f.name }}`, Tag {{ f.tag }}.
+    pub fn set_{{ f.snake_name }}(&mut self, v: Timestamp) {
+        self.group_mut().field_map.set_field(tag::{{ f.const_name }}, fixer::fix_utc_timestamp::FIXUTCTimestamp {
+            time: v,
+            precision: fixer::fix_utc_timestamp::TimestampPrecision::Millis,
+        });
+    }
+{% endif %}
+{% endcomponent element_setters %}
+
+{# The element type and its RepeatingGroup wrapper.
+
+   The element is generic over how it borrows its `Group` so a single type
+   serves both `add()` (which hands out `&mut Group`) and `get()` (`&Group`);
+   the setter impl is bounded on `BorrowMut` so it only exists for the former. #}
+{% component group_types(g) %}
+/// `{{ g.name }}` is an entry in the `{{ g.name }}` repeating group, Tag {{ g.tag }}.
+pub struct {{ g.type_name }}<G>(pub G);
+
+impl<G: Borrow<Group>> {{ g.type_name }}<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+{% for f in g.fields %}
+{{<element_getters f={f}/>}}
+{% endfor %}
+}
+
+impl<G: BorrowMut<Group>> {{ g.type_name }}<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+{% for f in g.fields %}
+{{<element_setters f={f}/>}}
+{% endfor %}
+}
+
+/// `{{ g.type_name }}RepeatingGroup` is the `{{ g.name }}` repeating group, Tag {{ g.tag }}.
+pub struct {{ g.type_name }}RepeatingGroup(pub RepeatingGroup);
+
+impl {{ g.type_name }}RepeatingGroup {
+    /// Creates an empty `{{ g.name }}` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+{% for f in g.fields %}
+{% if f.is_group %}
+            Box::new({{ f.group_type }}RepeatingGroup::new().0),
+{% else %}
+            group_element(tag::{{ f.const_name }}),
+{% endif %}
+{% endfor %}
+        ];
+        Self(RepeatingGroup::new(tag::{{ g.const_name }}, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> {{ g.type_name }}<&mut Group> {
+        {{ g.type_name }}(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> {{ g.type_name }}<&Group> {
+        {{ g.type_name }}(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for {{ g.type_name }}RepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+{% endcomponent group_types %}

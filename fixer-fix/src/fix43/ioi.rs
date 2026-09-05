@@ -8,6 +8,8 @@ use fixer::message::Message;
 use fixer::fix_string::FIXString;
 use fixer::errors::MessageRejectErrorEnum;
 use fixer::session::session_id::SessionID;
+use fixer::repeating_group::{Group, GroupTemplate, RepeatingGroup, group_element};
+use std::borrow::{Borrow, BorrowMut};
 
 use rust_decimal::Decimal;
 
@@ -683,15 +685,14 @@ impl IOI {
 
 
     /// Sets `NoIOIQualifiers`, Tag 199.
-    pub fn set_no_ioi_qualifiers(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_IOI_QUALIFIERS, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_ioi_qualifiers(&mut self, f: NoIOIQualifiersRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoIOIQualifiers`, Tag 199.
-    pub fn get_no_ioi_qualifiers(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoIOIQualifiersField::new(0);
-        self.message.body.get_field(tag::NO_IOI_QUALIFIERS, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_ioi_qualifiers(&self) -> Result<NoIOIQualifiersRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoIOIQualifiersRepeatingGroup::new();
+        Ok(NoIOIQualifiersRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -704,15 +705,14 @@ impl IOI {
 
 
     /// Sets `NoRoutingIDs`, Tag 215.
-    pub fn set_no_routing_i_ds(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_ROUTING_I_DS, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_routing_i_ds(&mut self, f: NoRoutingIDsRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoRoutingIDs`, Tag 215.
-    pub fn get_no_routing_i_ds(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoRoutingIDsField::new(0);
-        self.message.body.get_field(tag::NO_ROUTING_I_DS, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_routing_i_ds(&self) -> Result<NoRoutingIDsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoRoutingIDsRepeatingGroup::new();
+        Ok(NoRoutingIDsRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -725,15 +725,14 @@ impl IOI {
 
 
     /// Sets `NoSecurityAltID`, Tag 454.
-    pub fn set_no_security_alt_id(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_SECURITY_ALT_ID, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_security_alt_id(&mut self, f: NoSecurityAltIDRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoSecurityAltID`, Tag 454.
-    pub fn get_no_security_alt_id(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoSecurityAltIDField::new(0);
-        self.message.body.get_field(tag::NO_SECURITY_ALT_ID, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_security_alt_id(&self) -> Result<NoSecurityAltIDRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoSecurityAltIDRepeatingGroup::new();
+        Ok(NoSecurityAltIDRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -1268,3 +1267,322 @@ pub fn route(router: RouteOut) -> Route {
     };
     ("FIX.4.3", "6", Box::new(r))
 }
+
+
+/// `NoIOIQualifiers` is an entry in the `NoIOIQualifiers` repeating group, Tag 199.
+pub struct NoIOIQualifiers<G>(pub G);
+
+impl<G: Borrow<Group>> NoIOIQualifiers<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `IOIQualifier`, Tag 104.
+    pub fn get_ioi_qualifier(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::IOIQualifierField::new(String::new());
+        self.group().field_map.get_field(tag::IOI_QUALIFIER, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `IOIQualifier` is present, Tag 104.
+    pub fn has_ioi_qualifier(&self) -> bool {
+        self.group().field_map.has(tag::IOI_QUALIFIER)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoIOIQualifiers<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `IOIQualifier`, Tag 104.
+    pub fn set_ioi_qualifier(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::IOI_QUALIFIER, FIXString::from(v));
+    }
+
+
+
+}
+
+/// `NoIOIQualifiersRepeatingGroup` is the `NoIOIQualifiers` repeating group, Tag 199.
+pub struct NoIOIQualifiersRepeatingGroup(pub RepeatingGroup);
+
+impl NoIOIQualifiersRepeatingGroup {
+    /// Creates an empty `NoIOIQualifiers` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::IOI_QUALIFIER),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_IOI_QUALIFIERS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoIOIQualifiers<&mut Group> {
+        NoIOIQualifiers(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoIOIQualifiers<&Group> {
+        NoIOIQualifiers(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoIOIQualifiersRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoRoutingIDs` is an entry in the `NoRoutingIDs` repeating group, Tag 215.
+pub struct NoRoutingIDs<G>(pub G);
+
+impl<G: Borrow<Group>> NoRoutingIDs<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `RoutingType`, Tag 216.
+    pub fn get_routing_type(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::RoutingTypeField::new(0);
+        self.group().field_map.get_field(tag::ROUTING_TYPE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `RoutingType` is present, Tag 216.
+    pub fn has_routing_type(&self) -> bool {
+        self.group().field_map.has(tag::ROUTING_TYPE)
+    }
+
+
+
+
+    /// Gets `RoutingID`, Tag 217.
+    pub fn get_routing_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RoutingIDField::new(String::new());
+        self.group().field_map.get_field(tag::ROUTING_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RoutingID` is present, Tag 217.
+    pub fn has_routing_id(&self) -> bool {
+        self.group().field_map.has(tag::ROUTING_ID)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoRoutingIDs<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `RoutingType`, Tag 216.
+    pub fn set_routing_type(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::ROUTING_TYPE, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `RoutingID`, Tag 217.
+    pub fn set_routing_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::ROUTING_ID, FIXString::from(v));
+    }
+
+
+
+}
+
+/// `NoRoutingIDsRepeatingGroup` is the `NoRoutingIDs` repeating group, Tag 215.
+pub struct NoRoutingIDsRepeatingGroup(pub RepeatingGroup);
+
+impl NoRoutingIDsRepeatingGroup {
+    /// Creates an empty `NoRoutingIDs` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::ROUTING_TYPE),
+
+
+
+            group_element(tag::ROUTING_ID),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_ROUTING_I_DS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoRoutingIDs<&mut Group> {
+        NoRoutingIDs(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoRoutingIDs<&Group> {
+        NoRoutingIDs(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoRoutingIDsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoSecurityAltID` is an entry in the `NoSecurityAltID` repeating group, Tag 454.
+pub struct NoSecurityAltID<G>(pub G);
+
+impl<G: Borrow<Group>> NoSecurityAltID<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `SecurityAltID`, Tag 455.
+    pub fn get_security_alt_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::SecurityAltIDField::new(String::new());
+        self.group().field_map.get_field(tag::SECURITY_ALT_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `SecurityAltID` is present, Tag 455.
+    pub fn has_security_alt_id(&self) -> bool {
+        self.group().field_map.has(tag::SECURITY_ALT_ID)
+    }
+
+
+
+
+    /// Gets `SecurityAltIDSource`, Tag 456.
+    pub fn get_security_alt_id_source(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::SecurityAltIDSourceField::new(String::new());
+        self.group().field_map.get_field(tag::SECURITY_ALT_ID_SOURCE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `SecurityAltIDSource` is present, Tag 456.
+    pub fn has_security_alt_id_source(&self) -> bool {
+        self.group().field_map.has(tag::SECURITY_ALT_ID_SOURCE)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoSecurityAltID<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `SecurityAltID`, Tag 455.
+    pub fn set_security_alt_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::SECURITY_ALT_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `SecurityAltIDSource`, Tag 456.
+    pub fn set_security_alt_id_source(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::SECURITY_ALT_ID_SOURCE, FIXString::from(v));
+    }
+
+
+
+}
+
+/// `NoSecurityAltIDRepeatingGroup` is the `NoSecurityAltID` repeating group, Tag 454.
+pub struct NoSecurityAltIDRepeatingGroup(pub RepeatingGroup);
+
+impl NoSecurityAltIDRepeatingGroup {
+    /// Creates an empty `NoSecurityAltID` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::SECURITY_ALT_ID),
+
+
+
+            group_element(tag::SECURITY_ALT_ID_SOURCE),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_SECURITY_ALT_ID, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoSecurityAltID<&mut Group> {
+        NoSecurityAltID(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoSecurityAltID<&Group> {
+        NoSecurityAltID(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoSecurityAltIDRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+

@@ -8,6 +8,8 @@ use fixer::message::Message;
 use fixer::fix_string::FIXString;
 use fixer::errors::MessageRejectErrorEnum;
 use fixer::session::session_id::SessionID;
+use fixer::repeating_group::{Group, GroupTemplate, RepeatingGroup, group_element};
+use std::borrow::{Borrow, BorrowMut};
 
 use rust_decimal::Decimal;
 
@@ -945,15 +947,14 @@ impl NewOrderSingle {
 
 
     /// Sets `NoAllocs`, Tag 78.
-    pub fn set_no_allocs(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_ALLOCS, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_allocs(&mut self, f: NoAllocsRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoAllocs`, Tag 78.
-    pub fn get_no_allocs(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoAllocsField::new(0);
-        self.message.body.get_field(tag::NO_ALLOCS, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_allocs(&self) -> Result<NoAllocsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoAllocsRepeatingGroup::new();
+        Ok(NoAllocsRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -966,15 +967,14 @@ impl NewOrderSingle {
 
 
     /// Sets `NoTradingSessions`, Tag 386.
-    pub fn set_no_trading_sessions(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_TRADING_SESSIONS, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_trading_sessions(&mut self, f: NoTradingSessionsRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoTradingSessions`, Tag 386.
-    pub fn get_no_trading_sessions(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoTradingSessionsField::new(0);
-        self.message.body.get_field(tag::NO_TRADING_SESSIONS, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_trading_sessions(&self) -> Result<NoTradingSessionsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoTradingSessionsRepeatingGroup::new();
+        Ok(NoTradingSessionsRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -1569,3 +1569,206 @@ pub fn route(router: RouteOut) -> Route {
     };
     ("FIX.4.2", "D", Box::new(r))
 }
+
+
+/// `NoAllocs` is an entry in the `NoAllocs` repeating group, Tag 78.
+pub struct NoAllocs<G>(pub G);
+
+impl<G: Borrow<Group>> NoAllocs<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `AllocAccount`, Tag 79.
+    pub fn get_alloc_account(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::AllocAccountField::new(String::new());
+        self.group().field_map.get_field(tag::ALLOC_ACCOUNT, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `AllocAccount` is present, Tag 79.
+    pub fn has_alloc_account(&self) -> bool {
+        self.group().field_map.has(tag::ALLOC_ACCOUNT)
+    }
+
+
+
+
+    /// Gets `AllocShares`, Tag 80.
+    pub fn get_alloc_shares(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::AllocSharesField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::ALLOC_SHARES, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `AllocShares` is present, Tag 80.
+    pub fn has_alloc_shares(&self) -> bool {
+        self.group().field_map.has(tag::ALLOC_SHARES)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoAllocs<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `AllocAccount`, Tag 79.
+    pub fn set_alloc_account(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::ALLOC_ACCOUNT, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `AllocShares`, Tag 80.
+    pub fn set_alloc_shares(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::ALLOC_SHARES, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+}
+
+/// `NoAllocsRepeatingGroup` is the `NoAllocs` repeating group, Tag 78.
+pub struct NoAllocsRepeatingGroup(pub RepeatingGroup);
+
+impl NoAllocsRepeatingGroup {
+    /// Creates an empty `NoAllocs` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::ALLOC_ACCOUNT),
+
+
+
+            group_element(tag::ALLOC_SHARES),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_ALLOCS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoAllocs<&mut Group> {
+        NoAllocs(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoAllocs<&Group> {
+        NoAllocs(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoAllocsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoTradingSessions` is an entry in the `NoTradingSessions` repeating group, Tag 386.
+pub struct NoTradingSessions<G>(pub G);
+
+impl<G: Borrow<Group>> NoTradingSessions<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `TradingSessionID`, Tag 336.
+    pub fn get_trading_session_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::TradingSessionIDField::new(String::new());
+        self.group().field_map.get_field(tag::TRADING_SESSION_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `TradingSessionID` is present, Tag 336.
+    pub fn has_trading_session_id(&self) -> bool {
+        self.group().field_map.has(tag::TRADING_SESSION_ID)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoTradingSessions<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `TradingSessionID`, Tag 336.
+    pub fn set_trading_session_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::TRADING_SESSION_ID, FIXString::from(v));
+    }
+
+
+
+}
+
+/// `NoTradingSessionsRepeatingGroup` is the `NoTradingSessions` repeating group, Tag 386.
+pub struct NoTradingSessionsRepeatingGroup(pub RepeatingGroup);
+
+impl NoTradingSessionsRepeatingGroup {
+    /// Creates an empty `NoTradingSessions` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::TRADING_SESSION_ID),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_TRADING_SESSIONS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoTradingSessions<&mut Group> {
+        NoTradingSessions(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoTradingSessions<&Group> {
+        NoTradingSessions(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoTradingSessionsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+

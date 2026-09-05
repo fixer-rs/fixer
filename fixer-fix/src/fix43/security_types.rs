@@ -8,6 +8,8 @@ use fixer::message::Message;
 use fixer::fix_string::FIXString;
 use fixer::errors::MessageRejectErrorEnum;
 use fixer::session::session_id::SessionID;
+use fixer::repeating_group::{Group, GroupTemplate, RepeatingGroup, group_element};
+use std::borrow::{Borrow, BorrowMut};
 
 
 use crate::field;
@@ -89,15 +91,14 @@ impl SecurityTypes {
 
 
     /// Sets `NoSecurityTypes`, Tag 558.
-    pub fn set_no_security_types(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_SECURITY_TYPES, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_security_types(&mut self, f: NoSecurityTypesRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoSecurityTypes`, Tag 558.
-    pub fn get_no_security_types(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoSecurityTypesField::new(0);
-        self.message.body.get_field(tag::NO_SECURITY_TYPES, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_security_types(&self) -> Result<NoSecurityTypesRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoSecurityTypesRepeatingGroup::new();
+        Ok(NoSecurityTypesRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -290,3 +291,148 @@ pub fn route(router: RouteOut) -> Route {
     };
     ("FIX.4.3", "w", Box::new(r))
 }
+
+
+/// `NoSecurityTypes` is an entry in the `NoSecurityTypes` repeating group, Tag 558.
+pub struct NoSecurityTypes<G>(pub G);
+
+impl<G: Borrow<Group>> NoSecurityTypes<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `SecurityType`, Tag 167.
+    pub fn get_security_type(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::SecurityTypeField::new(String::new());
+        self.group().field_map.get_field(tag::SECURITY_TYPE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `SecurityType` is present, Tag 167.
+    pub fn has_security_type(&self) -> bool {
+        self.group().field_map.has(tag::SECURITY_TYPE)
+    }
+
+
+
+
+    /// Gets `Product`, Tag 460.
+    pub fn get_product(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::ProductField::new(0);
+        self.group().field_map.get_field(tag::PRODUCT, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `Product` is present, Tag 460.
+    pub fn has_product(&self) -> bool {
+        self.group().field_map.has(tag::PRODUCT)
+    }
+
+
+
+
+    /// Gets `CFICode`, Tag 461.
+    pub fn get_cfi_code(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::CFICodeField::new(String::new());
+        self.group().field_map.get_field(tag::CFI_CODE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `CFICode` is present, Tag 461.
+    pub fn has_cfi_code(&self) -> bool {
+        self.group().field_map.has(tag::CFI_CODE)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoSecurityTypes<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `SecurityType`, Tag 167.
+    pub fn set_security_type(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::SECURITY_TYPE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `Product`, Tag 460.
+    pub fn set_product(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::PRODUCT, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `CFICode`, Tag 461.
+    pub fn set_cfi_code(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::CFI_CODE, FIXString::from(v));
+    }
+
+
+
+}
+
+/// `NoSecurityTypesRepeatingGroup` is the `NoSecurityTypes` repeating group, Tag 558.
+pub struct NoSecurityTypesRepeatingGroup(pub RepeatingGroup);
+
+impl NoSecurityTypesRepeatingGroup {
+    /// Creates an empty `NoSecurityTypes` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::SECURITY_TYPE),
+
+
+
+            group_element(tag::PRODUCT),
+
+
+
+            group_element(tag::CFI_CODE),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_SECURITY_TYPES, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoSecurityTypes<&mut Group> {
+        NoSecurityTypes(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoSecurityTypes<&Group> {
+        NoSecurityTypes(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoSecurityTypesRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+

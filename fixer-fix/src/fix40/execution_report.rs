@@ -8,6 +8,8 @@ use fixer::message::Message;
 use fixer::fix_string::FIXString;
 use fixer::errors::MessageRejectErrorEnum;
 use fixer::session::session_id::SessionID;
+use fixer::repeating_group::{Group, GroupTemplate, RepeatingGroup, group_element};
+use std::borrow::{Borrow, BorrowMut};
 
 use rust_decimal::Decimal;
 
@@ -553,15 +555,14 @@ impl ExecutionReport {
 
 
     /// Sets `NoMiscFees`, Tag 136.
-    pub fn set_no_misc_fees(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_MISC_FEES, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_misc_fees(&mut self, f: NoMiscFeesRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoMiscFees`, Tag 136.
-    pub fn get_no_misc_fees(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoMiscFeesField::new(0);
-        self.message.body.get_field(tag::NO_MISC_FEES, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_misc_fees(&self) -> Result<NoMiscFeesRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoMiscFeesRepeatingGroup::new();
+        Ok(NoMiscFeesRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -1030,3 +1031,148 @@ pub fn route(router: RouteOut) -> Route {
     };
     ("FIX.4.0", "8", Box::new(r))
 }
+
+
+/// `NoMiscFees` is an entry in the `NoMiscFees` repeating group, Tag 136.
+pub struct NoMiscFees<G>(pub G);
+
+impl<G: Borrow<Group>> NoMiscFees<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `MiscFeeAmt`, Tag 137.
+    pub fn get_misc_fee_amt(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::MiscFeeAmtField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::MISC_FEE_AMT, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `MiscFeeAmt` is present, Tag 137.
+    pub fn has_misc_fee_amt(&self) -> bool {
+        self.group().field_map.has(tag::MISC_FEE_AMT)
+    }
+
+
+
+
+    /// Gets `MiscFeeCurr`, Tag 138.
+    pub fn get_misc_fee_curr(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::MiscFeeCurrField::new(String::new());
+        self.group().field_map.get_field(tag::MISC_FEE_CURR, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `MiscFeeCurr` is present, Tag 138.
+    pub fn has_misc_fee_curr(&self) -> bool {
+        self.group().field_map.has(tag::MISC_FEE_CURR)
+    }
+
+
+
+
+    /// Gets `MiscFeeType`, Tag 139.
+    pub fn get_misc_fee_type(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::MiscFeeTypeField::new(String::new());
+        self.group().field_map.get_field(tag::MISC_FEE_TYPE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `MiscFeeType` is present, Tag 139.
+    pub fn has_misc_fee_type(&self) -> bool {
+        self.group().field_map.has(tag::MISC_FEE_TYPE)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoMiscFees<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `MiscFeeAmt`, Tag 137.
+    pub fn set_misc_fee_amt(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::MISC_FEE_AMT, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `MiscFeeCurr`, Tag 138.
+    pub fn set_misc_fee_curr(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::MISC_FEE_CURR, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `MiscFeeType`, Tag 139.
+    pub fn set_misc_fee_type(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::MISC_FEE_TYPE, FIXString::from(v));
+    }
+
+
+
+}
+
+/// `NoMiscFeesRepeatingGroup` is the `NoMiscFees` repeating group, Tag 136.
+pub struct NoMiscFeesRepeatingGroup(pub RepeatingGroup);
+
+impl NoMiscFeesRepeatingGroup {
+    /// Creates an empty `NoMiscFees` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::MISC_FEE_AMT),
+
+
+
+            group_element(tag::MISC_FEE_CURR),
+
+
+
+            group_element(tag::MISC_FEE_TYPE),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_MISC_FEES, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoMiscFees<&mut Group> {
+        NoMiscFees(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoMiscFees<&Group> {
+        NoMiscFees(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoMiscFeesRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+

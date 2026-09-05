@@ -8,6 +8,8 @@ use fixer::message::Message;
 use fixer::fix_string::FIXString;
 use fixer::errors::MessageRejectErrorEnum;
 use fixer::session::session_id::SessionID;
+use fixer::repeating_group::{Group, GroupTemplate, RepeatingGroup, group_element};
+use std::borrow::{Borrow, BorrowMut};
 
 
 use crate::field;
@@ -87,15 +89,14 @@ impl NetworkCounterpartySystemStatusRequest {
 
 
     /// Sets `NoCompIDs`, Tag 936.
-    pub fn set_no_comp_i_ds(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_COMP_I_DS, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_comp_i_ds(&mut self, f: NoCompIDsRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoCompIDs`, Tag 936.
-    pub fn get_no_comp_i_ds(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoCompIDsField::new(0);
-        self.message.body.get_field(tag::NO_COMP_I_DS, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_comp_i_ds(&self) -> Result<NoCompIDsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoCompIDsRepeatingGroup::new();
+        Ok(NoCompIDsRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -120,3 +121,177 @@ pub fn route(router: RouteOut) -> Route {
     };
     ("FIX.4.4", "BC", Box::new(r))
 }
+
+
+/// `NoCompIDs` is an entry in the `NoCompIDs` repeating group, Tag 936.
+pub struct NoCompIDs<G>(pub G);
+
+impl<G: Borrow<Group>> NoCompIDs<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `RefCompID`, Tag 930.
+    pub fn get_ref_comp_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RefCompIDField::new(String::new());
+        self.group().field_map.get_field(tag::REF_COMP_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RefCompID` is present, Tag 930.
+    pub fn has_ref_comp_id(&self) -> bool {
+        self.group().field_map.has(tag::REF_COMP_ID)
+    }
+
+
+
+
+    /// Gets `RefSubID`, Tag 931.
+    pub fn get_ref_sub_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::RefSubIDField::new(String::new());
+        self.group().field_map.get_field(tag::REF_SUB_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `RefSubID` is present, Tag 931.
+    pub fn has_ref_sub_id(&self) -> bool {
+        self.group().field_map.has(tag::REF_SUB_ID)
+    }
+
+
+
+
+    /// Gets `LocationID`, Tag 283.
+    pub fn get_location_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::LocationIDField::new(String::new());
+        self.group().field_map.get_field(tag::LOCATION_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `LocationID` is present, Tag 283.
+    pub fn has_location_id(&self) -> bool {
+        self.group().field_map.has(tag::LOCATION_ID)
+    }
+
+
+
+
+    /// Gets `DeskID`, Tag 284.
+    pub fn get_desk_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::DeskIDField::new(String::new());
+        self.group().field_map.get_field(tag::DESK_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `DeskID` is present, Tag 284.
+    pub fn has_desk_id(&self) -> bool {
+        self.group().field_map.has(tag::DESK_ID)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoCompIDs<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `RefCompID`, Tag 930.
+    pub fn set_ref_comp_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::REF_COMP_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `RefSubID`, Tag 931.
+    pub fn set_ref_sub_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::REF_SUB_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `LocationID`, Tag 283.
+    pub fn set_location_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::LOCATION_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `DeskID`, Tag 284.
+    pub fn set_desk_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::DESK_ID, FIXString::from(v));
+    }
+
+
+
+}
+
+/// `NoCompIDsRepeatingGroup` is the `NoCompIDs` repeating group, Tag 936.
+pub struct NoCompIDsRepeatingGroup(pub RepeatingGroup);
+
+impl NoCompIDsRepeatingGroup {
+    /// Creates an empty `NoCompIDs` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::REF_COMP_ID),
+
+
+
+            group_element(tag::REF_SUB_ID),
+
+
+
+            group_element(tag::LOCATION_ID),
+
+
+
+            group_element(tag::DESK_ID),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_COMP_I_DS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoCompIDs<&mut Group> {
+        NoCompIDs(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoCompIDs<&Group> {
+        NoCompIDs(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoCompIDsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+

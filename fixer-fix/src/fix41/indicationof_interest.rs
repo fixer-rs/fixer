@@ -8,6 +8,8 @@ use fixer::message::Message;
 use fixer::fix_string::FIXString;
 use fixer::errors::MessageRejectErrorEnum;
 use fixer::session::session_id::SessionID;
+use fixer::repeating_group::{Group, GroupTemplate, RepeatingGroup, group_element};
+use std::borrow::{Borrow, BorrowMut};
 
 use rust_decimal::Decimal;
 
@@ -307,15 +309,14 @@ impl IndicationofInterest {
 
 
     /// Sets `NoIOIQualifiers`, Tag 199.
-    pub fn set_no_ioi_qualifiers(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_IOI_QUALIFIERS, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_ioi_qualifiers(&mut self, f: NoIOIQualifiersRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoIOIQualifiers`, Tag 199.
-    pub fn get_no_ioi_qualifiers(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoIOIQualifiersField::new(0);
-        self.message.body.get_field(tag::NO_IOI_QUALIFIERS, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_ioi_qualifiers(&self) -> Result<NoIOIQualifiersRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoIOIQualifiersRepeatingGroup::new();
+        Ok(NoIOIQualifiersRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -661,3 +662,90 @@ pub fn route(router: RouteOut) -> Route {
     };
     ("FIX.4.1", "6", Box::new(r))
 }
+
+
+/// `NoIOIQualifiers` is an entry in the `NoIOIQualifiers` repeating group, Tag 199.
+pub struct NoIOIQualifiers<G>(pub G);
+
+impl<G: Borrow<Group>> NoIOIQualifiers<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `IOIQualifier`, Tag 104.
+    pub fn get_ioi_qualifier(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::IOIQualifierField::new(String::new());
+        self.group().field_map.get_field(tag::IOI_QUALIFIER, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `IOIQualifier` is present, Tag 104.
+    pub fn has_ioi_qualifier(&self) -> bool {
+        self.group().field_map.has(tag::IOI_QUALIFIER)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoIOIQualifiers<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `IOIQualifier`, Tag 104.
+    pub fn set_ioi_qualifier(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::IOI_QUALIFIER, FIXString::from(v));
+    }
+
+
+
+}
+
+/// `NoIOIQualifiersRepeatingGroup` is the `NoIOIQualifiers` repeating group, Tag 199.
+pub struct NoIOIQualifiersRepeatingGroup(pub RepeatingGroup);
+
+impl NoIOIQualifiersRepeatingGroup {
+    /// Creates an empty `NoIOIQualifiers` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::IOI_QUALIFIER),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_IOI_QUALIFIERS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoIOIQualifiers<&mut Group> {
+        NoIOIQualifiers(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoIOIQualifiers<&Group> {
+        NoIOIQualifiers(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoIOIQualifiersRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+

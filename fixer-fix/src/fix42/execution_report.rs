@@ -8,6 +8,8 @@ use fixer::message::Message;
 use fixer::fix_string::FIXString;
 use fixer::errors::MessageRejectErrorEnum;
 use fixer::session::session_id::SessionID;
+use fixer::repeating_group::{Group, GroupTemplate, RepeatingGroup, group_element};
+use std::borrow::{Borrow, BorrowMut};
 
 use rust_decimal::Decimal;
 
@@ -1247,15 +1249,14 @@ impl ExecutionReport {
 
 
     /// Sets `NoContraBrokers`, Tag 382.
-    pub fn set_no_contra_brokers(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_CONTRA_BROKERS, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_contra_brokers(&mut self, f: NoContraBrokersRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoContraBrokers`, Tag 382.
-    pub fn get_no_contra_brokers(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoContraBrokersField::new(0);
-        self.message.body.get_field(tag::NO_CONTRA_BROKERS, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_contra_brokers(&self) -> Result<NoContraBrokersRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoContraBrokersRepeatingGroup::new();
+        Ok(NoContraBrokersRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -2018,3 +2019,180 @@ pub fn route(router: RouteOut) -> Route {
     };
     ("FIX.4.2", "8", Box::new(r))
 }
+
+
+/// `NoContraBrokers` is an entry in the `NoContraBrokers` repeating group, Tag 382.
+pub struct NoContraBrokers<G>(pub G);
+
+impl<G: Borrow<Group>> NoContraBrokers<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `ContraBroker`, Tag 375.
+    pub fn get_contra_broker(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::ContraBrokerField::new(String::new());
+        self.group().field_map.get_field(tag::CONTRA_BROKER, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `ContraBroker` is present, Tag 375.
+    pub fn has_contra_broker(&self) -> bool {
+        self.group().field_map.has(tag::CONTRA_BROKER)
+    }
+
+
+
+
+    /// Gets `ContraTrader`, Tag 337.
+    pub fn get_contra_trader(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::ContraTraderField::new(String::new());
+        self.group().field_map.get_field(tag::CONTRA_TRADER, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `ContraTrader` is present, Tag 337.
+    pub fn has_contra_trader(&self) -> bool {
+        self.group().field_map.has(tag::CONTRA_TRADER)
+    }
+
+
+
+
+    /// Gets `ContraTradeQty`, Tag 437.
+    pub fn get_contra_trade_qty(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::ContraTradeQtyField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::CONTRA_TRADE_QTY, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `ContraTradeQty` is present, Tag 437.
+    pub fn has_contra_trade_qty(&self) -> bool {
+        self.group().field_map.has(tag::CONTRA_TRADE_QTY)
+    }
+
+
+
+
+    /// Gets `ContraTradeTime`, Tag 438.
+    pub fn get_contra_trade_time(&self) -> Result<Timestamp, MessageRejectErrorEnum> {
+        let mut fld = field::ContraTradeTimeField::new(Timestamp::UNIX_EPOCH);
+        self.group().field_map.get_field(tag::CONTRA_TRADE_TIME, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `ContraTradeTime` is present, Tag 438.
+    pub fn has_contra_trade_time(&self) -> bool {
+        self.group().field_map.has(tag::CONTRA_TRADE_TIME)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoContraBrokers<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `ContraBroker`, Tag 375.
+    pub fn set_contra_broker(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::CONTRA_BROKER, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `ContraTrader`, Tag 337.
+    pub fn set_contra_trader(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::CONTRA_TRADER, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `ContraTradeQty`, Tag 437.
+    pub fn set_contra_trade_qty(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::CONTRA_TRADE_QTY, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `ContraTradeTime`, Tag 438.
+    pub fn set_contra_trade_time(&mut self, v: Timestamp) {
+        self.group_mut().field_map.set_field(tag::CONTRA_TRADE_TIME, fixer::fix_utc_timestamp::FIXUTCTimestamp {
+            time: v,
+            precision: fixer::fix_utc_timestamp::TimestampPrecision::Millis,
+        });
+    }
+
+
+
+}
+
+/// `NoContraBrokersRepeatingGroup` is the `NoContraBrokers` repeating group, Tag 382.
+pub struct NoContraBrokersRepeatingGroup(pub RepeatingGroup);
+
+impl NoContraBrokersRepeatingGroup {
+    /// Creates an empty `NoContraBrokers` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::CONTRA_BROKER),
+
+
+
+            group_element(tag::CONTRA_TRADER),
+
+
+
+            group_element(tag::CONTRA_TRADE_QTY),
+
+
+
+            group_element(tag::CONTRA_TRADE_TIME),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_CONTRA_BROKERS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoContraBrokers<&mut Group> {
+        NoContraBrokers(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoContraBrokers<&Group> {
+        NoContraBrokers(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoContraBrokersRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+

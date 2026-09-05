@@ -115,10 +115,20 @@ impl RepeatingGroup {
     }
 
     // add appends a new group to the RepeatingGroup and returns the new Group.
+    //
+    // The new Group is given this group's template ordering, the same one
+    // `read` installs. Without it the entry would serialize in ascending tag
+    // order, which puts the delimiter second whenever it is not the lowest tag
+    // in the entry (e.g. NoPartyIDs, delimited by PartyID 448 but also
+    // carrying PartyIDSource 447) and yields a message peers cannot parse.
     pub fn add(&mut self) -> &mut Group {
-        self.groups.push(Group {
+        let mut group = Group {
             field_map: FieldMap::default(),
-        });
+        };
+        group
+            .field_map
+            .init_with_ordering(TagOrderType::RepeatingGroup(self.tag_order.clone()));
+        self.groups.push(group);
         self.groups.last_mut().unwrap()
     }
 
@@ -512,6 +522,23 @@ mod tests {
                 }
             }
         }
+    }
+
+    // Entries created with `add` must serialize in template order, not
+    // ascending tag order: the delimiter has to come first even when it is not
+    // the lowest tag in the entry.
+    #[test]
+    fn test_repeating_group_add_uses_template_order() {
+        let mut f = RepeatingGroup::new(453, vec![group_element(448), group_element(447)]);
+
+        let group = f.add();
+        // Set the lower tag first, so ascending order would be observable.
+        group.field_map.set_field(447, FIXString::from("D"));
+        group.field_map.set_field(448, FIXString::from("BROKER-A"));
+
+        let tvs = f.write();
+        let tags: Vec<Tag> = tvs.data.iter().map(|tv| tv.tag).collect();
+        assert_eq!(vec![453, 448, 447], tags);
     }
 
     #[test]

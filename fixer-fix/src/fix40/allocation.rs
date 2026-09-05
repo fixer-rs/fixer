@@ -8,6 +8,8 @@ use fixer::message::Message;
 use fixer::fix_string::FIXString;
 use fixer::errors::MessageRejectErrorEnum;
 use fixer::session::session_id::SessionID;
+use fixer::repeating_group::{Group, GroupTemplate, RepeatingGroup, group_element};
+use std::borrow::{Borrow, BorrowMut};
 
 use rust_decimal::Decimal;
 
@@ -24,15 +26,13 @@ pub struct Allocation {
 
 impl Allocation {
     /// Creates a new `Allocation` with required fields.
-    pub fn new(alloc_id: field::AllocIDField, alloc_trans_type: field::AllocTransTypeField, no_orders: field::NoOrdersField, side: field::SideField, symbol: field::SymbolField, shares: field::SharesField, avg_px: field::AvgPxField, trade_date: field::TradeDateField, no_allocs: field::NoAllocsField) -> Self {
+    pub fn new(alloc_id: field::AllocIDField, alloc_trans_type: field::AllocTransTypeField, side: field::SideField, symbol: field::SymbolField, shares: field::SharesField, avg_px: field::AvgPxField, trade_date: field::TradeDateField) -> Self {
         let mut msg = Message::new();
         msg.header.set_field(tag::MSG_TYPE, FIXString::from("J".to_string()));
 
         msg.body.set_field(tag::ALLOC_ID, alloc_id.0);
 
         msg.body.set_field(tag::ALLOC_TRANS_TYPE, alloc_trans_type.0);
-
-        msg.body.set_field(tag::NO_ORDERS, no_orders.0);
 
         msg.body.set_field(tag::SIDE, side.0);
 
@@ -43,8 +43,6 @@ impl Allocation {
         msg.body.set_field(tag::AVG_PX, avg_px.0);
 
         msg.body.set_field(tag::TRADE_DATE, trade_date.0);
-
-        msg.body.set_field(tag::NO_ALLOCS, no_allocs.0);
 
         Self { message: msg }
     }
@@ -252,15 +250,14 @@ impl Allocation {
 
 
     /// Sets `NoAllocs`, Tag 78.
-    pub fn set_no_allocs(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_ALLOCS, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_allocs(&mut self, f: NoAllocsRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoAllocs`, Tag 78.
-    pub fn get_no_allocs(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoAllocsField::new(0);
-        self.message.body.get_field(tag::NO_ALLOCS, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_allocs(&self) -> Result<NoAllocsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoAllocsRepeatingGroup::new();
+        Ok(NoAllocsRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -273,15 +270,14 @@ impl Allocation {
 
 
     /// Sets `NoExecs`, Tag 124.
-    pub fn set_no_execs(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_EXECS, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_execs(&mut self, f: NoExecsRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoExecs`, Tag 124.
-    pub fn get_no_execs(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoExecsField::new(0);
-        self.message.body.get_field(tag::NO_EXECS, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_execs(&self) -> Result<NoExecsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoExecsRepeatingGroup::new();
+        Ok(NoExecsRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -294,15 +290,14 @@ impl Allocation {
 
 
     /// Sets `NoMiscFees`, Tag 136.
-    pub fn set_no_misc_fees(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_MISC_FEES, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_misc_fees(&mut self, f: NoMiscFeesRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoMiscFees`, Tag 136.
-    pub fn get_no_misc_fees(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoMiscFeesField::new(0);
-        self.message.body.get_field(tag::NO_MISC_FEES, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_misc_fees(&self) -> Result<NoMiscFeesRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoMiscFeesRepeatingGroup::new();
+        Ok(NoMiscFeesRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -315,15 +310,14 @@ impl Allocation {
 
 
     /// Sets `NoOrders`, Tag 73.
-    pub fn set_no_orders(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_ORDERS, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_orders(&mut self, f: NoOrdersRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoOrders`, Tag 73.
-    pub fn get_no_orders(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoOrdersField::new(0);
-        self.message.body.get_field(tag::NO_ORDERS, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_orders(&self) -> Result<NoOrdersRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoOrdersRepeatingGroup::new();
+        Ok(NoOrdersRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -645,3 +639,844 @@ pub fn route(router: RouteOut) -> Route {
     };
     ("FIX.4.0", "J", Box::new(r))
 }
+
+
+/// `NoAllocs` is an entry in the `NoAllocs` repeating group, Tag 78.
+pub struct NoAllocs<G>(pub G);
+
+impl<G: Borrow<Group>> NoAllocs<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `AllocAccount`, Tag 79.
+    pub fn get_alloc_account(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::AllocAccountField::new(String::new());
+        self.group().field_map.get_field(tag::ALLOC_ACCOUNT, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `AllocAccount` is present, Tag 79.
+    pub fn has_alloc_account(&self) -> bool {
+        self.group().field_map.has(tag::ALLOC_ACCOUNT)
+    }
+
+
+
+
+    /// Gets `AllocShares`, Tag 80.
+    pub fn get_alloc_shares(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::AllocSharesField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::ALLOC_SHARES, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `AllocShares` is present, Tag 80.
+    pub fn has_alloc_shares(&self) -> bool {
+        self.group().field_map.has(tag::ALLOC_SHARES)
+    }
+
+
+
+
+    /// Gets `ProcessCode`, Tag 81.
+    pub fn get_process_code(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::ProcessCodeField::new(String::new());
+        self.group().field_map.get_field(tag::PROCESS_CODE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `ProcessCode` is present, Tag 81.
+    pub fn has_process_code(&self) -> bool {
+        self.group().field_map.has(tag::PROCESS_CODE)
+    }
+
+
+
+
+    /// Gets `ExecBroker`, Tag 76.
+    pub fn get_exec_broker(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::ExecBrokerField::new(String::new());
+        self.group().field_map.get_field(tag::EXEC_BROKER, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `ExecBroker` is present, Tag 76.
+    pub fn has_exec_broker(&self) -> bool {
+        self.group().field_map.has(tag::EXEC_BROKER)
+    }
+
+
+
+
+    /// Gets `ClientID`, Tag 109.
+    pub fn get_client_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::ClientIDField::new(String::new());
+        self.group().field_map.get_field(tag::CLIENT_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `ClientID` is present, Tag 109.
+    pub fn has_client_id(&self) -> bool {
+        self.group().field_map.has(tag::CLIENT_ID)
+    }
+
+
+
+
+    /// Gets `Commission`, Tag 12.
+    pub fn get_commission(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::CommissionField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::COMMISSION, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `Commission` is present, Tag 12.
+    pub fn has_commission(&self) -> bool {
+        self.group().field_map.has(tag::COMMISSION)
+    }
+
+
+
+
+    /// Gets `CommType`, Tag 13.
+    pub fn get_comm_type(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::CommTypeField::new(String::new());
+        self.group().field_map.get_field(tag::COMM_TYPE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `CommType` is present, Tag 13.
+    pub fn has_comm_type(&self) -> bool {
+        self.group().field_map.has(tag::COMM_TYPE)
+    }
+
+
+
+
+    /// Gets `NoDlvyInst`, Tag 85.
+    pub fn get_no_dlvy_inst(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::NoDlvyInstField::new(0);
+        self.group().field_map.get_field(tag::NO_DLVY_INST, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `NoDlvyInst` is present, Tag 85.
+    pub fn has_no_dlvy_inst(&self) -> bool {
+        self.group().field_map.has(tag::NO_DLVY_INST)
+    }
+
+
+
+
+    /// Gets `BrokerOfCredit`, Tag 92.
+    pub fn get_broker_of_credit(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::BrokerOfCreditField::new(String::new());
+        self.group().field_map.get_field(tag::BROKER_OF_CREDIT, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `BrokerOfCredit` is present, Tag 92.
+    pub fn has_broker_of_credit(&self) -> bool {
+        self.group().field_map.has(tag::BROKER_OF_CREDIT)
+    }
+
+
+
+
+    /// Gets `DlvyInst`, Tag 86.
+    pub fn get_dlvy_inst(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::DlvyInstField::new(String::new());
+        self.group().field_map.get_field(tag::DLVY_INST, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `DlvyInst` is present, Tag 86.
+    pub fn has_dlvy_inst(&self) -> bool {
+        self.group().field_map.has(tag::DLVY_INST)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoAllocs<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `AllocAccount`, Tag 79.
+    pub fn set_alloc_account(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::ALLOC_ACCOUNT, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `AllocShares`, Tag 80.
+    pub fn set_alloc_shares(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::ALLOC_SHARES, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `ProcessCode`, Tag 81.
+    pub fn set_process_code(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::PROCESS_CODE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `ExecBroker`, Tag 76.
+    pub fn set_exec_broker(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::EXEC_BROKER, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `ClientID`, Tag 109.
+    pub fn set_client_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::CLIENT_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `Commission`, Tag 12.
+    pub fn set_commission(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::COMMISSION, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `CommType`, Tag 13.
+    pub fn set_comm_type(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::COMM_TYPE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `NoDlvyInst`, Tag 85.
+    pub fn set_no_dlvy_inst(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::NO_DLVY_INST, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `BrokerOfCredit`, Tag 92.
+    pub fn set_broker_of_credit(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::BROKER_OF_CREDIT, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `DlvyInst`, Tag 86.
+    pub fn set_dlvy_inst(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::DLVY_INST, FIXString::from(v));
+    }
+
+
+
+}
+
+/// `NoAllocsRepeatingGroup` is the `NoAllocs` repeating group, Tag 78.
+pub struct NoAllocsRepeatingGroup(pub RepeatingGroup);
+
+impl NoAllocsRepeatingGroup {
+    /// Creates an empty `NoAllocs` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::ALLOC_ACCOUNT),
+
+
+
+            group_element(tag::ALLOC_SHARES),
+
+
+
+            group_element(tag::PROCESS_CODE),
+
+
+
+            group_element(tag::EXEC_BROKER),
+
+
+
+            group_element(tag::CLIENT_ID),
+
+
+
+            group_element(tag::COMMISSION),
+
+
+
+            group_element(tag::COMM_TYPE),
+
+
+
+            group_element(tag::NO_DLVY_INST),
+
+
+
+            group_element(tag::BROKER_OF_CREDIT),
+
+
+
+            group_element(tag::DLVY_INST),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_ALLOCS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoAllocs<&mut Group> {
+        NoAllocs(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoAllocs<&Group> {
+        NoAllocs(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoAllocsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoExecs` is an entry in the `NoExecs` repeating group, Tag 124.
+pub struct NoExecs<G>(pub G);
+
+impl<G: Borrow<Group>> NoExecs<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `ExecID`, Tag 17.
+    pub fn get_exec_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::ExecIDField::new(String::new());
+        self.group().field_map.get_field(tag::EXEC_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `ExecID` is present, Tag 17.
+    pub fn has_exec_id(&self) -> bool {
+        self.group().field_map.has(tag::EXEC_ID)
+    }
+
+
+
+
+    /// Gets `LastShares`, Tag 32.
+    pub fn get_last_shares(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::LastSharesField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::LAST_SHARES, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `LastShares` is present, Tag 32.
+    pub fn has_last_shares(&self) -> bool {
+        self.group().field_map.has(tag::LAST_SHARES)
+    }
+
+
+
+
+    /// Gets `LastPx`, Tag 31.
+    pub fn get_last_px(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::LastPxField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::LAST_PX, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `LastPx` is present, Tag 31.
+    pub fn has_last_px(&self) -> bool {
+        self.group().field_map.has(tag::LAST_PX)
+    }
+
+
+
+
+    /// Gets `LastMkt`, Tag 30.
+    pub fn get_last_mkt(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::LastMktField::new(String::new());
+        self.group().field_map.get_field(tag::LAST_MKT, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `LastMkt` is present, Tag 30.
+    pub fn has_last_mkt(&self) -> bool {
+        self.group().field_map.has(tag::LAST_MKT)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoExecs<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `ExecID`, Tag 17.
+    pub fn set_exec_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::EXEC_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `LastShares`, Tag 32.
+    pub fn set_last_shares(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::LAST_SHARES, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `LastPx`, Tag 31.
+    pub fn set_last_px(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::LAST_PX, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `LastMkt`, Tag 30.
+    pub fn set_last_mkt(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::LAST_MKT, FIXString::from(v));
+    }
+
+
+
+}
+
+/// `NoExecsRepeatingGroup` is the `NoExecs` repeating group, Tag 124.
+pub struct NoExecsRepeatingGroup(pub RepeatingGroup);
+
+impl NoExecsRepeatingGroup {
+    /// Creates an empty `NoExecs` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::EXEC_ID),
+
+
+
+            group_element(tag::LAST_SHARES),
+
+
+
+            group_element(tag::LAST_PX),
+
+
+
+            group_element(tag::LAST_MKT),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_EXECS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoExecs<&mut Group> {
+        NoExecs(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoExecs<&Group> {
+        NoExecs(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoExecsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoMiscFees` is an entry in the `NoMiscFees` repeating group, Tag 136.
+pub struct NoMiscFees<G>(pub G);
+
+impl<G: Borrow<Group>> NoMiscFees<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `MiscFeeAmt`, Tag 137.
+    pub fn get_misc_fee_amt(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::MiscFeeAmtField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::MISC_FEE_AMT, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `MiscFeeAmt` is present, Tag 137.
+    pub fn has_misc_fee_amt(&self) -> bool {
+        self.group().field_map.has(tag::MISC_FEE_AMT)
+    }
+
+
+
+
+    /// Gets `MiscFeeCurr`, Tag 138.
+    pub fn get_misc_fee_curr(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::MiscFeeCurrField::new(String::new());
+        self.group().field_map.get_field(tag::MISC_FEE_CURR, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `MiscFeeCurr` is present, Tag 138.
+    pub fn has_misc_fee_curr(&self) -> bool {
+        self.group().field_map.has(tag::MISC_FEE_CURR)
+    }
+
+
+
+
+    /// Gets `MiscFeeType`, Tag 139.
+    pub fn get_misc_fee_type(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::MiscFeeTypeField::new(String::new());
+        self.group().field_map.get_field(tag::MISC_FEE_TYPE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `MiscFeeType` is present, Tag 139.
+    pub fn has_misc_fee_type(&self) -> bool {
+        self.group().field_map.has(tag::MISC_FEE_TYPE)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoMiscFees<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `MiscFeeAmt`, Tag 137.
+    pub fn set_misc_fee_amt(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::MISC_FEE_AMT, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `MiscFeeCurr`, Tag 138.
+    pub fn set_misc_fee_curr(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::MISC_FEE_CURR, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `MiscFeeType`, Tag 139.
+    pub fn set_misc_fee_type(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::MISC_FEE_TYPE, FIXString::from(v));
+    }
+
+
+
+}
+
+/// `NoMiscFeesRepeatingGroup` is the `NoMiscFees` repeating group, Tag 136.
+pub struct NoMiscFeesRepeatingGroup(pub RepeatingGroup);
+
+impl NoMiscFeesRepeatingGroup {
+    /// Creates an empty `NoMiscFees` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::MISC_FEE_AMT),
+
+
+
+            group_element(tag::MISC_FEE_CURR),
+
+
+
+            group_element(tag::MISC_FEE_TYPE),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_MISC_FEES, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoMiscFees<&mut Group> {
+        NoMiscFees(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoMiscFees<&Group> {
+        NoMiscFees(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoMiscFeesRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+/// `NoOrders` is an entry in the `NoOrders` repeating group, Tag 73.
+pub struct NoOrders<G>(pub G);
+
+impl<G: Borrow<Group>> NoOrders<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `ClOrdID`, Tag 11.
+    pub fn get_cl_ord_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::ClOrdIDField::new(String::new());
+        self.group().field_map.get_field(tag::CL_ORD_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `ClOrdID` is present, Tag 11.
+    pub fn has_cl_ord_id(&self) -> bool {
+        self.group().field_map.has(tag::CL_ORD_ID)
+    }
+
+
+
+
+    /// Gets `OrderID`, Tag 37.
+    pub fn get_order_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::OrderIDField::new(String::new());
+        self.group().field_map.get_field(tag::ORDER_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `OrderID` is present, Tag 37.
+    pub fn has_order_id(&self) -> bool {
+        self.group().field_map.has(tag::ORDER_ID)
+    }
+
+
+
+
+    /// Gets `ListID`, Tag 66.
+    pub fn get_list_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::ListIDField::new(String::new());
+        self.group().field_map.get_field(tag::LIST_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `ListID` is present, Tag 66.
+    pub fn has_list_id(&self) -> bool {
+        self.group().field_map.has(tag::LIST_ID)
+    }
+
+
+
+
+    /// Gets `WaveNo`, Tag 105.
+    pub fn get_wave_no(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::WaveNoField::new(String::new());
+        self.group().field_map.get_field(tag::WAVE_NO, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `WaveNo` is present, Tag 105.
+    pub fn has_wave_no(&self) -> bool {
+        self.group().field_map.has(tag::WAVE_NO)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoOrders<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `ClOrdID`, Tag 11.
+    pub fn set_cl_ord_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::CL_ORD_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `OrderID`, Tag 37.
+    pub fn set_order_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::ORDER_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `ListID`, Tag 66.
+    pub fn set_list_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::LIST_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `WaveNo`, Tag 105.
+    pub fn set_wave_no(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::WAVE_NO, FIXString::from(v));
+    }
+
+
+
+}
+
+/// `NoOrdersRepeatingGroup` is the `NoOrders` repeating group, Tag 73.
+pub struct NoOrdersRepeatingGroup(pub RepeatingGroup);
+
+impl NoOrdersRepeatingGroup {
+    /// Creates an empty `NoOrders` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::CL_ORD_ID),
+
+
+
+            group_element(tag::ORDER_ID),
+
+
+
+            group_element(tag::LIST_ID),
+
+
+
+            group_element(tag::WAVE_NO),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_ORDERS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoOrders<&mut Group> {
+        NoOrders(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoOrders<&Group> {
+        NoOrders(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoOrdersRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+

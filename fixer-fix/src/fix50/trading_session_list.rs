@@ -8,7 +8,13 @@ use fixer::message::Message;
 use fixer::fix_string::FIXString;
 use fixer::errors::MessageRejectErrorEnum;
 use fixer::session::session_id::SessionID;
+use fixer::repeating_group::{Group, GroupTemplate, RepeatingGroup, group_element};
+use std::borrow::{Borrow, BorrowMut};
 
+use rust_decimal::Decimal;
+
+
+use jiff::Timestamp;
 
 use crate::field;
 use crate::tag;
@@ -20,11 +26,9 @@ pub struct TradingSessionList {
 
 impl TradingSessionList {
     /// Creates a new `TradingSessionList` with required fields.
-    pub fn new(no_trading_sessions: field::NoTradingSessionsField) -> Self {
+    pub fn new() -> Self {
         let mut msg = Message::new();
         msg.header.set_field(tag::MSG_TYPE, FIXString::from("BJ".to_string()));
-
-        msg.body.set_field(tag::NO_TRADING_SESSIONS, no_trading_sessions.0);
 
         Self { message: msg }
     }
@@ -43,15 +47,14 @@ impl TradingSessionList {
 
 
     /// Sets `NoTradingSessions`, Tag 386.
-    pub fn set_no_trading_sessions(&mut self, v: isize) {
-        self.message.body.set_field(tag::NO_TRADING_SESSIONS, fixer::fix_int::FIXInt::from(v));
+    pub fn set_no_trading_sessions(&mut self, f: NoTradingSessionsRepeatingGroup) {
+        self.message.body.set_group(f.0);
     }
 
     /// Gets `NoTradingSessions`, Tag 386.
-    pub fn get_no_trading_sessions(&self) -> Result<isize, MessageRejectErrorEnum> {
-        let mut fld = field::NoTradingSessionsField::new(0);
-        self.message.body.get_field(tag::NO_TRADING_SESSIONS, &mut fld.0)?;
-        Ok(fld.value())
+    pub fn get_no_trading_sessions(&self) -> Result<NoTradingSessionsRepeatingGroup, MessageRejectErrorEnum> {
+        let g = NoTradingSessionsRepeatingGroup::new();
+        Ok(NoTradingSessionsRepeatingGroup(self.message.body.get_group(g.0)?))
     }
 
 
@@ -97,3 +100,569 @@ pub fn route(router: RouteOut) -> Route {
     };
     ("7", "BJ", Box::new(r))
 }
+
+
+/// `NoTradingSessions` is an entry in the `NoTradingSessions` repeating group, Tag 386.
+pub struct NoTradingSessions<G>(pub G);
+
+impl<G: Borrow<Group>> NoTradingSessions<G> {
+    fn group(&self) -> &Group {
+        self.0.borrow()
+    }
+
+
+
+    /// Gets `TradingSessionID`, Tag 336.
+    pub fn get_trading_session_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::TradingSessionIDField::new(String::new());
+        self.group().field_map.get_field(tag::TRADING_SESSION_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `TradingSessionID` is present, Tag 336.
+    pub fn has_trading_session_id(&self) -> bool {
+        self.group().field_map.has(tag::TRADING_SESSION_ID)
+    }
+
+
+
+
+    /// Gets `TradingSessionSubID`, Tag 625.
+    pub fn get_trading_session_sub_id(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::TradingSessionSubIDField::new(String::new());
+        self.group().field_map.get_field(tag::TRADING_SESSION_SUB_ID, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `TradingSessionSubID` is present, Tag 625.
+    pub fn has_trading_session_sub_id(&self) -> bool {
+        self.group().field_map.has(tag::TRADING_SESSION_SUB_ID)
+    }
+
+
+
+
+    /// Gets `SecurityExchange`, Tag 207.
+    pub fn get_security_exchange(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::SecurityExchangeField::new(String::new());
+        self.group().field_map.get_field(tag::SECURITY_EXCHANGE, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `SecurityExchange` is present, Tag 207.
+    pub fn has_security_exchange(&self) -> bool {
+        self.group().field_map.has(tag::SECURITY_EXCHANGE)
+    }
+
+
+
+
+    /// Gets `TradSesMethod`, Tag 338.
+    pub fn get_trad_ses_method(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::TradSesMethodField::new(0);
+        self.group().field_map.get_field(tag::TRAD_SES_METHOD, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `TradSesMethod` is present, Tag 338.
+    pub fn has_trad_ses_method(&self) -> bool {
+        self.group().field_map.has(tag::TRAD_SES_METHOD)
+    }
+
+
+
+
+    /// Gets `TradSesMode`, Tag 339.
+    pub fn get_trad_ses_mode(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::TradSesModeField::new(0);
+        self.group().field_map.get_field(tag::TRAD_SES_MODE, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `TradSesMode` is present, Tag 339.
+    pub fn has_trad_ses_mode(&self) -> bool {
+        self.group().field_map.has(tag::TRAD_SES_MODE)
+    }
+
+
+
+
+    /// Gets `UnsolicitedIndicator`, Tag 325.
+    pub fn get_unsolicited_indicator(&self) -> Result<bool, MessageRejectErrorEnum> {
+        let mut fld = field::UnsolicitedIndicatorField::new(false);
+        self.group().field_map.get_field(tag::UNSOLICITED_INDICATOR, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `UnsolicitedIndicator` is present, Tag 325.
+    pub fn has_unsolicited_indicator(&self) -> bool {
+        self.group().field_map.has(tag::UNSOLICITED_INDICATOR)
+    }
+
+
+
+
+    /// Gets `TradSesStatus`, Tag 340.
+    pub fn get_trad_ses_status(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::TradSesStatusField::new(0);
+        self.group().field_map.get_field(tag::TRAD_SES_STATUS, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `TradSesStatus` is present, Tag 340.
+    pub fn has_trad_ses_status(&self) -> bool {
+        self.group().field_map.has(tag::TRAD_SES_STATUS)
+    }
+
+
+
+
+    /// Gets `TradSesStatusRejReason`, Tag 567.
+    pub fn get_trad_ses_status_rej_reason(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::TradSesStatusRejReasonField::new(0);
+        self.group().field_map.get_field(tag::TRAD_SES_STATUS_REJ_REASON, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `TradSesStatusRejReason` is present, Tag 567.
+    pub fn has_trad_ses_status_rej_reason(&self) -> bool {
+        self.group().field_map.has(tag::TRAD_SES_STATUS_REJ_REASON)
+    }
+
+
+
+
+    /// Gets `TradSesStartTime`, Tag 341.
+    pub fn get_trad_ses_start_time(&self) -> Result<Timestamp, MessageRejectErrorEnum> {
+        let mut fld = field::TradSesStartTimeField::new(Timestamp::UNIX_EPOCH);
+        self.group().field_map.get_field(tag::TRAD_SES_START_TIME, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `TradSesStartTime` is present, Tag 341.
+    pub fn has_trad_ses_start_time(&self) -> bool {
+        self.group().field_map.has(tag::TRAD_SES_START_TIME)
+    }
+
+
+
+
+    /// Gets `TradSesOpenTime`, Tag 342.
+    pub fn get_trad_ses_open_time(&self) -> Result<Timestamp, MessageRejectErrorEnum> {
+        let mut fld = field::TradSesOpenTimeField::new(Timestamp::UNIX_EPOCH);
+        self.group().field_map.get_field(tag::TRAD_SES_OPEN_TIME, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `TradSesOpenTime` is present, Tag 342.
+    pub fn has_trad_ses_open_time(&self) -> bool {
+        self.group().field_map.has(tag::TRAD_SES_OPEN_TIME)
+    }
+
+
+
+
+    /// Gets `TradSesPreCloseTime`, Tag 343.
+    pub fn get_trad_ses_pre_close_time(&self) -> Result<Timestamp, MessageRejectErrorEnum> {
+        let mut fld = field::TradSesPreCloseTimeField::new(Timestamp::UNIX_EPOCH);
+        self.group().field_map.get_field(tag::TRAD_SES_PRE_CLOSE_TIME, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `TradSesPreCloseTime` is present, Tag 343.
+    pub fn has_trad_ses_pre_close_time(&self) -> bool {
+        self.group().field_map.has(tag::TRAD_SES_PRE_CLOSE_TIME)
+    }
+
+
+
+
+    /// Gets `TradSesCloseTime`, Tag 344.
+    pub fn get_trad_ses_close_time(&self) -> Result<Timestamp, MessageRejectErrorEnum> {
+        let mut fld = field::TradSesCloseTimeField::new(Timestamp::UNIX_EPOCH);
+        self.group().field_map.get_field(tag::TRAD_SES_CLOSE_TIME, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `TradSesCloseTime` is present, Tag 344.
+    pub fn has_trad_ses_close_time(&self) -> bool {
+        self.group().field_map.has(tag::TRAD_SES_CLOSE_TIME)
+    }
+
+
+
+
+    /// Gets `TradSesEndTime`, Tag 345.
+    pub fn get_trad_ses_end_time(&self) -> Result<Timestamp, MessageRejectErrorEnum> {
+        let mut fld = field::TradSesEndTimeField::new(Timestamp::UNIX_EPOCH);
+        self.group().field_map.get_field(tag::TRAD_SES_END_TIME, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `TradSesEndTime` is present, Tag 345.
+    pub fn has_trad_ses_end_time(&self) -> bool {
+        self.group().field_map.has(tag::TRAD_SES_END_TIME)
+    }
+
+
+
+
+    /// Gets `TotalVolumeTraded`, Tag 387.
+    pub fn get_total_volume_traded(&self) -> Result<Decimal, MessageRejectErrorEnum> {
+        let mut fld = field::TotalVolumeTradedField::new(Decimal::ZERO, 0);
+        self.group().field_map.get_field(tag::TOTAL_VOLUME_TRADED, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `TotalVolumeTraded` is present, Tag 387.
+    pub fn has_total_volume_traded(&self) -> bool {
+        self.group().field_map.has(tag::TOTAL_VOLUME_TRADED)
+    }
+
+
+
+
+    /// Gets `Text`, Tag 58.
+    pub fn get_text(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::TextField::new(String::new());
+        self.group().field_map.get_field(tag::TEXT, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `Text` is present, Tag 58.
+    pub fn has_text(&self) -> bool {
+        self.group().field_map.has(tag::TEXT)
+    }
+
+
+
+
+    /// Gets `EncodedTextLen`, Tag 354.
+    pub fn get_encoded_text_len(&self) -> Result<isize, MessageRejectErrorEnum> {
+        let mut fld = field::EncodedTextLenField::new(0);
+        self.group().field_map.get_field(tag::ENCODED_TEXT_LEN, &mut fld.0)?;
+        Ok(fld.value())
+    }
+
+
+    /// Returns true if `EncodedTextLen` is present, Tag 354.
+    pub fn has_encoded_text_len(&self) -> bool {
+        self.group().field_map.has(tag::ENCODED_TEXT_LEN)
+    }
+
+
+
+
+    /// Gets `EncodedText`, Tag 355.
+    pub fn get_encoded_text(&self) -> Result<String, MessageRejectErrorEnum> {
+        let mut fld = field::EncodedTextField::new(String::new());
+        self.group().field_map.get_field(tag::ENCODED_TEXT, &mut fld.0)?;
+        Ok(fld.value().to_string())
+    }
+
+
+    /// Returns true if `EncodedText` is present, Tag 355.
+    pub fn has_encoded_text(&self) -> bool {
+        self.group().field_map.has(tag::ENCODED_TEXT)
+    }
+
+
+}
+
+impl<G: BorrowMut<Group>> NoTradingSessions<G> {
+    fn group_mut(&mut self) -> &mut Group {
+        self.0.borrow_mut()
+    }
+
+
+
+    /// Sets `TradingSessionID`, Tag 336.
+    pub fn set_trading_session_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::TRADING_SESSION_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `TradingSessionSubID`, Tag 625.
+    pub fn set_trading_session_sub_id(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::TRADING_SESSION_SUB_ID, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `SecurityExchange`, Tag 207.
+    pub fn set_security_exchange(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::SECURITY_EXCHANGE, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `TradSesMethod`, Tag 338.
+    pub fn set_trad_ses_method(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::TRAD_SES_METHOD, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `TradSesMode`, Tag 339.
+    pub fn set_trad_ses_mode(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::TRAD_SES_MODE, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `UnsolicitedIndicator`, Tag 325.
+    pub fn set_unsolicited_indicator(&mut self, v: bool) {
+        self.group_mut().field_map.set_field(tag::UNSOLICITED_INDICATOR, fixer::fix_boolean::FIXBoolean::from(v));
+    }
+
+
+
+
+
+    /// Sets `TradSesStatus`, Tag 340.
+    pub fn set_trad_ses_status(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::TRAD_SES_STATUS, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `TradSesStatusRejReason`, Tag 567.
+    pub fn set_trad_ses_status_rej_reason(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::TRAD_SES_STATUS_REJ_REASON, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `TradSesStartTime`, Tag 341.
+    pub fn set_trad_ses_start_time(&mut self, v: Timestamp) {
+        self.group_mut().field_map.set_field(tag::TRAD_SES_START_TIME, fixer::fix_utc_timestamp::FIXUTCTimestamp {
+            time: v,
+            precision: fixer::fix_utc_timestamp::TimestampPrecision::Millis,
+        });
+    }
+
+
+
+
+
+    /// Sets `TradSesOpenTime`, Tag 342.
+    pub fn set_trad_ses_open_time(&mut self, v: Timestamp) {
+        self.group_mut().field_map.set_field(tag::TRAD_SES_OPEN_TIME, fixer::fix_utc_timestamp::FIXUTCTimestamp {
+            time: v,
+            precision: fixer::fix_utc_timestamp::TimestampPrecision::Millis,
+        });
+    }
+
+
+
+
+
+    /// Sets `TradSesPreCloseTime`, Tag 343.
+    pub fn set_trad_ses_pre_close_time(&mut self, v: Timestamp) {
+        self.group_mut().field_map.set_field(tag::TRAD_SES_PRE_CLOSE_TIME, fixer::fix_utc_timestamp::FIXUTCTimestamp {
+            time: v,
+            precision: fixer::fix_utc_timestamp::TimestampPrecision::Millis,
+        });
+    }
+
+
+
+
+
+    /// Sets `TradSesCloseTime`, Tag 344.
+    pub fn set_trad_ses_close_time(&mut self, v: Timestamp) {
+        self.group_mut().field_map.set_field(tag::TRAD_SES_CLOSE_TIME, fixer::fix_utc_timestamp::FIXUTCTimestamp {
+            time: v,
+            precision: fixer::fix_utc_timestamp::TimestampPrecision::Millis,
+        });
+    }
+
+
+
+
+
+    /// Sets `TradSesEndTime`, Tag 345.
+    pub fn set_trad_ses_end_time(&mut self, v: Timestamp) {
+        self.group_mut().field_map.set_field(tag::TRAD_SES_END_TIME, fixer::fix_utc_timestamp::FIXUTCTimestamp {
+            time: v,
+            precision: fixer::fix_utc_timestamp::TimestampPrecision::Millis,
+        });
+    }
+
+
+
+
+
+    /// Sets `TotalVolumeTraded`, Tag 387.
+    pub fn set_total_volume_traded(&mut self, val: Decimal, scale: i32) {
+        self.group_mut().field_map.set_field(tag::TOTAL_VOLUME_TRADED, fixer::fix_decimal::FIXDecimal { decimal: val, scale });
+    }
+
+
+
+
+
+    /// Sets `Text`, Tag 58.
+    pub fn set_text(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::TEXT, FIXString::from(v));
+    }
+
+
+
+
+
+    /// Sets `EncodedTextLen`, Tag 354.
+    pub fn set_encoded_text_len(&mut self, v: isize) {
+        self.group_mut().field_map.set_field(tag::ENCODED_TEXT_LEN, fixer::fix_int::FIXInt::from(v));
+    }
+
+
+
+
+
+    /// Sets `EncodedText`, Tag 355.
+    pub fn set_encoded_text(&mut self, v: String) {
+        self.group_mut().field_map.set_field(tag::ENCODED_TEXT, FIXString::from(v));
+    }
+
+
+
+}
+
+/// `NoTradingSessionsRepeatingGroup` is the `NoTradingSessions` repeating group, Tag 386.
+pub struct NoTradingSessionsRepeatingGroup(pub RepeatingGroup);
+
+impl NoTradingSessionsRepeatingGroup {
+    /// Creates an empty `NoTradingSessions` group with the template from the FIX spec.
+    pub fn new() -> Self {
+        let template: GroupTemplate = vec![
+
+
+            group_element(tag::TRADING_SESSION_ID),
+
+
+
+            group_element(tag::TRADING_SESSION_SUB_ID),
+
+
+
+            group_element(tag::SECURITY_EXCHANGE),
+
+
+
+            group_element(tag::TRAD_SES_METHOD),
+
+
+
+            group_element(tag::TRAD_SES_MODE),
+
+
+
+            group_element(tag::UNSOLICITED_INDICATOR),
+
+
+
+            group_element(tag::TRAD_SES_STATUS),
+
+
+
+            group_element(tag::TRAD_SES_STATUS_REJ_REASON),
+
+
+
+            group_element(tag::TRAD_SES_START_TIME),
+
+
+
+            group_element(tag::TRAD_SES_OPEN_TIME),
+
+
+
+            group_element(tag::TRAD_SES_PRE_CLOSE_TIME),
+
+
+
+            group_element(tag::TRAD_SES_CLOSE_TIME),
+
+
+
+            group_element(tag::TRAD_SES_END_TIME),
+
+
+
+            group_element(tag::TOTAL_VOLUME_TRADED),
+
+
+
+            group_element(tag::TEXT),
+
+
+
+            group_element(tag::ENCODED_TEXT_LEN),
+
+
+
+            group_element(tag::ENCODED_TEXT),
+
+
+        ];
+        Self(RepeatingGroup::new(tag::NO_TRADING_SESSIONS, template))
+    }
+
+    /// Appends an entry and returns it for population.
+    pub fn add(&mut self) -> NoTradingSessions<&mut Group> {
+        NoTradingSessions(self.0.add())
+    }
+
+    /// Returns the `i`th entry.
+    pub fn get(&self, i: usize) -> NoTradingSessions<&Group> {
+        NoTradingSessions(self.0.get(i))
+    }
+
+    /// Returns the number of entries.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the group has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for NoTradingSessionsRepeatingGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
