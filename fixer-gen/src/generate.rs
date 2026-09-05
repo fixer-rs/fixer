@@ -407,7 +407,7 @@ mod tests {
     }
 
     fn test_tera() -> Tera {
-        Tera::new("templates/**/*.tera").expect("Failed to load templates")
+        crate::build_tera()
     }
 
     #[test]

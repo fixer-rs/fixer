@@ -23,7 +23,7 @@ rust_decimal = "1"
 simple-error = "0.3"
 
 [dev-dependencies]
-tokio = { version = "1.50", features = ["io-util", "fs", "rt", "rt-multi-thread", "signal", "sync", "macros"] }
+tokio = { version = "1.53", features = ["io-util", "fs", "rt", "rt-multi-thread", "signal", "sync", "macros"] }
 
 [[example]]
 name = "trade_client"
