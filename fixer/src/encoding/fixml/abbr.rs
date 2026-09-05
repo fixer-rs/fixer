@@ -628,15 +628,18 @@ mod tests {
         assert_eq!(once, reparsed.to_compact());
     }
 
-    /// Keeps the vendored tables honest: when the repository is available they
-    /// must reproduce exactly what is checked in. Regenerate with
+    /// Keeps the vendored tables honest: they must reproduce exactly what a
+    /// FIX repository checkout produces.
+    ///
+    /// The repository is not redistributable and so is not in this tree.
+    /// Point `FIX_REPOSITORY` at a copy to run this; without it there is
+    /// nothing to compare against and the test is skipped. Regenerate with
     /// `make fixml-abbr FIX_REPOSITORY=...`.
     #[test]
     fn test_bundled_matches_fix_repository() {
-        let repo = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../karunatmp/fix_repository_2010_edition_20200402"
-        );
+        let Ok(repo) = std::env::var("FIX_REPOSITORY") else {
+            return;
+        };
         for version in [
             "FIX.4.4",
             "FIX.5.0",
