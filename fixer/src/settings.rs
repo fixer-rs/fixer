@@ -319,6 +319,25 @@ impl Settings {
         all_session_settings
     }
 
+    /// Returns the merged settings for a single session: the `[DEFAULT]`
+    /// values with that session's overrides applied, or `None` if the session
+    /// is not configured.
+    ///
+    /// Prefer this over [`session_settings`](Self::session_settings) when only
+    /// one session is needed. The store and log factories are called once per
+    /// session — and, with `DynamicSessions`, once per inbound connection —
+    /// so materializing every session's merged settings just to look one up
+    /// makes connection setup quadratic in the number of configured sessions.
+    pub fn session_settings_for(&self, session_id: &SessionID) -> Option<SessionSettings> {
+        let entry = self.session_settings.get(session_id)?;
+        let mut merged = SessionSettings::new();
+        if let Some(global) = self.global_settings.as_ref() {
+            merged.overlay(global);
+        }
+        merged.overlay(entry.value());
+        Some(merged)
+    }
+
     /// Adds a session to this `Settings`. The [`SessionID`] is derived from the
     /// identity keys (`BeginString`, `SenderCompID`, `TargetCompID`, etc.) in
     /// the given settings overlaid on the global defaults. Returns the new
@@ -423,6 +442,64 @@ mod tests {
         SettingsAddSessionSuite {
             settings: Settings::new(),
         }
+    }
+
+    #[tokio::test]
+    async fn test_session_settings_for_matches_session_settings() {
+        let mut ss1 = SessionSettings::new();
+        ss1.set(BEGIN_STRING.to_string(), BEGIN_STRING_FIX42.to_string());
+        ss1.set(SENDER_COMP_ID.to_string(), "SENDER1".to_string());
+        ss1.set(TARGET_COMP_ID.to_string(), "TARGET1".to_string());
+        ss1.set("HeartBtInt".to_string(), "45".to_string());
+
+        let mut ss2 = SessionSettings::new();
+        ss2.set(BEGIN_STRING.to_string(), BEGIN_STRING_FIX44.to_string());
+        ss2.set(SENDER_COMP_ID.to_string(), "SENDER2".to_string());
+        ss2.set(TARGET_COMP_ID.to_string(), "TARGET2".to_string());
+
+        let mut s = Settings::new();
+        {
+            let mut global = s.global_settings().await.unwrap();
+            global.set("HeartBtInt".to_string(), "30".to_string());
+            global.set("ResetOnLogon".to_string(), "Y".to_string());
+            s.global_settings = Some(global);
+        }
+        let id1 = s.add_session(ss1).await.unwrap();
+        let id2 = s.add_session(ss2).await.unwrap();
+
+        // The single-session lookup must agree with the bulk map it replaced.
+        let all = s.session_settings().await;
+        for id in [&id1, &id2] {
+            let from_map = all.get(id).unwrap();
+            let direct = s.session_settings_for(id).expect("session should be found");
+            let mut expected: Vec<(String, String)> = from_map
+                .settings
+                .iter()
+                .map(|e| (e.key().clone(), e.value().clone()))
+                .collect();
+            let mut actual: Vec<(String, String)> = direct
+                .settings
+                .iter()
+                .map(|e| (e.key().clone(), e.value().clone()))
+                .collect();
+            expected.sort();
+            actual.sort();
+            assert_eq!(expected, actual, "mismatch for {id}");
+        }
+
+        // Global defaults are overlaid, and session values win over them.
+        let merged = s.session_settings_for(&id1).unwrap();
+        assert_eq!("Y", merged.setting("ResetOnLogon").unwrap());
+        assert_eq!("45", merged.setting("HeartBtInt").unwrap());
+        assert_eq!("30", s.session_settings_for(&id2).unwrap().setting("HeartBtInt").unwrap());
+
+        let unknown = SessionID {
+            begin_string: BEGIN_STRING_FIX42.to_string(),
+            sender_comp_id: "NOPE".to_string(),
+            target_comp_id: "NOPE".to_string(),
+            ..Default::default()
+        };
+        assert!(s.session_settings_for(&unknown).is_none());
     }
 
     #[tokio::test]

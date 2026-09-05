@@ -178,10 +178,10 @@ impl LogFactoryTrait for SqlLogFactory {
         &mut self,
         session_id: Arc<SessionID>,
     ) -> Result<LogEnum, String> {
-        let (global_settings, session_settings_map) = {
+        let (global_settings, session_settings) = {
             let mut lock = self.settings.lock().await;
             let gs = lock.global_settings().await.unwrap();
-            let ss = lock.session_settings().await;
+            let ss = lock.session_settings_for(&session_id);
             (gs, ss)
         };
 
@@ -189,8 +189,7 @@ impl LogFactoryTrait for SqlLogFactory {
             .bool_setting(DYNAMIC_SESSIONS)
             .unwrap_or(false);
 
-        if let Some(session_settings_pair) = session_settings_map.get(&session_id) {
-            let session_settings = session_settings_pair.value();
+        if let Some(session_settings) = session_settings.as_ref() {
             return create_sql_log(session_id, session_settings).await;
         }
         if dynamic_sessions {
