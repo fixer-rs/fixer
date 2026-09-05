@@ -121,7 +121,7 @@ fn encode_section(
     let mut obj = Object::new();
 
     // Collect fields from the FieldMap.
-    let fields = collect_fields(fm);
+    let fields = fm.ordered_fields();
 
     let mut i = 0;
     while i < fields.len() {
@@ -157,7 +157,7 @@ fn encode_section(
 /// Encode a repeating group starting at `fields[0]` (the counter tag).
 /// Returns the JSON array and the number of fields consumed.
 fn encode_group(
-    fields: &[(Tag, Vec<u8>)],
+    fields: &[(Tag, &[u8])],
     group_def: &FieldDef,
     dd: &DataDictionary,
 ) -> (Value, usize) {
@@ -175,7 +175,7 @@ fn encode_group(
 
     let mut i = 1;
     while i < fields.len() {
-        let (tag, ref value) = fields[i];
+        let (tag, value) = fields[i];
         if !child_tags.contains(&tag) {
             break;
         }
@@ -255,35 +255,6 @@ fn field_name(dd: &DataDictionary, tag: Tag) -> String {
     dd.field_type_by_tag
         .get(&tag)
         .map_or_else(|| tag.to_string(), |ft| ft.name().to_string())
-}
-
-/// Collect all (tag, value bytes) pairs from a `FieldMap`, preserving order.
-fn collect_fields(fm: &mut FieldMap) -> Vec<(Tag, Vec<u8>)> {
-    // Index-based path (post-parse): yields fields in parse order, including
-    // group members as a flat sequence.
-    if let Some(ref indices) = fm.content.field_indices {
-        let pf = fm.content.parsed_fields.as_ref().unwrap();
-        return indices
-            .iter()
-            .map(|&i| {
-                let tv = &pf[i as usize];
-                (tv.tag, tv.value().to_vec())
-            })
-            .collect();
-    }
-
-    // Mutable path: sorted tags + tag_lookup. Groups are stored as a single
-    // LocalField with multiple TagValues (counter + members).
-    let tags = fm.sorted_tags();
-    let mut result = Vec::new();
-    for tag in tags {
-        if let Some(lf) = fm.content.tag_lookup.get(&tag) {
-            for tv in &lf.data {
-                result.push((tv.tag, tv.value().to_vec()));
-            }
-        }
-    }
-    result
 }
 
 // ---------------------------------------------------------------------------

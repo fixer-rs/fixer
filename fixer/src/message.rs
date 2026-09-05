@@ -744,6 +744,60 @@ fn format_check_sum(value: isize) -> String {
 
 #[cfg(test)]
 mod tests {
+
+    /// Issue #95: walking a built message must give the same field sequence as
+    /// walking the same message after a wire round trip, so callers do not
+    /// have to serialize and re-parse just to get an ordered view.
+    #[test]
+    fn test_ordered_fields_matches_after_round_trip() {
+        use crate::fix_string::FIXString;
+        use crate::repeating_group::{RepeatingGroup, group_element};
+
+        let mut built = Message::new();
+        built.header.set_field(TAG_BEGIN_STRING, FIXString::from("FIX.4.4"));
+        built.header.set_field(TAG_MSG_TYPE, FIXString::from("D"));
+        built.header.set_field(TAG_SENDER_COMP_ID, FIXString::from("TW"));
+        built.header.set_field(TAG_TARGET_COMP_ID, FIXString::from("ISLD"));
+        built.header.set_int(TAG_MSG_SEQ_NUM, 1);
+        built
+            .header
+            .set_field(TAG_SENDING_TIME, FIXString::from("20140515-19:49:56.659"));
+        built.body.set_string(11, "order-1");
+        built.body.set_string(55, "AAPL");
+
+        let mut parties =
+            RepeatingGroup::new(453, vec![group_element(448), group_element(452)]);
+        for (id, role) in [("BROKER-A", "1"), ("BROKER-B", "2")] {
+            let e = parties.add();
+            e.field_map.set_string(448, id);
+            e.field_map.set_string(452, role);
+        }
+        built.body.set_group(parties);
+
+        let before: Vec<(Tag, Vec<u8>)> = built
+            .body
+            .field_map
+            .ordered_fields()
+            .into_iter()
+            .map(|(t, v)| (t, v.to_vec()))
+            .collect();
+
+        let raw = built.build();
+        let mut parsed = Message::new();
+        parsed.parse_message(&raw).expect("built message should parse");
+
+        let after: Vec<(Tag, Vec<u8>)> = parsed
+            .body
+            .field_map
+            .ordered_fields()
+            .into_iter()
+            .map(|(t, v)| (t, v.to_vec()))
+            .collect();
+
+        assert_eq!(before, after, "built and parsed views must agree");
+        assert!(before.iter().any(|(t, v)| *t == 448 && v == b"BROKER-A"));
+        assert!(before.iter().any(|(t, v)| *t == 448 && v == b"BROKER-B"));
+    }
     use super::*;
     use crate::BEGIN_STRING_FIX44;
     use crate::datadictionary::{DataDictionary, FieldDef, MessageDef};
