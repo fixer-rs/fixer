@@ -215,3 +215,75 @@ fn group_entry_starts_with_delimiter() {
         "delimiter PartyID must immediately follow the count, got {rest}"
     );
 }
+
+/// The case from issue #94: a nested group parsed off the wire must be readable
+/// back through the parent entry. `RepeatingGroup::read` used to store only the
+/// nested group's `NumInGroup` counter on the parent entry and drop the entries
+/// themselves, so the data was silently unreachable even though parsing
+/// succeeded and the counts matched.
+#[test]
+fn nested_group_survives_wire_parse() {
+    use fix44::new_order_list::{
+        NewOrderList, NoOrdersNoPartyIDsRepeatingGroup, NoOrdersRepeatingGroup,
+    };
+
+    let mut nol = NewOrderList::new(
+        fixer_fix::field::ListIDField::new("LIST-1".to_string()),
+        fixer_fix::field::BidTypeField::new(1),
+        fixer_fix::field::TotNoOrdersField::new(1),
+    );
+
+    let mut orders = NoOrdersRepeatingGroup::new();
+    {
+        let mut order = orders.add();
+        order.set_cl_ord_id("ORDER-1".to_string());
+        order.set_list_seq_no(1);
+        order.set_side("1".to_string());
+
+        let mut parties = NoOrdersNoPartyIDsRepeatingGroup::new();
+        {
+            let mut p = parties.add();
+            p.set_party_id("BROKER-A".to_string());
+            p.set_party_role(1);
+        }
+        {
+            let mut p = parties.add();
+            p.set_party_id("BROKER-B".to_string());
+            p.set_party_role(2);
+        }
+        order.set_no_party_i_ds(parties);
+    }
+    nol.set_no_orders(orders);
+
+    let mut msg = nol.to_message();
+    {
+        let mut header = fix44::header::Header::new(&mut msg.header.field_map);
+        header.set_sender_comp_id("TEST".to_string());
+        header.set_target_comp_id("TST".to_string());
+        header.set_msg_seq_num(1);
+        header.set_sending_time(jiff::Timestamp::UNIX_EPOCH);
+    }
+    let raw = msg.build();
+
+    let mut parsed = Message::new();
+    parsed
+        .parse_message(&raw)
+        .unwrap_or_else(|e| panic!("built message should parse: {e}"));
+
+    let orders = NewOrderList::from_message(parsed)
+        .get_no_orders()
+        .expect("NoOrders should be readable after parsing");
+    assert_eq!(1, orders.len());
+
+    let order = orders.get(0);
+    assert_eq!("ORDER-1", order.get_cl_ord_id().unwrap());
+
+    let parties = order
+        .get_no_party_i_ds()
+        .expect("nested NoPartyIDs should be readable after parsing");
+    assert_eq!(2, parties.len(), "nested group entries were dropped");
+    assert_eq!("BROKER-A", parties.get(0).get_party_id().unwrap());
+    assert_eq!(1, parties.get(0).get_party_role().unwrap());
+    assert_eq!("BROKER-B", parties.get(1).get_party_id().unwrap());
+    assert_eq!(2, parties.get(1).get_party_role().unwrap());
+}

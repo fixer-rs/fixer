@@ -21,7 +21,22 @@ use std::sync::Arc;
 // The Read fntion returns the remaining tagValues not processed by the GroupItem. If there was a
 // problem reading the field, an error may be returned.
 
-pub trait GroupItem: DynClone + FieldTag + FieldGroupReader {}
+pub trait GroupItem: DynClone + FieldTag + FieldGroupReader {
+    /// Whether [`read`](FieldGroupReader::read) can consume more than the
+    /// single tag-value this item matched on.
+    ///
+    /// A plain field consumes exactly its own tag-value, so the caller can
+    /// snapshot it before reading. A nested `RepeatingGroup` consumes its whole
+    /// subtree, and the caller has to hold on to the input to recover the
+    /// consumed span afterwards — which costs a copy, so it is worth knowing in
+    /// advance which items need it.
+    ///
+    /// Defaults to `true`, the conservative answer: an item that consumes more
+    /// than it admits to would have the rest of its content dropped.
+    fn spans_multiple_fields(&self) -> bool {
+        true
+    }
+}
 
 clone_trait_object!(GroupItem);
 
@@ -45,7 +60,11 @@ impl FieldGroupReader for ProtoGroupElement {
     }
 }
 
-impl GroupItem for ProtoGroupElement {}
+impl GroupItem for ProtoGroupElement {
+    fn spans_multiple_fields(&self) -> bool {
+        false
+    }
+}
 
 // GroupElement returns a GroupItem made up of a single field.
 pub fn group_element(tag: Tag) -> Box<dyn GroupItem> {
@@ -171,16 +190,35 @@ impl FieldGroupReader for RepeatingGroup {
 
         while !tv.is_empty() {
             let tag = tv.data[0].tag;
-            let gi_result = self.find_item_in_group_template(tag);
-            if gi_result.is_none() {
+            let Some(mut gi) = self.find_item_in_group_template(tag) else {
+                break;
+            };
+
+            // Everything the item consumes has to end up on the entry. For a
+            // plain field that is just the tag-value it matched, so snapshot it
+            // and hand the input straight over. A nested group consumes its
+            // whole subtree, so keep a copy to slice the consumed span out of
+            // afterwards — storing only the first tag-value there would keep
+            // the nested NumInGroup counter and drop its entries.
+            let first = tv.data[0].clone();
+            let before = gi.spans_multiple_fields().then(|| tv.clone());
+
+            let before_len = tv.data.len();
+            tv = gi.read(tv)?;
+            let consumed = before_len.saturating_sub(tv.data.len());
+            if consumed == 0 {
+                // The item matched on tag but consumed nothing; stop rather
+                // than revisiting the same position forever.
                 break;
             }
-            let mut gi = gi_result.unwrap();
 
-            let current_tag = tv.data[0].tag;
-            let current_tv = LocalField::new(smallvec![tv.data[0].clone()]);
+            let span = match before {
+                Some(before) => {
+                    LocalField::new(before.data[..consumed].iter().cloned().collect())
+                }
+                None => LocalField::new(smallvec![first]),
+            };
 
-            tv = gi.read(tv)?;
             if self.is_delimiter(gi.tag()) {
                 let mut group = Group {
                     field_map: FieldMap::default(),
@@ -189,8 +227,22 @@ impl FieldGroupReader for RepeatingGroup {
                 self.groups.push(group);
             }
 
-            let last_group = self.groups.last_mut().unwrap();
-            last_group.field_map.content.tag_lookup.insert(current_tag, current_tv);
+            let Some(last_group) = self.groups.last_mut() else {
+                // A member field arrived before the group's delimiter, so there
+                // is no entry to attach it to. Reject rather than panic: this
+                // is peer-supplied data.
+                return Err(repeating_group_fields_out_of_order(
+                    self.tag,
+                    format!(
+                        "group {}: field {} appeared before the delimiter {}",
+                        self.tag,
+                        tag,
+                        self.delimiter()
+                    ),
+                ));
+            };
+
+            last_group.field_map.content.tag_lookup.insert(tag, span);
             last_group.field_map.content.tag_sort.tags.push(gi.tag());
         }
 
@@ -539,6 +591,65 @@ mod tests {
         let tvs = f.write();
         let tags: Vec<Tag> = tvs.data.iter().map(|tv| tv.tag).collect();
         assert_eq!(vec![453, 448, 447], tags);
+    }
+
+    // A nested group's contents must survive into the parent entry's FieldMap,
+    // not just the nested group's own count field.
+    #[test]
+    fn test_repeating_group_read_recursive_preserves_nested_content() {
+        let nested_template = vec![group_element(400)];
+        let parent_template: GroupTemplate = vec![
+            group_element(200),
+            Box::new(RepeatingGroup::new(300, nested_template.clone())),
+        ];
+
+        let mut f = RepeatingGroup::new(100, parent_template);
+        f.read(LocalField::new(smallvec![
+            TagValue::new(0, b"1"),
+            TagValue::new(200, b"hello"),
+            TagValue::new(300, b"2"),
+            TagValue::new(400, b"foo"),
+            TagValue::new(400, b"bar"),
+        ]))
+        .unwrap();
+
+        assert_eq!(1, f.len());
+
+        let entry = f.get(0);
+        let nested = entry
+            .field_map
+            .get_group(RepeatingGroup::new(300, nested_template))
+            .expect("nested group should be readable from the parent entry");
+
+        assert_eq!(2, nested.len(), "nested group entries were dropped");
+        assert_eq!(
+            b"foo",
+            nested.get(0).field_map.get_bytes(400).unwrap()
+        );
+        assert_eq!(
+            b"bar",
+            nested.get(1).field_map.get_bytes(400).unwrap()
+        );
+    }
+
+    // Peer-supplied data whose first group member is not the delimiter used to
+    // panic on `groups.last_mut().unwrap()`.
+    #[test]
+    fn test_repeating_group_read_member_before_delimiter() {
+        let mut f = RepeatingGroup::new(100, vec![group_element(200), group_element(201)]);
+
+        let err = f
+            .read(LocalField::new(smallvec![
+                TagValue::new(0, b"1"),
+                TagValue::new(201, b"oops"),
+                TagValue::new(200, b"hello"),
+            ]))
+            .expect_err("a member before the delimiter should be rejected");
+
+        assert!(
+            err.to_string().contains("before the delimiter"),
+            "unexpected error: {err}"
+        );
     }
 
     #[test]
