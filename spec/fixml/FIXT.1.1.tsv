@@ -1,0 +1,181 @@
+V	FIXT.1.1
+F	7	BeginSeqNo
+F	8	BeginString
+F	9	BodyLength
+F	10	CheckSum
+F	16	EndSeqNo
+F	34	SeqNum
+F	35	MsgTyp
+F	36	NewSeqNo
+F	43	PosDup
+F	45	RefSeqNum
+F	49	SID
+F	50	SSub
+F	52	Snt
+F	56	TID
+F	57	TSub
+F	58	Txt
+F	89	Signature
+F	90	SecureDataLen
+F	91	SecureData
+F	93	SignatureLength
+F	95	RawDataLength
+F	96	RawData
+F	97	PosRsnd
+F	98	EncryptMethod
+F	108	HeartBtInt
+F	112	TestReqID
+F	115	OBID
+F	116	OBSub
+F	122	OrigSnt
+F	123	GapFillFlag
+F	128	D2ID
+F	129	D2Sub
+F	141	ResetSeqNumFlag
+F	142	SLoc
+F	143	TLoc
+F	144	OBLoc
+F	145	D2Loc
+F	212	XmlDataLen
+F	213	XmlData
+F	347	MsgEncd
+F	354	EncTxtLen
+F	355	EncTxt
+F	369	LastMsgSeqNumProced
+F	371	RefTagID
+F	372	RefMsgTyp
+F	373	SessRejRsn
+F	383	MaxMsgSz
+F	464	TestMsgInd
+F	553	Username
+F	554	Password
+F	627	NoHops
+F	628	ID
+F	629	Snt
+F	630	Ref
+F	789	NextExpectedMsgSeqNum
+F	925	NewPassword
+F	1128	ApplVerID
+F	1129	CstmApplVerID
+F	1130	RefApplVerID
+F	1131	RefCstmApplVerID
+F	1137	DefApplVerID
+F	1156	ApplExtID
+F	1400	EncPwdMethod
+F	1401	EncPwdLen
+F	1402	EncPwd
+F	1403	EncNewPwdLen
+F	1404	EncNewPwd
+F	1406	RefApplExtID
+F	1407	DfltApplExtID
+F	1408	DefaultCstmApplVerID
+F	1409	SessStat
+M	0	Heartbeat	1	1
+M	1	TestRequest	2	1
+M	2	ResendRequest	3	1
+M	3	Reject	4	1
+M	4	SequenceReset	5	1
+M	5	Logout	6	1
+M	A	Logon	11	1
+M	n	XMLnonFIX	47	1
+C	HopGrp	HopGrp	2085	ImplicitBlock
+C	MsgTypeGrp	MsgTypeGrp	2098	ImplicitBlockRepeating
+C	StandardHeader	Hdr	1024	Block
+C	StandardTrailer	Trlr	1025	Block
+X	1	StandardHeader	0	1	1
+X	1	112	0	2	0
+X	1	StandardTrailer	0	3	1
+X	1024	1128	0	0	0
+X	1024	1156	0	0	0
+X	1024	1129	0	0	0
+X	1024	8	0	1	1
+X	1024	9	0	2	1
+X	1024	35	0	3	1
+X	1024	49	0	4	1
+X	1024	56	0	5	1
+X	1024	115	0	6	0
+X	1024	128	0	7	0
+X	1024	90	0	8	0
+X	1024	91	0	9	0
+X	1024	34	0	10	1
+X	1024	50	0	11	0
+X	1024	142	0	12	0
+X	1024	57	0	13	0
+X	1024	143	0	14	0
+X	1024	116	0	15	0
+X	1024	144	0	16	0
+X	1024	129	0	17	0
+X	1024	145	0	18	0
+X	1024	43	0	19	0
+X	1024	97	0	20	0
+X	1024	52	0	21	1
+X	1024	122	0	22	0
+X	1024	212	0	23	0
+X	1024	213	0	24	0
+X	1024	347	0	25	0
+X	1024	369	0	26	0
+X	1024	HopGrp	0	27	0
+X	1025	93	0	1	0
+X	1025	89	0	2	0
+X	1025	10	0	3	1
+X	11	MsgTypeGrp	0	0	0
+X	11	StandardHeader	0	1	1
+X	11	98	0	2	1
+X	11	108	0	3	1
+X	11	95	0	4	0
+X	11	96	0	5	0
+X	11	141	0	6	0
+X	11	789	0	7	0
+X	11	383	0	8	0
+X	11	464	0	12	0
+X	11	553	0	13	0
+X	11	554	0	14	0
+X	11	925	0	15	0
+X	11	1400	0	16	0
+X	11	1401	0	17	0
+X	11	1402	0	18	0
+X	11	1403	0	19	0
+X	11	1404	0	20	0
+X	11	1409	0	21	0
+X	11	1137	0	30	1
+X	11	1407	0	31	0
+X	11	1408	0	32	0
+X	11	58	0	50	0
+X	11	354	0	51	0
+X	11	355	0	52	0
+X	11	StandardTrailer	0	100	1
+X	2	StandardHeader	0	1	1
+X	2	112	0	2	1
+X	2	StandardTrailer	0	3	1
+X	2085	627	0	1	0
+X	2085	628	1	2	0
+X	2085	629	1	3	0
+X	2085	630	1	4	0
+X	3	StandardHeader	0	1	1
+X	3	7	0	2	1
+X	3	16	0	3	1
+X	3	StandardTrailer	0	4	1
+X	4	1130	0	0	0
+X	4	1406	0	0	0
+X	4	1131	0	0	0
+X	4	StandardHeader	0	1	1
+X	4	45	0	2	1
+X	4	371	0	3	0
+X	4	372	0	4	0
+X	4	373	0	5	0
+X	4	58	0	6	0
+X	4	354	0	7	0
+X	4	355	0	8	0
+X	4	StandardTrailer	0	9	1
+X	47	StandardHeader	0	1	1
+X	47	StandardTrailer	0	2	1
+X	5	StandardHeader	0	1	1
+X	5	123	0	2	0
+X	5	36	0	3	1
+X	5	StandardTrailer	0	4	1
+X	6	1409	0	0	0
+X	6	StandardHeader	0	1	1
+X	6	58	0	2	0
+X	6	354	0	3	0
+X	6	355	0	4	0
+X	6	StandardTrailer	0	5	1

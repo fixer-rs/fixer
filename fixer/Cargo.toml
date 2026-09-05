@@ -60,6 +60,8 @@ tokio = { version = "1.53", features = [
   "time",
   "net",
 ] }
+sonic-rs = "0.5.8"
+fastxml = "0.8.1"
 
 [features]
 default = []
