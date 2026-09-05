@@ -44,9 +44,29 @@ impl Error for IncorrectFormatForSetting {}
 /// [`int_setting`](SessionSettings::int_setting),
 /// [`bool_setting`](SessionSettings::bool_setting), and
 /// [`duration_setting`](SessionSettings::duration_setting).
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug)]
 pub struct SessionSettings {
     pub settings: Arc<DashMap<String, String>>,
+}
+
+impl Clone for SessionSettings {
+    /// Deep-copies the settings.
+    ///
+    /// Not derived: the derive would clone the `Arc` and hand back a second
+    /// handle onto the same map, so mutating the "copy" would mutate the
+    /// original. Callers of
+    /// [`Settings::global_settings`](crate::settings::Settings::global_settings)
+    /// get a copy they can adjust per session without editing the engine's
+    /// `[DEFAULT]` section under it.
+    fn clone(&self) -> Self {
+        let copy = DashMap::with_capacity(self.settings.len());
+        for entry in self.settings.iter() {
+            copy.insert(entry.key().clone(), entry.value().clone());
+        }
+        Self {
+            settings: Arc::new(copy),
+        }
+    }
 }
 
 impl SessionSettings {
@@ -140,6 +160,26 @@ impl SessionSettings {
 #[allow(clippy::items_after_statements)]
 mod tests {
     use crate::{config, session::settings::SessionSettings};
+
+    #[test]
+    fn test_session_settings_clone_is_independent() {
+        let mut original = SessionSettings::new();
+        original.set("HeartBtInt".to_string(), "30".to_string());
+
+        let mut copy = original.clone();
+        copy.set("HeartBtInt".to_string(), "60".to_string());
+        copy.set("ResetOnLogon".to_string(), "Y".to_string());
+
+        // Clone deep-copies: the two must not share a map. A derived Clone
+        // would alias the Arc and let the copy edit the original.
+        assert_eq!("30", original.setting("HeartBtInt").unwrap());
+        assert!(!original.has_setting("ResetOnLogon"));
+        assert_eq!("60", copy.setting("HeartBtInt").unwrap());
+
+        // ...and the other direction.
+        original.set("HeartBtInt".to_string(), "45".to_string());
+        assert_eq!("60", copy.setting("HeartBtInt").unwrap());
+    }
 
     #[test]
     fn test_session_settings_string_settings() {
