@@ -39,6 +39,10 @@ pub struct FixmlAbbreviations {
     /// Tags that belong to a component (component name → set of tags).
     /// Built by resolving `MsgContents` entries for each component.
     pub component_tags: FxHashMap<String, HashSet<Tag>>,
+    /// Every tag reachable from a component, including through its
+    /// sub-components. Used to find where a repeating group's run of fields
+    /// ends when walking a flattened message.
+    pub component_all_tags: FxHashMap<String, HashSet<Tag>>,
 }
 
 /// A single entry from `MsgContents.xml`.
@@ -266,6 +270,57 @@ impl FixmlAbbreviations {
     }
 
     /// Check if a component is a repeating group (`BlockRepeating`).
+    /// The nesting level a component's own members sit at.
+    ///
+    /// A repeating group puts its `NumInGroup` counter at level 0 and its
+    /// members at level 1; a plain block has its fields at level 0.
+    pub fn member_indent(&self, component_name: &str) -> usize {
+        usize::from(self.is_repeating(component_name))
+    }
+
+    /// The `NumInGroup` tag of a repeating component, i.e. its single
+    /// level-0 field entry.
+    pub fn group_counter_tag(&self, component_name: &str) -> Option<Tag> {
+        if !self.is_repeating(component_name) {
+            return None;
+        }
+        self.component_contents(component_name)?
+            .iter()
+            .find(|e| e.is_field && e.indent == 0)
+            .and_then(|e| e.tag_text.parse::<Tag>().ok())
+    }
+
+    /// The component's own field tags, in repository order.
+    ///
+    /// Order matters: the first is a repeating group's delimiter, and it also
+    /// keeps generated XML attribute order stable.
+    pub fn member_fields(&self, component_name: &str) -> Vec<Tag> {
+        let indent = self.member_indent(component_name);
+        self.component_contents(component_name)
+            .map(|entries| {
+                entries
+                    .iter()
+                    .filter(|e| e.is_field && e.indent == indent)
+                    .filter_map(|e| e.tag_text.parse::<Tag>().ok())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// The component's own sub-components, in repository order.
+    pub fn member_components(&self, component_name: &str) -> Vec<String> {
+        let indent = self.member_indent(component_name);
+        self.component_contents(component_name)
+            .map(|entries| {
+                entries
+                    .iter()
+                    .filter(|e| !e.is_field && e.indent == indent)
+                    .map(|e| e.tag_text.clone())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     pub fn is_repeating(&self, component_name: &str) -> bool {
         self.component_type
             .get(component_name)
@@ -417,6 +472,29 @@ fn load_msg_contents(path: &str, abbr: &mut FixmlAbbreviations) -> Result<(), St
 
 /// Build the `component_tags` map: for each component, collect the set of
 /// field tags that belong directly to it (Indent=0 fields).
+/// Every tag reachable from `component`, following sub-components.
+fn collect_all_tags(
+    abbr: &FixmlAbbreviations,
+    component: &str,
+    seen: &mut HashSet<String>,
+    out: &mut HashSet<Tag>,
+) {
+    if !seen.insert(component.to_string()) {
+        return;
+    }
+    if let Some(entries) = abbr.component_contents(component) {
+        for entry in entries {
+            if entry.is_field {
+                if let Ok(tag) = entry.tag_text.parse::<Tag>() {
+                    out.insert(tag);
+                }
+            } else {
+                collect_all_tags(abbr, &entry.tag_text, seen, out);
+            }
+        }
+    }
+}
+
 fn build_component_tags(abbr: &mut FixmlAbbreviations) {
     // Clone component_name_to_id to avoid borrow issues.
     let comp_ids: Vec<(String, String)> = abbr
@@ -438,6 +516,12 @@ fn build_component_tags(abbr: &mut FixmlAbbreviations) {
             }
         }
         abbr.component_tags.insert(comp_name.clone(), tags);
+    }
+
+    for (comp_name, _) in &comp_ids {
+        let mut all = HashSet::new();
+        collect_all_tags(abbr, comp_name, &mut HashSet::new(), &mut all);
+        abbr.component_all_tags.insert(comp_name.clone(), all);
     }
 }
 
