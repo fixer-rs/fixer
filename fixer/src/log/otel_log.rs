@@ -115,18 +115,16 @@ impl LogFactoryTrait for OtelLogFactory {
     }
 
     async fn create_session_log(&mut self, session_id: Arc<SessionID>) -> Result<LogEnum, String> {
-        let dynamic_sessions = {
+        // One acquisition: this used to lock, release, and lock again, which
+        // let the settings change between the two reads.
+        let (dynamic_sessions, is_known_session) = {
             let mut lock = self.settings.lock().await;
             let gs = lock.global_settings().await.unwrap();
-            gs.bool_setting(DYNAMIC_SESSIONS).unwrap_or(false)
+            let dynamic = gs.bool_setting(DYNAMIC_SESSIONS).unwrap_or(false);
+            (dynamic, lock.session_settings_for(&session_id).is_some())
         };
 
-        let session_settings_map = {
-            let lock = self.settings.lock().await;
-            lock.session_settings().await
-        };
-
-        if session_settings_map.contains_key(&session_id) || dynamic_sessions {
+        if is_known_session || dynamic_sessions {
             let logger = self.provider.logger("fixer");
             return Ok(LogEnum::OtelLog(OtelLog {
                 session_id,
