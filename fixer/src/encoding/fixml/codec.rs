@@ -5,7 +5,8 @@ use crate::field_map::FieldMap;
 use crate::message::{Message, ParseError};
 use crate::repeating_group::{GroupTemplate, RepeatingGroup, group_element};
 use crate::tag::{TAG_BEGIN_STRING, TAG_BODY_LENGTH, TAG_CHECK_SUM, TAG_MSG_TYPE, Tag};
-use fastxml::event::{StreamingParser, XmlEvent, XmlEventHandler};
+use fastxml::Parser as XmlParser;
+use fastxml::event::XmlEvent;
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -44,21 +45,43 @@ impl Codec for FixmlCodec {
         _transport_dd: &Option<Arc<DataDictionary>>,
         _app_dd: &Option<Arc<DataDictionary>>,
     ) -> Result<Message, ParseError> {
-        let handler = FixmlHandler::new();
-        let mut parser = StreamingParser::new(std::io::BufReader::new(data.as_ref()));
-        parser.add_handler(Box::new(handler));
-        parser.parse().map_err(|e| ParseError {
-            orig_error: format!("FIXML parse error: {e}"),
-        })?;
+        // Decoding needs the tree, not a stream: resolving an abbreviated name
+        // requires knowing which component encloses it, which is only known
+        // once the element is placed. Build it as the events arrive.
+        let mut stack: Vec<Node> = Vec::new();
+        let mut root: Option<Node> = None;
 
-        let mut root = None;
-        for h in parser.into_handlers() {
-            if let Ok(h) = h.as_any().downcast::<FixmlHandler>() {
-                root = Some(h.into_root()?);
-            }
-        }
+        XmlParser::from(data.as_ref())
+            .for_each_event(|event| {
+                match event {
+                    XmlEvent::StartElement {
+                        name, attributes, ..
+                    } => stack.push(Node {
+                        name: name.to_string(),
+                        attrs: attributes
+                            .iter()
+                            .map(|(k, v)| (k.to_string(), v.to_string()))
+                            .collect(),
+                        children: Vec::new(),
+                    }),
+                    XmlEvent::EndElement { .. } => {
+                        if let Some(node) = stack.pop() {
+                            match stack.last_mut() {
+                                Some(parent) => parent.children.push(node),
+                                None => root = Some(node),
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+                Ok(())
+            })
+            .map_err(|e| ParseError {
+                orig_error: format!("FIXML parse error: {e}"),
+            })?;
+
         let root = root.ok_or_else(|| ParseError {
-            orig_error: "FIXML handler lost during parsing".to_string(),
+            orig_error: "No FIXML message element found".to_string(),
         })?;
 
         // <FIXML> wraps a single message element; some producers omit it.
@@ -279,64 +302,6 @@ struct Node {
     name: String,
     attrs: Vec<(String, String)>,
     children: Vec<Node>,
-}
-
-struct FixmlHandler {
-    stack: Vec<Node>,
-    root: Option<Node>,
-    error: Option<String>,
-}
-
-impl FixmlHandler {
-    fn new() -> Self {
-        Self {
-            stack: Vec::new(),
-            root: None,
-            error: None,
-        }
-    }
-
-    fn into_root(self) -> Result<Node, ParseError> {
-        if let Some(err) = self.error {
-            return Err(ParseError { orig_error: err });
-        }
-        self.root.ok_or_else(|| ParseError {
-            orig_error: "No FIXML message element found".to_string(),
-        })
-    }
-}
-
-impl XmlEventHandler for FixmlHandler {
-    fn handle(&mut self, event: &XmlEvent) -> fastxml::Result<()> {
-        match event {
-            XmlEvent::StartElement {
-                name, attributes, ..
-            } => {
-                self.stack.push(Node {
-                    name: name.as_ref().to_string(),
-                    attrs: attributes
-                        .iter()
-                        .map(|(k, v)| (k.as_str().to_string(), v.as_str().to_string()))
-                        .collect(),
-                    children: Vec::new(),
-                });
-            }
-            XmlEvent::EndElement { .. } => {
-                if let Some(node) = self.stack.pop() {
-                    match self.stack.last_mut() {
-                        Some(parent) => parent.children.push(node),
-                        None => self.root = Some(node),
-                    }
-                }
-            }
-            _ => {}
-        }
-        Ok(())
-    }
-
-    fn as_any(self: Box<Self>) -> Box<dyn std::any::Any> {
-        self
-    }
 }
 
 /// The fields and components a section allows, for name resolution.
