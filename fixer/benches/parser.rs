@@ -37,7 +37,7 @@ pub fn benchmark_parser_read_message_fixml(c: &mut Criterion) {
 
     c.bench_function("parser_read_message_fixml", |b| {
         b.iter(|| {
-            let _ = fastxml::parse(FIXML_MSG.as_bytes()).unwrap();
+            let _ = fastxml::Parser::from(FIXML_MSG.as_bytes()).parse().unwrap();
         });
     });
 }

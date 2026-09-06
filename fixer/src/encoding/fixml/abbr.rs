@@ -346,7 +346,9 @@ impl FixmlAbbreviations {
 fn parse_xml(path: &str) -> Result<fastxml::XmlDocument, String> {
     let content =
         std::fs::read_to_string(path).map_err(|e| format!("Failed to read {path}: {e}"))?;
-    fastxml::parse(content.as_bytes()).map_err(|e| format!("Failed to parse {path}: {e}"))
+    fastxml::Parser::from(content.as_bytes())
+        .parse()
+        .map_err(|e| format!("Failed to parse {path}: {e}"))
 }
 
 fn child_text(node: &fastxml::XmlNode, name: &str) -> Option<String> {
