@@ -10,7 +10,7 @@ use ramhorns::Template;
 use rustc_hash::FxHashMap;
 use std::{path::Path, sync::Arc};
 use tokio::{
-    fs::{DirBuilder, File, OpenOptions},
+    fs::{File, OpenOptions},
     io::AsyncWriteExt,
 };
 
@@ -49,10 +49,7 @@ impl FileLog {
         let message_log_name =
             Path::new(log_path).join(format!("{prefix}.messages.current.log"));
 
-        DirBuilder::new()
-            .mode(0o777)
-            .recursive(true)
-            .create(log_path)
+        tokio::fs::create_dir_all(log_path)
             .await
             .map_err(|err| err.to_string())?;
 

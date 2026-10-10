@@ -2,20 +2,25 @@ name: Rust build and test
 
 on:
   push:
-    branches: ["wip"]
+    branches: ["wip", "master"]
   pull_request:
-    branches: ["wip"]
+    branches: ["wip", "master"]
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # Windows too, so native Windows builds (docs/WINDOWS_BUILD.md) stay working.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v3
       - name: Build
-        run: cargo build --verbose
+        run: cargo build --workspace --verbose
       - name: Run tests
-        run: cargo test --verbose
+        run: cargo test --workspace --verbose

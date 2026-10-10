@@ -668,6 +668,21 @@ async fn dynamic_sessions_loop(mut rx: mpsc::UnboundedReceiver<Session>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The address a test client connects to. The acceptor listens on the
+    /// unspecified address (0.0.0.0 / ::), and connecting *to* that works on
+    /// Linux but fails on Windows with WSAEADDRNOTAVAIL (10049) - so use
+    /// loopback with the same port.
+    fn connectable(addr: std::net::SocketAddr) -> std::net::SocketAddr {
+        let mut addr = addr;
+        if addr.ip().is_unspecified() {
+            addr.set_ip(match addr.ip() {
+                std::net::IpAddr::V4(_) => std::net::Ipv4Addr::LOCALHOST.into(),
+                std::net::IpAddr::V6(_) => std::net::Ipv6Addr::LOCALHOST.into(),
+            });
+        }
+        addr
+    }
     use crate::application::NOPApp;
     use crate::log::LogFactoryEnum;
     use crate::registry::{SESSIONS, lookup_admin_tx, unregister_session};
@@ -793,7 +808,7 @@ TargetCompID=INITIATOR
 
         acceptor.start().await.unwrap();
 
-        let addr = acceptor.local_address().unwrap();
+        let addr = connectable(acceptor.local_address().unwrap());
 
         // Connect as a client and send a FIX logon message.
         // The message's SenderCompID=INITIATOR (the remote peer)
@@ -863,7 +878,7 @@ TargetCompID=INITIATOR
         acceptor.set_connection_validator(Some(validator.clone()));
 
         acceptor.start().await.unwrap();
-        let addr = acceptor.local_address().unwrap();
+        let addr = connectable(acceptor.local_address().unwrap());
 
         // Send a valid FIX logon — the validator should reject it.
         let logon_msg = make_logon_msg("INITIATOR", "ACCEPTOR");
@@ -905,7 +920,7 @@ TargetCompID=INITIATOR
         acceptor.set_connection_validator(Some(validator.clone()));
 
         acceptor.start().await.unwrap();
-        let addr = acceptor.local_address().unwrap();
+        let addr = connectable(acceptor.local_address().unwrap());
 
         let logon_msg = make_logon_msg("INITIATOR", "ACCEPTOR");
         let mut stream = TcpStream::connect(addr).await.unwrap();
@@ -1019,7 +1034,7 @@ TargetCompID=INITIATOR
             .unwrap();
 
         acceptor.start().await.unwrap();
-        let addr = acceptor.local_address().unwrap();
+        let addr = connectable(acceptor.local_address().unwrap());
 
         // Send a logon from an UNKNOWN session (SENDER2/TARGET2).
         // This session is not pre-configured, so it should be created dynamically.
@@ -1071,7 +1086,7 @@ TargetCompID=INITIATOR
             .unwrap();
 
         acceptor.start().await.unwrap();
-        let addr = acceptor.local_address().unwrap();
+        let addr = connectable(acceptor.local_address().unwrap());
 
         // Two connections from the same unknown session — each should get a unique qualifier.
         let logon_msg = make_logon_msg("SENDER2", "TARGET2");
@@ -1146,7 +1161,7 @@ TargetCompID=INITIATOR
         assert!(!acceptor.dynamic_sessions);
 
         acceptor.start().await.unwrap();
-        let addr = acceptor.local_address().unwrap();
+        let addr = connectable(acceptor.local_address().unwrap());
 
         // Send a logon from an unknown session — should be silently rejected.
         let logon_msg = make_logon_msg("SENDER2", "TARGET2");
@@ -1262,7 +1277,7 @@ TargetCompID=INITIATOR
             .start()
             .await
             .expect("Acceptor::start should succeed");
-        let addr = acceptor.local_address().unwrap();
+        let addr = connectable(acceptor.local_address().unwrap());
         assert_ne!(0, addr.port());
 
         acceptor.stop().await;
@@ -1292,7 +1307,7 @@ TargetCompID=INITIATOR
             .unwrap();
 
         acceptor.start().await.unwrap();
-        let addr = acceptor.local_address().unwrap();
+        let addr = connectable(acceptor.local_address().unwrap());
 
         // Build a TLS client using the CA cert to verify the server
         let ca_data = std::fs::read(ca.path()).unwrap();
@@ -1355,7 +1370,7 @@ TargetCompID=INITIATOR
             .unwrap();
 
         acceptor.start().await.unwrap();
-        let addr = acceptor.local_address().unwrap();
+        let addr = connectable(acceptor.local_address().unwrap());
 
         // Connect with plain TCP (no TLS) and send a FIX message.
         // The TLS handshake should fail, and the acceptor should handle it gracefully.

@@ -1,8 +1,8 @@
 use crate::session::session_id::SessionID;
 use simple_error::SimpleResult;
-use std::{io::ErrorKind, os::unix::prelude::PermissionsExt, sync::Arc};
+use std::{io::ErrorKind, sync::Arc};
 use tokio::{
-    fs::{File, OpenOptions, metadata, remove_file as rm},
+    fs::{File, OpenOptions, remove_file as rm},
     io::AsyncWriteExt,
 };
 
@@ -60,7 +60,13 @@ pub async fn remove_file(fname: &str) -> SimpleResult<()> {
 }
 
 // open_or_create_file opens a file for reading and writing, creating it if necessary.
-pub async fn open_or_create_file(fname: &str, perm: u32) -> SimpleResult<File> {
+//
+// `_perm` is not applied, on any platform. It never was: the earlier
+// `metadata(..).permissions().set_mode(perm)` changed a copy of the
+// permissions and never wrote it back. The file gets the default mode
+// (0o666 minus the umask on Unix). The parameter stays so the public
+// signature doesn't change.
+pub async fn open_or_create_file(fname: &str, _perm: u32) -> SimpleResult<File> {
     match OpenOptions::new()
         .read(true)
         .write(true)
@@ -69,17 +75,7 @@ pub async fn open_or_create_file(fname: &str, perm: u32) -> SimpleResult<File> {
         .open(fname)
         .await
     {
-        Ok(file) => {
-            let md = metadata(fname).await.map_err(|err| {
-                simple_error!(
-                    "error opening or creating file: {}: {}",
-                    fname,
-                    err.to_string(),
-                )
-            })?;
-            md.permissions().set_mode(perm);
-            Ok(file)
-        }
+        Ok(file) => Ok(file),
         Err(err) => Err(simple_error!(
             "error opening or creating file: {}: {}",
             fname,
