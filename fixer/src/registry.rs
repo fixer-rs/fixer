@@ -106,7 +106,7 @@ pub async fn send_to_target_owned(
 ) -> Result<(), FixerError> {
     let registration = (*SESSIONS)
         .get(session_id)
-        .ok_or(ERR_UNKNOWN_SESSION.clone())?;
+        .ok_or_else(|| ERR_UNKNOWN_SESSION.clone())?;
 
     let (result_tx, result_rx) = tokio::sync::oneshot::channel();
     registration

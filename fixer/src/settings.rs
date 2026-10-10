@@ -271,7 +271,7 @@ impl Settings {
             } else if SETTING_REGEX.is_match(&line) {
                 let parts = SETTING_REGEX
                     .captures(&line)
-                    .ok_or(simple_error!("error parsing line: {}", line_number))?;
+                    .ok_or_else(|| simple_error!("error parsing line: {}", line_number))?;
 
                 if parts.len() != 3 {
                     return Err(simple_error!("error parsing line: {}", line_number));
