@@ -693,7 +693,9 @@ fn extract_xml_data_field<'a>(
     buffer: &'a [u8],
     data_len: isize,
 ) -> Result<&'a [u8], ParseError> {
-    let mut end_index = memchr::memchr(b'=', buffer).ok_or(ParseError {
+    // `ok_or_else`: the error message formats the whole remaining buffer, so
+    // building it eagerly cost a copy of the rest of the message per field.
+    let mut end_index = memchr::memchr(b'=', buffer).ok_or_else(|| ParseError {
         orig_error: format!(
             "extract_field: No Trailing Delim in {}",
             std::str::from_utf8(buffer).unwrap_or("<invalid utf8>")
@@ -714,7 +716,10 @@ fn extract_field<'a>(
     shared: &bytes::Bytes,
     msg_len: usize,
 ) -> Result<&'a [u8], ParseError> {
-    let end_index = memchr::memchr(0x01, buffer).ok_or(ParseError {
+    // `ok_or_else`: built only on failure. With `ok_or` the message - which
+    // includes the whole remaining buffer - was formatted for every field,
+    // making a parse quadratic in message size.
+    let end_index = memchr::memchr(0x01, buffer).ok_or_else(|| ParseError {
         orig_error: format!(
             "extract_field: No Trailing Delim in {}",
             std::str::from_utf8(buffer).unwrap_or("<invalid utf8>")
@@ -835,6 +840,16 @@ mod tests {
             msg.header.field_map.has(TAG_XML_DATA),
             "Expected xmldata tag"
         );
+    }
+
+    #[test]
+    fn test_parse_message_missing_trailing_delimiter() {
+        // The error is built lazily (`ok_or_else`) - formatting it eagerly for
+        // every field, as `ok_or` did, copied the rest of the message per
+        // field. This checks the lazily built error is still the same one.
+        let mut msg = Message::new();
+        let err = msg.parse_message(b"8=FIX.4.4\x019=5\x0135=0").unwrap_err();
+        assert_eq!(err.orig_error, "extract_field: No Trailing Delim in 35=0");
     }
 
     #[test]
