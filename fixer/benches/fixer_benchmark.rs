@@ -15,7 +15,10 @@ pub(crate) mod parser;
 // Flamegraphs where pprof works (Unix); plain criterion timings elsewhere.
 #[cfg(unix)]
 fn config() -> Criterion {
-    Criterion::default().with_profiler(PProfProfiler::new(100, Output::Flamegraph(Some(Options::default()))))
+    Criterion::default().with_profiler(PProfProfiler::new(
+        100,
+        Output::Flamegraph(Some(Options::default())),
+    ))
 }
 
 #[cfg(not(unix))]
