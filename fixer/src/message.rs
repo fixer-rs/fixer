@@ -693,7 +693,7 @@ fn extract_xml_data_field<'a>(
     buffer: &'a [u8],
     data_len: isize,
 ) -> Result<&'a [u8], ParseError> {
-    let mut end_index = memchr::memchr(b'=', buffer).ok_or(ParseError {
+    let mut end_index = memchr::memchr(b'=', buffer).ok_or_else(|| ParseError {
         orig_error: format!(
             "extract_field: No Trailing Delim in {}",
             std::str::from_utf8(buffer).unwrap_or("<invalid utf8>")
@@ -714,7 +714,7 @@ fn extract_field<'a>(
     shared: &bytes::Bytes,
     msg_len: usize,
 ) -> Result<&'a [u8], ParseError> {
-    let end_index = memchr::memchr(0x01, buffer).ok_or(ParseError {
+    let end_index = memchr::memchr(0x01, buffer).ok_or_else(|| ParseError {
         orig_error: format!(
             "extract_field: No Trailing Delim in {}",
             std::str::from_utf8(buffer).unwrap_or("<invalid utf8>")
@@ -744,6 +744,43 @@ fn format_check_sum(value: isize) -> String {
 
 #[cfg(test)]
 mod tests {
+    // The error is now built lazily (#109); it must still read the same when
+    // the trailing delimiter really is missing.
+    #[test]
+    fn test_extract_field_missing_delimiter() {
+        let buffer = b"55=AAPL";
+        let shared = bytes::Bytes::from_static(buffer);
+        let mut tv = TagValue::default();
+
+        let err = extract_field(&mut tv, buffer, &shared, buffer.len())
+            .expect_err("a field without SOH should fail");
+        assert_eq!("extract_field: No Trailing Delim in 55=AAPL", err.orig_error);
+    }
+
+    #[test]
+    fn test_extract_xml_data_field_missing_delimiter() {
+        let mut tv = TagValue::default();
+
+        let err = extract_xml_data_field(&mut tv, b"no-equals-sign", 4)
+            .expect_err("a field without '=' should fail");
+        assert_eq!(
+            "extract_field: No Trailing Delim in no-equals-sign",
+            err.orig_error
+        );
+    }
+
+    #[test]
+    fn test_parse_message_truncated_field() {
+        let mut msg = Message::new();
+        let err = msg
+            .parse_message(b"8=FIX.4.2\x019=5\x0135=0")
+            .expect_err("a message cut off mid-field should fail");
+        assert!(
+            err.orig_error.contains("No Trailing Delim"),
+            "unexpected error: {}",
+            err.orig_error
+        );
+    }
 
     /// Issue #95: walking a built message must give the same field sequence as
     /// walking the same message after a wire round trip, so callers do not
@@ -752,6 +789,7 @@ mod tests {
     fn test_ordered_fields_matches_after_round_trip() {
         use crate::fix_string::FIXString;
         use crate::repeating_group::{RepeatingGroup, group_element};
+
 
         let mut built = Message::new();
         built.header.set_field(TAG_BEGIN_STRING, FIXString::from("FIX.4.4"));

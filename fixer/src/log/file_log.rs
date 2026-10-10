@@ -114,10 +114,9 @@ impl LogFactoryTrait for FileLogFactory {
 
     async fn create_session_log(&mut self, session_id: Arc<SessionID>) -> Result<LogEnum, String> {
         let prefix = session_id_filename_prefix(&session_id);
-        let log_path = self.session_log_paths.get(&session_id).ok_or(format!(
-            "logger not defined for {:?}",
-            &*session_id.to_string()
-        ))?;
+        let log_path = self.session_log_paths.get(&session_id).ok_or_else(|| {
+            format!("logger not defined for {:?}", &*session_id.to_string())
+        })?;
 
         let logger = FileLog::new(&prefix, log_path).await?;
         Ok(LogEnum::FileLog(logger))
