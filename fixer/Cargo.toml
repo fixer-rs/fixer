@@ -74,11 +74,16 @@ otel_log = ["opentelemetry", "opentelemetry_sdk", "opentelemetry-otlp"]
 [dev-dependencies]
 criterion = "0.5"
 mockall = "0.15"
-pprof = { version = "0.15", features = ["flamegraph", "criterion"] }
 rcgen = "0.14"
 serial_test = "4.0"
 tempfile = "3"
 tokio-test = "0.4"
+
+# pprof (flamegraphs for the benchmark) is Unix-only: it uses nix/pthreads, and
+# dev-dependencies are built for every `cargo test`, so an unconditional entry
+# breaks `cargo test` on Windows.
+[target.'cfg(unix)'.dev-dependencies]
+pprof = { version = "0.15", features = ["flamegraph", "criterion"] }
 
 [[example]]
 name = "echo_server"

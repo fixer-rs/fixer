@@ -31,6 +31,9 @@ Cargo commands above. Code generation can be run directly as follows:
 cargo run -p fixer-gen -- spec/FIX40.xml spec/FIX41.xml spec/FIX42.xml spec/FIX43.xml spec/FIX44.xml spec/FIX50.xml spec/FIX50SP1.xml spec/FIX50SP2.xml -o fixer-fix/src
 ```
 
+Benchmarks (`cargo bench -p fixer`) run on Windows too, without the flamegraphs:
+the profiler behind them, `pprof`, is Unix-only.
+
 ## Run the examples
 
 Start the acceptor and initiator in separate PowerShell windows:
