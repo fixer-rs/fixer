@@ -78,6 +78,18 @@ cargo run -p fixer-fix --example trade_client -- examples/trade_client/trade_cli
 
 See [`examples/README.md`](examples/README.md) for more details.
 
+## Minimum Supported Rust Version
+
+fixer requires **Rust 1.94** or newer.
+
+The minimum supported Rust version (MSRV) follows a rolling six-month window:
+each release supports every stable Rust released at least six months earlier.
+Raising the MSRV is not considered a breaking change, but it is noted in the
+release notes and only happens in a minor release.
+
+All crates in this workspace declare the same `rust-version`, and CI builds and
+tests against it as well as against the latest stable.
+
 ## Build and Test
 
 ```sh

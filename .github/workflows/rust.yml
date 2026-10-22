@@ -24,3 +24,15 @@ jobs:
         run: cargo build --workspace --verbose
       - name: Run tests
         run: cargo test --workspace --verbose
+
+  # Holds the rust-version declared in Cargo.toml to account. Keep the
+  # toolchain here in step with it.
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@1.94
+      - name: Build
+        run: cargo build --workspace --all-targets --verbose
+      - name: Run tests
+        run: cargo test --workspace --verbose
