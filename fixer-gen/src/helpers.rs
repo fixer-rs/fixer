@@ -199,13 +199,11 @@ mod tests {
         global_types: &HashMap<String, GlobalFieldType>,
         use_float: bool,
     ) -> bool {
-        if let Some(gft) = global_types.get(fd.name()) {
-            if let Ok(ft) = fixer_type(&gft.fix_type, use_float) {
-                if ft == FixerType::FIXDecimal {
+        if let Some(gft) = global_types.get(fd.name())
+            && let Ok(ft) = fixer_type(&gft.fix_type, use_float)
+                && ft == FixerType::FIXDecimal {
                     return true;
                 }
-            }
-        }
         fd.fields
             .iter()
             .any(|child| field_needs_decimal(child, global_types, use_float))
@@ -227,13 +225,11 @@ mod tests {
         global_types: &HashMap<String, GlobalFieldType>,
         use_float: bool,
     ) -> bool {
-        if let Some(gft) = global_types.get(fd.name()) {
-            if let Ok(ft) = fixer_type(&gft.fix_type, use_float) {
-                if ft == FixerType::FIXUTCTimestamp {
+        if let Some(gft) = global_types.get(fd.name())
+            && let Ok(ft) = fixer_type(&gft.fix_type, use_float)
+                && ft == FixerType::FIXUTCTimestamp {
                     return true;
                 }
-            }
-        }
         fd.fields
             .iter()
             .any(|child| field_needs_timestamp(child, global_types, use_float))
@@ -255,15 +251,12 @@ mod tests {
         global_types: &HashMap<String, GlobalFieldType>,
         use_float: bool,
     ) -> bool {
-        if let Some(gft) = global_types.get(fd.name()) {
-            if !gft.enums.is_empty() {
-                if let Ok(ft) = fixer_type(&gft.fix_type, use_float) {
-                    if ft != FixerType::FIXBoolean {
+        if let Some(gft) = global_types.get(fd.name())
+            && !gft.enums.is_empty()
+                && let Ok(ft) = fixer_type(&gft.fix_type, use_float)
+                    && ft != FixerType::FIXBoolean {
                         return true;
                     }
-                }
-            }
-        }
         fd.fields
             .iter()
             .any(|child| field_needs_enum(child, global_types, use_float))
@@ -396,7 +389,7 @@ mod tests {
         // NewOrderSingle (MsgType=D) has required fields like ClOrdID, Side, TransactTime, OrdType
         let nos = fix44.messages.get("D").expect("NewOrderSingle not found");
         let req = required_fields(nos);
-        assert!(!req.is_empty());
+        assert_ne!(req, [] as [&fixer::datadictionary::FieldDef; 0]);
 
         let names: Vec<&str> = req.iter().map(|f| f.name()).collect();
         assert!(names.contains(&"ClOrdID"), "ClOrdID should be required");

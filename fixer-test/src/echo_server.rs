@@ -53,9 +53,7 @@ impl EchoApp {
     ) -> MessageRejectErrorResult {
         let poss_resend = msg
             .header
-            .get_bytes(TAG_POSS_RESEND)
-            .ok()
-            .is_some_and(|v| v == b"Y");
+            .get_bytes(TAG_POSS_RESEND).is_ok_and(|v| v == b"Y");
 
         // Check for ClOrdID-based deduplication.
         if let Ok(cl_ord_id_bytes) = msg.body.get_bytes(TAG_CL_ORD_ID) {

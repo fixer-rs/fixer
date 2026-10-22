@@ -30,7 +30,7 @@ fast-float2 = "0.2"
 futures = "0.3"
 itoap = "1"
 memchr = "2"
-mongodb = { version = "3", optional = true }
+mongodb = { version = "3.9", optional = true }
 opentelemetry = { version = "0.33", optional = true }
 opentelemetry_sdk = { version = "0.33", features = ["rt-tokio", "logs"], optional = true }
 opentelemetry-otlp = { version = "0.33", features = ["logs", "grpc-tonic"], optional = true }
@@ -48,6 +48,11 @@ sqlx = { version = "0.9", features = ["runtime-tokio", "sqlite", "postgres", "my
 sscanf = "0.5"
 thiserror = "2.0"
 tokio-rustls = "0.26"
+# Not used directly: floors for the eMudhra CA key compromise (CVE-2026-111943).
+# rustls-webpki verifies every TLS chain via tokio-rustls (RUSTSEC-2026-0382);
+# webpki-roots is mongodb's bundled trust store (RUSTSEC-2026-0381).
+rustls-webpki = "0.103.16"
+webpki-roots = { version = "1.0.10", optional = true }
 tokio = { version = "1.53", features = [
   "io-util",
   "io-std",
@@ -61,12 +66,12 @@ tokio = { version = "1.53", features = [
   "net",
 ] }
 sonic-rs = "0.5.8"
-fastxml = "0.11"
+fastxml = "0.12"
 
 [features]
 default = []
-mongo_store = ["mongodb"]
-mongo_log = ["mongodb"]
+mongo_store = ["mongodb", "webpki-roots"]
+mongo_log = ["mongodb", "webpki-roots"]
 sql_store = ["sqlx"]
 sql_log = ["sqlx"]
 otel_log = ["opentelemetry", "opentelemetry_sdk", "opentelemetry-otlp"]
