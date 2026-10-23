@@ -82,16 +82,16 @@ impl FixmlAbbreviations {
     ///
     /// The FIX repository these are derived from is not redistributable in
     /// full and is ~7 MB of XML per edition, so the fields FIXML actually
-    /// needs are extracted into a compact table under `spec/fixml/` and
+    /// needs are extracted into a compact table under `fixer/data/fixml/` and
     /// embedded here. Use [`from_fix_repository`](Self::from_fix_repository)
     /// to load a repository edition this crate does not bundle.
     pub fn bundled(version: &str) -> Result<Self, String> {
         let raw = match version {
-            "FIX.4.4" => include_str!("../../../../spec/fixml/FIX.4.4.tsv"),
-            "FIX.5.0" => include_str!("../../../../spec/fixml/FIX.5.0.tsv"),
-            "FIX.5.0SP1" => include_str!("../../../../spec/fixml/FIX.5.0SP1.tsv"),
-            "FIX.5.0SP2" => include_str!("../../../../spec/fixml/FIX.5.0SP2.tsv"),
-            "FIXT.1.1" => include_str!("../../../../spec/fixml/FIXT.1.1.tsv"),
+            "FIX.4.4" => include_str!("../../../data/fixml/FIX.4.4.tsv"),
+            "FIX.5.0" => include_str!("../../../data/fixml/FIX.5.0.tsv"),
+            "FIX.5.0SP1" => include_str!("../../../data/fixml/FIX.5.0SP1.tsv"),
+            "FIX.5.0SP2" => include_str!("../../../data/fixml/FIX.5.0SP2.tsv"),
+            "FIXT.1.1" => include_str!("../../../data/fixml/FIXT.1.1.tsv"),
             "FIX.4.0" | "FIX.4.1" | "FIX.4.2" | "FIX.4.3" => {
                 return Err(format!(
                     "{version} has no FIXML abbreviations: the FIX repository \
@@ -658,7 +658,7 @@ mod tests {
             assert_eq!(
                 from_repo.to_compact(),
                 bundled.to_compact(),
-                "{version}: spec/fixml is stale, regenerate it"
+                "{version}: fixer/data/fixml is stale, regenerate it"
             );
         }
     }
