@@ -4,7 +4,7 @@ description = "Acceptance test runner for fixer FIX protocol engine"
 edition = "2024"
 license = "Apache-2.0"
 name = "fixer-test"
-rust-version = "1.88"
+rust-version = "1.94"
 version = "0.10.3"
 publish = false
 
