@@ -27,7 +27,7 @@ pub fn timify(msg: &[u8]) -> Vec<u8> {
         let offset_str =
             std::str::from_utf8(&result[start + 6..start + 6 + end]).unwrap_or("0");
         let offset: i64 = offset_str.parse().unwrap_or(0);
-        let adjusted = (secs as i64 + sign * offset) as u64;
+        let adjusted = (secs.cast_signed() + sign * offset).cast_unsigned();
         let ts = format_utc_timestamp(adjusted);
         let mut new_result = Vec::with_capacity(result.len());
         new_result.extend_from_slice(&result[..start]);
