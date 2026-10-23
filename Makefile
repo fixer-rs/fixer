@@ -12,7 +12,7 @@ generate-float: clean
 	cargo run -p fixer-gen -- --use-float spec/FIX40.xml spec/FIX41.xml spec/FIX42.xml spec/FIX43.xml spec/FIX44.xml spec/FIX50.xml spec/FIX50SP1.xml spec/FIX50SP2.xml -o fixer-fix/src
 
 # Regenerate the bundled FIXML abbreviation tables from a FIX repository
-# checkout. The repository is not redistributable, so spec/fixml is checked in
+# checkout. The repository is not redistributable, so fixer/data/fixml is checked in
 # and this only needs re-running for a new repository edition. There is no
 # default path — point FIX_REPOSITORY at your own copy:
 #   make fixml-abbr FIX_REPOSITORY=/path/to/fix_repository_2010_edition_20200402
@@ -22,7 +22,7 @@ fixml-abbr:
 	  echo "usage: make fixml-abbr FIX_REPOSITORY=/path/to/fix_repository"; \
 	  exit 1; \
 	}
-	cargo run -p fixer-gen --bin fixml-abbr -- $(FIX_REPOSITORY) -o spec/fixml
+	cargo run -p fixer-gen --bin fixml-abbr -- $(FIX_REPOSITORY) -o fixer/data/fixml
 
 fmt:
 	cargo fmt --all

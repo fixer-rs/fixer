@@ -28,7 +28,8 @@ Add the following to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-fixer = { git = "https://github.com/fixer-rs/fixer" }
+fixer = "0.11"
+fixer-fix = "0.11"   # generated FIX message types (optional)
 ```
 
 ## FIX Messaging Model

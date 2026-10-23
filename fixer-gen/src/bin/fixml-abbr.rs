@@ -3,7 +3,7 @@
 //!
 //! The repository is ~7 MB of XML per edition and is not redistributable in
 //! full, but FIXML only needs 15 attributes out of it. This writes those into
-//! the compact tables under `spec/fixml/` that
+//! the compact tables under `fixer/data/fixml/` that
 //! `FixmlAbbreviations::bundled` embeds — about 500 KB for every version.
 //!
 //! Run via `make fixml-abbr FIX_REPOSITORY=/path/to/repository`.
@@ -37,7 +37,7 @@ struct Args {
     repository: PathBuf,
 
     /// Directory to write the tables into.
-    #[arg(short, long, default_value = "spec/fixml")]
+    #[arg(short, long, default_value = "fixer/data/fixml")]
     output: PathBuf,
 }
 
